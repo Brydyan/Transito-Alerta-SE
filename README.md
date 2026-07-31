@@ -41,7 +41,7 @@ La infraestructura de **Tránsito Alerta SE** está diseñada para ser ultra lig
 
 ### Componentes del Stack Tecnológico
 
-Stack-tecnológico.md
+docs/Stack-tecnológico.md
 
 ---
 
