@@ -1,2 +1,2 @@
-# Tr-nsito-Alerta-SE
+# Transito-Alerta-SE
 Sistema Web de Gestión Participativa de Incidencias Viales
