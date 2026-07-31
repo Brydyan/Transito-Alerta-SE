@@ -141,4 +141,4 @@ Para saber exactamente qué ocurre cuando los usuarios utilicen la aplicación e
 | **DevOps & QA** | Docker + GitHub Actions + Playwright | Automatización de pruebas y despliegue. |
 | **Observabilidad** | Sentry + Uptime Kuma | Detección de fallos y monitoreo de actividad. |
 | **Seguridad / CDN** | Cloudflare | HTTPS, mitigación de riesgos y caché. |
-¿Te gustaría que profundicemos en la configuración del pipeline de CI/CD con **GitHub Actions** para automatizar las pruebas de QA, o prefieres armar el archivo docker-compose.yml base para levantar PostgreSQL + PostGIS y Redis de una vez?
+
