@@ -41,13 +41,7 @@ La infraestructura de **Tránsito Alerta SE** está diseñada para ser ultra lig
 
 ### Componentes del Stack Tecnológico
 
-| Capa / Módulo | Tecnología | Justificación Técnica |
-| :--- | :--- | :--- |
-| **Frontend PWA & Admin** | **React / Next.js + Tailwind CSS** | Desarrollo modular, rápida renderización en navegadores móviles y soporte nativo de Service Workers. |
-| **Mapas & GIS** | **Leaflet.js + OpenStreetMap** | Solución 100% gratuita y *Open Source*, evitando costos de APIs comerciales (como Google Maps / Mapbox). |
-| **Base de Datos & Backend** | **Supabase (PostgreSQL + PostGIS)** | Base de datos relacional con motor espacial PostGIS para consultas por cercanía, soporte WebSocket en tiempo real y *Storage*. |
-| **Persistencia Offline** | **Workbox + IndexedDB** | Manejo de Service Worker para interceptar peticiones y almacenar reportes de manera local cuando el celular no tiene señal. |
-| **Optimización de Medios** | **Canvas API** | Redimensionamiento ($1280 \times 720$ px) y conversión a formato WebP directamente en el navegador del usuario antes del envío. |
+Stack-tecnológico.md
 
 ---
 
