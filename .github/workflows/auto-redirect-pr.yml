@@ -1,0 +1,40 @@
+name: "Auto Redirect PR Base Branch"
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+jobs:
+  redirect-base-branch:
+    runs-on: ubuntu-latest
+    # Opcional: permisos necesarios si la organización o repo tiene restricciones estrictas
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Cambiar rama base a develop
+        # Se ejecuta solo si el PR se abrió apuntando a 'main' y la rama de origen NO es 'develop'
+        if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref != 'develop'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            const targetBranch = 'develop';
+
+            console.log(`Cambiando la rama base del PR #${prNumber} a '${targetBranch}'...`);
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              base: targetBranch
+            });
+
+            // Agrega un comentario automático para avisar al desarrollador
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `🤖 **Bot de CI/CD:** La rama destino de este Pull Request se ha redirigido automáticamente a \`${targetBranch}\`.`
+            });
