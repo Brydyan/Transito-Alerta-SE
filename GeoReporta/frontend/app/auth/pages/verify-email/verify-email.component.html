@@ -1,0 +1,249 @@
+<!--
+  verify-email.component — OTP verification surface (story sc-117).
+
+  Refinement (NOT replacement) of the existing gr-* identity.
+  See DESIGN.md and PRODUCT.md for the durable system context.
+
+  Design contract (impeccable:new-work §5):
+
+  THESIS    — Esta pantalla no necesita convencer — necesita ejecutar.
+              La verificación OTP es una tarea puntual: el usuario llega
+              con un código en mano, lo tipea y se va a su destino. La
+              fricción es el enemigo; el input único con `letter-spacing`
+              es un espejismo de affordance. Refinamos el control del
+              código sin tocar la identidad del sistema `gr-*` ya en uso.
+
+  OWN-WORLD — Split-hero violeta a 150° (520px) + panel blanco a la
+              derecha (380px). Banners `gr-login__banner--info/success`.
+              Botón `gr-btn-primary` con gradiente 118° + glow violeta.
+              Celdas `gr-otp` reusan `--border-medium`, `--color-primary`,
+              `--priority-high-text` y los radios/alturas ya tipificados
+              en `gr-login__input`.
+
+  STORY     — Llegas con el código en mano. Escribís tu correo, después
+              tipeás los 6 dígitos — la primera celda recibe el foco si
+              venís del registro, las flechas saltan entre celdas, el
+              pegado llena las 6, backspace retrocede. Al completar las
+              6, foco al botón "Verificar". Si el backend rechaza,
+              las 6 celdas tiemblan brevemente en rojo, el banner de
+              error aparece, y después de 1.2s el estado se limpia.
+
+  FIRST VIEWPORT — Split hero a la izquierda con tres stats útiles
+              (6 dígitos / 15' expira / reenvío cada 60s), panel de form
+              a la derecha con título + subtítulo + banner info + input
+              email + label "Código de verificación (6 dígitos)" + 6
+              celdas OTP + botón Verificar + banner error + reenvío +
+              link "Volver al inicio de sesión".
+
+  FORM      — Refinamos dentro del sistema `gr-*` ya en uso. Reemplazamos
+              el input OTP único por 6 celdas contiguas con la misma
+              forma, borde y focus ring que `gr-login__input`; mantenemos
+              split-hero, banners, countdown, link "Volver al inicio de
+              sesión", endpoint y mensajes del backend.
+-->
+<div class="gr-login">
+  <!-- Left Hero Panel -->
+  <div class="gr-login__hero">
+    <div class="gr-login__hero-logo">
+      <div class="gr-login__hero-icon">
+        <i class="fa-solid fa-location-dot"></i>
+      </div>
+      <span>GeoReporta</span>
+    </div>
+    <div class="gr-login__hero-content">
+      <h1 class="gr-login__hero-title">Verificá tu correo electrónico.</h1>
+      <p class="gr-login__hero-desc">
+        Ingresá el código de 6 dígitos enviado a tu casilla para activar tu
+        cuenta y empezar a reportar incidencias.
+      </p>
+    </div>
+    <div class="gr-login__hero-stats">
+      <div><span class="gr-login__hero-stat-num">6</span>dígitos</div>
+      <div><span class="gr-login__hero-stat-num">15'</span>expira</div>
+      <div><span class="gr-login__hero-stat-num">60 s</span>reenvío</div>
+    </div>
+    <i
+      class="fa-solid fa-envelope-open gr-login__deco"
+      style="top: 120px; right: 80px; font-size: 30px; opacity: 0.16"
+    ></i>
+    <i
+      class="fa-solid fa-shield-check gr-login__deco"
+      style="top: 240px; right: 160px; font-size: 18px; opacity: 0.18"
+    ></i>
+    <i
+      class="fa-solid fa-key gr-login__deco"
+      style="top: 300px; right: 60px; font-size: 22px; opacity: 0.14"
+    ></i>
+    <div class="gr-login__deco-circle"></div>
+  </div>
+
+  <!-- Right Form Panel -->
+  <div class="gr-login__form-wrap">
+    <div class="gr-login__form-box">
+      <h2 class="gr-login__form-title">Verificá tu correo</h2>
+      <p class="gr-login__form-sub">
+        Ingresá los 6 dígitos que enviamos a tu correo para activar tu cuenta.
+      </p>
+
+      <div
+        id="estado-inicial"
+        class="gr-login__banner gr-login__banner--info"
+        role="status"
+      >
+        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+        <span id="inicial-texto"
+          >Revisá tu bandeja de entrada e ingresá el código de 6 dígitos.</span
+        >
+      </div>
+
+      <form id="form-otp" novalidate>
+        <label class="gr-form-label" for="otp-email">Correo electrónico</label>
+        <div class="gr-input-wrap">
+          <i
+            class="fa-regular fa-envelope gr-input-icon"
+            aria-hidden="true"
+          ></i>
+          <input
+            type="email"
+            id="otp-email"
+            class="gr-input"
+            placeholder="tu.correo@ejemplo.com"
+            autocomplete="email"
+            required
+          />
+        </div>
+
+        <div class="gr-otp">
+          <span class="gr-form-label" id="otp-label"
+            >Código de verificación (6 dígitos)</span
+          >
+          <div class="gr-otp__cells" role="group" aria-labelledby="otp-label">
+            <input
+              type="text"
+              class="gr-otp__cell"
+              inputmode="numeric"
+              pattern="[0-9]"
+              autocomplete="one-time-code"
+              maxlength="1"
+              aria-label="Dígito 1"
+            />
+            <input
+              type="text"
+              class="gr-otp__cell"
+              inputmode="numeric"
+              pattern="[0-9]"
+              maxlength="1"
+              aria-label="Dígito 2"
+            />
+            <input
+              type="text"
+              class="gr-otp__cell"
+              inputmode="numeric"
+              pattern="[0-9]"
+              maxlength="1"
+              aria-label="Dígito 3"
+            />
+            <input
+              type="text"
+              class="gr-otp__cell"
+              inputmode="numeric"
+              pattern="[0-9]"
+              maxlength="1"
+              aria-label="Dígito 4"
+            />
+            <input
+              type="text"
+              class="gr-otp__cell"
+              inputmode="numeric"
+              pattern="[0-9]"
+              maxlength="1"
+              aria-label="Dígito 5"
+            />
+            <input
+              type="text"
+              class="gr-otp__cell"
+              inputmode="numeric"
+              pattern="[0-9]"
+              maxlength="1"
+              aria-label="Dígito 6"
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          class="gr-btn-primary gr-btn-primary--full"
+          id="btn-verificar"
+        >
+          <span id="btn-verificar-texto">Verificar código</span>
+          <span id="btn-verificar-loading" class="d-none">
+            <span
+              class="spinner-border spinner-border-sm me-2"
+              role="status"
+              aria-hidden="true"
+            ></span>
+            Verificando&hellip;
+          </span>
+        </button>
+      </form>
+
+      <div
+        id="estado-exito"
+        class="gr-login__banner gr-login__banner--success d-none"
+        role="alert"
+      >
+        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+        <span id="exito-texto">Tu correo fue verificado correctamente.</span>
+      </div>
+
+      <div id="estado-error" class="alert alert-danger d-none" role="alert">
+        <i class="fa-solid fa-circle-exclamation me-1" aria-hidden="true"></i>
+        <span id="error-texto">El código OTP es inválido o ha expirado.</span>
+      </div>
+
+      <div
+        class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"
+      >
+        <span class="text-muted small">¿No recibiste el código?</span>
+        <button
+          type="button"
+          class="btn btn-link btn-sm p-0 text-decoration-none fw-bold"
+          id="btn-reenviar"
+        >
+          <span id="btn-texto">Reenviar código</span>
+          <span id="btn-loading" class="d-none">
+            <span
+              class="spinner-border spinner-border-sm me-1"
+              role="status"
+              aria-hidden="true"
+            ></span
+            >Enviando...
+          </span>
+          <span id="btn-countdown" class="d-none"></span>
+        </button>
+      </div>
+
+      <div
+        id="estado-reenvio"
+        class="gr-login__banner gr-login__banner--success d-none mt-2"
+        role="status"
+      >
+        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+        <span id="reenvio-texto"
+          >Te hemos enviado un nuevo código de verificación.</span
+        >
+      </div>
+
+      <div class="text-center mt-4">
+        <a
+          href="#/login"
+          class="gr-login__forgot"
+          style="display: inline-flex; align-items: center; gap: 6px"
+        >
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Volver al
+          inicio de sesión
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

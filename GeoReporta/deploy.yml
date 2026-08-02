@@ -1,0 +1,548 @@
+# Deploy Stack — Sistema de Incidencias Georreferenciadas
+# Uso: docker stack deploy -c deploy.yml incidencias-stack
+#
+# Requisitos:
+#   - Docker Swarm mode activado
+#   - Archivo .env con variables de entorno (DB_PASSWORD, JWT_SECRET, etc.)
+#   - PostGIS 17+, Redis 8+
+#   - Red overlay `incidencias-network` ya creada en el host Swarm
+#     (la crea el CI de forma idempotente; ver `.github/workflows/deploy.yml`)
+
+# ============================================================================
+# Anchor: variables de entorno compartidas por backend y worker
+# ============================================================================
+# Centraliza todas las vars que el backend Laravel necesita (DB, Redis, mail,
+# JWT, AWS/S3, Firebase) en un solo lugar. Los tres servicios que
+# ejecutan código Laravel (`backend`, `worker`) referencian este
+# anchor con `<<: *x-backend-env` y solo agregan las vars que les son
+# exclusivas (ej. `OCTANE_SERVER: swoole` solo en backend).
+#
+# Si agregás una var nueva que el backend necesita, agregala acá: se
+# propaga automáticamente al worker sin duplicar.
+#
+# Convenção Docker Compose: anchors que empiezan con `x-` son extensiones
+# del archivo (no servicios) y se ignoran al parsear el stack — solo
+# sirven como plantillas reutilizables.
+x-backend-env: &x-backend-env
+  APP_NAME: ${APP_NAME:-Sistema de Incidencias Georreferenciadas}
+  APP_ENV: ${APP_ENV:-production}
+  APP_DEBUG: ${APP_DEBUG:-false}
+  APP_KEY: ${APP_KEY:-base64:u6tjIC/VFXSw3JCFREITtaD1jjhDj7ekTQN4WQXcft8=}
+  APP_URL: ${APP_URL:-https://app2.dihm-muertos.site}
+  APP_LOCALE: ${APP_LOCALE:-es}
+  APP_FALLBACK_LOCALE: ${APP_FALLBACK_LOCALE:-es}
+  APP_FAKER_LOCALE: ${APP_FAKER_LOCALE:-es_ES}
+  DB_CONNECTION: pgsql
+  DB_HOST: db
+  DB_PORT: "5432"
+  DB_DATABASE: ${DB_DATABASE:-incidencias_db}
+  DB_USERNAME: ${DB_USERNAME:-user}
+  DB_PASSWORD: ${DB_PASSWORD:-password}
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  SESSION_DRIVER: ${SESSION_DRIVER:-file}
+  CACHE_STORE: ${CACHE_STORE:-file}
+  # Default redis desde el slice de encolado por Redis. Si el operador
+  # fuerza QUEUE_CONNECTION=sync en .env, los mails vuelven al path
+  # sincrónico original (útil para tests/debug local).
+  QUEUE_CONNECTION: ${QUEUE_CONNECTION:-redis}
+  # Folded scalar (- preserva contenido al partir el string en lineas).
+  # yamllint disable-line rule:line-length
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-jwt_access_secret_for_development_only_change_in_prod}
+  JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+  # yamllint disable-line rule:line-length
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-jwt_refresh_secret_for_development_only_change_in_prod}
+  JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,https://app2.dihm-muertos.site}
+  API_VERSION: ${API_VERSION:-1.0.0}
+  # Storage: AWS_* is read by Laravel directly (S3 driver, filesystems
+  # cache, queue, StorageService). One source of truth, no rename.
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-rustfsadmin}
+  # yamllint disable-line rule:line-length
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-rustfsadmin}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+  AWS_BUCKET: ${AWS_BUCKET:-incidencias}
+  AWS_ENDPOINT: ${AWS_ENDPOINT:-http://rustfs:9000}
+  AWS_USE_PATH_STYLE_ENDPOINT: ${AWS_USE_PATH_STYLE_ENDPOINT:-true}
+  # Única fuente de verdad para imagenes (StorageService, incidencias,
+  # comentarios, avatares) via config('filesystems.image_disk').
+  FILESYSTEM_STORAGE_DISK: ${FILESYSTEM_STORAGE_DISK:-s3}
+  # Disco Laravel general (framework), NO usado por imagenes. Debe
+  # coincidir con FILESYSTEM_STORAGE_DISK arriba para evitar confusion.
+  FILESYSTEM_DISK: ${FILESYSTEM_DISK:-s3}
+  # Mail Setup
+  MAIL_MAILER: ${MAIL_MAILER:-smtp}
+  MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+  MAIL_PORT: ${MAIL_PORT:-587}
+  MAIL_ENCRYPTION: ${MAIL_ENCRYPTION:-tls}
+  MAIL_USERNAME: ${MAIL_USERNAME:-}
+  MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
+  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-}
+  # Invitation Setup
+  FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-}
+  TERMS_VERSION: ${TERMS_VERSION:-v0}
+  INVITATION_TTL_HOURS: ${INVITATION_TTL_HOURS:-48}
+  LOG_CHANNEL: stderr_json
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-}
+  FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+  FIREBASE_LEEWAY_SECONDS: ${FIREBASE_LEEWAY_SECONDS:-}
+
+services:
+  frontend:
+    image: sistema-incidencias-frontend:${IMAGE_TAG:-latest}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+    networks:
+      - incidencias-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx_status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: any
+
+  backend:
+    image: sistema-incidencias-backend:${IMAGE_TAG:-latest}
+    environment:
+      <<: *x-backend-env
+      # Único override del backend: Octane/Swoole como runtime HTTP.
+      # Worker setea OCTANE_SERVER="" explícitamente para
+      # que el comando artisan no intente levantar Octane (que reserva
+      # memoria y pool de Swoole que estos procesos no necesitan).
+      OCTANE_SERVER: swoole
+    # Backend now hosts two processes:
+    #   1. octane:start (Swoole HTTP server for the API + SSE)
+    #   2. schedule:work (cron-style scheduler for periodic tasks)
+    # Both run in the same container so we don't pay for a third
+    # Laravel process. The schedule worker is single-writer safe
+    # because we only run schedule:work from one of the two
+    # replicas — see App\Console\Kernel for the
+    # withoutOverlapping() lock that prevents duplicate dispatch.
+    command:
+      - sh
+      - -c
+      - |
+        php artisan octane:start --host=0.0.0.0 --port=8000 &
+        php artisan schedule:work &
+        wait
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      - db
+      - redis
+    networks:
+      - incidencias-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: any
+
+  # ==========================================
+  # QUEUE WORKER (procesa Jobs de mail)
+  # ==========================================
+  # Reusa la misma imagen del backend (mismo composer/vendor, mismas
+  # dependencias, mismo APP_KEY, misma config) y ejecuta
+  # `php artisan queue:work redis` para consumir los Jobs encolados por
+  # MailJobDispatcher (SendAssignmentMailJob, SendInvitationMailJob).
+  #
+  # Sin este worker los Jobs se acumulan en Redis y nadie los procesa:
+  # el `backend` (Octane) solo procesa HTTP requests, no colas.
+  #
+  # Replicas: 1 porque un solo worker es suficiente para el volumen
+  # actual de mails. Si crece, escalar a 2-3 con sharding por queue
+  # (`--queue=mail-assignments,mail-invitations` por worker).
+  worker:
+    image: sistema-incidencias-backend:${IMAGE_TAG:-latest}
+    environment:
+      <<: *x-backend-env
+      # Forzamos redis para el worker aunque el operador haya puesto
+      # QUEUE_CONNECTION=sync en .env: si el worker corre sync, no hay
+      # punto en existir (los Jobs se ejecutarían inline en el backend).
+      QUEUE_CONNECTION: redis
+      # Vacío explícito: el worker NO debe levantar Octane. El comando
+      # artisan queue:work es un proceso CLI standalone.
+      OCTANE_SERVER: ""
+    command:
+      - php
+      - artisan
+      - queue:work
+      - redis
+      - "--tries=3"
+      - "--backoff=10"
+      - "--max-time=3600"
+      - "--sleep=3"
+      - "--timeout=60"
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  db:
+    image: postgis/postgis:17-3.5-alpine
+    command:
+      - postgres
+      - -c
+      - max_connections=250
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-incidencias_db}
+      POSTGRES_USER: ${DB_USERNAME:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" &&
+          max_connections="$$(psql
+          -U "$${POSTGRES_USER}"
+          -d "$${POSTGRES_DB}"
+          -Atqc 'SHOW max_connections')" &&
+          test "$$max_connections" -ge 250
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    # CRITICAL: --requirepass protects Redis. The same secret is used
+    # by the backend via REDIS_PASSWORD. Without this any process with
+    # network access to the redis container can read every key in
+    # the cache.
+    command:
+      - redis-server
+      - "--requirepass"
+      - "${REDIS_PASSWORD:-}"
+      - "--appendonly"
+      - "yes"
+    volumes:
+      - redis_data:/data
+    # NOTE: deliberately no `ports:` in prod. Redis is reachable only
+    # from inside the incidencias-network. If you need to debug from
+    # the host, use `docker exec -it <redis-container> redis-cli -a $PWD`
+    # rather than exposing the port.
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - -a
+        - "${REDIS_PASSWORD}"
+        - --no-auth-warning
+        - ping
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  rustfs:
+    image: ${RUSTFS_IMAGE:-rustfs/rustfs:latest}
+    user: root
+    entrypoint: >
+      /bin/sh -c "chown -R 10001:10001 /data && exec /entrypoint.sh rustfs"
+    environment:
+      # yamllint disable-line rule:line-length
+      RUSTFS_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-rustfsadmin}
+      # yamllint disable-line rule:line-length
+      RUSTFS_SECRET_KEY: ${STORAGE_SECRET_KEY:-rustfsadmin}
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes:
+      - rustfs_data:/data
+    ports:
+      - "${RUSTFS_API_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/'
+        - "| grep -qE '200|403'"
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning
+      - ./ops/dashboards:/var/lib/grafana/dashboards
+      - ./ops/dashboards-k6:/var/lib/grafana/dashboards-k6
+      - grafana_data:/var/lib/grafana
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    configs:
+      - source: loki_config
+        target: /etc/loki/loki.yml
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  promtail:
+    image: grafana/promtail:latest
+    user: root
+    configs:
+      - source: promtail_config
+        target: /etc/promtail/config.yml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - incidencias-network
+    deploy:
+      mode: global
+      restart_policy:
+        condition: any
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    environment:
+      # Conexion en vars separadas (postgres_exporter acepta
+      # DATA_SOURCE_HOST/PORT/USER/PASS/DB/SSLMODE individualmente).
+      # DATA_SOURCE_NAME completo (161 chars) supera el limite de 80.
+      DATA_SOURCE_HOST: db
+      DATA_SOURCE_PORT: "5432"
+      DATA_SOURCE_USER: ${DB_USERNAME:-user}
+      # yamllint disable-line rule:line-length
+      DATA_SOURCE_PASS: ${DB_PASSWORD:-password}
+      DATA_SOURCE_DB: ${DB_DATABASE:-incidencias_db}
+      DATA_SOURCE_SSLMODE: disable
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  redis_exporter:
+    image: oliver006/redis_exporter:latest
+    environment:
+      REDIS_ADDR: "redis:6379"
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  portainer:
+    image: portainer/portainer-ce:lts
+    command: -H unix:///var/run/docker.sock
+    ports:
+      - "${PORTAINER_HTTPS_PORT:-9443}:9443"
+      - "${PORTAINER_HTTP_PORT:-9010}:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      # yamllint disable-line rule:line-length
+      - ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - frontend
+      - backend
+      - sonarqube
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # ==========================================
+  # STATIC CODE ANALYSIS (SonarQube)
+  # ==========================================
+  # SonarQube ships its own UI/dashboard, intentionally kept separate from
+  # the Prometheus/Grafana/Loki observability stack.
+  #
+  # NOTE: Elasticsearch (embedded) requires vm.max_map_count >= 262144 on
+  # the host. Persist it with:
+  #   echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf \
+  #     && sudo sysctl -p
+  sonarqube_db:
+    image: ${SONARQUBE_DB_IMAGE:-postgres:17-alpine}
+    # Override del puerto interno. La imagen postgres:*-alpine no expone
+    # POSTGRES_PORT como env var; pasamos -p <puerto> al binario.
+    # Si se cambia SONARQUBE_DB_PORT en .env, este command lo respeta.
+    command: ["postgres", "-p", "${SONARQUBE_DB_PORT:-5432}"]
+    environment:
+      POSTGRES_DB: ${SONARQUBE_DB_DATABASE:-sonarqube}
+      POSTGRES_USER: ${SONARQUBE_DB_USERNAME:-sonarqube}
+      # yamllint disable-line rule:line-length
+      POSTGRES_PASSWORD: ${SONARQUBE_DB_PASSWORD:-sonarqube}
+    volumes:
+      - sonarqube_db_data:/var/lib/postgresql/data
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    healthcheck:
+      # Single folded scalar — Docker's `test: ["CMD-SHELL", arg1, arg2, ...]`
+      # does NOT concatenate args. Only the first string after CMD-SHELL runs
+      # in the shell; the rest become positional args to `sh` and are discarded
+      # by `pg_isready`. The previous multi-line form silently ran only
+      # `pg_isready -U sonarqube` (default port 5432), which never matched the
+      # actual postgres listener on the overridden port — making sonarqube_db
+      # crashloop and sonarqube unable to resolve its hostname.
+      # Same folded-scalar pattern as `db:` healthcheck (línea 245), which works.
+      test:
+        - "CMD-SHELL"
+        - >-
+          pg_isready -U ${SONARQUBE_DB_USERNAME:-sonarqube}
+          -d ${SONARQUBE_DB_DATABASE:-sonarqube}
+          -p ${SONARQUBE_DB_PORT:-5432}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sonarqube:
+    image: ${SONARQUBE_IMAGE:-sonarqube:26.7.0.124771-community}
+    depends_on:
+      - sonarqube_db
+    environment:
+      # sonarqube_db:${SONARQUBE_DB_PORT:-5432} usa el puerto INTERNO
+      # del contenedor sonarqube_db, parametrizable via .env.
+      # yamllint disable-line rule:line-length
+      SONAR_JDBC_URL: "jdbc:postgresql://sonarqube_db:${SONARQUBE_DB_PORT:-5432}/${SONARQUBE_DB_DATABASE:-sonarqube}"
+      SONAR_JDBC_USERNAME: ${SONARQUBE_DB_USERNAME:-sonarqube}
+      # yamllint disable-line rule:line-length
+      SONAR_JDBC_PASSWORD: ${SONARQUBE_DB_PASSWORD:-sonarqube}
+    ports:
+      - "${SONARQUBE_PORT:-9002}:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+    networks:
+      - incidencias-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "curl -s http://localhost:9000/api/system/status"
+        - '| grep -q ''"status":"UP"'''
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  db_data:
+  redis_data:
+  rustfs_data:
+  grafana_data:
+  portainer_data:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_db_data:
+
+networks:
+  # Red overlay administrada FUERA del ciclo de vida del stack.
+  # La crea el CI (.github/workflows/deploy.yml) de forma idempotente
+  # en el host Swarm ANTES de `docker stack deploy`, y como `external: true`
+  # el stack la consume sin prefijarla con `incidencias-stack_`.
+  # Beneficios: sobrevive a `docker stack rm`, se puede reusar entre
+  # redeploys, debug con `docker run --network incidencias-network` sin
+  # pasar por service mesh.
+  incidencias-network:
+    external: true
+
+configs:
+  prometheus_config:
+    file: ./ops/prometheus/prometheus.swarm.yml
+  loki_config:
+    file: ./ops/loki/loki.yml
+  promtail_config:
+    file: ./ops/promtail/promtail.yml

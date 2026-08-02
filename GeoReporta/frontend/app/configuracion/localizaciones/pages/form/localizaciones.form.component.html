@@ -1,0 +1,146 @@
+<div class="gr-page">
+  <!-- Header -->
+  <div class="gr-page__header">
+    <div>
+      <h1 class="gr-page__title" id="form-titulo">Nueva Localización</h1>
+      <nav class="gr-breadcrumb">
+        <span class="gr-breadcrumb__item">Configuración</span>
+        <span class="gr-breadcrumb__sep">/</span>
+        <a
+          href="#/localizaciones"
+          class="gr-breadcrumb__item"
+          style="text-decoration: none; color: inherit"
+          >Localizaciones</a
+        >
+        <span class="gr-breadcrumb__sep">/</span>
+        <span
+          class="gr-breadcrumb__item gr-breadcrumb__item--active"
+          id="breadcrumb-actual"
+          >Crear</span
+        >
+      </nav>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="gr-card gr-form-card">
+    <div style="padding: 28px 32px">
+      <h5 class="mb-1 fw-bold text-dark" id="card-titulo">
+        Nueva Localización
+      </h5>
+      <p class="text-muted mb-4" style="font-size: 13px">
+        Los campos marcados con <span class="text-danger">*</span> son
+        obligatorios.
+      </p>
+
+      <form id="form-loc" novalidate>
+        <input type="hidden" id="loc-id" />
+
+        <!-- Sección: Identificación Territorial -->
+        <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">
+          <i class="fas fa-map-marker-alt me-2"></i>Identificación Territorial
+        </h6>
+
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <label for="loc-nombre" class="form-label fw-semibold">
+              Nombre de la Entidad Geográfica <span class="text-danger">*</span>
+            </label>
+            <input
+              type="text"
+              class="form-control form-control-lg"
+              id="loc-nombre"
+              maxlength="50"
+              required
+              placeholder="Ej: Quito"
+            />
+            <div class="invalid-feedback">El nombre es obligatorio.</div>
+          </div>
+          <div class="col-md-6">
+            <label for="loc-codigo" class="form-label fw-semibold">
+              Código Cartográfico / ISO <span class="text-danger">*</span>
+            </label>
+            <input
+              type="text"
+              class="form-control form-control-lg"
+              id="loc-codigo"
+              maxlength="20"
+              required
+              placeholder="Ej: UIO"
+            />
+            <div class="invalid-feedback">El código es obligatorio.</div>
+          </div>
+        </div>
+
+        <!-- Sección: Jerarquía Geográfica -->
+        <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">
+          <i class="fas fa-sitemap me-2"></i>Nivel y Jerarquía
+        </h6>
+
+        <div class="row g-3 mb-5">
+          <div class="col-md-6">
+            <label for="loc-nivel" class="form-label fw-semibold">
+              Nivel de la Entidad <span class="text-danger">*</span>
+            </label>
+            <select class="form-select form-select-lg" id="loc-nivel" required>
+              <option value="">-- Seleccione Nivel --</option>
+              <option value="country">País</option>
+              <option value="province">Provincia</option>
+              <option value="city">Ciudad</option>
+              <option value="neighborhood">Barrio</option>
+            </select>
+            <div class="invalid-feedback">Seleccione un nivel.</div>
+          </div>
+          <div class="col-md-6">
+            <label for="loc-padre" class="form-label fw-semibold">
+              Localización Padre
+            </label>
+            <select class="form-select form-select-lg" id="loc-padre">
+              <option value="">-- Ninguna (Nivel Raíz / País) --</option>
+            </select>
+            <div class="form-text mt-1" style="font-size: 12px">
+              Filtrado dinámicamente según el nivel seleccionado (Ej: Provincias
+              para Ciudades).
+            </div>
+          </div>
+        </div>
+
+        <!-- Acciones -->
+        <div class="d-flex gap-2 pt-2 border-top">
+          <button type="submit" class="gr-btn-primary" id="btn-guardar-loc">
+            <span id="loc-btn-texto"
+              ><i class="fas fa-save me-1"></i>Guardar Localización</span
+            >
+            <span id="loc-btn-loading" class="d-none">
+              <span class="spinner-border spinner-border-sm me-1"></span
+              >Guardando...
+            </span>
+          </button>
+          <a href="#/localizaciones" class="btn btn-outline-secondary px-4"
+            >Cancelar</a
+          >
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notifications -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
+  <div
+    id="toast-msg"
+    class="toast align-items-center text-white border-0"
+    role="alert"
+    aria-live="assertive"
+    aria-atomic="true"
+  >
+    <div class="d-flex">
+      <div class="toast-body" id="toast-msg-texto"></div>
+      <button
+        type="button"
+        class="btn-close btn-close-white me-2 m-auto"
+        data-bs-dismiss="toast"
+      ></button>
+    </div>
+  </div>
+</div>

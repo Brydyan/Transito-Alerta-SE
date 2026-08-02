@@ -1,0 +1,295 @@
+<!-- Feed — Bootstrap 5 responsive layout (1-col → 2-col ≥ 992px) -->
+<div id="feed" class="row">
+  <div class="col-12 col-lg-8">
+    <!-- Composer bar (only when auth) -->
+    <div class="composer-bar d-none card mb-3" id="composer-bar">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="composer-avatar" id="composer-avatar">MR</div>
+        <button
+          type="button"
+          class="composer-input-wrap btn flex-grow-1"
+          aria-label="Reportar nueva incidencia"
+        >
+          <span class="composer-placeholder"
+            >¿Qué incidencia deseas reportar hoy?</span
+          >
+        </button>
+        <button class="composer-btn btn btn-primary">
+          <i class="fa-solid fa-location-dot"></i> Reportar
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Cards — Top Section (Mobile-only) -->
+    <div id="stats-container" class="stats-cards mb-4 d-lg-none">
+      <!-- Nuevas hoy card -->
+      <div class="stats-card">
+        <div class="stats-icon stats-icon-new">
+          <i class="fa-solid fa-plus"></i>
+        </div>
+        <div class="stats-content">
+          <div class="stats-value" id="stat-new">14</div>
+          <div class="stats-label">Nuevas hoy</div>
+        </div>
+      </div>
+
+      <!-- Resueltas hoy card -->
+      <div class="stats-card">
+        <div class="stats-icon stats-icon-resolved">
+          <i class="fa-solid fa-check"></i>
+        </div>
+        <div class="stats-content">
+          <div class="stats-value" id="stat-resolved">8</div>
+          <div class="stats-label">Resueltas hoy</div>
+        </div>
+      </div>
+
+      <!-- Promedio resolución card -->
+      <div class="stats-card">
+        <div class="stats-icon stats-icon-avg">
+          <i class="fa-solid fa-clock"></i>
+        </div>
+        <div class="stats-content">
+          <div class="stats-value" id="stat-avg">2.4d</div>
+          <div class="stats-label">Promedio resolución</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search input — mobile-only (right panel hosts it on desktop) -->
+    <div class="feed-search-input-wrap d-block d-lg-none mb-3">
+      <div class="feed-search-input">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input
+          type="text"
+          id="feed-search-input"
+          class="feed-search-input__field"
+          placeholder="Buscar incidencia..."
+          aria-label="Buscar incidencia"
+        />
+      </div>
+    </div>
+
+    <!-- Filter Feed — Collapsible Section -->
+    <div class="feed-filter-section mb-4">
+      <div
+        class="feed-filter-toggle d-flex align-items-center justify-content-between"
+        id="feed-filter-toggle"
+        role="button"
+        tabindex="0"
+        aria-expanded="false"
+        aria-controls="feed-filter-content"
+      >
+        <div class="fw-bold" style="font-size: 15px">Filtrar feed</div>
+        <i class="fa-solid fa-chevron-down feed-filter-chevron"></i>
+      </div>
+      <div
+        id="feed-filter-content"
+        class="feed-filter-content feed-filter-collapsed"
+      >
+        <!-- Filter chips (in collapsible) -->
+        <div class="feed-filters d-flex flex-wrap gap-2 mt-3" id="feed-filters">
+          <button
+            class="feed-chip active btn btn-outline-primary btn-sm"
+            data-status=""
+          >
+            Todo
+          </button>
+          <button
+            class="feed-chip btn btn-outline-primary btn-sm"
+            data-status="in_progress"
+          >
+            En proceso
+          </button>
+          <button
+            class="feed-chip btn btn-outline-primary btn-sm"
+            data-status="pending"
+          >
+            Pendientes
+          </button>
+          <button
+            class="feed-chip btn btn-outline-primary btn-sm"
+            data-status="resolved"
+          >
+            Resueltos
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading skeleton -->
+    <div id="feed-cargando" class="feed-skeleton-wrap">
+      <div class="feed-skeleton-card card">
+        <div class="card-body">
+          <div class="feed-skel-head d-flex align-items-center gap-2 mb-3">
+            <div class="feed-skel-avatar"></div>
+            <div class="feed-skel-line w-40"></div>
+          </div>
+          <div class="feed-skel-preview mb-3"></div>
+          <div class="feed-skel-body">
+            <div class="feed-skel-line w-60 mb-2"></div>
+            <div class="feed-skel-line w-30"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="feed-vacio" class="feed-empty d-none card text-center">
+      <div class="card-body">
+        <div class="feed-empty-icon">📭</div>
+        <p>No hay incidencias publicadas.</p>
+      </div>
+    </div>
+
+    <div id="feed-scroll-region" class="feed-scroll-region">
+      <div id="feed-list" class="feed-cards row g-3"></div>
+
+      <!--
+        Invisible trigger for the IntersectionObserver. No visual presence.
+        Its sole job is to be scrolled into view so the observer fires.
+      -->
+      <div
+        id="feed-scroll-trigger"
+        class="feed-scroll-trigger"
+        aria-hidden="true"
+      ></div>
+
+      <!--
+        Loading spinner. Hidden by default with .d-none; the JS removes the
+        class only while fetchIncidencias is in flight (append=true). This
+        is the visual feedback the user asked for: spinner only appears
+        when data is actively loading, never sits idle at the bottom.
+      -->
+      <div id="feed-loading" class="feed-loading d-none">
+        <div class="feed-spinner"></div>
+      </div>
+
+      <!-- End-of-list indicator (visible only once the last page is reached) -->
+      <div class="feed-footer-message" role="status">
+        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+        <span>Has visto todos los incidentes</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel (hidden mobile <992px) -->
+  <aside class="col-12 col-lg-4 d-none d-lg-block feed-aside">
+    <!-- Filtros -->
+    <div class="rp-card card shadow-sm border-0 rounded-3 p-3 mb-3">
+      <div
+        class="rp-filter-toggle d-flex align-items-center justify-content-between cursor-pointer mb-3"
+        id="rp-filter-toggle"
+        role="button"
+        tabindex="0"
+        aria-expanded="true"
+        aria-controls="rp-filter-content"
+      >
+        <div class="rp-card-title card-title fw-bold mb-0">Filtrar feed</div>
+        <i class="fa-solid fa-chevron-down rp-filter-chevron"></i>
+      </div>
+      <div id="rp-filter-content" class="rp-filter-content">
+        <!-- Search input — desktop (right panel) -->
+        <div class="feed-search-input-wrap mb-3">
+          <div class="feed-search-input">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              id="rp-search-input"
+              class="feed-search-input__field"
+              placeholder="Buscar incidencia..."
+              aria-label="Buscar incidencia"
+            />
+          </div>
+        </div>
+        <div
+          class="rp-card-section-label text-muted small fw-bold text-uppercase"
+        >
+          ESTADO
+        </div>
+        <div
+          class="rp-filter-chips d-flex flex-wrap gap-2 mb-3"
+          id="rp-status-filters"
+        >
+          <div class="rp-filter-chip active badge bg-primary" data-status="">
+            Todo
+          </div>
+          <div
+            class="rp-filter-chip badge bg-secondary"
+            data-status="in_progress"
+          >
+            En proceso
+          </div>
+          <div class="rp-filter-chip badge bg-secondary" data-status="pending">
+            Pendiente
+          </div>
+          <div class="rp-filter-chip badge bg-secondary" data-status="resolved">
+            Resuelto
+          </div>
+        </div>
+        <div
+          class="rp-card-section-label text-muted small fw-bold text-uppercase"
+        >
+          TIPO
+        </div>
+        <!--
+          Rendered dynamically by feed.component.js from the real category
+          tree (GET /incident-categories/tree), including subcategories.
+          Keep the container empty in the template — no hardcoded labels.
+        -->
+        <div class="rp-category-filters" id="rp-category-filters"></div>
+      </div>
+    </div>
+
+    <!-- Estadísticas rápidas -->
+    <div class="rp-card card shadow-sm border-0 rounded-3 p-3 mb-3">
+      <div class="rp-card-title card-title fw-bold mb-3">Estadísticas hoy</div>
+      <div class="rp-stat row align-items-center mb-2">
+        <div class="rp-stat-icon col-auto">
+          <i class="fa-solid fa-circle-plus text-purple"></i>
+        </div>
+        <div class="col">
+          <div class="rp-stat-value fs-5 fw-bold" id="rp-stat-new">14</div>
+          <div class="rp-stat-label small text-muted">Nuevas hoy</div>
+        </div>
+      </div>
+      <div class="rp-stat row align-items-center mb-2">
+        <div class="rp-stat-icon col-auto">
+          <i class="fa-solid fa-circle-check text-success"></i>
+        </div>
+        <div class="col">
+          <div class="rp-stat-value fs-5 fw-bold" id="rp-stat-resolved">8</div>
+          <div class="rp-stat-label small text-muted">Resueltas hoy</div>
+        </div>
+      </div>
+      <div class="rp-stat row align-items-center">
+        <div class="rp-stat-icon col-auto">
+          <i class="fa-regular fa-clock text-warning"></i>
+        </div>
+        <div class="col">
+          <div class="rp-stat-value fs-5 fw-bold" id="rp-stat-avg">2.4 d</div>
+          <div class="rp-stat-label small text-muted">Promedio resolución</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zonas activas -->
+    <div class="rp-card card shadow-sm border-0 rounded-3 p-3">
+      <div class="rp-card-title card-title fw-bold mb-3">Zonas activas</div>
+      <div class="rp-zone row align-items-center mb-2">
+        <div class="rp-zone-rank badge rounded-2 bg-primary col-auto">1</div>
+        <div class="col">Quito, Pichincha</div>
+        <div class="rp-zone-count col-auto text-muted">386</div>
+      </div>
+      <div class="rp-zone row align-items-center mb-2">
+        <div class="rp-zone-rank badge rounded-2 bg-secondary col-auto">2</div>
+        <div class="col">Guayaquil, Guayas</div>
+        <div class="rp-zone-count col-auto text-muted">298</div>
+      </div>
+      <div class="rp-zone row align-items-center">
+        <div class="rp-zone-rank badge rounded-2 bg-secondary col-auto">3</div>
+        <div class="col">Cuenca, Azuay</div>
+        <div class="rp-zone-count col-auto text-muted">174</div>
+      </div>
+    </div>
+  </aside>
+</div>

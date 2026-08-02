@@ -1,0 +1,327 @@
+<div class="gr-page">
+  <!-- Header -->
+  <div class="gr-page__header">
+    <div>
+      <h1 class="gr-page__title">Dashboard</h1>
+      <nav class="gr-breadcrumb">
+        <span class="gr-breadcrumb__item">Inicio</span>
+        <span class="gr-breadcrumb__sep">/</span>
+        <span class="gr-breadcrumb__item gr-breadcrumb__item--active"
+          >Resumen general</span
+        >
+      </nav>
+    </div>
+    <div class="gr-page__actions">
+      <!-- Quick Date Presets -->
+      <div class="gr-quick-filters" id="gr-quick-filters">
+        <button
+          type="button"
+          class="gr-quick-filter-btn active"
+          data-preset="all"
+        >
+          Todo
+        </button>
+        <button type="button" class="gr-quick-filter-btn" data-preset="today">
+          Hoy
+        </button>
+        <button type="button" class="gr-quick-filter-btn" data-preset="week">
+          Esta semana
+        </button>
+        <button type="button" class="gr-quick-filter-btn" data-preset="month">
+          Este mes
+        </button>
+      </div>
+
+      <button
+        class="gr-filter-btn"
+        data-bs-toggle="modal"
+        data-bs-target="#filter-modal"
+        id="btn-open-filter-modal"
+      >
+        <i class="fa-solid fa-sliders"></i>
+        <span>Filtros avanzados</span>
+        <span
+          class="badge bg-primary rounded-pill d-none"
+          id="filter-active-count"
+          >0</span
+        >
+      </button>
+
+      <div class="dropdown gr-export-dropdown">
+        <button
+          class="btn btn-outline-primary dropdown-toggle"
+          type="button"
+          id="btn-export"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+        >
+          <i class="fa-solid fa-download"></i> Exportar
+        </button>
+        <ul
+          class="dropdown-menu dropdown-menu-end"
+          aria-labelledby="btn-export"
+        >
+          <li>
+            <button
+              class="dropdown-item"
+              type="button"
+              data-export-format="csv"
+            >
+              <i class="fa-solid fa-file-csv me-2 text-success"></i> CSV
+              <small class="text-muted d-block">Hasta 10.000 filas</small>
+            </button>
+          </li>
+          <li>
+            <button
+              class="dropdown-item"
+              type="button"
+              data-export-format="xlsx"
+            >
+              <i class="fa-solid fa-file-excel me-2 text-success"></i> Excel
+              (.xlsx)
+              <small class="text-muted d-block">Hasta 10.000 filas</small>
+            </button>
+          </li>
+          <li>
+            <button
+              class="dropdown-item"
+              type="button"
+              data-export-format="pdf"
+            >
+              <i class="fa-solid fa-file-pdf me-2 text-danger"></i> PDF
+              <small class="text-muted d-block">Hasta 2.000 filas</small>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Filtros -->
+  <div class="modal fade" id="filter-modal" tabindex="-1" aria-hidden="true">
+    <div
+      class="modal-dialog modal-lg modal-fullscreen-sm-down modal-dialog-scrollable"
+    >
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Filtrar Dashboard</h5>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+          ></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <!-- Rango de fechas -->
+            <div class="col-md-6 mb-3">
+              <label for="filter-inicio" class="form-label">Fecha Inicio</label>
+              <input type="date" class="form-control" id="filter-inicio" />
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="filter-fin" class="form-label">Fecha Fin</label>
+              <input type="date" class="form-control" id="filter-fin" />
+            </div>
+
+            <!-- Tipo de Incidencia -->
+            <div class="col-md-6 mb-3">
+              <label for="filter-tipo" class="form-label"
+                >Tipo de Incidencia</label
+              >
+              <select class="form-select" id="filter-tipo">
+                <option value="">-- Todos los tipos --</option>
+              </select>
+            </div>
+
+            <!-- Ubicación (cascada) -->
+            <div class="col-md-6 mb-3">
+              <label for="filter-pais" class="form-label">País</label>
+              <select class="form-select" id="filter-pais">
+                <option value="">-- Seleccione país --</option>
+              </select>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label for="filter-provincia" class="form-label">Provincia</label>
+              <select class="form-select" id="filter-provincia" disabled>
+                <option value="">-- Seleccione provincia --</option>
+              </select>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label for="filter-ciudad" class="form-label">Ciudad</label>
+              <select class="form-select" id="filter-ciudad" disabled>
+                <option value="">-- Seleccione ciudad --</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-bs-dismiss="modal"
+          >
+            Cancelar
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-filter-apply">
+            Aplicar Filtros
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="gr-dashboard-error"
+    id="dashboard-error"
+    role="alert"
+    aria-live="assertive"
+    hidden
+  >
+    <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+    <span id="dashboard-error-message"></span>
+    <button
+      type="button"
+      class="gr-dashboard-error__retry"
+      id="dashboard-retry"
+    ></button>
+  </div>
+
+  <!-- Stats row -->
+  <div class="gr-stats-row" aria-live="polite" aria-busy="true">
+    <div class="gr-stat-card gr-stat-card--blue" data-stat-card>
+      <div class="gr-stat-card__left">
+        <div>
+          <div class="gr-stat-card__num is-loading" id="stat-incidencias">
+            <span class="gr-skeleton gr-skeleton--value"></span>
+          </div>
+          <div class="gr-stat-card__label">Total incidencias</div>
+        </div>
+      </div>
+      <div class="gr-stat-card__icon">
+        <i class="fa-solid fa-layer-group"></i>
+      </div>
+      <div class="gr-stat-card__trend" id="trend-total">
+        <i class="fa-solid fa-arrow-up"></i> 8% vs. mes anterior
+      </div>
+    </div>
+    <div class="gr-stat-card gr-stat-card--cyan" data-stat-card>
+      <div class="gr-stat-card__left">
+        <div>
+          <div class="gr-stat-card__num is-loading" id="stat-en-proceso">
+            <span class="gr-skeleton gr-skeleton--value"></span>
+          </div>
+          <div class="gr-stat-card__label">En proceso</div>
+        </div>
+      </div>
+      <div class="gr-stat-card__icon">
+        <i class="fa-solid fa-person-digging"></i>
+      </div>
+      <div class="gr-stat-card__trend">
+        <i class="fa-solid fa-arrow-up"></i> 3% esta semana
+      </div>
+    </div>
+    <div class="gr-stat-card gr-stat-card--green" data-stat-card>
+      <div class="gr-stat-card__left">
+        <div>
+          <div class="gr-stat-card__num is-loading" id="stat-resueltas">
+            <span class="gr-skeleton gr-skeleton--value"></span>
+          </div>
+          <div class="gr-stat-card__label">Resueltas</div>
+        </div>
+      </div>
+      <div class="gr-stat-card__icon">
+        <i class="fa-solid fa-circle-check"></i>
+      </div>
+      <div class="gr-stat-card__trend" id="trend-resueltas">
+        <i class="fa-solid fa-arrow-up"></i> 67% tasa de resolución
+      </div>
+    </div>
+    <div class="gr-stat-card gr-stat-card--red" data-stat-card>
+      <div class="gr-stat-card__left">
+        <div>
+          <div class="gr-stat-card__num is-loading" id="stat-pendientes">
+            <span class="gr-skeleton gr-skeleton--value"></span>
+          </div>
+          <div class="gr-stat-card__label">Pendientes</div>
+        </div>
+      </div>
+      <div class="gr-stat-card__icon"><i class="fa-regular fa-clock"></i></div>
+      <div class="gr-stat-card__trend" id="trend-pendientes">
+        <i class="fa-solid fa-arrow-down"></i> 5% vs. mes anterior
+      </div>
+    </div>
+    <div class="gr-stat-card gr-stat-card--purple" data-stat-card>
+      <div class="gr-stat-card__left">
+        <div>
+          <div class="gr-stat-card__num is-loading" id="stat-tiempo-resolucion">
+            <span class="gr-skeleton gr-skeleton--value"></span>
+          </div>
+          <div class="gr-stat-card__label">Tiempo promedio de resolución</div>
+        </div>
+      </div>
+      <div class="gr-stat-card__icon">
+        <i class="fa-regular fa-hourglass-half"></i>
+      </div>
+      <div class="gr-stat-card__trend">Sobre incidencias resueltas</div>
+    </div>
+  </div>
+
+  <!-- Charts + activity row -->
+  <div class="gr-charts-row">
+    <!-- Top 5 Categories chart -->
+    <div class="gr-card gr-card--categories">
+      <div class="gr-card__title">Top 5 Categorías</div>
+      <div
+        id="chart-categorias"
+        class="gr-chart is-loading"
+        style="height: 320px; width: 100%"
+      >
+        <span class="gr-skeleton gr-skeleton--chart"></span>
+      </div>
+    </div>
+
+    <!-- Activity feed -->
+    <div class="gr-card gr-card--activity">
+      <div class="gr-card__title">Actividad reciente</div>
+      <div id="activity-feed" class="gr-activity">
+        <div class="text-center text-muted py-4" id="activity-empty">
+          <i
+            class="fa-solid fa-inbox mb-3 d-block mx-auto"
+            style="font-size: 2rem"
+          ></i>
+          <p class="mb-0">Sin actividad reciente</p>
+        </div>
+      </div>
+      <a href="#/incidencias" class="gr-activity__link"
+        >Ver historial completo</a
+      >
+    </div>
+  </div>
+
+  <!-- Monthly volume chart -->
+  <div class="gr-row-full">
+    <div class="gr-card gr-card--monthly">
+      <div class="gr-card__header">
+        <div class="gr-card__title mb-0">Volumen mensual</div>
+        <ul class="gr-legend gr-legend--inline">
+          <li>
+            <i class="fa-solid fa-circle" style="color: #8a5cf0"></i>
+            <span class="text-muted">Incidencias recibidas</span>
+          </li>
+        </ul>
+      </div>
+      <div
+        id="chart-volumen"
+        class="gr-chart is-loading"
+        style="height: 260px; width: 100%"
+      >
+        <span class="gr-skeleton gr-skeleton--chart"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden stat for JS compat -->
+  <span id="stat-ubicaciones" style="display: none">0</span>
+</div>

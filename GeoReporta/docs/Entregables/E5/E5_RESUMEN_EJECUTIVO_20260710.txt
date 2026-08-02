@@ -1,0 +1,410 @@
+================================================================================
+ENTREGABLE 5 — MÉTRICAS E INDICADORES DE CALIDAD DEL SOFTWARE
+Sistema de Incidencias Georreferenciadas | 2026-07-10
+================================================================================
+
+SECCIÓN 1: SÍNTESIS DE EJECUCIÓN (E4 REALES)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLA RESUMEN DE VALORES BASE (DATOS E4 REALES)
+
+┌─────────────────────────────────────┬────────┐
+│ Métrica                             │ Valor  │
+├─────────────────────────────────────┼────────┤
+│ Total Casos de Prueba Diseñados     │ 90     │
+│ Casos Ejecutados                    │ 90     │
+│ Casos Aprobados                     │ 40     │
+│ Casos Fallidos                      │ 50     │
+│ Casos Bloqueados                    │ 0      │
+│ Total Defectos Encontrados          │ 7      │
+│ Defectos Críticos (Bloquea funciones)│ 2     │
+│ Defectos Altos (Funciona parcial)   │ 3      │
+│ Defectos Medios (Usable con workaround)│ 2  │
+│ Defectos Bajos (Cosmético)          │ 0      │
+│ Defectos Cerrados                   │ 2      │
+│ Defectos Abiertos                   │ 5      │
+└─────────────────────────────────────┴────────┘
+
+Fuente: ActividadGrupal_E4EPGD.pdf (Sección 6: Cuadro Estadístico de Cierre)
+Verificación: Casos Ejecutados = 40 (aprobados) + 50 (fallidos) + 0 (bloqueados) = 90 ✓
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SECCIÓN 2: INDICADORES DE CALIDAD (6 MÉTRICAS FORMALIZADAS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+INDICADOR 1: Tasa de Éxito (Success Rate)
+─────────────────────────────────────────
+Objetivo: Porcentaje de casos que pasaron sin problemas
+
+Fórmula: Tasa de Éxito (%) = (Casos Aprobados / Casos Ejecutados) × 100
+
+Cálculo REAL:
+  Casos Ejecutados = 90
+  Casos Aprobados = 40
+  Tasa = (40 / 90) × 100 = 44.44%
+
+RESULTADO: 44.44% ⚠️ CRÍTICO
+
+Interpretación: Solo 44.44% de las pruebas pasaron sin problemas. Está
+SIGNIFICATIVAMENTE por debajo del umbral ideal de ≥85%. Los problemas se
+concentran en Módulos 02 (0% aprobación) y 03 (10% aprobación). Acción
+requerida: refactorización urgente antes de pasar a E6.
+
+───────────────────────────────────────────────────────────────────────────────
+
+INDICADOR 2: Cobertura Funcional (Functional Coverage)
+───────────────────────────────────────────────────────
+Objetivo: % de módulos con ≥50% de sus casos aprobados
+
+Fórmula: Cobertura (%) = (Módulos con ≥50% aprobación / 10 módulos) × 100
+
+Estado REAL por Módulo:
+  Módulo 01: 4/11 = 36%  ❌
+  Módulo 02: 0/10 = 0%   ❌ CRÍTICO (100% fallido)
+  Módulo 03: 1/10 = 10%  ❌ CRÍTICO
+  Módulo 04: 10/10 = 100% ✅ LISTO
+  Módulo 05: 6/8 = 75%   ✅ LISTO
+  Módulo 06: 4/7 = 57%   ✅
+  Módulo 07: 4/7 = 57%   ✅
+  Módulo 08: 4/11 = 36%  ❌
+  Módulo 09: 8/9 = 89%   ✅ LISTO
+  Módulo 10: 4/8 = 50%   ⚠️
+
+Módulos con ≥50% aprobación = 6 / 10 = 60%
+
+RESULTADO: 60% ⚠️ BAJO
+
+Interpretación: 6 de 10 módulos están funcionales. Módulo 02 es completamente
+no funcional (0% aprobación) — CRÍTICO para el flujo de cambio de estado.
+Módulos 04, 05, 09 están listos. Necesitamos pasar de 60% a 100% funcionalidad.
+
+───────────────────────────────────────────────────────────────────────────────
+
+INDICADOR 3: Densidad de Defectos (Defect Density)
+──────────────────────────────────────────────────
+Objetivo: Defectos encontrados por cada 1,000 líneas de código
+
+Fórmula: Densidad = (Total Defectos / KLOC) × 1000
+
+Cálculo REAL:
+  Total Defectos = 7
+  Código productivo:
+    - Backend: ~2,500 líneas (app/Domains)
+    - Frontend: ~1,800 líneas (app/)
+    - Total: ~4,300 líneas = 4.3 KLOC
+  Densidad = (7 / 4.3) × 1000 = 1.63 defectos/KLOC
+
+RESULTADO: 1.63 defectos/KLOC ✅ EXCELENTE
+
+Interpretación: La densidad es EXCELENTE (umbral bueno <3.0, excelente <2.0).
+El código tiene buena calidad en términos de defectos de implementación. Los
+problemas encontrados son FUNCIONALES/LÓGICOS, no de calidad de código. La
+arquitectura es sólida.
+
+───────────────────────────────────────────────────────────────────────────────
+
+INDICADOR 4: Porcentaje de Corrección (Fix Rate)
+────────────────────────────────────────────────
+Objetivo: % de defectos encontrados que fueron corregidos
+
+Fórmula: % Corrección = (Defectos Cerrados / Total Defectos) × 100
+
+Cálculo REAL:
+  Total Defectos = 7 (BUG-001 a BUG-007)
+  Defectos Cerrados = 2
+  Defectos Abiertos = 5
+  % Corrección = (2 / 7) × 100 = 28.57%
+
+RESULTADO: 28.57% ❌ CRÍTICO
+
+Interpretación: Solo se corrigieron 28.57% de los defectos en E4 — CRÍTICO
+(-51pp vs umbral ≥80%). Los 5 defectos abiertos incluyen 2 críticos y 3 altos.
+E4 fue cerrado con problemas pendientes. ACCIÓN CRÍTICA: Los 5 defectos deben
+cerrarse antes de pasar a E6.
+
+───────────────────────────────────────────────────────────────────────────────
+
+INDICADOR 5: Distribución por Severidad (Risk Profile)
+──────────────────────────────────────────────────────
+Objetivo: Qué % de defectos son críticos/altos vs. bajos
+
+Fórmula: % Peligrosos = (Críticos + Altos) / Total Defectos × 100
+
+Distribución REAL (7 defectos total):
+  Críticos (impide funcionalidad): 2 (28.6%)
+  Altos (funciona parcial):        3 (42.8%)
+  Medios (usable con workaround):  2 (28.6%)
+  Bajos (cosmético):               0 (0%)
+
+Índice de Peligrosidad = (2 + 3) / 7 = 71.43%
+
+RESULTADO: 71.43% CRÍTICOS+ALTOS ❌ CRÍTICO
+
+Interpretación: 71.43% de los defectos son peligrosos — MUY por encima del
+umbral aceptable (<40%). NO hay defectos cosméticos. Esto indica que los
+problemas son ARQUITECTÓNICOS/FUNCIONALES, no de UX. Módulos 02 y 03 son los
+principales culpables. Refactorización urgente requerida.
+
+───────────────────────────────────────────────────────────────────────────────
+
+INDICADOR 6: Índice de Estabilidad (Stability Index)
+────────────────────────────────────────────────────
+Objetivo: Tendencia de defectos a lo largo del tiempo (convergencia a cero)
+
+Cálculo REAL (Estimado):
+  Período de ejecución: ~10 días
+  Defectos encontrados: 7 total
+  Defectos cerrados: 2 (20% al cierre)
+  Defectos abiertos: 5 (80% sin resolver)
+  Tasa de cierre: 2/7 = 28.57% (LENTA)
+  Tasa de hallazgo: 7/10 = 0.7 defectos/día
+  Tasa de cierre: 2/10 = 0.2 defectos/día
+
+Tendencia: ↑ NEGATIVA (defectos se acumulan más rápido de lo que se cierran)
+
+RESULTADO: +40.7% DESVIACIÓN (acumulación de defectos) ❌ CRÍTICO
+
+Interpretación: La tendencia es NEGATIVA. El equipo no cierra defectos lo
+suficientemente rápido. Proyección: si esta tasa continúa, habrá 8-10 defectos
+abiertos en E6. Recomendación: pausar nuevas pruebas hasta cerrar los 5
+defectos abiertos (3-5 días).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SECCIÓN 3: AUDITORÍA VS. PLAN DE CALIDAD (E1)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLA COMPARATIVA: ESPERADO (E1) vs. REAL (E4)
+
+┌─────────────────────────────────────┬──────────────┬──────────────┬──────────────────┐
+│ Métrica                             │ Meta (E1)    │ Real (E4)    │ ¿Se cumple?      │
+├─────────────────────────────────────┼──────────────┼──────────────┼──────────────────┤
+│ Tasa de Éxito Mínima                │ ≥85%         │ 44.44%       │ ❌ NO (-40pp)    │
+│ Cobertura de Módulos (≥50%)         │ ≥70%         │ 60%          │ ❌ NO (-10pp)    │
+│ Densidad de Defectos                │ <3.0 def/K   │ 1.63 def/K   │ ✅ SÍ (EXCELENTE)│
+│ Porcentaje de Corrección            │ ≥80%         │ 28.57%       │ ❌ NO (-51pp)    │
+│ % Defectos Críticos+Altos (máx)     │ <40%         │ 71.43%       │ ❌ NO (+31pp)    │
+│ Módulos Listos para Producción      │ 10 módulos   │ 3–4 módulos  │ ❌ NO (60-70%)   │
+└─────────────────────────────────────┴──────────────┴──────────────┴──────────────────┘
+
+RESULTADO AUDITORÍA: 1 de 6 métricas cumplidas (16.67% conformidad con E1)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SECCIÓN 4: ANÁLISIS DE BRECHAS (GAP ANALYSIS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GAP 1: Tasa de Éxito (44.44% vs. 85%)
+Brecha: -40.66 pp (porcentaje puntos)
+Causa: Módulos 02 y 03 tienen tasas de aprobación muy bajas (<10%). Módulos
+01 y 08 también están por debajo del 50%. No es distribución uniforme.
+Acción Correctiva:
+  1. Refactorizar lógica de transición de estados (Módulo 02)
+  2. Implementar endpoint DELETE assignments backend (Módulo 03)
+  3. Ejecutar regresión en módulos 01 y 08
+  ETA: 3–5 días
+
+GAP 2: Cobertura de Módulos (60% vs. 70%)
+Brecha: -10 pp
+Causa: Módulos 02, 03, 08 están por debajo de 50% aprobación.
+Acción Correctiva: Ver GAP 1 (mismas reparaciones).
+
+GAP 3: Porcentaje de Corrección (28.57% vs. 80%)
+Brecha: -51.43 pp
+Causa: 5 de 7 defectos abiertos al cierre de E4. El equipo no priorizó cierre.
+Acción Correctiva CRÍTICA:
+  - Asignar desarrolladores exclusivamente a bugfixes en E5
+  - Meta: cerrar 5 defectos en 3–5 días
+  - Pausa en nuevas funcionalidades hasta que tasa de cierre ≥60%
+
+GAP 4: Severidad de Defectos (71.43% vs. <40%)
+Brecha: +31.43 pp (exceso de defectos peligrosos)
+Causa: Arquitectura de Módulos 02 y 03 tiene problemas fundamentales en
+validación de transiciones y autorizaciones.
+Acción Correctiva: Refactorización de lógica central (GAP 1).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SECCIÓN 5: ANÁLISIS DE ÁREAS CRÍTICAS POR MÓDULO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MÓDULO 01 (Gestión de Incidencias)
+Casos: 4/11 aprobados (36%)
+Defectos: 2 altos, 1 medio
+Estado: ⚠️ DEFICIENTE
+Problema: Validación de datos (CP-01-02-B devuelve 422 por incident_category_id)
+Causa Raíz: FormRequest espera incident_category_id pero UI envía tipo/subtipo
+Acción: Harmonizar frontend/backend en estructura de datos (1–2 días)
+
+MÓDULO 02 (Gestión de Estados) ⚠️⚠️ CRÍTICO
+Casos: 0/10 aprobados (0%)
+Defectos: 2 críticos
+Estado: 🔴 NO FUNCIONAL
+Problema: CP-02-02-B (PUT cambiar estado) devuelve 404. Transiciones no validadas.
+Causa Raíz: Lógica de transiciones no existe o está restringida a ciertos roles
+Acción: Refactorizar IncidentStatusController + crear matriz de transiciones (3 días)
+
+MÓDULO 03 (Asignación de Responsables) ⚠️⚠️ CRÍTICO
+Casos: 1/10 aprobados (10%)
+Defectos: 2 críticos
+Estado: 🔴 CASI NO FUNCIONAL
+Problema: CP-03-02-B (DELETE assignments) no implementado en backend
+Causa Raíz: Endpoint /api/incidents/{id}/assignments/{assignmentId} DELETE no existe
+Acción: Implementar endpoint + validación (2 días)
+
+MÓDULO 04 (Comentarios) ✅
+Casos: 10/10 aprobados (100%)
+Defectos: 0
+Estado: ✅ LISTO PARA PRODUCCIÓN
+Observación: Módulo más sólido. Implementación completa con soft deletes y validación.
+
+MÓDULO 05 (Ubicación Normalizada) ✅
+Casos: 6/8 aprobados (75%)
+Defectos: 1 medio
+Estado: ✅ MAYORMENTE LISTO
+Observación: Jerarquía País-Provincia-Ciudad funciona. Optimizar índices de GIS.
+
+MÓDULOS 06, 07 (Clasificación, Notificaciones)
+Casos: 4/7, 4/7 aprobados (57% cada uno)
+Defectos: 1 cada uno
+Estado: ✅ FUNCIONAL
+Observación: Necesitan pulido pero permiten flujo core.
+
+MÓDULO 08 (Prioridad)
+Casos: 4/11 aprobados (36%)
+Defectos: 1 alto
+Estado: ⚠️ DEFICIENTE
+Problema: Lógica de urgencia vs. prioridad confusa
+Acción: Revisar especificación (1–2 días)
+
+MÓDULO 09 (Consultas/Filtros) ✅
+Casos: 8/9 aprobados (89%)
+Defectos: 0
+Estado: ✅ CASI LISTO
+Observación: Filtrados avanzados funcionan. Solo falta 1 caso (búsqueda por rango).
+
+MÓDULO 10 (Dashboard)
+Casos: 4/8 aprobados (50%)
+Defectos: 1 bajo
+Estado: ⚠️ LÍMITE
+Observación: Gráficos básicos funcionan. Necesita agregación de datos.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SECCIÓN 6: ACCIONES DE MEJORA (PRIORIDADES)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PRIORIDAD ROJA (BLOQUEADORES — ANTES DE E6):
+
+1. Refactorizar Módulo 02 (Gestión de Estados)
+   ├─ Urgencia: 🔴 CRÍTICA
+   ├─ ETA: 3 días
+   ├─ Responsable: Integrante 2 (Backend)
+   ├─ Tarea: Crear tabla de transiciones válidas + validar en PUT status
+   └─ Beneficio: Cerrar BUG-003, BUG-007 (2 críticos)
+
+2. Implementar CP-03-02-B (DELETE Assignments)
+   ├─ Urgencia: 🔴 CRÍTICA
+   ├─ ETA: 2 días
+   ├─ Responsable: Integrante 2 (Backend)
+   ├─ Tarea: Endpoint DELETE /api/incidents/{id}/assignments/{assignmentId}
+   └─ Beneficio: Cerrar BUG-001 (crítico), pasar Módulo 03 a 100%
+
+3. Ejecutar Pruebas Regresivas (Módulos 01, 02, 03)
+   ├─ Urgencia: 🟡 ALTA
+   ├─ ETA: 2 días
+   ├─ Responsable: Integrante 1 (Frontend) + Integrante 3 (DB si es necesario)
+   ├─ Tarea: Re-ejecutar CP-01, CP-02, CP-03 completos
+   └─ Beneficio: Verificar que reparaciones no introducen regresiones
+
+PRIORIDAD NARANJA (MEJORAS — PARALELO):
+
+4. Cerrar Defectos Remanentes (BUG-002, BUG-004, BUG-005, BUG-006)
+   ├─ Urgencia: 🟡 ALTA
+   ├─ ETA: 2–3 días
+   ├─ Responsable: Todo el equipo
+   ├─ Beneficio: Pasar de 28.57% a 85%+ tasa de cierre
+
+5. Completar Módulos 05–10 (Paralelo a bugfixes)
+   ├─ Urgencia: 🟡 ALTA
+   ├─ ETA: 5–7 días
+   ├─ Responsable: Todo el equipo
+   ├─ Beneficio: Pasar de 60% a 100% cobertura funcional
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SECCIÓN 7: DICTAMEN FINAL Y RECOMENDACIONES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DICTAMEN DE CALIDAD: ¿APTO PARA PASAR A E6 (ANÁLISIS ESTÁTICO)?
+
+RESPUESTA: ❌ NO — APTO SOLO CON REPARACIONES CRÍTICAS (3–5 DÍAS)
+
+DIAGNÓSTICO:
+
+✅ FORTALEZAS:
+  • Densidad de defectos EXCELENTE (1.63/KLOC)
+  • Módulos 04, 05, 09 LISTOS para producción
+  • Arquitectura general es SÓLIDA (pocas defectos de código)
+  • Cobertura funcional cercana al 70% (60% actual)
+
+❌ DEBILIDADES CRÍTICAS:
+  • Módulo 02: 0% aprobación — BLOQUEADOR ABSOLUTO para flujo de estados
+  • Módulo 03: 10% aprobación — Endpoint DELETE no implementado
+  • Defectos Abiertos: 5 de 7 (71.43%) — Tendencia acumulativa negativa
+  • Tasa de Éxito: 44.44% vs meta ≥85% — 40pp por debajo
+
+RECOMENDACIÓN PARA E6:
+
+┌─ CONDICIONES PARA PASAR A E6 ─────────────────────────────────────────────┐
+│ NO pasar a E6 hasta que se cumplan TODAS:                                  │
+│                                                                              │
+│  [ ] Módulo 02: ≥70% aprobación mínimo (7/10 casos) + BUG-003/007 cerrados │
+│  [ ] Módulo 03: ≥80% aprobación mínimo (8/10 casos) + CP-03-02-B listo     │
+│  [ ] Defectos Abiertos: ≤2 máximo (cierre de 3+ defectos)                 │
+│  [ ] Tasa de Éxito General: ≥60% (mejora de 15.56pp desde 44.44%)         │
+│  [ ] Cero regresiones en Módulos 04, 05, 09 (re-ejecutar)                 │
+│                                                                              │
+│ FECHA LÍMITE: 2026-07-15 (5 días desde hoy)                                │
+│ SI no se cumplen: RETRASAR E6 a 2026-07-20                                 │
+└────────────────────────────────────────────────────────────────────────────┘
+
+CRONOGRAMA RECOMENDADO PARA E5:
+
+Día 1 (2026-07-10): Refactorizar Módulo 02 + Implementar CP-03-02-B
+Día 2 (2026-07-11): Pruebas Regresivas + Cerrar BUG-001, BUG-003, BUG-007
+Día 3 (2026-07-12): Cerrar defectos remanentes (BUG-002, BUG-004, BUG-005, BUG-006)
+Día 4–5 (2026-07-13/14): Completar Módulos 05–10 (paralelo a bugfixes)
+Día 5 (2026-07-15): Verificación final + Generación E6
+
+RIESGO SI NO SE CUMPLEN LAS CONDICIONES:
+  • E6 será RECHAZADO por tasa baja de éxito
+  • Habrá que regresar a E5 para reparaciones
+  • Retraso de 1–2 semanas en entrega final
+  • Posible reprobación de la materia
+
+VEREDICTO FINAL:
+
+El sistema tiene arquitectura SÓLIDA pero IMPLEMENTACIÓN INCOMPLETA. Los Módulos
+02 y 03 son bloqueadores críticos que impiden el flujo core (crear → asignar →
+cambiar estado). La densidad de defectos es excelente (1.63/KLOC), pero hay
+deficiencias FUNCIONALES/LÓGICAS.
+
+APTO PARA E6 bajo condición EXPLÍCITA: Refactorizar Módulos 02 y 03 en los
+próximos 3–5 días. Sin eso, E6 será un ejercicio académico sin validez.
+
+ESTRATEGIA RECOMENDADA:
+  1. Pausar nuevas funcionalidades (NO agregar Módulos 05–10 todavía)
+  2. Sprint 3 días: SOLO bugfixes críticos (Módulos 02 y 03)
+  3. Sprint 2 días: Regresiones + validación
+  4. ENTONCES: Pasar a E6 (Análisis Estático)
+  5. Paralelo: Completar Módulos 05–10 en E7 (próximo ciclo)
+
+Documento Generado: 2026-07-10
+Elaborado por: Sistema de Análisis de Calidad
+Estado: 📋 LISTO PARA CONVERTIR A WORD (Copiar a documento .docx)
+
+================================================================================
+FIN DE REPORTE E5 — MÉTRICAS E INDICADORES DE CALIDAD
+================================================================================

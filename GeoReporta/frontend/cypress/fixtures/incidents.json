@@ -1,0 +1,10 @@
+{
+  "minimal": {
+    "title": "E2E Test Incident",
+    "description": "Test description",
+    "priority": "high",
+    "incident_category_id": 2,
+    "location_id": 284,
+    "geom": "{\"type\":\"Point\",\"coordinates\":[-78.5,-0.22]}"
+  }
+}

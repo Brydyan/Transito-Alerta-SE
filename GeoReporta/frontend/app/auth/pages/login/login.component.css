@@ -1,0 +1,499 @@
+.gr-login {
+  min-height: 100vh;
+  display: flex;
+  font-family: var(--font-family);
+}
+
+/* Hero */
+.gr-login__hero {
+  width: 520px;
+  flex-shrink: 0;
+  background: linear-gradient(150deg, #6a5cf3 0%, #a06bf5 100%);
+  color: #fff;
+  padding: 54px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .gr-login__hero {
+    display: none;
+  }
+}
+
+.gr-login__hero-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.gr-login__hero-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.gr-login__hero-content {
+  margin-top: auto;
+}
+
+.gr-login__hero-title {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  max-width: 380px;
+  margin: 0 0 18px;
+}
+
+.gr-login__hero-desc {
+  font-size: 15px;
+  opacity: 0.85;
+  line-height: 1.6;
+  max-width: 360px;
+  margin: 0;
+}
+
+.gr-login__hero-stats {
+  display: flex;
+  gap: 28px;
+  margin-top: 44px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.gr-login__hero-stat-num {
+  font-size: 24px;
+  font-weight: 800;
+  display: block;
+}
+
+.gr-login__deco {
+  position: absolute;
+  color: #fff;
+  pointer-events: none;
+}
+
+.gr-login__deco-circle {
+  position: absolute;
+  top: 90px;
+  right: 120px;
+  width: 180px;
+  height: 180px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Form panel */
+.gr-login__form-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  padding: 20px;
+}
+
+@media (max-width: 480px) {
+  .gr-login__form-wrap {
+    padding: 16px;
+  }
+}
+
+.gr-login__form-box {
+  width: 380px;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 480px) {
+  .gr-login__form-box {
+    width: 100%;
+    padding: 0 16px;
+  }
+}
+
+.gr-login__form-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #23283b;
+  margin: 0 0 8px;
+}
+
+.gr-login__form-sub {
+  font-size: 14.5px;
+  color: var(--text-muted);
+  margin: 0 0 32px;
+}
+
+@media (max-width: 480px) {
+  .gr-login__form-title {
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+
+  .gr-login__form-sub {
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+}
+
+.gr-login__error {
+  background: #fff0f3;
+  color: #c0394f;
+  border: 1px solid #fbc6ce;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  margin-bottom: 20px;
+}
+
+/* Shared form utilities (.gr-form-label .gr-input-wrap .gr-input-icon
+   .gr-input .gr-input--pad-right .gr-input:focus .gr-input-eye
+   .gr-input-error) moved to frontend/public/css/app.css — used by
+   register, forgot-password, accept-invite, reset-password, and
+   verify-email too. */
+
+.gr-login__options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 26px;
+}
+
+.gr-login__remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: #5b6172;
+  cursor: pointer;
+}
+
+.gr-login__remember-box {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+  font-size: 10px;
+}
+
+.gr-login__forgot {
+  font-size: 13.5px;
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.gr-login__forgot:hover {
+  text-decoration: underline;
+}
+
+.gr-btn-primary {
+  display: block;
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 12px;
+  background: var(--gradient-primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  font-family: var(--font-family);
+  cursor: pointer;
+  box-shadow: 0 14px 26px -10px rgba(106, 92, 243, 0.55);
+  transition:
+    opacity 0.15s ease,
+    transform 0.1s ease;
+}
+
+@media (max-width: 480px) {
+  .gr-btn-primary {
+    height: 46px;
+    font-size: 14px;
+  }
+}
+
+.gr-btn-primary:hover {
+  opacity: 0.93;
+}
+.gr-btn-primary:active {
+  transform: translateY(1px);
+}
+
+.gr-login__support {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 24px;
+  margin-bottom: 0;
+}
+
+.gr-login__support a {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ─── R11: mode toggle (login ↔ register) ─────────────────────────── */
+
+.gr-login__mode-toggle {
+  display: flex;
+  background: #f4f5f9;
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 22px;
+}
+
+.gr-login__mode-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-weight: 600;
+  color: #5b6172;
+  padding: 10px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.gr-login__mode-btn--active {
+  background: #fff;
+  color: var(--color-primary);
+  box-shadow: 0 2px 6px rgba(35, 40, 59, 0.08);
+}
+
+.gr-login__mode-btn:not(.gr-login__mode-btn--active):hover {
+  color: #23283b;
+}
+
+/* ─── R11: success banner (post-201) ─────────────────────────── */
+
+.gr-login__banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f0fbf6;
+  color: #1e7a4d;
+  border: 1px solid #b9e7cf;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.gr-login__banner i {
+  font-size: 16px;
+}
+
+/* ─── R11: field-level validation errors ─────────────────────────── */
+
+/* .gr-input-error + .gr-input-wrap + .gr-input-error combinator moved
+   to frontend/public/css/app.css (shared form utilities). */
+
+/* ─── R12: divider + Google sign-in button ────────────────────────── */
+
+.gr-login__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 18px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-transform: lowercase;
+}
+
+.gr-login__divider::before,
+.gr-login__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-light);
+}
+
+.gr-btn-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 52px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: #fff;
+  color: #23283b;
+  font-family: var(--font-family);
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.gr-btn-google:hover {
+  background: #f7f8fc;
+  border-color: #d3d7e2;
+  box-shadow: 0 4px 12px rgba(35, 40, 59, 0.06);
+}
+
+.gr-btn-google:active {
+  background: #eef0f6;
+}
+
+.gr-btn-google:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gr-btn-google i {
+  font-size: 18px;
+  color: #ea4335;
+}
+
+@media (max-width: 480px) {
+  .gr-btn-google {
+    height: 46px;
+    font-size: 13px;
+    gap: 8px;
+  }
+
+  .gr-btn-google i {
+    font-size: 16px;
+  }
+}
+
+/* ─── R-sc-117: OTP cells (verify-email) ───────────────────────────── */
+/*
+ * Six contiguous cells replace the single OTP input with letter-spacing.
+ * Same border/radius/focus-ring vocabulary as .gr-input — no new tokens.
+ */
+
+.gr-otp {
+  margin: 0 0 20px;
+  padding: 0;
+}
+
+@media (max-width: 480px) {
+  .gr-otp {
+    margin-bottom: 16px;
+  }
+}
+
+.gr-otp__cells {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .gr-otp__cells {
+    gap: 4px;
+  }
+}
+
+.gr-otp__cell {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 64px;
+  border: 1px solid var(--border-medium);
+  border-radius: 12px;
+  background: #fff;
+  text-align: center;
+  font-family: var(--font-family);
+  font-size: clamp(1.5rem, 1.2rem + 0.6vw, 1.875rem);
+  font-weight: 700;
+  color: var(--text-dark);
+  line-height: 1;
+  padding: 0;
+  outline: none;
+  box-sizing: border-box;
+  caret-color: var(--color-primary);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+  /* Belt-and-suspenders against native number-input styling. */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.gr-otp__cell::-webkit-outer-spin-button,
+.gr-otp__cell::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.gr-otp__cell:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(106, 92, 243, 0.12);
+}
+
+.gr-otp__cell--error {
+  border-color: var(--priority-high-text);
+  background-color: var(--priority-high-bg);
+}
+
+.gr-otp__cell--error:focus {
+  box-shadow: 0 0 0 3px rgba(160, 24, 58, 0.12);
+}
+
+@media (max-width: 480px) {
+  .gr-otp__cell {
+    height: 56px;
+    font-size: 1.5rem;
+  }
+}
+
+/* Shake: 150ms total (per spec). Subtle 2-jolt pattern — exponential
+   ease-out from a clean rest position. Replayed by toggling the class
+   with a forced reflow between calls. */
+@keyframes gr-otp__shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  60% {
+    transform: translateX(5px);
+  }
+}
+
+.gr-otp__cells--shake {
+  animation: gr-otp__shake 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gr-otp__cells--shake,
+  .gr-otp__cell {
+    animation: none;
+    transition: none;
+  }
+}

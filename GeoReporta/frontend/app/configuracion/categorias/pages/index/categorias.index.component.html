@@ -1,0 +1,174 @@
+<div class="gr-page">
+  <!-- Header -->
+  <div class="gr-page__header">
+    <div>
+      <h1 class="gr-page__title">Categorías</h1>
+      <nav class="gr-breadcrumb">
+        <span class="gr-breadcrumb__item">Sistema</span>
+        <span class="gr-breadcrumb__sep">/</span>
+        <span class="gr-breadcrumb__item">Configuración</span>
+        <span class="gr-breadcrumb__sep">/</span>
+        <span class="gr-breadcrumb__item gr-breadcrumb__item--active"
+          >Categorías</span
+        >
+      </nav>
+    </div>
+    <a href="#/categorias/crear" class="gr-btn-primary gr-btn-primary--inline">
+      <i class="fa-solid fa-circle-plus"></i>Nueva categoría
+    </a>
+  </div>
+
+  <!-- Filters -->
+  <div class="gr-card gr-filters">
+    <div class="gr-filters__search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input
+        type="text"
+        id="filtro-buscar"
+        class="gr-filters__input"
+        placeholder="Buscar por nombre..."
+      />
+    </div>
+    <div class="gr-filters__selects">
+      <div class="gr-select-wrap">
+        <select class="gr-select" id="filtro-padre">
+          <option value="">Todas las categorías padre</option>
+        </select>
+        <i class="fa-solid fa-chevron-down gr-select-arrow"></i>
+      </div>
+      <button type="button" class="gr-btn-filter" id="btn-filtrar">
+        <i class="fa-solid fa-magnifying-glass"></i>Filtrar
+      </button>
+      <button
+        type="button"
+        class="gr-btn-filter gr-btn-filter--clear"
+        id="btn-limpiar"
+        title="Limpiar filtros"
+      >
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Table card -->
+  <div class="gr-card">
+    <div id="estado-cargando" class="gr-estado-center">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="text-muted mt-2 mb-0">Cargando categorías...</p>
+    </div>
+
+    <div id="estado-vacio" class="gr-estado-center d-none">
+      <i class="fa-solid fa-tag text-muted" style="font-size: 2.5rem"></i>
+      <p class="text-muted mt-3 mb-1">No se encontraron categorías.</p>
+      <a
+        href="#/categorias/crear"
+        class="gr-btn-primary gr-btn-primary--sm mt-1"
+        >Registrar la primera</a
+      >
+    </div>
+
+    <div id="estado-error" class="gr-estado-center d-none">
+      <i
+        class="fa-solid fa-triangle-exclamation text-danger"
+        style="font-size: 2.5rem"
+      ></i>
+      <p class="text-muted mt-3 mb-1">No se pudo conectar con el servidor.</p>
+      <button type="button" class="gr-btn-outline mt-1" id="btn-reintentar">
+        Reintentar
+      </button>
+    </div>
+
+    <div id="contenedor-tabla" class="d-none">
+      <div class="gr-table-wrap d-none d-md-block">
+        <table class="gr-table">
+          <thead>
+            <tr>
+              <th style="width: 40px" class="text-center">
+                <input
+                  type="checkbox"
+                  class="form-check-input check-select-all"
+                />
+              </th>
+              <th>NOMBRE</th>
+              <th style="width: 190px">TIPO</th>
+              <th style="width: 220px">CATEGORÍA PADRE</th>
+              <th style="width: 70px" class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-body"></tbody>
+        </table>
+      </div>
+
+      <div id="contenedor-cards" class="d-md-none p-3"></div>
+
+      <div class="gr-table-footer">
+        <small class="text-muted" id="info-resultados"></small>
+        <nav>
+          <ul class="pagination pagination-sm mb-0" id="paginacion"></ul>
+        </nav>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete modal -->
+<div class="modal fade" id="modal-eliminar" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger">
+          <i class="fa-solid fa-trash-alt me-2"></i>Eliminar categoría
+        </h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">
+          ¿Eliminar "<strong id="modal-eliminar-nombre"></strong>"?
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button
+          type="button"
+          class="btn btn-outline-secondary btn-sm"
+          data-bs-dismiss="modal"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="btn btn-danger btn-sm"
+          id="btn-confirmar-eliminar"
+        >
+          <span id="eliminar-texto">Eliminar</span>
+          <span id="eliminar-loading" class="d-none"
+            ><span class="spinner-border spinner-border-sm"></span
+          ></span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
+  <div
+    id="toast-msg"
+    class="toast align-items-center text-white border-0"
+    role="alert"
+    aria-live="assertive"
+    aria-atomic="true"
+  >
+    <div class="d-flex">
+      <div class="toast-body" id="toast-msg-texto"></div>
+      <button
+        type="button"
+        class="btn-close btn-close-white me-2 m-auto"
+        data-bs-dismiss="toast"
+      ></button>
+    </div>
+  </div>
+</div>

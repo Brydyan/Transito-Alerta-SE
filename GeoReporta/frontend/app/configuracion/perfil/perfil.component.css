@@ -1,0 +1,68 @@
+/* Perfil component scoped CSS.
+ *
+ * Note: `.avatar-wrap` and `.avatar-grid` are duplicated here because
+ * the router custom only supports a single styleUrl per component.
+ * They are also defined in shared/avatar-uploader.css as the canonical
+ * source of truth. When migrating other components, copy these same
+ * rules into their .css files until a multi-styleUrl router lands.
+ */
+
+.perfil-card {
+  border-radius: 0.5rem;
+  box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.05);
+  padding: 20px;
+  background: #fff;
+}
+
+.avatar-grid {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 767px) {
+  .avatar-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.avatar-wrap {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f5f7fa;
+  cursor: pointer;
+  transition:
+    opacity 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.avatar-wrap:hover {
+  opacity: 0.85;
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.avatar-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.perfil-input {
+  border-radius: 0.5rem;
+}
+
+.perfil-browse {
+  border-radius: 0.5rem;
+  padding: 8px 16px;
+}
+
+.perfil-breadcrumb {
+  margin-bottom: 16px;
+}
+
+.perfil-updated-at {
+  color: #8a94a6;
+  font-size: 13px;
+}

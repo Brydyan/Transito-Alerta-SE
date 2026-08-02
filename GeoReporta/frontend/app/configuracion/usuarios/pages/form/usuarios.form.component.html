@@ -1,0 +1,222 @@
+<div class="gr-page">
+  <!-- Header -->
+  <div class="gr-page__header">
+    <div>
+      <h1 class="gr-page__title" id="form-titulo">Nuevo Usuario</h1>
+      <nav class="gr-breadcrumb">
+        <span class="gr-breadcrumb__item">Configuración</span>
+        <span class="gr-breadcrumb__sep">/</span>
+        <a
+          href="#/usuarios"
+          class="gr-breadcrumb__item"
+          style="text-decoration: none; color: inherit"
+          >Usuarios</a
+        >
+        <span class="gr-breadcrumb__sep">/</span>
+        <span
+          class="gr-breadcrumb__item gr-breadcrumb__item--active"
+          id="breadcrumb-actual"
+          >Crear</span
+        >
+      </nav>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="gr-card gr-form-card">
+    <div style="padding: 28px 32px">
+      <h5 class="mb-1 fw-bold text-dark" id="card-titulo">Nuevo Usuario</h5>
+      <p class="text-muted mb-4" style="font-size: 13px">
+        Los campos marcados con <span class="text-danger">*</span> son
+        obligatorios.
+      </p>
+
+      <form id="form-user" novalidate>
+        <input type="hidden" id="user-id" />
+        <!-- Hidden input: 1 when the user opts to delete the current avatar on submit -->
+        <input type="hidden" id="user-delete-avatar-flag" value="0" />
+
+        <div class="avatar-grid">
+          <!-- Avatar column -->
+          <div>
+            <label class="form-label fw-semibold text-center d-block"
+              >Foto de perfil</label
+            >
+            <div class="avatar-wrap mx-auto" id="user-avatar-wrap-btn">
+              <img
+                id="user-avatar-preview"
+                src="#"
+                alt="Vista previa de avatar"
+                style="display: none"
+              />
+            </div>
+            <input
+              type="file"
+              id="user-avatar"
+              accept="image/jpeg,image/png,image/webp"
+              style="display: none"
+            />
+            <div class="form-text text-center mt-3" style="font-size: 12px">
+              JPG, PNG, WEBP. Máximo 0.78 MB. La imagen se recortará a 512×512
+              px.
+            </div>
+          </div>
+
+          <!-- Fields column -->
+          <div>
+            <!-- Sección: Información Personal -->
+            <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">
+              <i class="fas fa-user-circle me-2"></i>Información Personal
+            </h6>
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <label for="user-nombre" class="form-label fw-semibold">
+                  Nombre <span class="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  class="form-control form-control-lg"
+                  id="user-nombre"
+                  maxlength="100"
+                  required
+                  placeholder="Ej: Juan"
+                />
+                <div class="invalid-feedback">El nombre es obligatorio.</div>
+              </div>
+              <div class="col-md-6">
+                <label for="user-apellido" class="form-label fw-semibold">
+                  Apellido <span class="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  class="form-control form-control-lg"
+                  id="user-apellido"
+                  maxlength="100"
+                  required
+                  placeholder="Ej: Pérez"
+                />
+                <div class="invalid-feedback">El apellido es obligatorio.</div>
+              </div>
+              <div class="col-md-6">
+                <label for="user-email" class="form-label fw-semibold">
+                  Email <span class="text-danger">*</span>
+                </label>
+                <input
+                  type="email"
+                  class="form-control form-control-lg"
+                  id="user-email"
+                  required
+                  placeholder="Ej: juan.perez@ejemplo.com"
+                />
+                <div class="invalid-feedback">
+                  Ingrese un correo electrónico válido.
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="user-telefono" class="form-label fw-semibold">
+                  Teléfono
+                </label>
+                <input
+                  type="tel"
+                  inputmode="tel"
+                  pattern="[+0-9 \(\)\-]{6,20}"
+                  class="form-control form-control-lg"
+                  id="user-telefono"
+                  maxlength="50"
+                  placeholder="Ej: +593 99 999 9999"
+                />
+              </div>
+            </div>
+
+            <!-- Sección: Rol y Organización -->
+            <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">
+              <i class="fas fa-shield-alt me-2"></i>Permisos y Organización
+            </h6>
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <label for="user-rol" class="form-label fw-semibold">
+                  Rol de Sistema <span class="text-danger">*</span>
+                </label>
+                <select
+                  class="form-select form-select-lg"
+                  id="user-rol"
+                  required
+                >
+                  <option value="">-- Seleccione Rol --</option>
+                </select>
+                <div class="invalid-feedback">
+                  Seleccione un rol de usuario.
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="user-org" class="form-label fw-semibold">
+                  Organización Pertinente
+                </label>
+                <select class="form-select form-select-lg" id="user-org">
+                  <option value="">-- Ninguna (Global / Sistema) --</option>
+                </select>
+                <div class="form-text mt-1" style="font-size: 12px">
+                  Obligatorio si el rol corresponde a Administrador u Operador
+                  de Organización.
+                </div>
+              </div>
+            </div>
+
+            <!-- Acciones -->
+            <div class="d-flex gap-2 pt-2 border-top">
+              <button
+                type="submit"
+                class="gr-btn-primary"
+                id="btn-guardar-user"
+              >
+                <span id="user-btn-texto"
+                  ><i class="fas fa-save me-1"></i>Guardar Usuario</span
+                >
+                <span id="user-btn-loading" class="d-none">
+                  <span class="spinner-border spinner-border-sm me-1"></span
+                  >Guardando...
+                </span>
+              </button>
+              <button
+                type="button"
+                class="btn btn-outline-secondary px-4"
+                id="btn-cancelar"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                class="btn btn-outline-danger px-4 d-none ms-auto"
+                id="btn-eliminar-avatar"
+              >
+                <i class="fas fa-trash me-1"></i>Eliminar foto
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notifications -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
+  <div
+    id="toast-msg"
+    class="toast align-items-center text-white border-0"
+    role="alert"
+    aria-live="assertive"
+    aria-atomic="true"
+  >
+    <div class="d-flex">
+      <div class="toast-body" id="toast-msg-texto"></div>
+      <button
+        type="button"
+        class="btn-close btn-close-white me-2 m-auto"
+        data-bs-dismiss="toast"
+      ></button>
+    </div>
+  </div>
+</div>

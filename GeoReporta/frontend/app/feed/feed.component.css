@@ -1,0 +1,814 @@
+/* ============================================================
+   FEED — Bootstrap 5 + minimal custom CSS
+   Kept only: gradients, shimmer, spinner, custom badge states
+   ============================================================ */
+
+/* --- Composer avatar gradient --- */
+.composer-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a06bf5, #5e3bdb);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.composer-input-wrap {
+  height: 44px;
+  border-radius: 22px;
+  background: #f3f4f9;
+  border: 1px solid #eef0f5;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.composer-placeholder {
+  font-size: 14px;
+  color: #b3b8c6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Composer gradient button (custom gradient Bootstrap can't do) --- */
+.composer-btn {
+  height: 44px;
+  border-radius: 12px;
+  padding: 0 18px;
+  background: linear-gradient(118deg, #5e3bdb, #a06bf5);
+  color: #fff !important;
+  font-size: 13.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 10px 20px -10px rgba(94, 59, 219, 0.6);
+  white-space: nowrap;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+.composer-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px -10px rgba(94, 59, 219, 0.7);
+}
+
+/* --- Filter chips active state (gradient + shadow Bootstrap can't do) --- */
+.feed-chip.active {
+  background: linear-gradient(118deg, #5e3bdb, #a06bf5);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 10px rgba(94, 59, 219, 0.25);
+}
+
+/* --- Sidebar filter chips active states --- */
+.rp-filter-chip.active {
+  background: linear-gradient(118deg, #5e3bdb, #a06bf5);
+  color: #fff;
+}
+
+/* --- Filter chips keyboard focus ring (a11y) --- */
+.feed-chip:focus-visible,
+.rp-filter-chip:focus-visible {
+  outline: 2px solid #5e3bdb;
+  outline-offset: 2px;
+}
+
+.feed-chip.active:focus-visible {
+  outline-offset: 4px;
+}
+
+/* --- Status badges (dot indicator) --- */
+.feed-status-badge::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.feed-status-resolved::before {
+  content: '✓';
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  font-size: 10px;
+}
+
+/* --- Cards always white (override any cached priority backgrounds) --- */
+.feed-card {
+  background-color: #ffffff !important;
+  border-radius: clamp(8px, 2vw, 12px);
+  padding: clamp(12px, 3vw, 16px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+.feed-card.feed-priority-high,
+.feed-card.feed-priority-medium,
+.feed-card.feed-priority-low {
+  background-color: #ffffff !important;
+}
+
+/* --- Status badge: soft-fill + label-caps --- */
+.feed-status-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 6px;
+  line-height: 1;
+}
+.feed-status-pending {
+  background: #fff4d6;
+  color: #8a5800;
+}
+.feed-status-in_progress {
+  background: #e3e7ff;
+  color: #1a0f5c; /* WCAG AA: #1a0f5c on #e3e7ff ≈ 13:1 (was #2c1a8a ≈ 3.18:1, below 4.5:1) */
+}
+.feed-status-resolved {
+  background: #d8f6e7;
+  color: #1a7a4a;
+}
+.feed-status-default {
+  background: #eef0f5;
+  color: #4a4f60;
+}
+
+/* --- Priority badge: same soft-fill + label-caps language --- */
+.feed-priority-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 6px;
+  line-height: 1;
+}
+.feed-priority-badge.feed-priority-high {
+  background: #fde2e7;
+  color: #a0183a;
+}
+.feed-priority-badge.feed-priority-medium {
+  background: #fff4d6;
+  color: #8a5800;
+}
+.feed-priority-badge.feed-priority-low {
+  background: #eef0f5;
+  color: #4a4f60;
+}
+
+/* --- Card hover micro-interaction --- */
+.feed-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+.feed-card:focus-visible {
+  outline: 2px solid #5e3bdb;
+  outline-offset: 2px;
+}
+
+/* --- Card footer divider (tokenized) --- */
+.feed-card-footer {
+  border-top: 1px solid var(--bs-border-color-translucent);
+}
+
+/* --- Feed avatar (gradient for users without photo) --- */
+.feed-avatar {
+  background: linear-gradient(135deg, #a06bf5, #5e3bdb);
+}
+
+/* --- Scrollable incidents region (vertical scroll only) --- */
+.feed-scroll-region {
+  overflow-x: hidden;
+}
+
+/* Desktop only: cap height for constrained scroll */
+@media (min-width: 992px) {
+  .feed-scroll-region {
+    max-height: calc(100dvh - 240px);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  @supports not (height: 100dvh) {
+    .feed-scroll-region {
+      max-height: calc(100vh - 240px);
+    }
+  }
+}
+
+/* Desktop only: right panel sticks and scrolls internally so it never
+   grows past the viewport. align-self: start is required for sticky to
+   work inside the Bootstrap row (default align-items: stretch would pin
+   the aside to the row height). */
+@media (min-width: 992px) {
+  .feed-aside {
+    position: sticky;
+    top: 16px;
+    align-self: start;
+    max-height: calc(100dvh - 240px);
+    overflow-y: auto;
+    padding-bottom: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: #c9c4e8 transparent;
+  }
+  .feed-aside::-webkit-scrollbar {
+    width: 6px;
+  }
+  .feed-aside::-webkit-scrollbar-thumb {
+    background: #c9c4e8;
+    border-radius: 999px;
+  }
+  .feed-aside::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  @supports not (height: 100dvh) {
+    .feed-aside {
+      max-height: calc(100vh - 240px);
+    }
+  }
+}
+
+/* Mobile: allow body scroll; desktop: disable for fixed regions */
+body.feed-view {
+  overflow: auto;
+}
+@media (min-width: 992px) {
+  body.feed-view {
+    overflow: hidden;
+  }
+  body.feed-view .app-shell-main {
+    overflow: hidden !important;
+  }
+}
+
+/* --- Card preview gradient background --- */
+.feed-card-preview {
+  background: linear-gradient(160deg, #dce4ee, #c8d4e2);
+}
+
+/* --- Action button hover --- */
+.feed-action-btn:hover {
+  background: #f8f9fc !important;
+  border-color: #dcdffd !important;
+  color: #5e3bdb !important;
+}
+
+/* --- Map opt-in toggle (issue #225) ---
+   The map lives inside a card without a thumbnail. The coords label is
+   always visible. The toggle button is the only thing the user has to
+   click to actually load Leaflet + tiles for that card. */
+.feed-map-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.feed-map-toggle[aria-expanded='true'] {
+  background-color: #6a5cf3;
+  border-color: #6a5cf3;
+  color: #fff;
+}
+
+.feed-map-toggle[aria-expanded='true']:hover {
+  background-color: #5b4ee0;
+  border-color: #5b4ee0;
+  color: #fff;
+}
+
+.feed-minimap {
+  width: 100%;
+}
+
+/* --- Skeleton shimmer animation --- */
+@keyframes feed-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.feed-skel-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: feed-shimmer 1.4s infinite;
+  flex-shrink: 0;
+}
+
+.feed-skel-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: feed-shimmer 1.4s infinite;
+}
+.feed-skel-line.w-40 {
+  width: 40%;
+}
+.feed-skel-line.w-60 {
+  width: 60%;
+}
+.feed-skel-line.w-30 {
+  width: 30%;
+}
+
+.feed-skel-preview {
+  height: 180px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: feed-shimmer 1.4s infinite;
+}
+
+/* --- Spinner animation --- */
+@keyframes feed-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.feed-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #efefef;
+  border-top-color: #5e3bdb;
+  border-radius: 50%;
+  animation: feed-spin 0.7s linear infinite;
+}
+
+/* --- Empty state --- */
+.feed-empty {
+  color: #b3b8c6;
+}
+
+/* --- Stat icons (colored backgrounds) --- */
+.rp-stat-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rp-stat-icon .fa-circle-plus {
+  color: #6a5cf3;
+}
+.rp-stat-icon .fa-circle-check {
+  color: #16a96b;
+}
+.rp-stat-icon .fa-clock {
+  color: #d99a00;
+}
+
+/* --- Zone rank badges --- */
+.rp-zone-rank--1 {
+  background: #5e3bdb;
+}
+.rp-zone-rank--2 {
+  background: #8a7af5;
+}
+.rp-zone-rank--3 {
+  background: #b0a6f8;
+}
+
+/* --- Category accordion (TIPO panel) --- */
+.rp-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.rp-cat-children {
+  padding-left: 12px;
+  margin-bottom: 4px;
+}
+
+.rp-cat-children[hidden] {
+  display: none;
+}
+
+.rp-cat-toggle {
+  border: 0;
+  background: transparent;
+  color: #6b7180;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.rp-cat-toggle:hover {
+  color: #5e3bdb;
+}
+
+.rp-cat-toggle:focus-visible {
+  outline: 2px solid #5e3bdb;
+  outline-offset: 2px;
+}
+
+.rp-checkbox-box {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  flex-shrink: 0;
+  cursor: pointer;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.rp-checkbox-box:checked {
+  background-color: #5e3bdb;
+  border-color: #5e3bdb;
+}
+
+.rp-checkbox-label {
+  margin: 0 !important;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+}
+
+/* --- Focus styles for clickable wrappers promoted to buttons --- */
+.composer-btn:focus-visible,
+.composer-input-wrap:focus-visible,
+.feed-avatar-btn:focus-visible {
+  outline: 2px solid #5e3bdb;
+  outline-offset: 2px;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   FEED RESPONSIVO
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.feed-container {
+  display: grid;
+  grid-template-columns: 1fr; /* Mobile: 1 col */
+  gap: clamp(12px, 3vw, 16px);
+  padding: clamp(12px, 4vw, 24px);
+}
+
+/* Tablet: 2 columnas */
+@media (min-width: 576px) {
+  .feed-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop: 3 columnas */
+@media (min-width: 992px) {
+  .feed-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Título tarjeta */
+.feed-card__title {
+  font-size: clamp(14px, 4vw, 16px);
+  font-weight: 600;
+  margin: 0 0 8px;
+  line-height: 1.3;
+}
+
+/* Descripción */
+.feed-card__desc {
+  font-size: clamp(12px, 2.5vw, 13px);
+  color: #666;
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+
+/* Status badge */
+.feed-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: clamp(10px, 2vw, 11px);
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+/* Meta (fecha, ubicación) */
+.feed-card__meta {
+  font-size: clamp(9px, 2vw, 10px);
+  color: #999;
+  margin-top: 8px;
+}
+
+/* En móvil: esconder avatar grande */
+@media (max-width: 480px) {
+  .feed-card__avatar {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .feed-card__desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* Max 2 líneas */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   STATS CARDS (Mockup Opción B)
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 16px;
+  padding: 0;
+}
+
+.stats-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+.stats-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.stats-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.stats-icon-new {
+  background: linear-gradient(135deg, #a06bf5, #5e3bdb);
+  color: #fff;
+}
+
+.stats-icon-resolved {
+  background: linear-gradient(135deg, #16a96b, #0d6d3a);
+  color: #fff;
+}
+
+.stats-icon-avg {
+  background: linear-gradient(135deg, #ffc107, #ff9800);
+  color: #fff;
+}
+
+.stats-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #23283b;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+
+.stats-label {
+  font-size: 12px;
+  color: #6b7180;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   FILTER FEED — COLLAPSIBLE SECTION
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.feed-filter-section {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.feed-filter-toggle {
+  cursor: pointer;
+  user-select: none;
+  padding: 0;
+  transition: all 0.2s ease;
+}
+
+.feed-filter-toggle:hover {
+  opacity: 0.8;
+}
+
+.feed-filter-toggle:focus-visible {
+  outline: 2px solid #5e3bdb;
+  outline-offset: 2px;
+}
+
+.feed-filter-chevron {
+  transition: transform 0.3s ease;
+  color: #6b7180;
+}
+
+.feed-filter-toggle[aria-expanded='true'] .feed-filter-chevron {
+  transform: rotate(180deg);
+}
+
+.feed-filter-content {
+  transition:
+    max-height 0.3s ease,
+    opacity 0.3s ease;
+  overflow: hidden;
+}
+
+.feed-filter-content.feed-filter-collapsed {
+  max-height: 0;
+  opacity: 0;
+  visibility: hidden;
+  display: block !important;
+  pointer-events: none;
+}
+
+.feed-filter-content:not(.feed-filter-collapsed) {
+  max-height: 500px;
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   SEARCH INPUT (mobile main column + desktop right panel)
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.feed-search-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.feed-search-input > i {
+  position: absolute;
+  left: 12px;
+  color: #5b6172;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.feed-search-input__field {
+  width: 100%;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #eef0f5;
+  background: #f7f8fc;
+  padding: 0 12px 0 36px;
+  font-size: 0.85rem;
+  outline: none;
+  color: #23283b;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+
+.feed-search-input__field::placeholder {
+  color: #a3a8b8;
+}
+
+.feed-search-input__field:focus {
+  border-color: #6a5cf3;
+  background: #fff;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   FEED LOADING + END-OF-LIST INDICATOR
+
+   Two distinct visual states, both replace the old always-visible spinner:
+
+   1. While the next page is in flight (#feed-loading has no .d-none):
+      a centered spinner. Tells the user "wait, more is coming".
+
+   2. Once the last page is reached (trigger has .done):
+      a soft divider + success icon + copy. Tells the user "you've seen
+      everything; the list is finite".
+
+   The trigger element itself stays invisible — it's just an
+   IntersectionObserver target. Bootstrap's d-flex/d-none utility classes
+   are used on the loading element so the JS only needs to toggle a single
+   class to flip the state.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.feed-scroll-trigger {
+  height: 1px;
+}
+
+.feed-loading {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+}
+
+.feed-loading.d-none {
+  display: none !important;
+}
+
+.feed-footer-message {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px 32px;
+  margin-top: 24px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7180;
+  border-top: 1px solid #eef0f5;
+  text-align: center;
+}
+
+.feed-footer-message i {
+  color: #16a96b;
+  font-size: 14px;
+}
+
+/* When the trigger's done state is reached, the footer message takes
+   over the visual slot. Using the sibling general-sibling combinator so
+   the loading element sitting between them does not break the rule. */
+#feed-scroll-trigger.done ~ .feed-footer-message {
+  display: flex;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   RESPONSIVE: Mobile-first stats cards
+   ═════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 576px) {
+  .stats-cards {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .stats-card {
+    padding: 12px;
+  }
+
+  .stats-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .stats-value {
+    font-size: 18px;
+  }
+
+  .stats-label {
+    font-size: 11px;
+  }
+}
+
+@media (min-width: 577px) {
+  .stats-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Hide filter section on desktop (≥992px) if filter is in main column */
+@media (min-width: 992px) {
+  .feed-filter-section {
+    display: none;
+  }
+}

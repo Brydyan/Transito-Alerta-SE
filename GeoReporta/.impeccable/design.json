@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-24T00:00:00Z",
+  "title": "Design System: Sistema de Incidencias Georreferenciadas",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Violeta Cívico", "canonical": "#5e3bdb" },
+      "primary-light": { "role": "primary", "displayName": "Violeta Cívico Claro", "canonical": "#7858f5" },
+      "primary-dark": { "role": "primary", "displayName": "Violeta Cívico Oscuro", "canonical": "#4e2fc4" },
+      "text-dark": { "role": "neutral", "displayName": "Tinta Profunda", "canonical": "#23283b" },
+      "text-default": { "role": "neutral", "displayName": "Grafito Medio", "canonical": "#5b6172" },
+      "text-muted": { "role": "neutral", "displayName": "Niebla", "canonical": "#a3a8b8" },
+      "bg-page": { "role": "neutral", "displayName": "Papel Frío", "canonical": "#f3f4f9" },
+      "bg-card": { "role": "neutral", "displayName": "Blanco Tarjeta", "canonical": "#ffffff" },
+      "border-light": { "role": "neutral", "displayName": "Línea Suave", "canonical": "#eef0f5" },
+      "stat-blue": { "role": "signal", "displayName": "Métrica Azul", "canonical": "#5a6ff0" },
+      "stat-cyan": { "role": "signal", "displayName": "Métrica Cian", "canonical": "#10bfe0" },
+      "stat-green": { "role": "signal", "displayName": "Métrica Verde", "canonical": "#1fc56e" },
+      "stat-red": { "role": "signal", "displayName": "Métrica Roja", "canonical": "#fa5a7d" },
+      "stat-purple": { "role": "signal", "displayName": "Métrica Violeta", "canonical": "#8a5cf0" },
+      "primary-shipped": { "role": "primary", "displayName": "Violeta Cívico (enviado)", "canonical": "#6a5cf3" },
+      "accent-actions-blue": { "role": "accent", "displayName": "Actions Blue", "canonical": "#4f6bed" },
+      "hover-tint-a": { "role": "neutral", "displayName": "Tinte Violeta Suave A", "canonical": "#f0edff" },
+      "hover-tint-b": { "role": "neutral", "displayName": "Tinte Violeta Suave B", "canonical": "#f3f0ff" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display / H1", "purpose": "Títulos de página principales." },
+      "headline": { "displayName": "Headline / H2", "purpose": "Secciones mayores." },
+      "title": { "displayName": "Title / H3–H4", "purpose": "Títulos de tarjeta/bloque." },
+      "body": { "displayName": "Body", "purpose": "Texto de contenido general." },
+      "label": { "displayName": "Label", "purpose": "Chips de estado/prioridad, headers de tabla." }
+    },
+    "gradients": [
+      { "name": "gradient-primary", "value": "linear-gradient(118deg, #6a5cf3 0%, #a06bf5 100%)", "purpose": "Botones primarios, sidebar activo. Nota: hues desalineados del --color-primary actual (#5e3bdb) — resabio de iteración previa, documentado tal cual." },
+      { "name": "gradient-dark", "value": "linear-gradient(135deg, #5a4de0 0%, #8b5cf6 100%)", "purpose": "Variante oscura del gradiente primario." },
+      { "name": "stat-blue", "value": "linear-gradient(135deg, #6f7bf7, #5a6ff0)", "purpose": "Tile de métrica azul." },
+      { "name": "stat-cyan", "value": "linear-gradient(135deg, #22d3ee, #10bfe0)", "purpose": "Tile de métrica cian." },
+      { "name": "stat-green", "value": "linear-gradient(135deg, #2bd17e, #1fc56e)", "purpose": "Tile de métrica verde." },
+      { "name": "stat-red", "value": "linear-gradient(135deg, #fb6a85, #fa5a7d)", "purpose": "Tile de métrica roja." },
+      { "name": "stat-purple", "value": "linear-gradient(135deg, #a06bf5, #8a5cf0)", "purpose": "Tile de métrica violeta." },
+      { "name": "auth-hero", "value": "linear-gradient(150deg, #6a5cf3 0%, #a06bf5 100%)", "purpose": "Panel hero del login — único uso confirmado de 150°." }
+    ],
+    "shadows": [
+      { "name": "shadow-sm", "value": "0 1px 3px rgba(20,20,50,.06)", "purpose": "Reposo, cards por defecto." },
+      { "name": "shadow-md", "value": "0 4px 12px rgba(20,20,50,.08)", "purpose": "Hover leve." },
+      { "name": "shadow-dropdown", "value": "0 8px 24px rgba(20,20,50,.12)", "purpose": "Menús, modal, toast." },
+      { "name": "shadow-selected", "value": "0 12px 22px -8px rgba(106,92,243,.55)", "purpose": "Estado activo/seleccionado (sidebar)." },
+      { "name": "shadow-custom", "value": "0 14px 26px -10px rgba(106,92,243,.55)", "purpose": "Botón primario." },
+      { "name": "stat-glow-blue", "value": "0 14px 26px -14px rgba(90,111,240,.65)", "purpose": "Glow del tile de métrica azul." },
+      { "name": "stat-glow-cyan", "value": "0 14px 26px -14px rgba(16,191,224,.65)", "purpose": "Glow del tile de métrica cian." },
+      { "name": "stat-glow-green", "value": "0 14px 26px -14px rgba(31,197,110,.65)", "purpose": "Glow del tile de métrica verde." },
+      { "name": "stat-glow-red", "value": "0 14px 26px -14px rgba(250,90,125,.65)", "purpose": "Glow del tile de métrica roja." },
+      { "name": "stat-glow-purple", "value": "0 14px 26px -14px rgba(138,92,240,.65)", "purpose": "Glow del tile de métrica violeta." }
+    ],
+    "breakpoints": [
+      { "name": "xs", "value": "480px" },
+      { "name": "sm", "value": "576px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "900px" },
+      { "name": "xl", "value": "992px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Botón de acción principal — gradiente diagonal + glow violeta.",
+      "html": "<button class=\"ds-btn-primary\">Guardar cambios</button>",
+      "css": ".ds-btn-primary { background: linear-gradient(118deg, #6a5cf3 0%, #a06bf5 100%); color: #ffffff; padding: 0 24px; height: 42px; border: none; border-radius: 12px; font-weight: 600; font-family: 'Be Vietnam Pro', sans-serif; box-shadow: 0 14px 26px -10px rgba(106,92,243,.55); transition: filter 0.2s, box-shadow 0.2s; } .ds-btn-primary:hover { filter: brightness(0.94); } .ds-btn-primary:focus-visible { outline: 2px solid #5e3bdb; outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Pill — Resolved",
+      "kind": "chip",
+      "refersTo": "status-pill-resolved",
+      "description": "Chip de estado 'Resuelto' — par de color WCAG-corregido.",
+      "html": "<span class=\"ds-status-pill\">Resuelto</span>",
+      "css": ".ds-status-pill { background: #d8f6e7; color: #1a7a4a; padding: 4px 12px; border-radius: 999px; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }"
+    },
+    {
+      "name": "Stat Tile",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Tile de métrica de dashboard — gradiente + glow de color a juego. Componente firma del sistema.",
+      "html": "<div class=\"ds-stat-tile\"><span class=\"ds-stat-tile__value\">128</span><span class=\"ds-stat-tile__label\">Incidencias activas</span></div>",
+      "css": ".ds-stat-tile { background: linear-gradient(135deg, #6f7bf7, #5a6ff0); color: #ffffff; border-radius: 16px; padding: 20px; box-shadow: 0 14px 26px -14px rgba(90,111,240,.65); } .ds-stat-tile__value { display: block; font-family: 'Be Vietnam Pro', sans-serif; font-size: 1.75rem; font-weight: 700; } .ds-stat-tile__label { display: block; font-size: 0.875rem; opacity: 0.9; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Contenedor base — fondo blanco, sombra de reposo, borde suave.",
+      "html": "<div class=\"ds-card\">Contenido</div>",
+      "css": ".ds-card { background: #ffffff; border-radius: 14px; padding: 20px; border: 1px solid #eef0f5; box-shadow: 0 1px 3px rgba(20,20,50,.06); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": null,
+      "description": "Campo de texto — altura fija, radio 10px, focus ring violeta.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Buscar incidencia…\" />",
+      "css": ".ds-input { min-height: 42px; border-radius: 10px; border: 1px solid #e2e5ef; padding: 0 14px; font-size: max(16px, 1rem); font-family: 'Be Vietnam Pro', sans-serif; } .ds-input:focus { outline: none; border-color: #5e3bdb; box-shadow: 0 0 0 .2rem rgba(94,59,219,.12); }"
+    },
+    {
+      "name": "Table",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Tabla de listado — header uppercase, filas con hover/stripe tintado.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Título</th><th>Estado</th></tr></thead><tbody><tr><td>Bache en Av. Principal</td><td><span class=\"ds-status-pill\">Resuelto</span></td></tr></tbody></table>",
+      "css": ".ds-table { width: 100%; border-collapse: collapse; border-radius: 14px; overflow: hidden; border: 1px solid #eef0f5; font-family: 'Be Vietnam Pro', sans-serif; } .ds-table thead { background: #f8fafc; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; } .ds-table td, .ds-table th { padding: 12px 16px; text-align: left; font-size: 0.85rem; } .ds-table tbody tr:hover { background: #f5f7ff; }"
+    },
+    {
+      "name": "Custom Select Dropdown",
+      "kind": "input",
+      "refersTo": null,
+      "description": "Select propio (trigger + menú flotante) en vez de <select> nativo — usado en filtros y usuarios.",
+      "html": "<div class=\"ds-custom-select\"><button class=\"ds-custom-select__trigger\">Todos los estados</button></div>",
+      "css": ".ds-custom-select__trigger { min-height: 42px; border-radius: 11px; border: 1px solid #e2e5ef; padding: 0 14px; background: #ffffff; font-family: 'Be Vietnam Pro', sans-serif; text-align: left; width: 100%; } .ds-custom-select__trigger:hover { background: #f3f0ff; }"
+    },
+    {
+      "name": "Drag-and-drop Uploader",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Dropzone de imágenes — acento propio Actions Blue, desconectado del violeta primario.",
+      "html": "<div class=\"ds-dropzone\">Arrastrá una imagen o tocá para subir</div>",
+      "css": ".ds-dropzone { border: 2px dashed #4f6bed; border-radius: 12px; padding: 32px; text-align: center; color: #4f6bed; font-family: 'Be Vietnam Pro', sans-serif; } .ds-dropzone.is-dragging { background: rgba(79,107,237,.06); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Sala de Control Cívica",
+    "overview": "El sistema se lee como una sala de control en vivo para incidencias municipales, no como un formulario de trámite: violeta saturado como señal de actividad, gradientes diagonales en botones y tiles, sombras que se glow-tiñen del color del dato que representan (azul, cian, verde, rojo, violeta). Cada tile de métrica no es una tarjeta plana con un número — es una señal visual de estado, con su propia sombra de color a juego con el gradiente. La densidad es de dashboard operativo: tablas, chips de estado, filtros y mapas conviven en una grilla compacta pero nunca gris ni burocrática. Rechazo confirmado: nada de estética 'trámite gubernamental' — sin grises apagados, sin Bootstrap genérico sin personalizar, sin superficies planas sin jerarquía. Estado real: el sistema gr-* (dashboard, login, listado de incidencias, app-shell) cumple ese rechazo; mapa, perfil, el chrome de medios del detalle de incidencia y el stepper del formulario siguen en Bootstrap-default sin migrar — deuda conocida, no parte del sistema a imitar.",
+    "keyCharacteristics": [
+      "Violeta saturado (#5e3bdb) como firma de marca, expresado casi siempre en gradiente, no plano.",
+      "Tiles de métrica con glow de color a juego (sombra coloreada bajo cada gradiente).",
+      "Tipografía fluida (clamp) en toda la jerarquía — sin saltos bruscos por breakpoint.",
+      "Sombras en capas (sm → dropdown → selected) que comunican elevación real, no decoración plana.",
+      "Chips de estado/prioridad con contraste corregido a mano donde el token original no pasaba WCAG."
+    ],
+    "rules": [
+      { "name": "The Gradient-Not-Flat Rule", "body": "El violeta primario casi nunca aparece como fill plano en superficies grandes: siempre en gradiente diagonal (118°–135°), reforzado con una sombra glow del mismo tono.", "section": "colors" },
+      { "name": "The Colored Glow Rule", "body": "Cada tile de estadística lleva una sombra box-shadow teñida con el mismo hue de su gradiente. El glow es la señal de 'esto es un número vivo'.", "section": "colors" },
+      { "name": "The Fluid-Only Rule", "body": "Toda la escala tipográfica usa clamp(), no saltos fijos por media query.", "section": "typography" },
+      { "name": "The Elevation-Means-Something Rule", "body": "La sombra escala con la intención (reposo → hover → flotante → seleccionado); no se usa una sombra genérica única para todo.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar gradiente diagonal (118°–150° según contexto) + glow de color a juego para cualquier superficie primaria/de métrica nueva.",
+      "Do reusar el par de color WCAG-corregido de feed.component.css para chips de estado/prioridad.",
+      "Do usar clamp() para cualquier tamaño de fuente nuevo en la jerarquía de headings.",
+      "Do escalar la sombra con la intención (reposo → hover → dropdown → seleccionado)."
+    ],
+    "donts": [
+      "Don't introducir violeta plano sin gradiente en botones primarios o tiles nuevos.",
+      "Don't usar frontend/css/variables.css (duplicado muerto, no enlazado) como fuente — el canónico es frontend/public/css/variables.css.",
+      "Don't dejar superficies grises apagadas sin jerarquía.",
+      "Don't copiar el radio de .gr-status (20px) o .feed-status-chip (6px) sin decidir cuál es el canónico.",
+      "Don't copiar la paleta de mapa.component.css, perfil.component.css, incidencias.detail (chrome de medios) o .ici-stepper — es la capa Bootstrap-default sin migrar, no el sistema a imitar.",
+      "Don't hardcodear #5e3bdb esperando que coincida con lo que se ve — la mayoría de la UI usa #6a5cf3 en la práctica; no agregues un tercer valor de violeta."
+    ]
+  }
+}

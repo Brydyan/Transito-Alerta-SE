@@ -1,0 +1,74 @@
+{
+  "title": "Laravel App",
+  "uid": "laravel-app",
+  "tags": ["laravel"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "title": "Usuarios activos",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "app_users_active_total",
+          "legendFormat": "Usuarios"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green" }] }
+        }
+      }
+    },
+    {
+      "title": "Incidencias totales",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 0 },
+      "targets": [
+        {
+          "expr": "app_incidents_total",
+          "legendFormat": "Incidencias"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "blue" }] }
+        }
+      }
+    },
+    {
+      "title": "Incidencias por estado",
+      "type": "bargauge",
+      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "app_incidents_by_status",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "steps": [{ "color": "red" }, { "value": 10, "color": "orange" }, { "value": 50, "color": "green" }] }
+        }
+      }
+    },
+    {
+      "title": "Logs recientes",
+      "type": "logs",
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "expr": "{container=~\"backend|frontend|db|redis\"}",
+          "legendFormat": ""
+        }
+      ],
+      "datasource": { "type": "loki" }
+    }
+  ]
+}

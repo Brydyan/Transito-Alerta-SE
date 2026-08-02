@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Términos y Condiciones</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f4f5f9;
+      color: #23283b;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .gr-container {
+      background: #fff;
+      border-radius: 16px;
+      padding: 48px 40px;
+      max-width: 640px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(35, 40, 59, 0.10);
+    }
+
+    .gr-badge {
+      display: inline-block;
+      background: #f0ebff;
+      color: #5e3bdb;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      color: #23283b;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .gr-subtitle {
+      font-size: 14px;
+      color: #5b6172;
+      margin-bottom: 28px;
+      line-height: 1.55;
+    }
+
+    .gr-section {
+      margin-bottom: 24px;
+    }
+
+    .gr-section h2 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #23283b;
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .gr-section p {
+      font-size: 14px;
+      line-height: 1.65;
+      color: #5b6172;
+      margin-bottom: 8px;
+    }
+
+    .gr-section p:last-child {
+      margin-bottom: 0;
+    }
+
+    .gr-back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 32px;
+      background: linear-gradient(118deg, #6a5cf3 0%, #a06bf5 100%);
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      padding: 12px 24px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 14px 26px -10px rgba(106, 92, 243, 0.55);
+      transition: opacity 0.15s ease;
+      font-family: inherit;
+    }
+
+    .gr-back-btn:hover { opacity: 0.93; }
+
+    @media (max-width: 480px) {
+      .gr-container { padding: 32px 20px; }
+      h1 { font-size: 22px; }
+      .gr-section h2 { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="gr-container">
+    <span class="gr-badge">Términos v0</span>
+    <h1>Términos y Condiciones</h1>
+    <p class="gr-subtitle">
+      Estas condiciones rigen el uso de la plataforma Sistema de
+      Incidencias Georreferenciadas. Al crear o activar una cuenta
+      declarás conocerlas y aceptarlas.
+    </p>
+
+    <section class="gr-section">
+      <h2>Datos que recopilamos</h2>
+      <p>
+        Para operar la plataforma necesitamos tu nombre, correo
+        electrónico y, opcionalmente, un teléfono de contacto. La
+        información de ubicación se registra únicamente cuando creás
+        o actualizás una incidencia, y se almacena como coordenada
+        geográfica asociada al reporte.
+      </p>
+      <p>
+        No compartimos tus datos personales con terceros. El acceso
+        interno está limitado al personal autorizado de tu
+        organización y queda registrado en los logs de auditoría.
+      </p>
+    </section>
+
+    <section class="gr-section">
+      <h2>Responsabilidades de la cuenta</h2>
+      <p>
+        Sos responsable de mantener la confidencialidad de tu
+        contraseña y de toda actividad que ocurra bajo tu cuenta.
+        Notificá inmediatamente al administrador si detectás un
+        acceso no autorizado.
+      </p>
+      <p>
+        Los reportes deben reflejar situaciones reales y verificables.
+        Está prohibido publicar contenido ofensivo, difamatorio o
+        información personal de terceros. El sistema puede retener
+        evidencia necesaria para investigaciones administrativas.
+      </p>
+    </section>
+
+    <section class="gr-section">
+      <h2>Contacto</h2>
+      <p>
+        Si tenés dudas sobre estos términos o necesitás ejercer
+        algún derecho sobre tus datos, escribile al administrador
+        de tu organización. También podés responder al correo de
+        invitación original y el equipo te va a redirigir con la
+        persona correspondiente.
+      </p>
+    </section>
+
+    <a class="gr-back-btn" href="javascript:void(0)" onclick="window.history.back()">
+      ← Volver
+    </a>
+  </main>
+</body>
+</html>

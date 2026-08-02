@@ -1,0 +1,177 @@
+/* =============================================================
+   Shared comment item styles — used by both feed-detail and
+   incidencias-detail via their component CSS @import.
+   ============================================================= */
+
+/* ── List reset ─────────────────────────────────────────────── */
+.comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Root comment item ──────────────────────────────────────── */
+.comment-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid #eef0f5;
+}
+
+.comment-item:last-child {
+  border-bottom: none;
+}
+
+/* ── Avatar ─────────────────────────────────────────────────── */
+.comment-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+/* ── Body column ─────────────────────────────────────────────── */
+.comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Header row: name · time ────────────────────────────────── */
+.comment-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.comment-author {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #1a1f36;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comment-sep {
+  color: #c2c7d8;
+  font-size: 0.75rem;
+}
+
+.comment-time {
+  font-size: 0.75rem;
+  color: #8a92a6;
+  white-space: nowrap;
+}
+
+/* ── Institutional badge ─────────────────────────────────────── */
+.comment-badge-institutional {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #5e3bdb;
+  background: #ede9ff;
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-bottom: 8px;
+}
+
+/* ── Message bubble ──────────────────────────────────────────── */
+.comment-bubble {
+  background: #f4f5f9;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  color: #3a4060;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.comment-quote {
+  margin: 0 0 6px 0;
+  padding: 4px 10px;
+  border-left: 3px solid #4f6bed;
+  background: rgba(79, 107, 237, 0.08);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  color: #4a5568;
+  font-style: italic;
+}
+
+/* ── Action row ─────────────────────────────────────────────── */
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.comment-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #4f6bed;
+  cursor: pointer;
+  border-radius: 6px;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.comment-action-btn:hover {
+  background: #eef1fd;
+}
+
+.comment-action-btn--danger {
+  color: #dc3545;
+}
+
+.comment-action-btn--danger:hover {
+  background: #fdecea;
+}
+
+.comment-action-sep {
+  color: #c2c7d8;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
+/* ── Nested replies ──────────────────────────────────────────── */
+.comment-replies {
+  list-style: none;
+  margin: 10px 0 0 0;
+  padding: 0 0 0 16px;
+  border-left: 2px solid #cbd5e1;
+}
+
+.comment-item--reply {
+  padding: 10px 0 4px 0;
+  border-bottom: none;
+}
+
+.comment-item--reply .comment-bubble {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+.comment-item--reply .comment-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 0.7rem;
+}

@@ -1,0 +1,258 @@
+{
+  "title": "E5 - Métricas e Indicadores de Calidad",
+  "uid": "e5-calidad",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": { "from": "now-1y", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Tasa de Éxito",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 85 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://e5-metrics-data/latest.json",
+                    "url_options": { "method": "GET", "data": "" },
+          "root_selector": "",
+          "columns": [{ "selector": "indicadores.tasaExito", "text": "Tasa de Éxito", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Cobertura Funcional",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 70 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://e5-metrics-data/latest.json",
+                    "url_options": { "method": "GET", "data": "" },
+          "root_selector": "",
+          "columns": [{ "selector": "indicadores.coberturaFuncional", "text": "Cobertura Funcional", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Densidad de Defectos (por KLOC)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 3 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://e5-metrics-data/latest.json",
+                    "url_options": { "method": "GET", "data": "" },
+          "root_selector": "",
+          "columns": [{ "selector": "indicadores.densidadDefectos", "text": "Densidad Defectos", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "% Corrección de Defectos",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 80 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://e5-metrics-data/latest.json",
+                    "url_options": { "method": "GET", "data": "" },
+          "root_selector": "",
+          "columns": [{ "selector": "indicadores.porcentajeCorreccion", "text": "% Corrección", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Tasa de Aprobación por Módulo",
+      "type": "barchart",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "max": 100 },
+        "overrides": []
+      },
+      "options": { "xTickLabelRotation": -45, "legend": { "showLegend": false } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://e5-metrics-data/latest.json",
+                    "url_options": { "method": "GET", "data": "" },
+          "root_selector": "modulos",
+          "columns": [
+            { "selector": "nombre", "text": "Módulo", "type": "string" },
+            { "selector": "tasaAprobacion", "text": "% Aprobación", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Distribución de Defectos por Severidad",
+      "type": "piechart",
+      "gridPos": { "h": 9, "w": 6, "x": 12, "y": 6 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://e5-metrics-data/latest.json",
+                    "url_options": { "method": "GET", "data": "" },
+          "root_selector": "indicadores.severidadRows",
+          "columns": [
+            { "selector": "nivel", "text": "Severidad", "type": "string" },
+            { "selector": "cantidad", "text": "Cantidad", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Burn-down de Defectos (E4)",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 6, "x": 18, "y": 6 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://e5-metrics-data/latest.json",
+                    "url_options": { "method": "GET", "data": "" },
+          "root_selector": "burndown",
+          "columns": [
+            { "selector": "dia", "text": "Día", "type": "number" },
+            { "selector": "abiertos", "text": "Defectos Abiertos", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Tendencia de Indicadores entre Ejecuciones del Análisis",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+      "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "e5metrics" },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://e5-metrics-data/metrics-history.json",
+                    "url_options": { "method": "GET", "data": "" },
+          "root_selector": "",
+          "columns": [
+            { "selector": "timestamp", "text": "Ejecución", "type": "timestamp" },
+            { "selector": "indicadores.tasaExito", "text": "Tasa de Éxito", "type": "number" },
+            { "selector": "indicadores.coberturaFuncional", "text": "Cobertura Funcional", "type": "number" },
+            { "selector": "indicadores.porcentajeCorreccion", "text": "% Corrección", "type": "number" }
+          ]
+        }
+      ]
+    }
+  ]
+}

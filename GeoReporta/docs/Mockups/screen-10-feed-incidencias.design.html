@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280">
+<title>Screen 10 · Feed de Incidencias (Desktop)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css">
+<link rel="stylesheet" href="screen-10-feed-incidencias.css">
+</head>
+<body>
+<div style="position:relative;width:1280px;min-height:860px;">
+<!-- ============ 10 · FEED DE INCIDENCIAS ============ -->
+<div style="position:absolute;left:1400px;top:2000px;width:1280px">
+  <div data-drags-parent="1" style="font:600 14px/1.4 'Be Vietnam Pro',sans-serif;color:#6b6f80;margin:0 0 14px 2px">10 · Feed de incidencias</div>
+  <div style="width:1280px;height:860px;background:#f3f4f9;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden;position:relative;display:flex;font-family:'Be Vietnam Pro',sans-serif">
+    <dc-import name="Sidebar" active="incidencias" style="width:256px;height:860px" hint-size="256px,860px"></dc-import>
+    <div style="flex:1;height:860px;display:flex;flex-direction:column;overflow:hidden">
+      <dc-import name="Topbar" style="width:100%;height:72px" hint-size="100%,72px"></dc-import>
+
+      <div style="flex:1;display:flex;overflow:hidden">
+
+        <!-- Feed central -->
+        <div style="flex:1;overflow:hidden;padding:22px 20px;display:flex;flex-direction:column;gap:14px">
+
+          <!-- Composer -->
+          <div style="background:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 1px 3px rgba(20,20,50,.04);display:flex;align-items:center;gap:13px">
+            <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#a06bf5,#6a5cf3);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">MR</div>
+            <div style="flex:1;height:44px;border-radius:22px;background:#f3f4f9;border:1px solid #eef0f5;display:flex;align-items:center;padding:0 18px;font-size:14px;color:#b3b8c6;cursor:pointer">¿Qué incidencia deseas reportar hoy?</div>
+            <div style="height:44px;border-radius:12px;padding:0 18px;background:linear-gradient(118deg,#6a5cf3,#a06bf5);color:#fff;font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 10px 20px -10px rgba(106,92,243,.6);white-space:nowrap"><i class="fa-solid fa-location-dot" style="font-size:12px"></i>Reportar</div>
+          </div>
+
+          <!-- Post 1 — Alta prioridad -->
+          <div style="background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 1px 3px rgba(20,20,50,.04)">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 18px 12px">
+              <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#fb6a85,#fa5a7d);color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">CP</div>
+              <div style="flex:1">
+                <div style="font-size:14px;font-weight:700;color:#23283b">Carlos Paredes</div>
+                <div style="font-size:12px;color:#b3b8c6;display:flex;align-items:center;gap:6px;margin-top:1px"><i class="fa-solid fa-location-dot" style="color:#a06bf5;font-size:10px"></i>Av. Amazonas y Naciones Unidas, Quito &nbsp;·&nbsp; hace 2 h</div>
+              </div>
+              <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11.5px;font-weight:600;background:#e4e8ff;color:#5a6ff0"><span style="width:5px;height:5px;border-radius:50%;background:#5a6ff0"></span>En proceso</span>
+              <span style="display:inline-flex;align-items:center;padding:5px 11px;border-radius:20px;font-size:11px;font-weight:700;background:#ffe9ee;color:#fa5a7d">● Alta</span>
+            </div>
+            <div style="padding:0 18px 12px">
+              <div style="font-size:15px;font-weight:700;color:#23283b;margin-bottom:5px">Bache profundo en Av. Amazonas · <span style="font-size:13px;color:#a3a8b8;font-weight:400">INC-1042</span></div>
+              <div style="font-size:13.5px;color:#5b6172;line-height:1.55;margin-bottom:10px">Bache de gran tamaño en el carril derecho que representa riesgo para vehículos y motociclistas. Requiere atención prioritaria por ubicación en avenida de alto tránsito.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <span style="font-size:12px;color:#6a5cf3;background:#f0edff;padding:4px 11px;border-radius:10px;font-weight:600"># Infraestructura</span>
+                <span style="font-size:12px;color:#6a5cf3;background:#f0edff;padding:4px 11px;border-radius:10px;font-weight:600"># Baches</span>
+                <span style="font-size:12px;color:#6a5cf3;background:#f0edff;padding:4px 11px;border-radius:10px;font-weight:600"># Pichincha</span>
+              </div>
+            </div>
+            <!-- Imagen placeholder -->
+            <div style="margin:0 18px 14px;height:180px;border-radius:12px;background:linear-gradient(160deg,#dce4ee,#c8d4e2);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center">
+              <div style="position:absolute;inset:0;background-image:linear-gradient(#c8d4e2 1px,transparent 1px),linear-gradient(90deg,#c8d4e2 1px,transparent 1px);background-size:38px 38px;opacity:.5"></div>
+              <div style="position:absolute;top:0;bottom:0;left:40%;width:22px;background:#e4ecf5;opacity:.8"></div>
+              <div style="position:absolute;left:0;right:0;top:54%;height:18px;background:#e4ecf5;opacity:.8"></div>
+              <div style="position:absolute;left:46%;top:48%;transform:translate(-50%,-100%)"><div style="width:32px;height:32px;border-radius:50% 50% 50% 0;background:#fa5a7d;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 5px 12px rgba(0,0,0,.28)"><i class="fa-solid fa-location-dot" style="color:#fff;font-size:13px;transform:rotate(45deg)"></i></div></div>
+              <div style="position:absolute;left:16px;bottom:12px;background:rgba(255,255,255,.9);border-radius:8px;padding:6px 11px;font-size:11.5px;color:#6b7180;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px)"><i class="fa-solid fa-location-crosshairs" style="color:#5a6ff0;font-size:11px"></i>-0.1807, -78.4678</div>
+            </div>
+            <!-- Acciones -->
+            <div style="display:flex;align-items:center;padding:10px 18px 14px;border-top:1px solid #f5f6fa">
+              <div style="display:flex;gap:4px;flex:1">
+                <button style="height:36px;border-radius:22px;border:1px solid #eef0f5;background:#fff;padding:0 14px;font-size:13px;font-weight:500;color:#6b7180;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:7px"><i class="fa-regular fa-comment" style="font-size:13px;color:#a3a8b8"></i>2 comentarios</button>
+                <button style="height:36px;border-radius:22px;border:1px solid #eef0f5;background:#fff;padding:0 14px;font-size:13px;font-weight:500;color:#6b7180;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:7px"><i class="fa-regular fa-eye" style="font-size:13px;color:#a3a8b8"></i>Seguir</button>
+                <button style="height:36px;border-radius:22px;border:1px solid #eef0f5;background:#fff;padding:0 14px;font-size:13px;font-weight:500;color:#6b7180;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:7px"><i class="fa-solid fa-triangle-exclamation" style="font-size:12px;color:#a3a8b8"></i>Yo también reporto</button>
+              </div>
+              <button style="height:36px;border-radius:22px;border:none;background:linear-gradient(118deg,#6a5cf3,#a06bf5);padding:0 18px;font-size:13px;font-weight:600;color:#fff;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 6px 14px -6px rgba(106,92,243,.55)"><i class="fa-solid fa-arrow-up-right-from-square" style="font-size:11px"></i>Ver detalle</button>
+            </div>
+          </div>
+
+          <!-- Post 2 — Media prioridad / Resuelto -->
+          <div style="background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 1px 3px rgba(20,20,50,.04)">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 18px 12px">
+              <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#2bd17e,#1fc56e);color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">AM</div>
+              <div style="flex:1"><div style="font-size:14px;font-weight:700;color:#23283b">Ana Morales</div><div style="font-size:12px;color:#b3b8c6;display:flex;align-items:center;gap:6px;margin-top:1px"><i class="fa-solid fa-location-dot" style="color:#a06bf5;font-size:10px"></i>Parque Central, Cuenca &nbsp;·&nbsp; hace 5 h</div></div>
+              <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11.5px;font-weight:600;background:#d8f6e7;color:#16a96b"><span style="width:5px;height:5px;border-radius:50%;background:#16a96b"></span>Resuelto</span>
+              <span style="display:inline-flex;align-items:center;padding:5px 11px;border-radius:20px;font-size:11px;font-weight:700;background:#fff4d6;color:#d99a00">● Media</span>
+            </div>
+            <div style="padding:0 18px 12px">
+              <div style="font-size:15px;font-weight:700;color:#23283b;margin-bottom:5px">Luminaria apagada en parque central · <span style="font-size:13px;color:#a3a8b8;font-weight:400">INC-1041</span></div>
+              <div style="font-size:13.5px;color:#5b6172;line-height:1.55;margin-bottom:10px">Tres faroles apagados en el sector norte del parque generan inseguridad nocturna. Reportado el lunes, repuesto hoy. ✅</div>
+              <div style="background:#d8f6e7;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:10px"><i class="fa-solid fa-circle-check" style="color:#16a96b;font-size:16px"></i><div style="font-size:12.5px;color:#1a7a4a;font-weight:600">Resuelta en 4 días · Dirección de Alumbrado Público, Cuenca</div></div>
+              <div style="display:flex;gap:8px">
+                <span style="font-size:12px;color:#6a5cf3;background:#f0edff;padding:4px 11px;border-radius:10px;font-weight:600"># Infraestructura</span>
+                <span style="font-size:12px;color:#6a5cf3;background:#f0edff;padding:4px 11px;border-radius:10px;font-weight:600"># AlumbradoPúblico</span>
+                <span style="font-size:12px;color:#6a5cf3;background:#f0edff;padding:4px 11px;border-radius:10px;font-weight:600"># Azuay</span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;padding:10px 18px 14px;border-top:1px solid #f5f6fa">
+              <div style="display:flex;gap:4px;flex:1">
+                <button style="height:36px;border-radius:22px;border:1px solid #eef0f5;background:#fff;padding:0 14px;font-size:13px;font-weight:500;color:#6b7180;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:7px"><i class="fa-regular fa-comment" style="font-size:13px;color:#a3a8b8"></i>4 comentarios</button>
+                <button style="height:36px;border-radius:22px;border:1px solid #d8f6e7;background:#e9fbf3;padding:0 14px;font-size:13px;font-weight:600;color:#16a96b;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:7px"><i class="fa-solid fa-thumbs-up" style="font-size:12px"></i>12 gracias</button>
+              </div>
+              <button style="height:36px;border-radius:22px;border:none;background:linear-gradient(118deg,#6a5cf3,#a06bf5);padding:0 18px;font-size:13px;font-weight:600;color:#fff;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 6px 14px -6px rgba(106,92,243,.55)"><i class="fa-solid fa-arrow-up-right-from-square" style="font-size:11px"></i>Ver detalle</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Panel lateral derecho -->
+        <div style="width:260px;padding:22px 18px 22px 0;display:flex;flex-direction:column;gap:14px;overflow:hidden">
+
+          <!-- Filtros -->
+          <div style="background:#fff;border-radius:18px;padding:18px;box-shadow:0 1px 3px rgba(20,20,50,.04)">
+            <div style="font-size:14.5px;font-weight:700;color:#23283b;margin-bottom:14px">Filtrar feed</div>
+            <div style="font-size:11px;font-weight:700;color:#b3b8c6;letter-spacing:.05em;margin-bottom:7px">ESTADO</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+              <div style="padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;background:#e4e8ff;color:#5a6ff0;cursor:pointer">En proceso</div>
+              <div style="padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;background:#fff4d6;color:#d99a00;cursor:pointer">Pendiente</div>
+              <div style="padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;background:#f0f1f6;color:#8a90a0;cursor:pointer">Resuelto</div>
+            </div>
+            <div style="font-size:11px;font-weight:700;color:#b3b8c6;letter-spacing:.05em;margin-bottom:7px">TIPO</div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#5b6172;cursor:pointer;padding:4px 0"><span style="width:16px;height:16px;border-radius:4px;background:#6a5cf3;display:flex;align-items:center;justify-content:center"><i class="fa-solid fa-check" style="color:#fff;font-size:9px"></i></span>Infraestructura</label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#5b6172;cursor:pointer;padding:4px 0"><span style="width:16px;height:16px;border-radius:4px;background:#6a5cf3;display:flex;align-items:center;justify-content:center"><i class="fa-solid fa-check" style="color:#fff;font-size:9px"></i></span>Servicios públicos</label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#a3a8b8;cursor:pointer;padding:4px 0"><span style="width:16px;height:16px;border-radius:4px;border:1.5px solid #d6dae3"></span>Medio ambiente</label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#a3a8b8;cursor:pointer;padding:4px 0"><span style="width:16px;height:16px;border-radius:4px;border:1.5px solid #d6dae3"></span>Seguridad</label>
+            </div>
+          </div>
+
+          <!-- Estadísticas rápidas -->
+          <div style="background:#fff;border-radius:18px;padding:18px;box-shadow:0 1px 3px rgba(20,20,50,.04)">
+            <div style="font-size:14.5px;font-weight:700;color:#23283b;margin-bottom:14px">Estadísticas hoy</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #f5f6fa">
+              <div style="width:34px;height:34px;border-radius:10px;background:#f0edff;color:#6a5cf3;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0"><i class="fa-solid fa-circle-plus"></i></div>
+              <div><div style="font-size:18px;font-weight:800;color:#23283b;line-height:1">14</div><div style="font-size:11.5px;color:#a3a8b8">Nuevas hoy</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #f5f6fa">
+              <div style="width:34px;height:34px;border-radius:10px;background:#e3f7ec;color:#16a96b;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0"><i class="fa-solid fa-circle-check"></i></div>
+              <div><div style="font-size:18px;font-weight:800;color:#23283b;line-height:1">8</div><div style="font-size:11.5px;color:#a3a8b8">Resueltas hoy</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+              <div style="width:34px;height:34px;border-radius:10px;background:#fff4d6;color:#d99a00;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0"><i class="fa-regular fa-clock"></i></div>
+              <div><div style="font-size:18px;font-weight:800;color:#23283b;line-height:1">2.4 d</div><div style="font-size:11.5px;color:#a3a8b8">Promedio resolución</div></div>
+            </div>
+          </div>
+
+          <!-- Más reportadas -->
+          <div style="background:#fff;border-radius:18px;padding:18px;box-shadow:0 1px 3px rgba(20,20,50,.04)">
+            <div style="font-size:14.5px;font-weight:700;color:#23283b;margin-bottom:12px">Zonas activas</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 0"><div style="width:26px;height:26px;border-radius:7px;background:#6a5cf3;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div><div style="flex:1;font-size:12.5px;color:#5b6172;font-weight:500">Quito, Pichincha</div><div style="font-size:12px;font-weight:700;color:#23283b">386</div></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 0"><div style="width:26px;height:26px;border-radius:7px;background:#8a7af5;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div><div style="flex:1;font-size:12.5px;color:#5b6172;font-weight:500">Guayaquil, Guayas</div><div style="font-size:12px;font-weight:700;color:#23283b">298</div></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 0"><div style="width:26px;height:26px;border-radius:7px;background:#b0a6f8;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</div><div style="flex:1;font-size:12.5px;color:#5b6172;font-weight:500">Cuenca, Azuay</div><div style="font-size:12px;font-weight:700;color:#23283b">174</div></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</body>
+</html>

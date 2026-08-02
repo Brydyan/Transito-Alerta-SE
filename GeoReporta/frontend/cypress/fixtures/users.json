@@ -1,0 +1,14 @@
+{
+  "citizen": {
+    "email": "usuario@test.com",
+    "password": "Usuario123!"
+  },
+  "admin": {
+    "email": "admin.gad-municipal-del-canton-quito@organizacion.com",
+    "password": "Admin123!"
+  },
+  "operator": {
+    "email": "operador.gad-municipal-del-canton-quito@organizacion.com",
+    "password": "Operador123!"
+  }
+}

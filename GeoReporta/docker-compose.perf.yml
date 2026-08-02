@@ -1,0 +1,49 @@
+# Opt-in perf/load-testing overlay. Never started by a bare
+# `docker compose up` — bring it up explicitly alongside the main file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.perf.yml up -d influxdb
+#   docker compose -f docker-compose.yml -f docker-compose.perf.yml run --rm k6 run /scripts/smoke.js
+#
+# Grafana is NOT part of this overlay — it's the same instance already
+# provided by the main docker-compose.yml (avoids two services fighting
+# over the same container name/port/provisioning mount). Bring up the
+# main stack's `grafana` service separately if it isn't already running.
+#
+# See perf/README.md for the full walkthrough.
+services:
+  influxdb:
+    image: influxdb:1.8
+    environment:
+      INFLUXDB_DB: k6
+    ports:
+      - "${INFLUXDB_PORT:-8086}:8086"
+    volumes:
+      - perf_influxdb_data:/var/lib/influxdb
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8086/ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - dev-network
+
+  # Short-lived by design — k6 is a CLI, not a daemon. `profiles: ["perf"]`
+  # keeps it out of `docker compose up` (with or without -d) entirely;
+  # it only ever runs via an explicit `docker compose run --rm k6 ...`.
+  k6:
+    image: grafana/k6:latest
+    profiles:
+      - perf
+    environment:
+      K6_OUT: influxdb=http://influxdb:8086/k6
+      API_BASE_URL: http://backend:8000
+    volumes:
+      - ./perf/scripts:/scripts
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    networks:
+      - dev-network
+
+volumes:
+  perf_influxdb_data:

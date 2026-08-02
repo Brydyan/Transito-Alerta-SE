@@ -1,0 +1,304 @@
+/* === Incidencias list === */
+.gr-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.gr-filters__search {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.gr-filters__search i {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-light);
+  font-size: 14px;
+}
+
+.gr-filters__input {
+  width: 100%;
+  height: 42px;
+  border-radius: 11px;
+  border: 1px solid var(--border-light);
+  background: #f7f8fc;
+  padding: 0 16px 0 42px;
+  font-size: 14px;
+  font-family: var(--font-family);
+  outline: none;
+  color: #444;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.gr-filters__input:focus {
+  border-color: var(--color-primary);
+  background: #fff;
+}
+
+.gr-filters__selects {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gr-select-wrap {
+  position: relative;
+  min-width: 0;
+  flex: 1 1 calc(50% - 5px);
+}
+
+.gr-select {
+  height: 42px;
+  border: 1px solid var(--border-light);
+  border-radius: 11px;
+  padding: 0 32px 0 14px;
+  font-size: 13px;
+  font-family: var(--font-family);
+  color: #6b7180;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  background: #fff;
+  outline: none;
+}
+
+.gr-select-arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 9px;
+  color: #c3c7d2;
+  pointer-events: none;
+}
+
+.gr-btn-filter {
+  height: 42px;
+  border: 1px solid var(--color-primary);
+  border-radius: 11px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-family: var(--font-family);
+  font-weight: 600;
+  color: var(--color-primary);
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s ease;
+}
+
+.gr-btn-filter:hover {
+  background: #f3f0ff;
+}
+
+.gr-btn-filter--clear {
+  width: 42px;
+  padding: 0;
+  justify-content: center;
+  border-color: var(--border-light);
+  color: #8a90a0;
+}
+
+.gr-btn-filter--clear:hover {
+  background: #f7f8fc;
+  border-color: var(--border-medium);
+}
+
+/* Table */
+.gr-table-wrap {
+  overflow-x: auto;
+}
+
+.gr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--text-dark);
+}
+
+.gr-table thead th {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  padding: 16px 12px 12px;
+  border-bottom: 1px solid var(--border-light);
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.gr-table tbody tr {
+  border-bottom: 1px solid #f5f6fa;
+  transition: background 0.1s ease;
+}
+
+.gr-table tbody tr:nth-child(even) {
+  background: #fafbfd;
+}
+.gr-table tbody tr:hover {
+  background: #f5f7ff;
+}
+
+.gr-table tbody td {
+  padding: 13px 12px;
+  vertical-align: middle;
+}
+
+.gr-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-light);
+}
+
+/* Status chips */
+.gr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.gr-status__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.gr-status--proceso {
+  background: #e4e8ff;
+  color: #5a6ff0;
+}
+.gr-status--proceso .gr-status__dot {
+  background: #5a6ff0;
+}
+.gr-status--pendiente {
+  background: #fff4d6;
+  color: #d99a00;
+}
+.gr-status--pendiente .gr-status__dot {
+  background: #d99a00;
+}
+.gr-status--resuelto {
+  background: #d8f6e7;
+  color: #16a96b;
+}
+.gr-status--resuelto .gr-status__dot {
+  background: #16a96b;
+}
+
+/* Priority */
+.gr-priority--alta {
+  color: #fa5a7d;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.gr-priority--media {
+  color: #f0a020;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.gr-priority--baja {
+  color: #16a96b;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+/* Estado center */
+.gr-estado-center {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+/* Buttons */
+.gr-btn-primary--inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: auto;
+  padding: 11px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.gr-btn-primary--sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: auto;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.gr-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: var(--font-family);
+  font-weight: 600;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  background: #fff;
+  cursor: pointer;
+}
+
+/* === Lifted from inline (PR #3 H10) — incidencias.index === */
+
+/* Empty/error state icon size — was style="font-size: 2.5rem" */
+.incid-index__state-icon {
+  font-size: 2.5rem;
+}
+
+/* Table column widths — replaced inline style="width: …" on <th> */
+.incid-index__col-chk {
+  width: 40px;
+}
+
+.incid-index__col-priority {
+  width: 90px;
+}
+
+.incid-index__col-status {
+  width: 110px;
+}
+
+.incid-index__col-location {
+  width: 140px;
+}
+
+.incid-index__col-date {
+  width: 100px;
+}
+
+.incid-index__col-actions {
+  width: 70px;
+}
+
+/* Toast wrapper stacking context — was style="z-index: 9999" */
+.incid-index__toast-wrapper {
+  z-index: 9999;
+}
