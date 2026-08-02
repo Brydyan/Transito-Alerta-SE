@@ -158,7 +158,7 @@ Paso 8: El ciudadano recibe notificaciones.
 
 ---
 
-## CATEGORÍAS DE REPORTES
+## CATEGORÍAS DE REPORTES (Aun por definir)
 
 * Accidentes
 * Huecos
