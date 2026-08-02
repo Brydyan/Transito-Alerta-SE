@@ -718,6 +718,34 @@ PASO 3: Carga del Formulario (< 2 segundos)
   └─ Si sin conexión: Usar IndexedDB local
 ```
 
+---
+
+#### ⚠️ DATOS OPERACIONALES PENDIENTES DE VALIDACIÓN OFICIAL CTE
+
+Siguiente tabla marca información que requiere confirmación de Comisión de Tránsito antes de Fase 2. Ver documento `DocuSolicitar.md` para detalle de solicitud formal.
+
+| Campo | Valor Propuesto (Baseline) | Fuente Provisional | Validación Requerida | Estado |
+|-------|---------------------------|-------------------|----------------------|--------|
+| **Categorías de Reportes** | 16 tipos (Accidentes, Huecos, Semáforos, Señalización, Vehículos abandonados, Mal estacionados, Congestión, Árbol caído, Inundación, Obstrucción, Luminarias, Animales, Obras, Deslizamientos, Riesgo vial, Otros) | Observaciones.md línea 161-178 | Catálogo Oficial CTE / ECU-911 | 🔴 BLOQUEADO |
+| **Información Requerida por Reporte** | Foto, Fecha/Hora, Descripción, Prioridad, Ubicación GPS, Estado, Departamento, Tiempo respuesta, Operario responsable | Observaciones.md línea 182-193 | Manual Operaciones CTE + Protocolo de Despacho | 🔴 BLOQUEADO |
+| **Solicitar Datos Personales** | Anonimización por diseño (NO solicitar: nombre, cédula, email, celular) | PROPUESTA-FORMAL Sección 11 | Política oficial LGPD Ecuador + Comisión | 🟡 PENDIENTE |
+| **Estructura de Departamentos** | 9 departamentos sugeridos (Operativa, Señalización, Semaforización, Técnico, Movilidad, Planificación, Jurídico, Atención Ciudadana, Administración) | Observaciones.md línea 104-112 | Organigrama oficial Comisión de Tránsito | 🔴 BLOQUEADO |
+| **Niveles de Prioridad** | 3 niveles: ALTA (< 8 min), MEDIA (< 15 min), BAJA (< 30 min) | SRS.md Sección 3.3 + Propuesta técnica | SLA Oficial CTE | 🟡 PENDIENTE |
+| **Ciclo de Vida Estados** | NUEVO → EN REVISIÓN → EN PROCESO → RESUELTO / RECHAZADO | SRS.md Sección 2 | Manual de Operaciones CTE | 🟡 PENDIENTE |
+| **Tiempos de Respuesta (SLA)** | ALTA: 8 min despacho, 45 min resolución total | SRS.md Sección 7 | Norma SLA Oficial | 🟡 PENDIENTE |
+| **Canales de Notificación** | Dashboard Web + Telegram Bot + WhatsApp (fallback) | PROPUESTA-FORMAL Sección 10 | Política Comunicación Institucional CTE | 🟡 PENDIENTE |
+
+**Leyenda:**
+- 🔴 BLOQUEADO: Implementación **no puede avanzar** sin este dato
+- 🟡 PENDIENTE: Implementación puede usar baseline, validación ajusta detalles
+
+**Impacto de Bloqueos:**
+- Baseline PROPUESTA usa valores conservadores (SRS.md)
+- Comisión valida semana 1 proyecto
+- Cambios después de aprobación requieren enmienda formal
+
+---
+
 #### 1.2 Reporte de Incidente (30 segundos promedio)
 ```
 PASO 1: Seleccionar Tipo de Incidente
