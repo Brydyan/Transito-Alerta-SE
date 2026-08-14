@@ -15,18 +15,30 @@ fail()  { printf "${RED}[FAIL]${NC}  %s\n" "$1"; }
 
 EXIT_CODE=0
 
-echo "── 1. Verificando entorno (PHP/Laravel) ──────────────"
+echo "── 1. Verificando entorno (Node.js/NestJS/Angular) ──"
 
-if ! command -v php >/dev/null 2>&1; then
-  fail "php no está instalado"
+if ! command -v node >/dev/null 2>&1; then
+  fail "node no está instalado"
   exit 1
 fi
-ok "php -> $(php -r 'echo PHP_VERSION;')"
+ok "node -> $(node -v)"
 
-if ! command -v composer >/dev/null 2>&1; then
-  warn "composer no está disponible globalmente"
+if ! command -v npm >/dev/null 2>&1; then
+  fail "npm no está instalado"
+  exit 1
+fi
+ok "npm -> $(npm -v)"
+
+if ! command -v nest >/dev/null 2>&1; then
+  warn "nest CLI no está disponible globalmente (se puede usar npx)"
 else
-  ok "composer encontrado"
+  ok "nest -> $(nest --version 2>/dev/null || echo 'encontrado')"
+fi
+
+if ! command -v ng >/dev/null 2>&1; then
+  warn "ng CLI no está disponible globalmente (se puede usar npx)"
+else
+  ok "ng CLI encontrado"
 fi
 
 echo ""
@@ -44,8 +56,17 @@ done
 echo ""
 echo "── 3. Validando feature_list.json y specs ─────────────"
 
-if command -v python3 >/dev/null 2>&1; then
-python3 - <<'PY'
+PYTHON_BIN=""
+if command -v python3 >/dev/null 2>&1 && python3 -c "import sys" >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1 && python -c "import sys" >/dev/null 2>&1; then
+  PYTHON_BIN="python"
+elif command -v py >/dev/null 2>&1 && py -c "import sys" >/dev/null 2>&1; then
+  PYTHON_BIN="py"
+fi
+
+if [ -n "$PYTHON_BIN" ]; then
+$PYTHON_BIN - <<'PY'
 import json, os, sys
 try:
     if not os.path.exists("feature_list.json"):
@@ -88,19 +109,36 @@ else
 fi
 
 echo ""
-echo "── 4. Ejecutando tests (Laravel API) ───────────────────"
+echo "── 4. Ejecutando tests (NestJS & Angular) ──────────────"
 
-if [ -d "backend/api/tests" ]; then
-  cd backend/api
-  if php artisan test >/dev/null 2>&1; then
-    ok "Todos los tests de Laravel pasan"
+TESTS_RAN=0
+
+if [ -d "backend" ] && [ -f "backend/package.json" ]; then
+  TESTS_RAN=1
+  cd backend
+  if npm test >/dev/null 2>&1; then
+    ok "Todos los tests de NestJS (backend) pasan"
   else
-    fail "Hay tests de Laravel rotos. Ejecuta 'php artisan test' en backend/api para ver el detalle."
+    fail "Hay tests de NestJS rotos. Ejecuta 'npm test' en backend/ para ver el detalle."
     EXIT_CODE=1
   fi
-  cd ../../
-else
-  warn "Carpeta backend/api/tests/ no existe o no hay tests"
+  cd ..
+fi
+
+if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+  TESTS_RAN=1
+  cd frontend
+  if npm test -- --watch=false >/dev/null 2>&1; then
+    ok "Todos los tests de Angular (frontend) pasan"
+  else
+    fail "Hay tests de Angular rotos. Ejecuta 'npm test' en frontend/ para ver el detalle."
+    EXIT_CODE=1
+  fi
+  cd ..
+fi
+
+if [ $TESTS_RAN -eq 0 ]; then
+  warn "Carpetas backend/ o frontend/ no existen o no contienen package.json"
 fi
 
 echo ""
