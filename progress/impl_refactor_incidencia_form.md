@@ -1,0 +1,1 @@
+Bloqueado porque la feature no existe en `feature_list.json` con estado `in_progress`, y no existen los archivos de especificaciones en `specs/<name>/` (`requirements.md`, `design.md`, `tasks.md`). Según las reglas duras, el agente se detiene.
