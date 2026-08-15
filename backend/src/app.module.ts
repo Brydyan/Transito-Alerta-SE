@@ -6,10 +6,11 @@ import { AppController } from './app.controller';
 import { AuthModule } from './modules/auth/auth.module';
 import { GeofencingModule } from './modules/geofencing/geofencing.module';
 import { IncidentsModule } from './modules/incidents/incidents.module';
+import { CommentsModule } from './modules/comments/comments.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 
 @Module({
-  imports: [CoreModule, AuthModule, GeofencingModule, IncidentsModule],
+  imports: [CoreModule, AuthModule, GeofencingModule, IncidentsModule, CommentsModule],
   controllers: [AppController],
   providers: [
     {
