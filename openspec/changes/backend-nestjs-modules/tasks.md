@@ -292,7 +292,7 @@ Migration numbering deviates from this file (see per-task notes below and apply-
 
 ## PHASE 4 — Polish + Testing (Week 5)
 
-### T4.1 — Integration tests (E2E workflows)
+### T4.1 — Integration tests (E2E workflows) — STATUS: 🟡 PARTIAL (T4.1a done, T4.1b deferred)
 - Requirement: validates CC1-CC5, R1-R16 end-to-end
 - Depends on: all Phase 2 + Phase 3 tasks
 - Duration: 4h | PR size: ~300 LOC (test-only) | Tests: 4 full-flow scenarios
@@ -300,6 +300,12 @@ Migration numbering deviates from this file (see per-task notes below and apply-
 - Work: Supertest + Testcontainers (postgis:16-3.4, redis:7) flows: (1) citizen reports incident anonymously; (2) admin assigns to operator, verified via WebSocket event; (3) operator comments + changes status, StatusHistory row confirmed; (4) notification delivered to citizen (mocked transport, queue job asserted).
 - Acceptance criteria: all four flows pass against real Postgres+PostGIS and Redis containers, not mocks.
 - Test scenarios: as listed above (4 flows), each asserting cross-module side effects (cache, events, audit rows).
+
+**T4.1a — e2e harness — ✅ DONE** (`backend/test/jest-e2e.json`, `backend/test/support/run-migrations.ts`, `backend/test/support/test-environment.ts`, `backend/test/e2e/health.e2e-spec.ts`; CI `integration` job added to `.github/workflows/ci.yml`). Real Testcontainers (postgis/postgis:16-3.4 + redis:7-alpine, verified working in-sandbox, no docker-compose fallback needed), schema from `database/migrations/[0-9]*.sql` (never `synchronize`), app booted with the exact `main.ts` pipeline. One smoke spec only (health 200 + anonymous login returns the 4-permission ceiling). Side-fix: `RedisIoAdapter` never closed its `pubClient`/`subClient` on shutdown — a real production leak (infinite ioredis reconnect retries after every restart), discovered because the harness is the first thing to exercise a real app shutdown against real Redis; fixed with a `close()` override + `redis-io.adapter.spec.ts`. Full detail: `sdd/backend-nestjs-modules/apply-progress`.
+
+**T4.1b — the four workflow flows + StatusHistory/Notifications assertions — deferred until after Phase 3** (StatusHistory and Notifications don't exist yet — T3.4/T3.3).
+
+**⚠️ Branch discrepancy found during T4.1a**: this task's source instruction named `brydyan/sc-194/backend-nestjs-modules`, but the checked-out working tree was already on `brydyan/sc-252/fase-3-de-la-migracion-del-backend` (descendant of sc-194's tip, +2 commits including the one that created `ci.yml`'s `backend`/`migrations` jobs) before T4.1a started. The harness commit landed on sc-252. Confirm the correct branch before the next apply batch.
 
 ### T4.2 — Load testing (25k+ users) [P]
 - Requirement: scale patterns (WebSockets 5k sockets/instance target, geofencing cache)
