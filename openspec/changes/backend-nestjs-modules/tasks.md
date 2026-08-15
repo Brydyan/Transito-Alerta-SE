@@ -90,9 +90,12 @@ D4's "Geofencing -> (none — owns geo_zones)" DAG entry.
 
 ---
 
-## PHASE 2 — Core Domains (Week 2-3)
+## PHASE 2 — Core Domains (Week 2-3) — STATUS: ✅ 6/6 COMPLETE
 
-### T2.0 — Geofencing module (owns geo_zones, D4)
+Full detail in `apply-progress.md` (Phase 2 section) / Engram `sdd/backend-nestjs-modules/apply-progress`.
+Migration numbering deviates from this file (see per-task notes below and apply-progress): incidents=0004 (not 0003), comments=0005 (not 0004), users=0006 (new — not originally numbered), assignments=0007 (not 0006). All Pending in `database/MIGRATION_LOG.md`, none auto-applied.
+
+### T2.0 — Geofencing module (owns geo_zones, D4) [x] DONE (commit 5f92ecc)
 - Requirement: CC5 (geofencing cache consistency), R11 groundwork
 - Depends on: T1.5, T1.4
 - Duration: 3h | PR size: ~200 LOC | Tests: 5
@@ -104,7 +107,7 @@ D4's "Geofencing -> (none — owns geo_zones)" DAG entry.
   - Purge helper clears all keys tagged under `geo:tags:{zone_id}`
 - Test scenarios: containment inside Santa Elena polygon; containment outside all zones; proximity query radius boundary; cache key determinism; tag-set purge removes all tagged keys.
 
-### T2.1 — Incidents module (core domain, calibration slice)
+### T2.1 — Incidents module (core domain, calibration slice) [x] DONE (commit ee60bc2, migration renumbered 0004)
 - Requirement: R2 (Incidents), CC5 (geofencing cache)
 - Depends on: T2.0, T1.4
 - Duration: 4h (calibration slice — establishes Jest/Supertest conventions per design; expect this to run long, do not compress) | PR size: ~400 LOC | Tests: 10
@@ -117,7 +120,7 @@ D4's "Geofencing -> (none — owns geo_zones)" DAG entry.
   - `incident.created` and `incident.status_changed` events land on the `incidents:events` Redis Stream
 - Test scenarios: create inside zone (zone_id set); create outside all zones (geofence_matched=false, still 201); cache hit/miss on list; cache invalidation after status change; illegal status transition rejected; anonymous device can create (CC2); permission-gated status update requires `UPDATE incidents`.
 
-### T2.2 — Comments module [P]
+### T2.2 — Comments module [P] [x] DONE (commit 0f00f1b, migration renumbered 0005)
 - Requirement: R3 (Comments)
 - Depends on: T2.1
 - Duration: 2-3h | PR size: ~200 LOC | Tests: 5
@@ -129,7 +132,7 @@ D4's "Geofencing -> (none — owns geo_zones)" DAG entry.
   - Anonymous device with `CREATE comments` permission can comment (blocker resolution #4)
 - Test scenarios: create with sanitization; read by incident; delete as owner; delete as non-owner rejected; anonymous CREATE allowed, anonymous DELETE rejected.
 
-### T2.3 — Users module [P]
+### T2.3 — Users module [P] [x] DONE (commit 239c724, migration 0006_users.sql — new slot, see apply-progress)
 - Requirement: R4 (Users)
 - Depends on: T1.4
 - Duration: 3h | PR size: ~250 LOC | Tests: 6
@@ -141,7 +144,7 @@ D4's "Geofencing -> (none — owns geo_zones)" DAG entry.
   - Pagination default/limits enforced on `GET /api/users`
 - Test scenarios: profile CRUD; avatar upload round-trip (mocked S3); pagination bounds; new-device session tracking row created.
 
-### T2.4 — Assignments module
+### T2.4 — Assignments module [x] DONE (commit 096f3cb, migration renumbered 0007)
 - Requirement: R5 (Assignments)
 - Depends on: T2.1, T1.4 (Permissions/Roles stub from T1.4 sufficient; full T3.1 not required to start)
 - Duration: 3h | PR size: ~220 LOC | Tests: 5
@@ -153,7 +156,7 @@ D4's "Geofencing -> (none — owns geo_zones)" DAG entry.
   - Release clears `assigned_to` on the incident
 - Test scenarios: assign happy path; double-claim conflict; permission-denied assign; release workflow.
 
-### T2.5 — WebSocket gateway (real-time, D5/D6)
+### T2.5 — WebSocket gateway (real-time, D5/D6) [x] DONE (commit 4dbbae4)
 - Requirement: CC4 (realtime event delivery)
 - Depends on: T2.1, T1.4
 - Duration: 4h | PR size: ~300 LOC | Tests: 6

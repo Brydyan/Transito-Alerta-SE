@@ -110,6 +110,127 @@ Branch `brydyan/sc-194/backend-nestjs-modules`, 5 commits (not pushed):
 4. `f7d487a` — T1.4 Auth module
 5. `4c9c04e` — T1.5 Geofencing module + PostGIS migrations + seed
 
-## Status
+## Status (Phase 1)
 
 5/5 Phase-1 tasks complete. Build green, 49/49 tests passing. **Ready for `sdd-verify`**, or continue to Phase 2 (`T2.0-T2.5`) apply batch.
+
+---
+
+# Apply Progress: Backend NestJS Migration — Phase 2 (T2.0-T2.5)
+
+Change: `backend-nestjs-modules` | Batch: 2 (Core Domains) | Mode: Strict TDD | Status: **6/6 tasks complete**
+
+## Task status
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T2.0 — Geofencing reconciliation | ✅ Done | `resolveZone`, `buildZoneCacheKey`, `tagCacheKey`/`purgeZoneCache` added to existing `GeofencingService` (`5f92ecc`) |
+| T2.1 — Incidents (calibration slice) | ✅ Done | Entity + repository + service + controller + module, migration `0004_incidents.sql` (`ee60bc2`) |
+| T2.2 — Comments | ✅ Done | Sanitization, owner-only delete, migration `0005_comments.sql` (`0f00f1b`) |
+| T2.3 — Users | ✅ Done | Profile columns, avatar upload seam, pagination, session tracking, migration `0006_users.sql` (`239c724`) |
+| T2.4 — Assignments | ✅ Done | Claim/release, ASSIGN permission, conflict on double-claim, migration `0007_assignments.sql` (`096f3cb`) |
+| T2.5 — WebSocket gateway | ✅ Done | Redis Streams consumer group + socket.io Redis adapter, multi-dimensional rooms (`4dbbae4`) |
+
+## CRITICAL — migration renumbering (reconciled)
+
+`tasks.md` originally said incidents=`0003_incidents.sql`, comments=`0004_comments.sql`, assignments=`0006_assignments.sql`. Those numbers conflicted with Phase 1's `0001_initial_schema.sql`/`0002_add_postgis_and_geo_zones.sql`/`0003_seed_geo_zones.sql`, and Users (T2.3) also needed its own migration that wasn't in the original numbering. **Actual numbering on disk:**
+
+| # | File | Table(s) |
+|---|------|----------|
+| 0004 | `incidents.sql` | `incidents` |
+| 0005 | `comments.sql` | `comments` |
+| 0006 | `users.sql` | ALTER `users` (profile cols) + `user_sessions` |
+| 0007 | `assignments.sql` | `assignments` |
+
+Every migration has a matching `database/rollback/*.DOWN.sql` and a `⏳ Pending` row in `database/MIGRATION_LOG.md`. TypeORM stays `synchronize: false`, `migrationsRun: false` — nothing auto-applies; the user runs these manually in Supabase.
+
+## Files changed (Phase 2)
+
+### T2.0 — Geofencing
+- `backend/src/core/core.module.ts` — added `REDIS_CLIENT` (raw ioredis) DI token, marked `@Global()` so any feature module can `@Inject(REDIS_CLIENT)` without importing CoreModule directly (needed for SADD/SMEMBERS/DEL and later XADD/XREADGROUP — cache-manager's `Cache` interface has no tag-set or stream primitives).
+- `backend/src/modules/geofencing/geofencing.service.ts`(+spec) — `resolveZone()` (never throws for "outside all zones", returns `{zone_id: null, zone: null}`), `buildZoneCacheKey()` (`geo:{zone_id}:{lat3}:{lng3}:{radius}:{status}`), `tagCacheKey()`/`purgeZoneCache()`.
+
+### T2.1 — Incidents
+- `backend/src/entities/incident.entity.ts` — Point location (SRID 4326), status/priority, citizen_id, assigned_to, zone_id, geofence_matched.
+- `backend/src/modules/incidents/{incidents.repository,incidents.service,incidents.controller,incidents.module}.ts` (+specs) — raw parameterized PostGIS SQL (ST_Point lng/lat order, mirrors `GeofencingRepository`); `create` resolves zone, purges geofencing cache tag-set + incidents list cache, emits `incident.created` via EventEmitter2 AND XADDs `incidents:events`; `updateStatus` enforces forward-only `pending -> in_progress -> resolved`.
+- `database/migrations/0004_incidents.sql` + rollback.
+
+### T2.2 — Comments
+- `backend/src/entities/comment.entity.ts`.
+- `backend/src/modules/comments/{comments.service,comments.controller,comments.module}.ts` (+specs) — `sanitizeContent()` strips `<script>` tags then HTML-entity-escapes remaining markup; `delete` is owner-only (403 ForbiddenException for non-owners).
+- `database/migrations/0005_comments.sql` + rollback.
+
+### T2.3 — Users
+- `backend/src/entities/user.entity.ts` (modified) — added first_name, last_name, avatar_url, role, organization_id.
+- `backend/src/entities/user-session.entity.ts` (new) — lightweight `user_sessions` tracking table.
+- `backend/src/modules/users/{users.service,users.controller,users.module,avatar-storage.service}.ts` (+specs) — `list()` enforces `DEFAULT_PAGE_SIZE=20`/`MAX_PAGE_SIZE=100`; `AvatarStorageService` is a pure/mockable seam (no live S3 SDK wired this batch — was not in the explicit dependency list; `upload()`/`getSignedUrl()` are side-effect-free and fully unit tested).
+- `backend/src/modules/auth/auth.service.ts` (modified) — now takes `EventEmitter2`, emits `auth.login({userId, deviceUuid})` on every login; `UsersService.handleAuthLogin` (`@OnEvent('auth.login')`) records the session row. Passive fan-out (design D7) — AuthModule does NOT import UsersModule.
+- `database/migrations/0006_users.sql` + rollback.
+
+### T2.4 — Assignments
+- `backend/src/entities/assignment.entity.ts`.
+- `backend/src/modules/assignments/{assignments.service,assignments.controller,assignments.module}.ts` (+specs) — `assign()` throws 409 ConflictException on a second claim (R5); DB-level `UNIQUE(incident_id)` backstop in the migration.
+- `backend/src/common/decorators/require-permission.decorator.ts` (modified) — extended `PermissionAction` with `'ASSIGN'`.
+- `database/migrations/0007_assignments.sql` + rollback.
+
+### T2.5 — WebSocket gateway
+- Added deps: `socket.io`, `@nestjs/websockets`, `@nestjs/platform-socket.io` (pinned `^10.4.4` — pnpm resolved v11 by default, which is incompatible with the rest of the NestJS 10.x stack; had to explicitly re-pin), `@socket.io/redis-adapter`.
+- `backend/src/modules/realtime/room.util.ts`(+spec) — pure `resolveRoomsForEvent()`/`canJoinRoom()` — rooms computed from event payload, gated by `READ incidents` permission; NEVER role-based (design D6, the 25k-user fan-out failure mode).
+- `backend/src/modules/realtime/stream-event.util.ts`(+spec) — pure `decodeStreamEntry()`.
+- `backend/src/modules/realtime/events.gateway.ts`(+spec) — JWT auth on connect, auto-join `user:{id}`, gated `join` message handler, `broadcast()`.
+- `backend/src/modules/realtime/streams.consumer.ts`(+spec) — `RealtimeStreamsConsumer`, XREADGROUP consumer group `realtime` over `incidents:events`, XACKs every entry (including malformed ones, to avoid poison-message loops).
+- `backend/src/modules/realtime/redis-io.adapter.ts` — `RedisIoAdapter extends IoAdapter`, wired in `main.ts` via `app.useWebSocketAdapter(...)`.
+- `backend/src/modules/realtime/realtime.module.ts`.
+- No new migration — Streams/WS are runtime-only.
+
+## Deviations from tasks.md / design (Phase 2)
+
+1. Migration renumbering (see table above) — tasks.md's literal 0003/0004/0006 slots were already taken or needed reordering; see per-file header comments.
+2. `AvatarStorageService` does not call a real AWS S3 SDK — `@aws-sdk/client-s3` was not in the explicit T2.5 dependency list, so this batch built a swappable, fully-mockable seam instead (upload key convention `avatars/{userId}/{uuid}-{filename}`, deterministic placeholder signed URL). Flagged as a follow-up: wire a real S3 client behind the same interface.
+3. `AuthService` gained an `EventEmitter2` constructor dependency to support R4 session-tracking via passive fan-out (design D7) — not explicitly listed in T2.3's task text, but required to satisfy "GIVEN a user logs in from a new device... THEN system MUST record the new device" without creating an `Auth -> Users` DAG edge.
+4. `PermissionAction` extended with `'ASSIGN'` (was `READ`/`CREATE`/`UPDATE`/`DELETE`) — required by T2.4's explicit "requires the ASSIGN permission" acceptance criterion; not called out in the original CC1/R7 spec text but consistent with its resource+action model.
+5. Anonymous permission ceiling (`auth.config.ts`) was NOT changed — it still lacks `READ comments`, `DELETE comments`, `ASSIGN assignments`. This matches spec (anonymous can create incidents/comments, cannot delete/assign) but means anonymous also cannot list comments on an incident; flagged as a possible product-decision follow-up, not a bug.
+
+## Issues Found / Not Verifiable From Sandbox
+
+- Live app boot (`NestFactory.create(AppModule)`) was smoke-tested via a one-off script; it progresses through the full DI graph and then blocks on `cache-manager-redis-yet`'s connection retry loop because there is no live Redis in this sandbox (`ECONNREFUSED ::1:6379`). This is the same pre-existing sandbox limitation noted in the Phase 1 apply-progress — not a regression introduced this batch. All 23 Jest suites (144 tests) run with mocked Redis/DB and pass.
+- PostGIS/Supabase migration application is still entirely manual and unverified from this sandbox (Phase 1 limitation, unchanged).
+
+## Test Results
+
+```
+$ pnpm install
+Already up to date
+
+$ pnpm run build
+$ nest build
+(no errors)
+
+$ pnpm test
+Test Suites: 23 passed, 23 total
+Tests:       144 passed, 144 total
+Snapshots:   0 total
+Time:        ~9-13s (varies)
+```
+
+## Remaining Tasks
+
+- [ ] Phase 3 (T3.1-T3.10) — Roles+Permissions, Organizations, StatusHistory, Mail, Invitations, IncidentCategories, Locations, Sessions (full), Menus
+- [ ] Phase 4 (T4.1-T4.4) — Integration E2E, load testing, security hardening, docs
+- [ ] Follow-up: wire a real S3 client behind `AvatarStorageService`
+- [ ] Follow-up: `pnpm run lint` still fails (no ESLint config file) — pre-existing T1.1 gap, unchanged this batch
+- [ ] Follow-up (optional/product decision): should anonymous hold `READ comments`?
+
+## Git
+
+Branch `brydyan/sc-194/backend-nestjs-modules`, 6 new commits this batch (not pushed):
+1. `5f92ecc` — T2.0 Geofencing reconciliation
+2. `ee60bc2` — T2.1 Incidents module
+3. `0f00f1b` — T2.2 Comments module
+4. `239c724` — T2.3 Users module
+5. `096f3cb` — T2.4 Assignments module
+6. `4dbbae4` — T2.5 WebSocket gateway
+
+## Status (Phase 2)
+
+6/6 Phase-2 tasks complete. Build green, 144/144 tests passing (up from 49 at end of Phase 1). **Ready for `sdd-verify`**, or continue to Phase 3 (`T3.1-T3.10`) apply batch.
