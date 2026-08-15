@@ -9,6 +9,7 @@ import { IncidentsModule } from './modules/incidents/incidents.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { UsersModule } from './modules/users/users.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 
 @Module({
@@ -20,6 +21,7 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
     CommentsModule,
     UsersModule,
     AssignmentsModule,
+    RealtimeModule,
   ],
   controllers: [AppController],
   providers: [

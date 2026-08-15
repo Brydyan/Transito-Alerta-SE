@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/node';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { RedisIoAdapter } from './modules/realtime/redis-io.adapter';
 
 async function bootstrap(): Promise<void> {
   if (process.env.SENTRY_DSN) {
@@ -13,6 +14,9 @@ async function bootstrap(): Promise<void> {
   }
 
   const app = await NestFactory.create(AppModule);
+
+  // Design D5 — socket.io Redis adapter for cross-instance room broadcast.
+  app.useWebSocketAdapter(new RedisIoAdapter(app));
 
   app.setGlobalPrefix('api');
   app.enableCors({
