@@ -8,6 +8,9 @@ import { decodeStreamEntry } from './stream-event.util';
 
 const CONSUMER_GROUP = 'realtime';
 
+/** Pause after a failed read so a Redis outage cannot spin the loop hot. */
+export const RETRY_BACKOFF_MS = 1000;
+
 /**
  * RealtimeStreamsConsumer (design D5) — Redis Streams consumer group over
  * `incidents:events`. Consumer-group semantics deliver each entry to
@@ -63,9 +66,25 @@ export class RealtimeStreamsConsumer implements OnModuleInit, OnModuleDestroy {
           this.processResponse(response as unknown as [string, [string, string[]][]][]);
         }
       } catch (err) {
+        // A rejection during shutdown is the connection closing under a
+        // blocked XREADGROUP, not a fault — logging it as an error makes
+        // every deploy look like an incident.
+        if (!this.running) {
+          break;
+        }
+
         this.logger.error(`Streams consumer loop error: ${(err as Error).message}`);
+
+        // Back off before retrying. Without this a Redis outage spins the
+        // loop hot: XREADGROUP rejects immediately, the catch retries
+        // immediately, and the process burns CPU while flooding the logs.
+        await this.sleep(RETRY_BACKOFF_MS);
       }
     }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /** Extracted for testability — no live Redis connection required. */
