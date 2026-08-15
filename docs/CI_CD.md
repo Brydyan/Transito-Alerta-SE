@@ -22,6 +22,19 @@ Instala con `--frozen-lockfile`: si el lockfile no coincide con
 La versión de pnpm sale de `packageManager` en `backend/package.json`, así
 que CI y las máquinas del equipo no pueden divergir.
 
+**Job `integration`** — `pnpm run test:e2e`
+(`backend/test/support/test-environment.ts`). Levanta Postgres+PostGIS y
+Redis reales vía Testcontainers (no mocks, no `docker-compose.yml` — cada
+corrida los crea y destruye), aplica `database/migrations/[0-9]*.sql` en
+orden numérico contra ese Postgres vacío (nunca `synchronize`, CC3) y
+levanta la app Nest con el mismo pipeline que `main.ts` (prefijo, casing,
+adaptador de WebSocket). `ubuntu-latest` ya trae Docker corriendo, así que
+no hace falta un bloque `services:` — Testcontainers gestiona sus propios
+contenedores. Por ahora solo hay un spec de humo
+(`test/e2e/health.e2e-spec.ts`); los cuatro flujos completos (reporte
+anónimo, asignación verificada por WebSocket, comentario+estado+auditoría,
+notificación) son T4.1b y llegan después de la Fase 3.
+
 **Job `migrations`** — aplica cada `database/migrations/*.sql` en orden
 numérico contra un PostGIS limpio, y después verifica el esquema resultante.
 
@@ -104,6 +117,11 @@ pnpm run build
 pnpm test
 ```
 
+`pnpm run test:e2e` requiere Docker corriendo localmente (Testcontainers
+levanta y destruye sus propios contenedores — no hace falta
+`docker compose up` primero). No corre como parte de `pnpm test`
+deliberadamente: es la suite lenta, separada de la unitaria.
+
 Migraciones contra una base limpia:
 
 ```bash
@@ -118,11 +136,11 @@ done
 
 ## Lo que el CI todavía NO cubre
 
-- **Tests de integración.** La suite es unitaria. Cinco defectos de esta
-  migración pasaron con la suite en verde porque el test mockeaba justo la
-  costura donde vivía el bug — dos incluso *afirmaban* el comportamiento
-  roto. Es T4.1 y es el hueco más importante que queda.
+- **Tests de integración — flujos reales.** El harness (job `integration`,
+  T4.1a) ya prueba la infraestructura de punta a punta contra Postgres y
+  Redis reales, pero solo tiene un spec de humo. Los cuatro flujos que
+  motivaron T4.1 (siete defectos de Fases 1-2 vivían en una costura que su
+  test unitario mockeaba) son T4.1b, después de la Fase 3.
 - **Frontend.** No hay job; se agrega cuando exista el proyecto Angular.
 - **Cobertura.** `pnpm run test:cov` existe pero no hay umbral que falle.
 - **Deploy.** Nada despliega. A definir cuando haya destino.
-- **`test:e2e`.** El script existe pero `test/jest-e2e.json` no.

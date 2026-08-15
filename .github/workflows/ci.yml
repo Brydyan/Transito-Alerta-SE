@@ -47,6 +47,37 @@ jobs:
 
       - run: pnpm test
 
+  integration:
+    name: Integration — e2e harness against real Postgres+PostGIS and Redis
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    # This job exists for the same reason `migrations` does: the unit suite
+    # mocks every module boundary, and seven defects shipped in Phases 1-2
+    # each lived on a seam its unit test mocked away (docs/CI_CD.md, T4.1).
+    # `pnpm run test:e2e` (backend/test/support/test-environment.ts) starts
+    # real postgis/postgis and redis containers via Testcontainers, applies
+    # database/migrations/[0-9]*.sql the same way the `migrations` job does,
+    # and boots the Nest app wired exactly like main.ts — ubuntu-latest
+    # ships Docker already running, which is all Testcontainers needs; no
+    # `services:` block, it manages its own containers.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run test:e2e
+
   migrations:
     name: Migrations — apply to a clean PostGIS database
     runs-on: ubuntu-latest
