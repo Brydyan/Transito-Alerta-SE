@@ -68,17 +68,27 @@ mkdir -p styles
 
 ### Paso 3: Crear Models/Interfaces
 
+> **Contrato de la API:** todas las claves JSON son `snake_case`, en request y
+> en response — lo garantiza `SnakeCaseResponseInterceptor` en el backend.
+> Las coordenadas viajan como `lat`/`lng`, no `latitude`/`longitude`, para
+> coincidir con Leaflet (`L.latLng`, `.lat`, `.lng`).
+
 **File: `app/models/incident.model.ts`**
 ```typescript
 export interface Incident {
   id: string;
   title: string;
   description: string;
-  latitude: number;
-  longitude: number;
+  lat: number;
+  lng: number;
   status: 'pending' | 'in_progress' | 'resolved';
   priority: 'low' | 'medium' | 'high';
   citizen_id: string;
+  assigned_to: string | null;
+  zone_id: string | null;
+  // false cuando el reporte cae fuera de toda zona registrada.
+  // El incidente se acepta igual (R2) — no se rechaza por jurisdicción.
+  geofence_matched: boolean;
   created_at: Date;
   updated_at: Date;
   resolved_at?: Date;
@@ -87,8 +97,8 @@ export interface Incident {
 export interface CreateIncidentDto {
   title: string;
   description: string;
-  latitude: number;
-  longitude: number;
+  lat: number;
+  lng: number;
   priority?: 'low' | 'medium' | 'high';
   category_ids?: string[];
 }
@@ -442,6 +452,9 @@ export class CommentService {
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 
+// Refleja `position.coords` del navegador, por eso usa latitude/longitude.
+// OJO: la API espera lat/lng. Al enviar hay que mapear:
+//   { lat: coords.latitude, lng: coords.longitude }
 export interface Coordinates {
   latitude: number;
   longitude: number;
