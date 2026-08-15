@@ -42,4 +42,8 @@ async function bootstrap(): Promise<void> {
   console.log(`Transito Alerta API listening on :${port}/api`);
 }
 
-bootstrap();
+bootstrap().catch((error) => {
+  // eslint-disable-next-line no-console
+  console.error('Failed to start Transito Alerta API', error);
+  process.exit(1);
+});

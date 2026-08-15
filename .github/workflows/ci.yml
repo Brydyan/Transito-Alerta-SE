@@ -1,0 +1,178 @@
+name: CI
+
+# Gate for every PR and for pushes to the long-lived branches. Nothing here
+# deploys — it only decides whether a change is allowed to merge.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+# A new push to the same PR cancels the previous run; only the latest commit
+# needs an answer.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — lint, typecheck, build, test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # Version comes from `packageManager` in backend/package.json, so CI
+        # and developer machines cannot drift apart.
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+
+      # --frozen-lockfile fails instead of silently resolving different
+      # versions when the lockfile is out of date with package.json.
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run lint
+
+      - run: pnpm run typecheck
+
+      - run: pnpm run build
+
+      - run: pnpm test
+
+  migrations:
+    name: Migrations — apply to a clean PostGIS database
+    runs-on: ubuntu-latest
+
+    # Migrations are applied BY HAND to Supabase (design CC3). Nothing runs
+    # them automatically, so nothing would catch a broken file before it is
+    # pasted into a production SQL editor. This job is that check: every
+    # migration, in order, against an empty database.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: transito_alerta
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply every migration in numeric order
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          for file in database/migrations/[0-9]*.sql; do
+            echo "── $(basename "$file")"
+            psql -h localhost -U postgres -d transito_alerta \
+                 -v ON_ERROR_STOP=1 -q -f "$file"
+          done
+
+      - name: Verify the resulting schema
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h localhost -U postgres -d transito_alerta -v ON_ERROR_STOP=1 <<'SQL'
+          -- PostGIS present and geo_zones typed as MultiPolygon.
+          SELECT postgis_version();
+          DO $$
+          DECLARE geom_type text;
+          BEGIN
+            SELECT type INTO geom_type
+              FROM geometry_columns
+             WHERE f_table_name = 'geo_zones';
+            IF geom_type IS DISTINCT FROM 'MULTIPOLYGON' THEN
+              RAISE EXCEPTION 'geo_zones.polygon must be MULTIPOLYGON, got %', geom_type;
+            END IF;
+          END $$;
+
+          -- Santa Elena seeded, and every polygon valid.
+          DO $$
+          DECLARE invalid_count int; zone_count int;
+          BEGIN
+            SELECT count(*) INTO zone_count FROM geo_zones;
+            IF zone_count = 0 THEN
+              RAISE EXCEPTION 'geo_zones is empty — the Santa Elena seed did not apply';
+            END IF;
+            SELECT count(*) INTO invalid_count FROM geo_zones WHERE NOT ST_IsValid(polygon);
+            IF invalid_count > 0 THEN
+              RAISE EXCEPTION '% geo_zones rows have invalid geometry', invalid_count;
+            END IF;
+          END $$;
+
+          -- Containment discriminates: inside Santa Elena matches, Quito does not.
+          -- A swapped lat/lng argument order fails here and nowhere else.
+          DO $$
+          DECLARE inside int; outside int;
+          BEGIN
+            SELECT count(*) INTO inside FROM geo_zones
+             WHERE ST_Contains(polygon, ST_SetSRID(ST_Point(-80.5, -2.2), 4326));
+            SELECT count(*) INTO outside FROM geo_zones
+             WHERE ST_Contains(polygon, ST_SetSRID(ST_Point(-78.47, -0.18), 4326));
+            IF inside = 0 THEN
+              RAISE EXCEPTION 'a point inside Santa Elena matched no zone';
+            END IF;
+            IF outside > 0 THEN
+              RAISE EXCEPTION 'a point in Quito matched % zone(s) — lat/lng likely swapped', outside;
+            END IF;
+          END $$;
+
+          -- The anonymous identity exists and cannot modify anything.
+          DO $$
+          DECLARE perms jsonb;
+          BEGIN
+            SELECT permissions INTO perms FROM users WHERE device_uuid = 'anonymous';
+            IF perms IS NULL THEN
+              RAISE EXCEPTION 'anonymous identity row is missing';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(perms) AS p
+               WHERE p ~ '^(UPDATE|DELETE|ASSIGN) '
+            ) THEN
+              RAISE EXCEPTION 'anonymous ceiling grants a write permission: %', perms;
+            END IF;
+          END $$;
+          SQL
+
+      - name: Every migration has a rollback
+        run: |
+          set -euo pipefail
+          missing=0
+          for file in database/migrations/[0-9]*.sql; do
+            name=$(basename "$file" .sql)
+            if [ ! -f "database/rollback/${name}.DOWN.sql" ]; then
+              echo "::error::missing database/rollback/${name}.DOWN.sql"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Migration log has no unrecorded entries
+        run: |
+          set -euo pipefail
+          missing=0
+          for file in database/migrations/[0-9]*.sql; do
+            id=$(basename "$file" | cut -d_ -f1)
+            if ! grep -q "^| $id |" database/MIGRATION_LOG.md; then
+              echo "::error::migration $id is not listed in database/MIGRATION_LOG.md"
+              missing=1
+            fi
+          done
+          exit $missing

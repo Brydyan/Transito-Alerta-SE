@@ -13,12 +13,12 @@ function makeSocket(overrides: Partial<any> = {}) {
 }
 
 describe('EventsGateway', () => {
-  let authService: { validateToken: jest.Mock; getPermissions: jest.Mock };
+  let authService: { validateToken: jest.Mock; getPermissionsByUserId: jest.Mock };
   let gateway: EventsGateway;
   let server: { to: jest.Mock; emit: jest.Mock };
 
   beforeEach(() => {
-    authService = { validateToken: jest.fn(), getPermissions: jest.fn() };
+    authService = { validateToken: jest.fn(), getPermissionsByUserId: jest.fn() };
     gateway = new EventsGateway(authService as unknown as AuthService);
     server = { to: jest.fn().mockReturnThis(), emit: jest.fn() };
     gateway.server = server as any;
@@ -27,7 +27,7 @@ describe('EventsGateway', () => {
   describe('handleConnection', () => {
     it('verifies the JWT, resolves permissions, and auto-joins user:{id}', async () => {
       authService.validateToken.mockReturnValue({ sub: 'user-1', typ: 'access', jti: 'x', pv: 1 });
-      authService.getPermissions.mockResolvedValue(['READ incidents']);
+      authService.getPermissionsByUserId.mockResolvedValue(['READ incidents']);
       const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
 
       await gateway.handleConnection(socket as any);
@@ -51,28 +51,28 @@ describe('EventsGateway', () => {
   });
 
   describe('handleJoin', () => {
-    it('allows joining a geo/org/incident room when the socket holds READ incidents', () => {
+    it('allows joining a geo/org/incident room when the socket holds READ incidents', async () => {
       const socket = makeSocket({ data: { userId: 'user-1', permissions: ['READ incidents'] } });
 
-      const result = gateway.handleJoin(socket as any, { room: 'geo:zone-1' });
+      const result = await gateway.handleJoin(socket as any, { room: 'geo:zone-1' });
 
       expect(socket.join).toHaveBeenCalledWith('geo:zone-1');
       expect(result).toEqual({ joined: true, room: 'geo:zone-1' });
     });
 
-    it('denies joining when the socket lacks READ incidents', () => {
+    it('denies joining when the socket lacks READ incidents', async () => {
       const socket = makeSocket({ data: { userId: 'user-1', permissions: [] } });
 
-      const result = gateway.handleJoin(socket as any, { room: 'geo:zone-1' });
+      const result = await gateway.handleJoin(socket as any, { room: 'geo:zone-1' });
 
       expect(socket.join).not.toHaveBeenCalled();
       expect(result).toEqual({ joined: false, room: 'geo:zone-1' });
     });
 
-    it('rejects a room name outside the geo:/org:/incident: namespace (no role-based rooms)', () => {
+    it('rejects a room name outside the geo:/org:/incident: namespace (no role-based rooms)', async () => {
       const socket = makeSocket({ data: { userId: 'user-1', permissions: ['READ incidents'] } });
 
-      const result = gateway.handleJoin(socket as any, { room: 'admins' });
+      const result = await gateway.handleJoin(socket as any, { room: 'admins' });
 
       expect(socket.join).not.toHaveBeenCalled();
       expect(result).toEqual({ joined: false, room: 'admins' });
@@ -96,5 +96,43 @@ describe('EventsGateway', () => {
 
       expect(server.to).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('EventsGateway — permission identity (regression)', () => {
+  let authService: { validateToken: jest.Mock; getPermissionsByUserId: jest.Mock };
+  let gateway: EventsGateway;
+
+  beforeEach(() => {
+    authService = { validateToken: jest.fn(), getPermissionsByUserId: jest.fn() };
+    gateway = new EventsGateway(authService as unknown as AuthService);
+    gateway.server = { to: jest.fn().mockReturnThis(), emit: jest.fn() } as any;
+  });
+
+  // The JWT `sub` claim is user.id. Passing it to getPermissions(), which
+  // resolves by device_uuid, yields [] — and canJoinRoom() requires
+  // "READ incidents", so every room join is refused and realtime goes dark
+  // for every client. Same defect as the one fixed in JwtStrategy.
+  it('resolves the connecting socket permissions by user id', async () => {
+    authService.validateToken.mockReturnValue({ sub: 'user-1', typ: 'access', jti: 'x', pv: 1 });
+    authService.getPermissionsByUserId.mockResolvedValue(['READ incidents']);
+    const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
+
+    await gateway.handleConnection(socket as any);
+
+    expect(authService.getPermissionsByUserId).toHaveBeenCalledWith('user-1');
+    expect(socket.data.permissions).toEqual(['READ incidents']);
+  });
+
+  it('lets a permitted socket actually join a namespaced room', async () => {
+    authService.validateToken.mockReturnValue({ sub: 'user-1', typ: 'access', jti: 'x', pv: 1 });
+    authService.getPermissionsByUserId.mockResolvedValue(['READ incidents']);
+    const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
+    await gateway.handleConnection(socket as any);
+
+    const result = await gateway.handleJoin(socket as any, { room: 'geo:zone-1' });
+
+    expect(result).toEqual({ joined: true, room: 'geo:zone-1' });
+    expect(socket.join).toHaveBeenCalledWith('geo:zone-1');
   });
 });

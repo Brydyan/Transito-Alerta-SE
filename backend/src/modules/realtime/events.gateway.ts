@@ -47,10 +47,15 @@ export class EventsGateway implements OnGatewayConnection {
 
     try {
       const payload = this.authService.validateToken(token);
-      const permissions = await this.authService.getPermissions(payload.sub);
+      // `sub` is user.id — resolve by id. getPermissions() expects a
+      // device_uuid and would silently return [], which canJoinRoom() then
+      // refuses, taking every room join down with it.
+      const permissions = await this.authService.getPermissionsByUserId(payload.sub);
       socket.data.userId = payload.sub;
       socket.data.permissions = permissions;
-      socket.join(userRoom(payload.sub));
+      // Awaited: with the Redis adapter, join() is asynchronous — not
+      // awaiting races the first event emitted to this room.
+      await socket.join(userRoom(payload.sub));
     } catch (err) {
       this.logger.warn(`Rejected WS connection: ${(err as Error).message}`);
       socket.disconnect(true);
@@ -58,10 +63,10 @@ export class EventsGateway implements OnGatewayConnection {
   }
 
   @SubscribeMessage('join')
-  handleJoin(
+  async handleJoin(
     @ConnectedSocket() socket: Socket,
     @MessageBody() body: { room: string },
-  ): { joined: boolean; room: string } {
+  ): Promise<{ joined: boolean; room: string }> {
     const { room } = body;
     const isNamespaced = ROOM_NAMESPACE_PREFIXES.some((prefix) => room.startsWith(prefix));
     const permissions: string[] = socket.data?.permissions ?? [];
@@ -70,7 +75,9 @@ export class EventsGateway implements OnGatewayConnection {
       return { joined: false, room };
     }
 
-    socket.join(room);
+    // Awaited: asynchronous under the Redis adapter, and the ack below tells
+    // the client it may start receiving — it must be true by then.
+    await socket.join(room);
     return { joined: true, room };
   }
 
