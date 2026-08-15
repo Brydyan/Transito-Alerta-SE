@@ -16,6 +16,7 @@ actually been run against that environment.
 | 0001 | initial_schema | users, organizations, roles tables + anonymous identity seed row | ⏳ Pending | — | — | — |
 | 0002 | add_postgis_and_geo_zones | PostGIS extension, geo_zones table + GIST index, organizations.zone_id FK | ⏳ Pending | — | — | — |
 | 0003 | seed_geo_zones | Santa Elena province + 3 cantons (EC-24, EC-24-01/02/03) geo_zones seed data | ⏳ Pending | — | — | — |
+| 0004 | incidents | incidents table (Point location, status/priority, zone_id/geofence_matched, GIST index) | ⏳ Pending | — | — | — |
 
 ## Status legend
 
