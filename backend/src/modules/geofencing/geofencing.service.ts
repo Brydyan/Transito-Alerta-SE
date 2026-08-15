@@ -1,10 +1,25 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
+import type Redis from 'ioredis';
 
+import { REDIS_CLIENT } from '../../core/core.module';
 import { GeofencingRepository, GeoZoneRow } from './geofencing.repository';
 
 export const GEO_CACHE_TTL_SECONDS = 60;
+
+export interface ZoneCacheKeyParams {
+  zoneId: string;
+  lat: number;
+  lng: number;
+  radiusKm: number;
+  status: string;
+}
+
+export interface ResolvedZone {
+  zone_id: string | null;
+  zone: GeoZoneRow | null;
+}
 
 /**
  * GeofencingService (design D4, CC5) — jurisdiction containment +
@@ -16,7 +31,20 @@ export class GeofencingService {
   constructor(
     private readonly geofencingRepository: GeofencingRepository,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
+
+  /**
+   * Resolves the containing zone for an incident's coordinates, WITHOUT
+   * throwing when the point is outside all defined boundaries (R2 —
+   * `geofence_matched=false` must still result in a 201, not a 4xx).
+   * Coordinate range validation still throws (malformed input, not "outside
+   * a zone").
+   */
+  async resolveZone(point: { lat: number; lng: number }): Promise<ResolvedZone> {
+    const zone = await this.validateIncidentInZone(point);
+    return { zone_id: zone?.id ?? null, zone };
+  }
 
   /**
    * Resolves the zone containing an incident's coordinates at write time.
@@ -60,5 +88,36 @@ export class GeofencingService {
 
   private buildCacheKey(lat: number, lng: number): string {
     return `geo:point:${lat.toFixed(3)}:${lng.toFixed(3)}`;
+  }
+
+  /**
+   * Zone-scoped cache key: `geo:{zone_id}:{lat3}:{lng3}:{radius}:{status}`.
+   * 3-decimal rounding (~110m grid) bounds cardinality (design D4).
+   */
+  buildZoneCacheKey(params: ZoneCacheKeyParams): string {
+    const { zoneId, lat, lng, radiusKm, status } = params;
+    return `geo:${zoneId}:${lat.toFixed(3)}:${lng.toFixed(3)}:${radiusKm}:${status}`;
+  }
+
+  /** Registers `cacheKey` under the zone's tag-set for later purge. */
+  async tagCacheKey(zoneId: string, cacheKey: string): Promise<void> {
+    await this.redis.sadd(`geo:tags:${zoneId}`, cacheKey);
+  }
+
+  /**
+   * Purges every cache key tagged under a zone (e.g. on incident.created /
+   * incident.status_changed, per D4) plus the tag-set itself. No-op when
+   * zoneId is null (an incident outside all zones has nothing to purge).
+   */
+  async purgeZoneCache(zoneId: string | null): Promise<void> {
+    if (!zoneId) {
+      return;
+    }
+    const tagKey = `geo:tags:${zoneId}`;
+    const keys = await this.redis.smembers(tagKey);
+    if (keys.length > 0) {
+      await this.redis.del(...keys);
+    }
+    await this.redis.del(tagKey);
   }
 }
