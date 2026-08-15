@@ -323,7 +323,10 @@ describe('E2E regressions — one test per shipped defect (T4.1a step 2, Part A)
       // pull the rug out from under it.
       await new Promise((resolve) => setTimeout(resolve, 250));
 
-      consumer.onModuleDestroy();
+      // Not awaited on purpose: the point is that a shutdown racing a blocked
+      // read stays silent, so the disconnect must land while destroy is still
+      // in flight.
+      void consumer.onModuleDestroy();
       consumerRedis.disconnect();
 
       await new Promise((resolve) => setTimeout(resolve, 300));

@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import type Redis from 'ioredis';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_BLOCKING_CLIENT } from '../../core/core.module';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
 import { EventsGateway } from './events.gateway';
 import { decodeStreamEntry } from './stream-event.util';
@@ -26,7 +26,9 @@ export class RealtimeStreamsConsumer implements OnModuleInit, OnModuleDestroy {
   private running = false;
 
   constructor(
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Dedicated connection: XREADGROUP ... BLOCK holds it, and sharing it
+    // with producers queues every XADD behind a multi-second read.
+    @Inject(REDIS_BLOCKING_CLIENT) private readonly redis: Redis,
     private readonly gateway: EventsGateway,
   ) {}
 
@@ -43,8 +45,11 @@ export class RealtimeStreamsConsumer implements OnModuleInit, OnModuleDestroy {
     void this.loop();
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
     this.running = false;
+    // This connection belongs to the consumer alone, so closing it here is
+    // safe and stops the blocked XREADGROUP from outliving the app.
+    await this.redis.quit().catch(() => undefined);
   }
 
   private async loop(): Promise<void> {

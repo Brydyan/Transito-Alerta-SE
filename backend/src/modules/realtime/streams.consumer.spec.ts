@@ -3,12 +3,12 @@ import { RealtimeStreamsConsumer, RETRY_BACKOFF_MS } from './streams.consumer';
 import { EventsGateway } from './events.gateway';
 
 describe('RealtimeStreamsConsumer', () => {
-  let redis: { xgroup: jest.Mock; xreadgroup: jest.Mock; xack: jest.Mock };
+  let redis: { xgroup: jest.Mock; xreadgroup: jest.Mock; xack: jest.Mock; quit: jest.Mock };
   let gateway: { broadcast: jest.Mock };
   let consumer: RealtimeStreamsConsumer;
 
   beforeEach(() => {
-    redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn() };
+    redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn(), quit: jest.fn().mockResolvedValue('OK') };
     gateway = { broadcast: jest.fn() };
     consumer = new RealtimeStreamsConsumer(redis as any, gateway as unknown as EventsGateway);
   });
@@ -64,19 +64,19 @@ describe('RealtimeStreamsConsumer', () => {
 });
 
 describe('RealtimeStreamsConsumer — loop resilience', () => {
-  let redis: { xgroup: jest.Mock; xreadgroup: jest.Mock; xack: jest.Mock };
+  let redis: { xgroup: jest.Mock; xreadgroup: jest.Mock; xack: jest.Mock; quit: jest.Mock };
   let consumer: RealtimeStreamsConsumer;
   let errorSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.useFakeTimers();
-    redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn() };
+    redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn(), quit: jest.fn().mockResolvedValue('OK') };
     consumer = new RealtimeStreamsConsumer(redis as any, { broadcast: jest.fn() } as any);
     errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
 
-  afterEach(() => {
-    consumer.onModuleDestroy();
+  afterEach(async () => {
+    await consumer.onModuleDestroy();
     jest.useRealTimers();
     errorSpy.mockRestore();
   });
@@ -86,7 +86,7 @@ describe('RealtimeStreamsConsumer — loop resilience', () => {
   // surfaces as an error — making every ordinary deploy look like an incident.
   it('does not log an error when the connection closes during shutdown', async () => {
     redis.xreadgroup.mockImplementation(() => {
-      consumer.onModuleDestroy();
+      void consumer.onModuleDestroy();
       return Promise.reject(new Error('Connection is closed.'));
     });
 
