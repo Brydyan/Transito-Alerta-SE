@@ -42,7 +42,7 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
       useFactory: async (config: ConfigService) => {
         const cacheConf = config.get<CacheConfig>('cache')!;
         const store = await redisStore({
-          url: cacheConf.redisUrl,
+          url: cacheConf.cacheUrl,
           ttl: cacheConf.ttlSeconds * 1000,
         });
         return { store: () => store };
@@ -56,7 +56,15 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const cacheConf = config.get<CacheConfig>('cache')!;
-        return new Redis(cacheConf.redisUrl, { lazyConnect: true });
+        // Streams, tag-sets and the socket.io adapter share DB 0; the
+        // cache-manager store above is isolated on its own database so a
+        // cache flush can never wipe Streams or session state.
+        return new Redis(cacheConf.streamsUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: true,
+          retryStrategy: (times) => Math.min(times * 200, 5000),
+        });
       },
     },
   ],
