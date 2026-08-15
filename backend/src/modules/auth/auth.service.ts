@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import type { Cache } from 'cache-manager';
@@ -32,6 +33,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly configService: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   private get authConfig(): AuthConfig {
@@ -48,6 +50,11 @@ export class AuthService {
       user = this.userRepo.create({ deviceUuid, permissions: [], isActive: true });
       user = await this.userRepo.save(user);
     }
+
+    // Passive fan-out (design D7): UsersService listens for this to record
+    // a lightweight session-tracking row on new-device login (spec R4).
+    // AuthModule does not import UsersModule to avoid a circular DAG edge.
+    this.eventEmitter.emit('auth.login', { userId: user.id, deviceUuid });
 
     const permissions = await this.getPermissions(deviceUuid);
     const accessToken = this.signAccessToken(user.id);

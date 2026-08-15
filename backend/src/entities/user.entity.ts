@@ -28,6 +28,21 @@ export class UserEntity {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 
+  @Column({ name: 'first_name', type: 'varchar', nullable: true })
+  firstName!: string | null;
+
+  @Column({ name: 'last_name', type: 'varchar', nullable: true })
+  lastName!: string | null;
+
+  @Column({ name: 'avatar_url', type: 'varchar', nullable: true })
+  avatarUrl!: string | null;
+
+  @Column({ type: 'varchar', default: 'reporter' })
+  role!: string;
+
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId!: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

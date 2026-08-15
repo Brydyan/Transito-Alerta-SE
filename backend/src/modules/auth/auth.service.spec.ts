@@ -21,6 +21,7 @@ describe('AuthService', () => {
   let jwtService: { sign: jest.Mock; verify: jest.Mock };
   let cache: { get: jest.Mock; set: jest.Mock };
   let configService: ConfigService;
+  let eventEmitter: { emit: jest.Mock };
   let service: AuthService;
 
   beforeEach(() => {
@@ -28,11 +29,13 @@ describe('AuthService', () => {
     jwtService = { sign: jest.fn(), verify: jest.fn() };
     cache = { get: jest.fn(), set: jest.fn() };
     configService = { get: () => makeAuthConfig() } as unknown as ConfigService;
+    eventEmitter = { emit: jest.fn() };
     service = new AuthService(
       userRepo as any,
       jwtService as unknown as JwtService,
       cache as any,
       configService,
+      eventEmitter as any,
     );
   });
 
@@ -56,6 +59,19 @@ describe('AuthService', () => {
       );
       expect(result.access_token).toBe('access.jwt.token');
       expect(result.refresh_token).toBe('refresh.jwt.token');
+    });
+
+    it('emits auth.login so UsersService can record a session-tracking row (R4)', async () => {
+      userRepo.findOne.mockResolvedValue({ id: 'user-1', deviceUuid: 'device-abc', permissions: [] });
+      cache.get.mockResolvedValue(undefined);
+      jwtService.sign.mockReturnValueOnce('a').mockReturnValueOnce('r');
+
+      await service.login('device-abc');
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith('auth.login', {
+        userId: 'user-1',
+        deviceUuid: 'device-abc',
+      });
     });
 
     it('grants the anonymous permission ceiling for device_uuid="anonymous" (triangulation)', async () => {

@@ -112,14 +112,15 @@ describe('IncidentsService', () => {
     });
 
     it('queries and caches the list by zone on a miss', async () => {
+      const row = makeRow();
       cache.get.mockResolvedValue(undefined);
-      repo.findAll.mockResolvedValue([makeRow()]);
+      repo.findAll.mockResolvedValue([row]);
 
       const result = await service.findAll('zone-1');
 
       expect(repo.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1' });
       expect(cache.set).toHaveBeenCalled();
-      expect(result).toEqual([makeRow()]);
+      expect(result).toEqual([row]);
     });
   });
 
