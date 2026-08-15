@@ -2,7 +2,7 @@ import { SetMetadata } from '@nestjs/common';
 
 export const REQUIRE_PERMISSION_KEY = 'atl:require-permission';
 
-export type PermissionAction = 'READ' | 'CREATE' | 'UPDATE' | 'DELETE';
+export type PermissionAction = 'READ' | 'CREATE' | 'UPDATE' | 'DELETE' | 'ASSIGN';
 
 export interface RequiredPermission {
   action: PermissionAction;
