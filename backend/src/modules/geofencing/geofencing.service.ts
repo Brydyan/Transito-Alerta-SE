@@ -85,7 +85,17 @@ export class GeofencingService {
     }
 
     const zone = await this.geofencingRepository.findZoneByPoint(lat, lng);
-    await this.cache.set(key, zone, GEO_CACHE_TTL_SECONDS * 1000);
+    // cache-manager-redis-yet's isCacheable() throws
+    // `NoCacheableError: "null" is not a cacheable value` for cache.set(key,
+    // null, ttl) — a point outside every zone (R2, which MUST still be
+    // accepted) would 500 on write. It would not even work as a negative
+    // cache if it succeeded: this store's own get() maps a stored null back
+    // to `undefined`, indistinguishable from a miss. So a "not found" result
+    // is simply not cached — every out-of-zone lookup re-queries PostGIS,
+    // which is correct, just uncached.
+    if (zone !== null) {
+      await this.cache.set(key, zone, GEO_CACHE_TTL_SECONDS * 1000);
+    }
     return zone;
   }
 

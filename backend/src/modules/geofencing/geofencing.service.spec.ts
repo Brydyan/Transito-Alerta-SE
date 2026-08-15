@@ -188,5 +188,22 @@ describe('GeofencingService', () => {
         60 * 1000,
       );
     });
+
+    // Regression found by the T4.1a e2e flow test (real cache-manager-redis-yet,
+    // not this mock): `cache.set(key, null, ttl)` throws `NoCacheableError:
+    // "null" is not a cacheable value` — cache-manager-redis-yet's isCacheable()
+    // rejects null/undefined outright. Every point outside all zones (R2 —
+    // which MUST still be accepted, not rejected) 500'd on write. Storing it
+    // would not even have worked as a negative cache anyway: this store's
+    // own get() maps a stored null back to `undefined`, identical to a miss.
+    it('does NOT attempt to cache a null "outside all zones" result (R2 / cache-manager-redis-yet rejects null)', async () => {
+      cache.get.mockResolvedValue(undefined);
+      repository.findZoneByPoint.mockResolvedValue(null);
+
+      const result = await service.getCachedZoneByPoint(0, 0);
+
+      expect(result).toBeNull();
+      expect(cache.set).not.toHaveBeenCalled();
+    });
   });
 });
