@@ -10,6 +10,7 @@ describe('AssignmentsService', () => {
     delete: jest.Mock;
   };
   let eventEmitter: { emit: jest.Mock };
+  let redis: { xadd: jest.Mock };
   let service: AssignmentsService;
 
   beforeEach(() => {
@@ -21,7 +22,8 @@ describe('AssignmentsService', () => {
       delete: jest.fn(),
     };
     eventEmitter = { emit: jest.fn() };
-    service = new AssignmentsService(repo as any, eventEmitter as any);
+    redis = { xadd: jest.fn() };
+    service = new AssignmentsService(repo as any, eventEmitter as any, redis as any);
   });
 
   describe('assign', () => {
@@ -35,6 +37,34 @@ describe('AssignmentsService', () => {
       );
       expect(eventEmitter.emit).toHaveBeenCalledWith('incident.assigned', expect.any(Object));
       expect(result.operatorId).toBe('op-1');
+    });
+
+    // Regression: assign() previously only emitted a local EventEmitter2 event
+    // (in-process only) and never XADDed to `incidents:events`, so a claim
+    // was invisible to RealtimeStreamsConsumer and every other API instance —
+    // silently breaking CC4 for this one event type while incident.created
+    // and status_changed worked fine. Found while writing the T4.1a
+    // assignment e2e flow.
+    it('publishes incident.assigned to the incidents:events Redis Stream, not only the local EventEmitter2 (CC4)', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      await service.assign('inc-1', 'op-1');
+
+      expect(redis.xadd).toHaveBeenCalledWith(
+        'incidents:events',
+        '*',
+        'type',
+        'incident.assigned',
+        'data',
+        expect.stringContaining('"incidentId":"inc-1"'),
+      );
+    });
+
+    it('does NOT publish to the stream when the claim is rejected as a conflict', async () => {
+      repo.findOne.mockResolvedValue({ id: 'a-1', incidentId: 'inc-1', operatorId: 'op-1' });
+
+      await expect(service.assign('inc-1', 'op-2')).rejects.toBeInstanceOf(ConflictException);
+      expect(redis.xadd).not.toHaveBeenCalled();
     });
 
     it('rejects a second claim on an already-assigned incident with a conflict (R5)', async () => {

@@ -1,9 +1,12 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
+import type Redis from 'ioredis';
 import { Repository } from 'typeorm';
 
+import { REDIS_CLIENT } from '../../core/core.module';
 import { AssignmentEntity } from '../../entities/assignment.entity';
+import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
 
 /**
  * AssignmentsService (R5) — design DAG `Assignments -> Incidents, Users,
@@ -16,6 +19,7 @@ export class AssignmentsService {
     @InjectRepository(AssignmentEntity)
     private readonly assignmentRepo: Repository<AssignmentEntity>,
     private readonly eventEmitter: EventEmitter2,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async assign(incidentId: string, operatorId: string, role = 'primary'): Promise<AssignmentEntity> {
@@ -27,6 +31,18 @@ export class AssignmentsService {
     const entity = this.assignmentRepo.create({ incidentId, operatorId, role });
     const saved = await this.assignmentRepo.save(entity);
     this.eventEmitter.emit('incident.assigned', saved);
+    // Previously local-only (EventEmitter2 never leaves this process): a
+    // claim was invisible to RealtimeStreamsConsumer and to every other API
+    // instance behind the load balancer — CC4 requires Redis Streams
+    // delivery for incident:assigned same as incident:created/status_changed.
+    await this.redis.xadd(
+      INCIDENTS_STREAM_KEY,
+      '*',
+      'type',
+      'incident.assigned',
+      'data',
+      JSON.stringify(saved),
+    );
     return saved;
   }
 
