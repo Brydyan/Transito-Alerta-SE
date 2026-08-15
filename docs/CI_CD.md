@@ -20,7 +20,14 @@ Corre en cada PR hacia `develop` o `main`, y en cada push a esas ramas.
 Instala con `--frozen-lockfile`: si el lockfile no coincide con
 `package.json`, falla en vez de resolver versiones distintas en silencio.
 La versión de pnpm sale de `packageManager` en `backend/package.json`, así
-que CI y las máquinas del equipo no pueden divergir.
+que CI y las máquinas del equipo no pueden divergir. `pnpm/action-setup`
+necesita `package_json_file: backend/package.json` explícito: por defecto lee
+la raíz del repo, y `defaults.run.working-directory` no aplica a los inputs
+de un `uses:`. Sin eso falla con *"No pnpm version is specified"*.
+
+Node en CI es 22, la misma línea que corre el equipo. `engines` en
+`package.json` todavía dice `>=20.0.0` pero nadie prueba en 20 — si alguien
+va a trabajar en esa versión, agregar una matriz al job.
 
 **Job `integration`** — `pnpm run test:e2e`
 (`backend/test/support/test-environment.ts`). Levanta Postgres+PostGIS y
