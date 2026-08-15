@@ -1,5 +1,20 @@
 # T1: Backend NestJS Modules
 
+> ⚠️ **Documento histórico — no usar como referencia de la API.**
+>
+> Este archivo es el borrador de planificación previo a la implementación.
+> El código real difiere en varios puntos importantes:
+>
+> - `synchronize: true` fue **rechazado** — las migraciones son SQL manual en
+>   `database/migrations/`, ejecutadas a mano en Supabase.
+> - La ubicación se guarda como `geometry(Point, 4326)` de PostGIS, no como
+>   dos columnas `decimal`.
+> - La API usa `lat` / `lng`, no `latitude` / `longitude`.
+> - Las rutas y las formas de request/response cambiaron.
+>
+> **El contrato vigente está en [`docs/API_CONTRACT.md`](../API_CONTRACT.md)**,
+> verificado contra la aplicación corriendo.
+
 **Responsable:** Backend Developer  
 **Duración:** 2 semanas  
 **Prioridad:** 🔴 CRÍTICA  

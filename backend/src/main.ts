@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/node';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { SnakeCaseResponseInterceptor } from './common/interceptors/snake-case-response.interceptor';
 import { RedisIoAdapter } from './modules/realtime/redis-io.adapter';
 
 async function bootstrap(): Promise<void> {
@@ -30,6 +31,10 @@ async function bootstrap(): Promise<void> {
       transform: true,
     }),
   );
+
+  // Request DTOs are snake_case throughout; this makes responses match, so a
+  // client never sends `incident_id` and receives `incidentId` back.
+  app.useGlobalInterceptors(new SnakeCaseResponseInterceptor());
 
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
   await app.listen(port);
