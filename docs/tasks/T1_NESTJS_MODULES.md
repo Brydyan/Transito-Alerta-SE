@@ -56,6 +56,9 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Global API prefix
+  app.setGlobalPrefix('api');
+
   // Validación global
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
@@ -66,7 +69,7 @@ async function bootstrap() {
   Sentry.init({ dsn: process.env.SENTRY_DSN });
 
   await app.listen(3001);
-  console.log('🚀 API running on http://localhost:3001');
+  console.log('🚀 API running on http://localhost:3001/api');
 }
 bootstrap();
 ```
@@ -514,7 +517,7 @@ npx tsc --noEmit
 npm run start
 
 # Verificar que API está corriendo
-curl http://localhost:3001/health
+curl http://localhost:3001/api/health
 ```
 
 ---

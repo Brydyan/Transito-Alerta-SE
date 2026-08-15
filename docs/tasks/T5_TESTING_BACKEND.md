@@ -33,7 +33,7 @@ module.exports = {
     '^.+\\.(t|j)s$': 'ts-jest',
   },
   collectCoverageFrom: [
-    '**/*.(t|j)s',
+    '**/*.{ts,js}',
   ],
   coverageDirectory: '../coverage',
   testEnvironment: 'node',

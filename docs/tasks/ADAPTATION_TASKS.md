@@ -329,7 +329,7 @@ Diseñar e implementar schema PostgreSQL con PostGIS, migraciones y índices.
   RETURNS TRIGGER AS $$
   BEGIN
     IF NOT ST_Contains(
-      ST_GeomFromText('POLYGON(-80.9 -2.1, -80.3 -2.1, -80.3 -1.7, -80.9 -1.7, -80.9 -2.1)', 4326),
+      ST_GeomFromText('POLYGON((-80.9 -2.1, -80.3 -2.1, -80.3 -1.7, -80.9 -1.7, -80.9 -2.1))', 4326),
       NEW.geometry
     ) THEN
       RAISE EXCEPTION 'Location outside Santa Elena canton';

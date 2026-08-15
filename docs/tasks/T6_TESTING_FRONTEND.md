@@ -1,4 +1,4 @@
-# T6: Testing Frontend (Jest + Karma/Jasmine)
+# T6: Testing Frontend (Jest + Angular)
 
 **Responsable:** Frontend Developer  
 **Duración:** 1 semana  
@@ -9,18 +9,42 @@
 
 ## 📝 Descripción
 
-Tests unitarios para servicios y componentes Angular.
+Tests unitarios para servicios y componentes Angular con Jest (moderno, sin Karma).
 
 ---
 
 ## 🛠️ Pasos Detallados
 
-### Paso 1: Setup
+### Paso 1: Setup Jest
 
 ```bash
 cd frontend
-ng generate @schematics/angular:remove-e2e  # Si es necesario
-ng generate module test --module=app
+
+# Instalar Jest + preset Angular
+npm install -D jest @angular/core/testing jest-preset-angular @types/jest ts-jest
+
+# Crear jest.config.js
+cat > jest.config.js << 'EOF'
+module.exports = {
+  preset: 'jest-preset-angular',
+  setupFilesAfterEnv: ['<rootDir>/setup-jest.ts'],
+  testPathIgnorePatterns: [
+    '<rootDir>/node_modules/',
+    '<rootDir>/dist/'
+  ],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.module.ts',
+    '!src/main.ts',
+    '!src/polyfills.ts',
+  ],
+};
+EOF
+
+# Crear setup-jest.ts
+cat > setup-jest.ts << 'EOF'
+import 'jest-preset-angular/setup-jest';
+EOF
 ```
 
 ### Paso 2: Service Tests
@@ -313,10 +337,10 @@ ng test --watch=true
   - [ ] Statements, branches, functions, lines ≥ 70%
 
 - [ ] **Execution**
-  - [ ] `ng test` ejecuta sin errores
-  - [ ] `ng test --code-coverage` genera reporte
+  - [ ] `npm run test` (o `jest`) ejecuta sin errores
+  - [ ] `npm run test:cov` (o `jest --coverage`) genera reporte
   - [ ] Todos los tests pasan
-  - [ ] No hay warnings
+  - [ ] No hay warnings de tipo TypeScript
 
 ---
 

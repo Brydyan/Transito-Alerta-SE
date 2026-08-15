@@ -313,9 +313,9 @@ INSERT INTO users (email, password_hash, role, full_name, device_uuid) VALUES
 
 -- Create test incidents within Santa Elena
 INSERT INTO incidents (title, description, geometry, latitude, longitude, status, priority, citizen_id) VALUES
-  ('Semáforo roto en La Libertad', 'Semáforo no funciona en esquina de calle principal', ST_Point(-80.45, -1.95, 4326), -1.95, -80.45, 'pending', 'high', 
+  ('Semáforo roto en La Libertad', 'Semáforo no funciona en esquina de calle principal', ST_SetSRID(ST_MakePoint(-80.45, -1.95), 4326), -1.95, -80.45, 'pending', 'high', 
     (SELECT id FROM users WHERE email = 'citizen1@test.com' LIMIT 1)),
-  ('Vía bloqueada por construcción', 'Ruta del Spondylus cerrada por obras', ST_Point(-80.55, -2.05, 4326), -2.05, -80.55, 'in_progress', 'medium',
+  ('Vía bloqueada por construcción', 'Ruta del Spondylus cerrada por obras', ST_SetSRID(ST_MakePoint(-80.55, -2.05), 4326), -2.05, -80.55, 'in_progress', 'medium',
     (SELECT id FROM users WHERE email = 'citizen1@test.com' LIMIT 1));
 ```
 

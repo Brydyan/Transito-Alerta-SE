@@ -192,14 +192,14 @@ services:
       dockerfile: Dockerfile
     container_name: transito-alerta-api
     environment:
-      NODE_ENV: development
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: transito_alerta_se
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: dev-secret-key
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      DB_NAME: ${DB_NAME:-transito_alerta_se}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
       - "3001:3001"
@@ -300,7 +300,7 @@ jobs:
         run: cd frontend && npm run lint
 
       - name: Type check frontend
-        run: cd frontend && ng build --strict --prod
+        run: cd frontend && npx ng build --configuration production --strict
 
   test-backend:
     runs-on: ubuntu-latest

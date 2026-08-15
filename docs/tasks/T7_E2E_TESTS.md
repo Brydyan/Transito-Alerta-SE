@@ -332,7 +332,7 @@ npx playwright show-report
   - [ ] Carga foto correctamente
   - [ ] Offline: guardado localmente, toast visible
   - [ ] Online: sincronización automática
-  - [ ] Éxito: mensajeconfirmación
+  - [ ] Éxito: mensaje de confirmación
 
 - [ ] **Admin Dashboard**
   - [ ] Login como operador funciona
