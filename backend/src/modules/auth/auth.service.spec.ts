@@ -12,7 +12,12 @@ function makeAuthConfig() {
     jwtRefreshExpiresIn: '7d',
     permissionCacheTtlSeconds: 3600,
     anonymousDeviceUuid: 'anonymous',
-    anonymousPermissions: ['READ incidents', 'CREATE incidents', 'CREATE comments'],
+    anonymousPermissions: [
+      'READ incidents',
+      'CREATE incidents',
+      'READ comments',
+      'CREATE comments',
+    ],
   };
 }
 
@@ -85,6 +90,7 @@ describe('AuthService', () => {
       expect(result.permissions).toEqual([
         'READ incidents',
         'CREATE incidents',
+        'READ comments',
         'CREATE comments',
       ]);
     });
@@ -209,6 +215,7 @@ describe('AuthService.getPermissionsByUserId', () => {
     expect(permissions).toEqual([
       'READ incidents',
       'CREATE incidents',
+      'READ comments',
       'CREATE comments',
     ]);
   });

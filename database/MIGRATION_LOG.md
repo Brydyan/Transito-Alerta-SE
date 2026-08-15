@@ -20,6 +20,7 @@ actually been run against that environment.
 | 0005 | comments | comments table (sanitized content, FK incidents/users) | ⏳ Pending | — | — | — |
 | 0006 | users | users profile columns (first/last name, avatar_url, role, organization_id) + user_sessions table | ⏳ Pending | — | — | — |
 | 0007 | assignments | assignments table (one active assignment per incident, unique constraint) | ⏳ Pending | — | — | — |
+| 0008 | anonymous_read_comments | adds "READ comments" to the anonymous ceiling (product decision: read + contribute, never modify) | ⏳ Pending | — | — | — |
 
 ## Status legend
 

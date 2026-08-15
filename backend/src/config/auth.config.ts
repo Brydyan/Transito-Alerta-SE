@@ -15,7 +15,9 @@ export interface AuthConfig {
  *
  * - Dual JWT secrets (access/refresh) per design D2.
  * - Anonymous identity ceiling (device_uuid='anonymous') per blocker
- *   resolution #4: READ/CREATE incidents, CREATE comments.
+ *   resolution #4: read what the public posted and contribute to it, never
+ *   modify. READ/CREATE incidents, READ/CREATE comments — no UPDATE, DELETE
+ *   or ASSIGN, not even over its own rows.
  */
 export default registerAs(
   'auth',
@@ -31,6 +33,7 @@ export default registerAs(
     anonymousPermissions: [
       'READ incidents',
       'CREATE incidents',
+      'READ comments',
       'CREATE comments',
     ],
   }),
