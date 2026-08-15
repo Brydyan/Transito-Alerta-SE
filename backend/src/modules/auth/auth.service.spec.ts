@@ -161,3 +161,99 @@ describe('AuthService', () => {
     });
   });
 });
+
+describe('AuthService.getPermissionsByUserId', () => {
+  let userRepo: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
+  let cache: { get: jest.Mock; set: jest.Mock };
+  let service: AuthService;
+
+  beforeEach(() => {
+    userRepo = { findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
+    cache = { get: jest.fn(), set: jest.fn() };
+    service = new AuthService(
+      userRepo as any,
+      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
+      cache as any,
+      { get: () => makeAuthConfig() } as unknown as ConfigService,
+      { emit: jest.fn() } as any,
+    );
+  });
+
+  // JwtStrategy passes the JWT `sub` claim, which is user.id — NOT device_uuid.
+  // Resolving it against the device_uuid column silently yields [] and every
+  // permission-gated endpoint 403s.
+  it('resolves permissions from a user id, not a device_uuid', async () => {
+    cache.get.mockResolvedValue(undefined);
+    userRepo.findOne.mockResolvedValue({
+      id: 'user-1',
+      deviceUuid: 'device-abc',
+      permissions: ['READ incidents', 'UPDATE incidents'],
+    });
+
+    const permissions = await service.getPermissionsByUserId('user-1');
+
+    expect(userRepo.findOne).toHaveBeenCalledWith({ where: { id: 'user-1' } });
+    expect(permissions).toEqual(['READ incidents', 'UPDATE incidents']);
+  });
+
+  it('grants the anonymous ceiling when the id resolves to the anonymous device', async () => {
+    cache.get.mockResolvedValue(undefined);
+    userRepo.findOne.mockResolvedValue({
+      id: 'anon-row-id',
+      deviceUuid: 'anonymous',
+      permissions: [],
+    });
+
+    const permissions = await service.getPermissionsByUserId('anon-row-id');
+
+    expect(permissions).toEqual([
+      'READ incidents',
+      'CREATE incidents',
+      'CREATE comments',
+    ]);
+  });
+
+  it('returns no permissions for an unknown user id', async () => {
+    cache.get.mockResolvedValue(undefined);
+    userRepo.findOne.mockResolvedValue(null);
+
+    await expect(service.getPermissionsByUserId('ghost')).resolves.toEqual([]);
+  });
+
+  // Caching a miss would pin an unknown user to [] for the whole TTL, so a
+  // freshly-provisioned account would keep 403ing until the entry expired.
+  it('does not cache the empty result for an unknown user id', async () => {
+    cache.get.mockResolvedValue(undefined);
+    userRepo.findOne.mockResolvedValue(null);
+
+    await service.getPermissionsByUserId('ghost');
+
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it('serves a cached permission set without hitting the database', async () => {
+    cache.get.mockResolvedValue(['READ incidents']);
+
+    const permissions = await service.getPermissionsByUserId('user-1');
+
+    expect(permissions).toEqual(['READ incidents']);
+    expect(userRepo.findOne).not.toHaveBeenCalled();
+  });
+
+  it('keys the cache by user id, distinct from the device_uuid key', async () => {
+    cache.get.mockResolvedValue(undefined);
+    userRepo.findOne.mockResolvedValue({
+      id: 'user-1',
+      deviceUuid: 'device-abc',
+      permissions: ['READ incidents'],
+    });
+
+    await service.getPermissionsByUserId('user-1');
+
+    expect(cache.set).toHaveBeenCalledWith(
+      `${PERMISSION_CACHE_PREFIX}uid:user-1`,
+      ['READ incidents'],
+      expect.any(Number),
+    );
+  });
+});

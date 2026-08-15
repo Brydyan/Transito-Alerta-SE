@@ -29,7 +29,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.typ !== 'access') {
       throw new UnauthorizedException('Token is not an access token');
     }
-    const permissions = await this.authService.getPermissions(payload.sub);
+    // `sub` is user.id — resolve by id, not by device_uuid.
+    const permissions = await this.authService.getPermissionsByUserId(payload.sub);
     return { userId: payload.sub, permissions };
   }
 }

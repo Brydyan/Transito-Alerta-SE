@@ -120,7 +120,45 @@ export class AuthService {
     }
 
     const user = await this.userRepo.findOne({ where: { deviceUuid } });
-    const permissions = user?.permissions ?? [];
+    if (!user) {
+      // Do NOT cache a miss: pinning an unknown device to [] for the whole TTL
+      // would keep a freshly-provisioned account 403ing until the entry expired.
+      return [];
+    }
+
+    const permissions = user.permissions ?? [];
+    await this.cache.set(key, permissions, permissionCacheTtlSeconds * 1000);
+    return permissions;
+  }
+
+  /**
+   * Resolves permissions from a user id (the JWT `sub` claim).
+   *
+   * JwtStrategy only has `sub` on the token, which is `user.id` — not the
+   * device_uuid that {@link getPermissions} expects. Both are strings, so
+   * passing one where the other is required type-checks cleanly and silently
+   * resolves to no permissions, 403ing every guarded endpoint.
+   */
+  async getPermissionsByUserId(userId: string): Promise<string[]> {
+    const { anonymousDeviceUuid, anonymousPermissions, permissionCacheTtlSeconds } =
+      this.authConfig;
+
+    const key = `${PERMISSION_CACHE_PREFIX}uid:${userId}`;
+    const cached = await this.cache.get<string[]>(key);
+    if (cached) {
+      return cached;
+    }
+
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      return [];
+    }
+
+    const permissions =
+      user.deviceUuid === anonymousDeviceUuid
+        ? anonymousPermissions
+        : (user.permissions ?? []);
+
     await this.cache.set(key, permissions, permissionCacheTtlSeconds * 1000);
     return permissions;
   }
