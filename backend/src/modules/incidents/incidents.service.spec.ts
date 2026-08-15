@@ -29,7 +29,7 @@ describe('IncidentsService', () => {
     findOne: jest.Mock;
     updateStatus: jest.Mock;
   };
-  let geofencing: { resolveZone: jest.Mock; purgeZoneCache: jest.Mock };
+  let geofencing: { resolveZone: jest.Mock; purgeZoneCache: jest.Mock; tagCacheKey: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
   let redis: { xadd: jest.Mock };
   let cache: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
@@ -42,7 +42,7 @@ describe('IncidentsService', () => {
       findOne: jest.fn(),
       updateStatus: jest.fn(),
     };
-    geofencing = { resolveZone: jest.fn(), purgeZoneCache: jest.fn() };
+    geofencing = { resolveZone: jest.fn(), purgeZoneCache: jest.fn(), tagCacheKey: jest.fn() };
     eventEmitter = { emit: jest.fn() };
     redis = { xadd: jest.fn() };
     cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };

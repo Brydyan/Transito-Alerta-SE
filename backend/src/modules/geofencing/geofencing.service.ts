@@ -67,7 +67,10 @@ export class GeofencingService {
       throw new BadRequestException('Invalid coordinates');
     }
 
-    return this.geofencingRepository.findZoneByPoint(lat, lng);
+    // Cached: containment is the hot path — every incident write resolves a
+    // zone, and CC5 names this cache as the reason the geofencing layer
+    // survives 25k users.
+    return this.getCachedZoneByPoint(lat, lng);
   }
 
   /**
@@ -115,9 +118,13 @@ export class GeofencingService {
     }
     const tagKey = `geo:tags:${zoneId}`;
     const keys = await this.redis.smembers(tagKey);
-    if (keys.length > 0) {
-      await this.redis.del(...keys);
-    }
+
+    // The tagged VALUES live on the cache database (DB 1, via cache-manager)
+    // while the tag-set itself lives on DB 0 with the raw client. Deleting
+    // them with `redis.del()` would target DB 0 and silently remove nothing —
+    // the purge would report success while every stale entry survived.
+    await Promise.all(keys.map((key) => this.cache.del(key)));
+
     await this.redis.del(tagKey);
   }
 }

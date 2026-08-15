@@ -1,5 +1,5 @@
 import { DataSource } from 'typeorm';
-import { IncidentsRepository } from './incidents.repository';
+import { IncidentsRepository , unwrapReturningRows} from './incidents.repository';
 
 describe('IncidentsRepository', () => {
   let dataSource: { query: jest.Mock };
@@ -94,14 +94,62 @@ describe('IncidentsRepository', () => {
   });
 
   describe('updateStatus', () => {
-    it('updates status and returns the updated row', async () => {
-      dataSource.query.mockResolvedValue([{ id: 'inc-1', status: 'in_progress' }]);
+    // The driver returns [rows, rowCount] for UPDATE — mocking bare rows here
+    // is what let the tuple bug reach production with a green suite.
+    it('returns the updated row from the [rows, count] tuple the driver really returns', async () => {
+      const row = { id: 'inc-1', status: 'in_progress', zone_id: 'z-1' };
+      dataSource.query.mockResolvedValue([[row], 1]);
 
       const result = await repository.updateStatus('inc-1', 'in_progress');
 
       const [, params] = dataSource.query.mock.calls[0];
       expect(params).toEqual(['inc-1', 'in_progress']);
-      expect(result).toEqual({ id: 'inc-1', status: 'in_progress' });
+      expect(result).toEqual(row);
     });
+
+    // zone_id drives cache purging and realtime room routing; if the row is
+    // array-wrapped both silently no-op.
+    it('exposes zone_id on the returned row', async () => {
+      dataSource.query.mockResolvedValue([[{ id: 'inc-1', zone_id: 'z-1' }], 1]);
+
+      const result = await repository.updateStatus('inc-1', 'in_progress');
+
+      expect(result?.zone_id).toBe('z-1');
+    });
+
+    it('returns null when no row matched', async () => {
+      dataSource.query.mockResolvedValue([[], 0]);
+
+      await expect(repository.updateStatus('ghost', 'resolved')).resolves.toBeNull();
+    });
+  });
+});
+
+describe('unwrapReturningRows', () => {
+  // TypeORM's Postgres driver returns [rows, rowCount] for UPDATE/DELETE but
+  // bare rows for INSERT/SELECT. Assuming one shape corrupts the other.
+  it('unwraps the [rows, count] tuple that UPDATE and DELETE return', () => {
+    const row = { id: 'i-1', zone_id: 'z-1' };
+
+    expect(unwrapReturningRows([[row], 1])).toEqual([row]);
+  });
+
+  it('passes through the bare row array that INSERT and SELECT return', () => {
+    const row = { id: 'i-1', zone_id: 'z-1' };
+
+    expect(unwrapReturningRows([row])).toEqual([row]);
+  });
+
+  it('yields the row itself, never a nested array', () => {
+    const row = { id: 'i-1', zone_id: 'z-1' };
+
+    expect(unwrapReturningRows<typeof row>([[row], 1])[0]).toEqual(row);
+    expect(Array.isArray(unwrapReturningRows([[row], 1])[0])).toBe(false);
+  });
+
+  it('returns an empty list when nothing matched', () => {
+    expect(unwrapReturningRows([[], 0])).toEqual([]);
+    expect(unwrapReturningRows([])).toEqual([]);
+    expect(unwrapReturningRows(undefined)).toEqual([]);
   });
 });
