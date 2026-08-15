@@ -4,13 +4,13 @@ import { GeofencingService } from './geofencing.service';
 
 describe('GeofencingService', () => {
   let repository: { findZoneByPoint: jest.Mock; findZonesNearby: jest.Mock };
-  let cache: { get: jest.Mock; set: jest.Mock };
+  let cache: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
   let redis: { sadd: jest.Mock; smembers: jest.Mock; del: jest.Mock };
   let service: GeofencingService;
 
   beforeEach(() => {
     repository = { findZoneByPoint: jest.fn(), findZonesNearby: jest.fn() };
-    cache = { get: jest.fn(), set: jest.fn() };
+    cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
     redis = { sadd: jest.fn(), smembers: jest.fn(), del: jest.fn() };
     service = new GeofencingService(
       repository as unknown as GeofencingRepository,
@@ -116,16 +116,28 @@ describe('GeofencingService', () => {
       );
     });
 
-    it('purgeZoneCache deletes every tagged key plus the tag-set itself', async () => {
-      redis.smembers.mockResolvedValue(['geo:zone-1:-2.229:-80.859:5:pending', 'geo:zone-1:-2.230:-80.860:5:all']);
+    // The tagged VALUES live on the cache database (DB 1) via cache-manager;
+    // the tag-set lives on DB 0 with the raw client. Purging the values with
+    // redis.del() targets DB 0 and removes nothing — the earlier version of
+    // this test asserted exactly that broken behaviour.
+    it('purgeZoneCache deletes tagged values through the cache, not the raw client', async () => {
+      redis.smembers.mockResolvedValue([
+        'incidents:list:zone-1:pending',
+        'incidents:list:zone-1:all',
+      ]);
 
       await service.purgeZoneCache('zone-1');
 
       expect(redis.smembers).toHaveBeenCalledWith('geo:tags:zone-1');
-      expect(redis.del).toHaveBeenCalledWith(
-        'geo:zone-1:-2.229:-80.859:5:pending',
-        'geo:zone-1:-2.230:-80.860:5:all',
-      );
+      expect(cache.del).toHaveBeenCalledWith('incidents:list:zone-1:pending');
+      expect(cache.del).toHaveBeenCalledWith('incidents:list:zone-1:all');
+    });
+
+    it('purgeZoneCache drops the tag-set itself on the raw client', async () => {
+      redis.smembers.mockResolvedValue(['incidents:list:zone-1:pending']);
+
+      await service.purgeZoneCache('zone-1');
+
       expect(redis.del).toHaveBeenCalledWith('geo:tags:zone-1');
     });
 
@@ -175,6 +187,23 @@ describe('GeofencingService', () => {
         { id: 'zone-2', name: 'Zone' },
         60 * 1000,
       );
+    });
+
+    // Regression found by the T4.1a e2e flow test (real cache-manager-redis-yet,
+    // not this mock): `cache.set(key, null, ttl)` throws `NoCacheableError:
+    // "null" is not a cacheable value` — cache-manager-redis-yet's isCacheable()
+    // rejects null/undefined outright. Every point outside all zones (R2 —
+    // which MUST still be accepted, not rejected) 500'd on write. Storing it
+    // would not even have worked as a negative cache anyway: this store's
+    // own get() maps a stored null back to `undefined`, identical to a miss.
+    it('does NOT attempt to cache a null "outside all zones" result (R2 / cache-manager-redis-yet rejects null)', async () => {
+      cache.get.mockResolvedValue(undefined);
+      repository.findZoneByPoint.mockResolvedValue(null);
+
+      const result = await service.getCachedZoneByPoint(0, 0);
+
+      expect(result).toBeNull();
+      expect(cache.set).not.toHaveBeenCalled();
     });
   });
 });

@@ -234,3 +234,74 @@ Branch `brydyan/sc-194/backend-nestjs-modules`, 6 new commits this batch (not pu
 ## Status (Phase 2)
 
 6/6 Phase-2 tasks complete. Build green, 144/144 tests passing (up from 49 at end of Phase 1). **Ready for `sdd-verify`**, or continue to Phase 3 (`T3.1-T3.10`) apply batch.
+
+---
+
+# Apply Progress: Backend NestJS Migration — T4.1a (e2e harness) + T4.1a step 2 (regression tests + flows)
+
+Change: `backend-nestjs-modules` | Batch: T4.1a + step 2 | Mode: Strict TDD | Status: harness + regressions + flows **DONE**; T4.1b (StatusHistory/Notifications) still deferred until after Phase 3.
+
+Commits (all on `brydyan/sc-252/fase-3-de-la-migracion-del-backend`, not `sc-194` — see branch note below): `7284831`, `71dc3d6`, `985162b`, `15fe082` (pre-existing defect fixes on this branch before T4.1a started), `d640339` (T4.1a harness + RedisIoAdapter leak fix), `9dffec8` (streams consumer clean shutdown, surfaced by the harness), `6a39fff` (regression tests), `a956bda` (fix: geofencing null-cache), `cc19154` (fix: assignments stream publish), `8a750e9` (flow tests).
+
+**⚠️ Branch note (carried forward, now resolved for this batch):** the harness (T4.1a) landed on `sc-252` rather than the `sc-194` name in the original task instruction, because the working tree was already checked out on `sc-252` (a descendant of sc-194's tip) before that batch started. This batch (T4.1a step 2)'s instruction explicitly confirmed `sc-252` as correct — no further action needed.
+
+## T4.1a — e2e test harness (summary; full detail in the corresponding engram revision, `sdd/backend-nestjs-modules/apply-progress`)
+
+`backend/test/jest-e2e.json`, `backend/test/support/run-migrations.ts`, `backend/test/support/test-environment.ts` (`TestEnvironment` — Testcontainers postgis/postgis:16-3.4 + redis:7-alpine, migrations applied from `database/migrations/[0-9]*.sql`, app booted with the exact `main.ts` pipeline, `reset()`/`provisionUser()` helpers), `backend/test/e2e/health.e2e-spec.ts` (smoke only). Side-fix: `RedisIoAdapter` never closed its `pubClient`/`subClient` on shutdown (production leak); fixed with a `close()` override + `redis-io.adapter.spec.ts`. CI `integration` job added to `.github/workflows/ci.yml`. Follow-up commit `9dffec8` (same session) fixed a spurious error log + missing backoff in `RealtimeStreamsConsumer`'s shutdown path, surfaced by the harness exercising a real blocked `XREADGROUP` for the first time.
+
+## T4.1a step 2 — regression tests (Part A) + flows (Part B) — this batch
+
+Built entirely on the T4.1a harness API (`TestEnvironment.start/stop/reset/provisionUser`) — the harness itself was NOT modified, per explicit task instruction.
+
+### Part A — `backend/test/e2e/regressions.e2e-spec.ts` (9 tests, one per shipped defect, all real HTTP/Postgres/Redis)
+
+1. JwtStrategy identity (`15fe082`) — authenticated caller holding a permission reaches the guarded handler.
+2. EventsGateway identity (`71dc3d6`) — real socket.io client joins a permitted room and receives an emitted event. Uses a retry loop on the `join` emit: the client's `connect` event races `handleConnection()`'s own async permission resolution, which nothing signals back to the client — an inherent protocol gap, not a weakened assertion.
+3. Response casing (`985162b`) — comments (entity-backed) snake_cased; incidents (raw SQL) unchanged.
+4. UPDATE...RETURNING tuple (`7284831`) — `PATCH /incidents/:id/status` returns an object, never an array.
+5. Rate limiter identity (`7284831`) — two authenticated users get independent `rate-limit:*` counters.
+6. Geofencing cache (`7284831`) — a `geo:point:*` key exists after a write.
+7. Cross-database purge (`7284831`) — a status-filtered listing cache is purged on write.
+8. RedisIoAdapter leak (`d640339`) — lifecycle-only; asserted at the narrowest honest level (adapter constructed directly against the harness's real Redis container, isolated socket.io server on a free port, `close()` proven to flip both extra ioredis clients' `.status` to `'end'`).
+9. Streams consumer shutdown (`9dffec8`) — lifecycle-only; a second `RealtimeStreamsConsumer` against the harness's real Redis, disconnected while genuinely blocked in `XREADGROUP`, proven not to log an error.
+
+**Test-writing finding, not a production bug:** the app's single `REDIS_CLIENT` is shared between `RealtimeStreamsConsumer`'s permanently-parked `BLOCK 5000` `XREADGROUP` loop and every producer's `XADD` (Incidents, now Assignments too). Every incident/assignment write's `XADD` queues behind whichever block call is in-flight on that connection — observed adding several seconds of latency per write across this whole suite (some tests legitimately took 50-95s). `test-environment.ts` already flags this exact risk in its own comments for why the harness's `redisStreams`/`redisCache` clients are kept separate from the app's `REDIS_CLIENT`; the production code does not have that separation for its own producers. Flagged as a follow-up (a dedicated producer connection, mirroring the harness's own pattern) — out of scope to fix in this batch.
+
+### Part B — `backend/test/e2e/flows.e2e-spec.ts` (5 tests)
+
+1. Anonymous emergency report: create inside Santa Elena (zone_id set, geofence_matched true) and outside all zones (still 201 per R2, zone_id null, geofence_matched false), then read back.
+2. Anonymous ceiling (CC2): READ/CREATE succeed; UPDATE/DELETE/ASSIGN refused 403; unauthenticated refused 401.
+3. Assignment: operator claims (provisioned via `provisionUser(['ASSIGN assignments', ...])`), second claim conflicts 409, event reaches `incidents:events` (required fixing a real gap — see below).
+4. Comment lifecycle: `<script>` payload sanitized in the **persisted Postgres row** (queried directly via `env.pg.query`, not just the response), owner deletes, non-owner refused 403.
+5. Status lifecycle: pending → in_progress → resolved; out-of-order (pending → resolved) refused 400; each legal transition purges its status-filtered listing cache key and emits exactly one `incident.status_changed` to the stream (asserted via `env.redisStreams.xrevrange`).
+
+### Two new production defects found while writing Part B — each fixed in its OWN commit, separate from the test commits
+
+1. **`fix(geofencing): stop caching a null "outside all zones" lookup` (`a956bda`).** `GeofencingService.getCachedZoneByPoint` called `cache.set(key, null, ttl)` when a point matched no zone. cache-manager-redis-yet's `isCacheable()` throws `NoCacheableError: "null" is not a cacheable value` for null/undefined — every incident created outside all zones 500'd (R2 explicitly requires 201). The unit spec's mocked `cache.set` never validated this, so it shipped clean. Even if it had succeeded, the store's own `get()` maps a stored null back to `undefined` — indistinguishable from a genuine miss — so caching a negative result was never viable with this store; the fix simply skips the cache write for a null result. RED→GREEN unit test added: `does NOT attempt to cache a null "outside all zones" result`.
+2. **`fix(assignments): publish incident.assigned to the incidents:events stream` (`cc19154`).** `AssignmentsService.assign()` only emitted a local `EventEmitter2` event (in-process only) — never `XADD`ed to `incidents:events` like Incidents does for `created`/`status_changed`. A claim was invisible to `RealtimeStreamsConsumer` and to every other API instance, silently breaking CC4 for this one event type since Phase 2. Fixed by injecting `REDIS_CLIENT` into `AssignmentsService` and publishing on `assign()` only (not `release()` — not one of CC4's named event types). RED→GREEN unit tests added: publishes on success, does NOT publish on a 409 conflict.
+
+## DoD — all green, real output (not faked)
+
+```
+$ pnpm run lint       → 0 errors, 55 pre-existing-pattern no-explicit-any warnings (was 52 baseline; +3 from this batch's own spec mocks, same pattern as every other spec file)
+$ pnpm run typecheck  → clean
+$ pnpm run build      → clean
+$ pnpm test           → 28 suites / 204 tests, ~13.6s
+$ pnpm run test:e2e   → 3 suites / 16 tests, 435.0s total
+    PASS test/e2e/flows.e2e-spec.ts (228.8s — 5 tests)
+    PASS test/e2e/regressions.e2e-spec.ts (201.6s — 9 tests)
+    PASS test/e2e/health.e2e-spec.ts (2 tests, T4.1a smoke, unchanged)
+```
+
+## Remaining Tasks
+
+- [ ] T4.1b — StatusHistory + Notifications assertions, still deferred until after Phase 3 (T3.1-T3.10; those modules don't exist yet)
+- [ ] Phase 3 (T3.1-T3.10) — Roles+Permissions, Organizations, StatusHistory, Mail, Invitations, IncidentCategories, Locations, Sessions (full), Menus
+- [ ] Phase 4 (T4.2-T4.4) — load testing, security hardening, docs
+- [ ] Follow-up (found this batch, not fixed — out of scope): give Redis Streams producers (Incidents, Assignments) their own connection, separate from `RealtimeStreamsConsumer`'s permanently-blocked one, to stop every write queuing behind the current `BLOCK 5000` window
+- [ ] Follow-up (carried forward): wire a real S3 client behind `AvatarStorageService`
+- [ ] Follow-up (carried forward): `AuthService.login`'s fire-and-forget `auth.login` emit can still be mid-write when a request completes right before shutdown (flagged in T4.1a's apply-progress, not fixed)
+
+## Status
+
+T4.1 is still 🟡 PARTIAL: harness (T4.1a) + regression/flow coverage (T4.1a step 2) both done. T4.1b (StatusHistory/Notifications assertions) remains blocked on Phase 3 (T3.3/T3.4) not existing yet. **Ready for Phase 3 apply batch**, or `sdd-verify` on this batch's scope.

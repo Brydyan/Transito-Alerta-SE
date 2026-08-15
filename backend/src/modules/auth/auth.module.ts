@@ -32,6 +32,8 @@ import { JwtStrategy } from './jwt.strategy';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
-  exports: [AuthService],
+  // JwtModule is exported so the globally-registered RateLimiterGuard can
+  // verify access tokens and key limits per authenticated user.
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

@@ -1,8 +1,13 @@
 name: "Auto Redirect PR Base Branch"
 
+# `edited` matters as much as `opened`: without it, anyone can open a PR
+# against develop and then re-point it at main, and this workflow never runs
+# again. Redirecting is still only a convenience — it is NOT enforcement.
+# Only a branch protection rule on `main` actually prevents the merge; see
+# docs/CI_CD.md.
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, edited]
 
 jobs:
   redirect-base-branch:

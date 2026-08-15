@@ -14,6 +14,12 @@ export const INCIDENTS_STREAM_KEY = 'incidents:events';
 const INCIDENTS_LIST_CACHE_TTL_MS = 30_000;
 
 /**
+ * Tag-set covering listings that are not scoped to a single zone. Any write,
+ * in any zone, invalidates them.
+ */
+export const ALL_ZONES_TAG = '__all_zones__';
+
+/**
  * Legal forward-only transitions (spec R2: pending -> in_progress ->
  * resolved). Anything else — including same-status no-ops and backward
  * moves — is rejected.
@@ -62,8 +68,7 @@ export class IncidentsService {
       geofenceMatched: zoneId !== null,
     });
 
-    await this.geofencingService.purgeZoneCache(zoneId);
-    await this.invalidateListCache(zoneId ?? undefined);
+    await this.purgeListCaches(zoneId);
     await this.publish('incident.created', row);
 
     return row;
@@ -78,6 +83,17 @@ export class IncidentsService {
 
     const rows = await this.incidentsRepository.findAll({ zoneId, status });
     await this.cache.set(key, rows, INCIDENTS_LIST_CACHE_TTL_MS);
+
+    // Register under the zone's tag-set so a later write purges EVERY cached
+    // variant of this list, including status-filtered ones. Deleting keys by
+    // name cannot do that: the writer does not know which status filters a
+    // reader happened to use.
+    if (zoneId) {
+      await this.geofencingService.tagCacheKey(zoneId, key);
+    }
+    // Unzoned listings reflect every zone, so any write must invalidate them.
+    await this.geofencingService.tagCacheKey(ALL_ZONES_TAG, key);
+
     return rows;
   }
 
@@ -111,8 +127,7 @@ export class IncidentsService {
       throw new NotFoundException(`Incident ${id} not found`);
     }
 
-    await this.geofencingService.purgeZoneCache(updated.zone_id);
-    await this.invalidateListCache(updated.zone_id ?? undefined);
+    await this.purgeListCaches(updated.zone_id);
     await this.publish('incident.status_changed', { ...updated, actor_id: actorId });
 
     return updated;
@@ -127,8 +142,12 @@ export class IncidentsService {
     return `incidents:list:${zoneId ?? 'all'}:${status ?? 'all'}`;
   }
 
-  private async invalidateListCache(zoneId?: string): Promise<void> {
-    await this.cache.del(this.listCacheKey(zoneId));
-    await this.cache.del(this.listCacheKey(undefined));
+  /**
+   * Purges every cached listing affected by a write: the zone's own tagged
+   * keys plus the unzoned ones.
+   */
+  private async purgeListCaches(zoneId: string | null): Promise<void> {
+    await this.geofencingService.purgeZoneCache(zoneId);
+    await this.geofencingService.purgeZoneCache(ALL_ZONES_TAG);
   }
 }

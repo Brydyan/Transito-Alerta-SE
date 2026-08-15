@@ -1,12 +1,15 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import type Redis from 'ioredis';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_BLOCKING_CLIENT } from '../../core/core.module';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
 import { EventsGateway } from './events.gateway';
 import { decodeStreamEntry } from './stream-event.util';
 
 const CONSUMER_GROUP = 'realtime';
+
+/** Pause after a failed read so a Redis outage cannot spin the loop hot. */
+export const RETRY_BACKOFF_MS = 1000;
 
 /**
  * RealtimeStreamsConsumer (design D5) — Redis Streams consumer group over
@@ -23,7 +26,9 @@ export class RealtimeStreamsConsumer implements OnModuleInit, OnModuleDestroy {
   private running = false;
 
   constructor(
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Dedicated connection: XREADGROUP ... BLOCK holds it, and sharing it
+    // with producers queues every XADD behind a multi-second read.
+    @Inject(REDIS_BLOCKING_CLIENT) private readonly redis: Redis,
     private readonly gateway: EventsGateway,
   ) {}
 
@@ -40,8 +45,11 @@ export class RealtimeStreamsConsumer implements OnModuleInit, OnModuleDestroy {
     void this.loop();
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
     this.running = false;
+    // This connection belongs to the consumer alone, so closing it here is
+    // safe and stops the blocked XREADGROUP from outliving the app.
+    await this.redis.quit().catch(() => undefined);
   }
 
   private async loop(): Promise<void> {
@@ -63,9 +71,25 @@ export class RealtimeStreamsConsumer implements OnModuleInit, OnModuleDestroy {
           this.processResponse(response as unknown as [string, [string, string[]][]][]);
         }
       } catch (err) {
+        // A rejection during shutdown is the connection closing under a
+        // blocked XREADGROUP, not a fault — logging it as an error makes
+        // every deploy look like an incident.
+        if (!this.running) {
+          break;
+        }
+
         this.logger.error(`Streams consumer loop error: ${(err as Error).message}`);
+
+        // Back off before retrying. Without this a Redis outage spins the
+        // loop hot: XREADGROUP rejects immediately, the catch retries
+        // immediately, and the process burns CPU while flooding the logs.
+        await this.sleep(RETRY_BACKOFF_MS);
       }
     }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /** Extracted for testability — no live Redis connection required. */

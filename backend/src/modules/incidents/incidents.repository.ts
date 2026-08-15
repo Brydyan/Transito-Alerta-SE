@@ -98,12 +98,33 @@ export class IncidentsRepository {
   }
 
   async updateStatus(id: string, status: IncidentStatus): Promise<IncidentRow | null> {
-    const rows: IncidentRow[] = await this.dataSource.query(
+    const result = await this.dataSource.query(
       `UPDATE incidents SET status = $2, updated_at = now()
        WHERE id = $1
        RETURNING ${SELECT_COLUMNS}`,
       [id, status],
     );
-    return rows[0] ?? null;
+    return unwrapReturningRows<IncidentRow>(result)[0] ?? null;
   }
+}
+
+/**
+ * Normalises the result of a `RETURNING` query across statement types.
+ *
+ * TypeORM's Postgres driver special-cases UPDATE and DELETE
+ * (PostgresQueryRunner: `result.raw = [raw.rows, raw.rowCount]`) while INSERT
+ * and SELECT return the rows directly. So `rows[0]` on an UPDATE yields the
+ * whole row array, not the first row — which then spreads into a response
+ * with no `id` or `zone_id`, silently breaking cache purging and realtime
+ * event routing downstream.
+ */
+export function unwrapReturningRows<T>(result: unknown): T[] {
+  if (!Array.isArray(result)) {
+    return [];
+  }
+  // Tuple form: [rows, affectedCount]
+  if (Array.isArray(result[0])) {
+    return result[0] as T[];
+  }
+  return result as T[];
 }

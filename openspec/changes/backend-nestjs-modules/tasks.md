@@ -292,7 +292,7 @@ Migration numbering deviates from this file (see per-task notes below and apply-
 
 ## PHASE 4 — Polish + Testing (Week 5)
 
-### T4.1 — Integration tests (E2E workflows)
+### T4.1 — Integration tests (E2E workflows) — STATUS: 🟡 PARTIAL (T4.1a + T4.1a-step-2 done, T4.1b deferred)
 - Requirement: validates CC1-CC5, R1-R16 end-to-end
 - Depends on: all Phase 2 + Phase 3 tasks
 - Duration: 4h | PR size: ~300 LOC (test-only) | Tests: 4 full-flow scenarios
@@ -300,6 +300,14 @@ Migration numbering deviates from this file (see per-task notes below and apply-
 - Work: Supertest + Testcontainers (postgis:16-3.4, redis:7) flows: (1) citizen reports incident anonymously; (2) admin assigns to operator, verified via WebSocket event; (3) operator comments + changes status, StatusHistory row confirmed; (4) notification delivered to citizen (mocked transport, queue job asserted).
 - Acceptance criteria: all four flows pass against real Postgres+PostGIS and Redis containers, not mocks.
 - Test scenarios: as listed above (4 flows), each asserting cross-module side effects (cache, events, audit rows).
+
+**T4.1a — e2e harness — ✅ DONE** (`backend/test/jest-e2e.json`, `backend/test/support/run-migrations.ts`, `backend/test/support/test-environment.ts`, `backend/test/e2e/health.e2e-spec.ts`; CI `integration` job added to `.github/workflows/ci.yml`). Real Testcontainers (postgis/postgis:16-3.4 + redis:7-alpine, verified working in-sandbox, no docker-compose fallback needed), schema from `database/migrations/[0-9]*.sql` (never `synchronize`), app booted with the exact `main.ts` pipeline. One smoke spec only (health 200 + anonymous login returns the 4-permission ceiling). Side-fix: `RedisIoAdapter` never closed its `pubClient`/`subClient` on shutdown — a real production leak (infinite ioredis reconnect retries after every restart), discovered because the harness is the first thing to exercise a real app shutdown against real Redis; fixed with a `close()` override + `redis-io.adapter.spec.ts`. Full detail: `sdd/backend-nestjs-modules/apply-progress`.
+
+**T4.1a step 2 — regression tests + flows — ✅ DONE** (`backend/test/e2e/regressions.e2e-spec.ts` — 9 tests, one per defect shipped in Phases 1-2; `backend/test/e2e/flows.e2e-spec.ts` — 5 real workflow flows: anonymous emergency report, anonymous ceiling CC2, assignment claim/conflict/stream, comment lifecycle with persisted-row sanitization check, status lifecycle with cache-purge + stream-emission assertions). Built ON the T4.1a harness, harness itself untouched. Two NEW production defects surfaced while writing the flows and fixed in their own commits (separate from the test commits): (1) `GeofencingService.getCachedZoneByPoint` tried to `cache.set(key, null, ttl)` for a point outside all zones — cache-manager-redis-yet's `isCacheable()` rejects null/undefined, so every out-of-zone incident create 500'd (R2 requires 201); fixed by skipping the cache write for a null result. (2) `AssignmentsService.assign()` only emitted a local `EventEmitter2` event, never XADDed to `incidents:events` — a claim was invisible to `RealtimeStreamsConsumer` and every other API instance (CC4 gap); fixed by publishing `incident.assigned` to the stream, matching Incidents' pattern. Full detail: `sdd/backend-nestjs-modules/apply-progress`.
+
+**T4.1b — StatusHistory/Notifications assertions — still deferred until after Phase 3** (StatusHistory and Notifications don't exist yet — T3.4/T3.3).
+
+**⚠️ Branch discrepancy found during T4.1a**: this task's source instruction named `brydyan/sc-194/backend-nestjs-modules`, but the checked-out working tree was already on `brydyan/sc-252/fase-3-de-la-migracion-del-backend` (descendant of sc-194's tip, +2 commits including the one that created `ci.yml`'s `backend`/`migrations` jobs) before T4.1a started. The harness commit landed on sc-252, confirmed correct and unchanged for this batch (T4.1a step 2 also landed on sc-252, per this batch's explicit instruction).
 
 ### T4.2 — Load testing (25k+ users) [P]
 - Requirement: scale patterns (WebSockets 5k sockets/instance target, geofencing cache)

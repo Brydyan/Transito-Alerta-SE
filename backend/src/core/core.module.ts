@@ -20,6 +20,20 @@ import { CacheConfig } from '../config/cache.config';
 export const REDIS_CLIENT = 'REDIS_CLIENT';
 
 /**
+ * A SECOND connection, dedicated to blocking reads.
+ *
+ * ioredis serialises commands on a connection, and `XREADGROUP ... BLOCK`
+ * holds one for up to its timeout. Sharing REDIS_CLIENT between the Streams
+ * consumer and the producers put every `XADD` and every cache tag operation
+ * in a queue behind a read that blocks for seconds — so an incident write
+ * waited on the realtime loop. That defeats the point of the system: an
+ * operator is supposed to see a report the instant it is filed.
+ *
+ * A blocking consumer always needs its own connection.
+ */
+export const REDIS_BLOCKING_CLIENT = 'REDIS_BLOCKING_CLIENT';
+
+/**
  * CoreModule — Config, TypeORM, Redis cache, EventEmitter2.
  * Imported by AppModule; every feature module depends on it transitively
  * (design "Module Dependency DAG").
@@ -67,7 +81,27 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
         });
       },
     },
+    {
+      provide: REDIS_BLOCKING_CLIENT,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const cacheConf = config.get<CacheConfig>('cache')!;
+        return new Redis(cacheConf.streamsUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: true,
+          retryStrategy: (times) => Math.min(times * 200, 5000),
+        });
+      },
+    },
   ],
-  exports: [ConfigModule, TypeOrmModule, CacheModule, EventEmitterModule, REDIS_CLIENT],
+  exports: [
+    ConfigModule,
+    TypeOrmModule,
+    CacheModule,
+    EventEmitterModule,
+    REDIS_CLIENT,
+    REDIS_BLOCKING_CLIENT,
+  ],
 })
 export class CoreModule {}

@@ -1,13 +1,14 @@
-import { RealtimeStreamsConsumer } from './streams.consumer';
+import { Logger } from '@nestjs/common';
+import { RealtimeStreamsConsumer, RETRY_BACKOFF_MS } from './streams.consumer';
 import { EventsGateway } from './events.gateway';
 
 describe('RealtimeStreamsConsumer', () => {
-  let redis: { xgroup: jest.Mock; xreadgroup: jest.Mock; xack: jest.Mock };
+  let redis: { xgroup: jest.Mock; xreadgroup: jest.Mock; xack: jest.Mock; quit: jest.Mock };
   let gateway: { broadcast: jest.Mock };
   let consumer: RealtimeStreamsConsumer;
 
   beforeEach(() => {
-    redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn() };
+    redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn(), quit: jest.fn().mockResolvedValue('OK') };
     gateway = { broadcast: jest.fn() };
     consumer = new RealtimeStreamsConsumer(redis as any, gateway as unknown as EventsGateway);
   });
@@ -59,5 +60,54 @@ describe('RealtimeStreamsConsumer', () => {
       expect(gateway.broadcast).toHaveBeenCalledTimes(2);
       expect(redis.xack).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+describe('RealtimeStreamsConsumer — loop resilience', () => {
+  let redis: { xgroup: jest.Mock; xreadgroup: jest.Mock; xack: jest.Mock; quit: jest.Mock };
+  let consumer: RealtimeStreamsConsumer;
+  let errorSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn(), quit: jest.fn().mockResolvedValue('OK') };
+    consumer = new RealtimeStreamsConsumer(redis as any, { broadcast: jest.fn() } as any);
+    errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(async () => {
+    await consumer.onModuleDestroy();
+    jest.useRealTimers();
+    errorSpy.mockRestore();
+  });
+
+  // onModuleDestroy flips `running`, but the loop is parked inside
+  // XREADGROUP with BLOCK 5000. Redis then closes under it and the rejection
+  // surfaces as an error — making every ordinary deploy look like an incident.
+  it('does not log an error when the connection closes during shutdown', async () => {
+    redis.xreadgroup.mockImplementation(() => {
+      void consumer.onModuleDestroy();
+      return Promise.reject(new Error('Connection is closed.'));
+    });
+
+    await consumer.onModuleInit();
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  // Without a backoff the catch retries instantly: a Redis outage burns CPU
+  // and floods the logs instead of waiting for recovery.
+  it('backs off between retries instead of spinning hot', async () => {
+    redis.xreadgroup.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    await consumer.onModuleInit();
+    await jest.advanceTimersByTimeAsync(0);
+
+    const afterFirstFailure = redis.xreadgroup.mock.calls.length;
+    await jest.advanceTimersByTimeAsync(RETRY_BACKOFF_MS * 3);
+
+    expect(afterFirstFailure).toBeLessThanOrEqual(2);
+    expect(redis.xreadgroup.mock.calls.length).toBeLessThanOrEqual(afterFirstFailure + 4);
   });
 });
