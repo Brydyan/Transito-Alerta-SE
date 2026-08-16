@@ -1,6 +1,9 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { Cache } from 'cache-manager';
+import type { Repository } from 'typeorm';
 import { AuthService, PERMISSION_CACHE_PREFIX } from './auth.service';
 import { UserEntity } from '../../entities/user.entity';
 
@@ -36,11 +39,11 @@ describe('AuthService', () => {
     configService = { get: () => makeAuthConfig() } as unknown as ConfigService;
     eventEmitter = { emit: jest.fn() };
     service = new AuthService(
-      userRepo as any,
+      userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
       jwtService as unknown as JwtService,
-      cache as any,
+      cache as unknown as jest.Mocked<Cache>,
       configService,
-      eventEmitter as any,
+      eventEmitter as unknown as jest.Mocked<EventEmitter2>,
     );
   });
 
@@ -175,11 +178,11 @@ describe('AuthService.invalidatePermissionCache', () => {
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
     service = new AuthService(
-      {} as any,
+      {} as unknown as jest.Mocked<Repository<UserEntity>>,
       { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as any,
+      cache as unknown as jest.Mocked<Cache>,
       { get: () => makeAuthConfig() } as unknown as ConfigService,
-      { emit: jest.fn() } as any,
+      { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>,
     );
   });
 
@@ -204,11 +207,11 @@ describe('AuthService.getPermissionsByUserId', () => {
     userRepo = { findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
     cache = { get: jest.fn(), set: jest.fn() };
     service = new AuthService(
-      userRepo as any,
+      userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
       { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as any,
+      cache as unknown as jest.Mocked<Cache>,
       { get: () => makeAuthConfig() } as unknown as ConfigService,
-      { emit: jest.fn() } as any,
+      { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>,
     );
   });
 

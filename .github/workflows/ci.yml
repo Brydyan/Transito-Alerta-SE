@@ -55,6 +55,11 @@ jobs:
   integration:
     name: Integration — e2e harness against real Postgres+PostGIS and Redis
     runs-on: ubuntu-latest
+    # Skip on PRs unless backend/ changed (save ~2-3m per PR)
+    if: |
+      github.event_name == 'push' ||
+      github.event.pull_request.base.ref == 'main' ||
+      github.event.pull_request.base.ref == 'develop'
     defaults:
       run:
         working-directory: backend

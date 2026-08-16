@@ -21,7 +21,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UploadedFile as AvatarFile } from './avatar-storage.service';
 import { UsersService } from './users.service';
 
-interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request {
   user?: { userId: string; permissions: string[] };
 }
 

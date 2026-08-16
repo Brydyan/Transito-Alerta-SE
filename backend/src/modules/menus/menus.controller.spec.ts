@@ -1,4 +1,4 @@
-import { MenusController } from './menus.controller';
+import { MenusController, AuthenticatedRequest } from './menus.controller';
 import { MenusService } from './menus.service';
 
 describe('MenusController', () => {
@@ -13,7 +13,7 @@ describe('MenusController', () => {
   it('GET / delegates to service.getMenuForUser with request.user.userId', async () => {
     service.getMenuForUser.mockResolvedValue([{ label: 'Incidents', route: '/incidents' }]);
 
-    const request = { user: { userId: 'user-1', permissions: ['READ incidents'] } } as any;
+    const request = { user: { userId: 'user-1', permissions: ['READ incidents'] } } as unknown as AuthenticatedRequest;
     const result = await controller.getMenu(request);
 
     expect(service.getMenuForUser).toHaveBeenCalledWith('user-1');

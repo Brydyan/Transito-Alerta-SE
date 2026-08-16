@@ -12,7 +12,11 @@ import type { RedisStore } from 'cache-manager-redis-yet';
 import { AppModule } from '../../src/app.module';
 import { SnakeCaseResponseInterceptor } from '../../src/common/interceptors/snake-case-response.interceptor';
 import { RedisIoAdapter } from '../../src/modules/realtime/redis-io.adapter';
-import { REDIS_CLIENT } from '../../src/core/core.module';
+import {
+  MAIL_BLOCKING_CLIENT,
+  MAIL_EVENTS_BLOCKING_CLIENT,
+  REDIS_CLIENT,
+} from '../../src/core/core.module';
 import { applyMigrations } from './run-migrations';
 
 export interface ProvisionedUser {
@@ -62,6 +66,8 @@ export class TestEnvironment {
     private readonly redisContainer: StartedTestContainer,
     private readonly appRedisClient: Redis,
     private readonly cacheManager: Cache<RedisStore>,
+    private readonly mailBlockingClient: Redis,
+    private readonly mailEventsBlockingClient: Redis,
   ) {}
 
   static async start(): Promise<TestEnvironment> {
@@ -135,6 +141,16 @@ export class TestEnvironment {
     process.env.CACHE_TTL_SECONDS = '60';
     process.env.GEOFENCING_CACHE_TTL_SECONDS = '60';
 
+    // MailModule always loads (AppModule) — shrink the sweep/idle windows
+    // so mail.e2e-spec.ts's retry scenario doesn't wait out the 10s/30s
+    // production defaults, without faking timers around real Redis I/O.
+    process.env.MAIL_SWEEP_INTERVAL_MS = '300';
+    process.env.MAIL_CLAIM_IDLE_MS = '500';
+    // XREADGROUP BLOCK timeout: 1s in tests (vs 5s prod) so entries
+    // enqueued between loop calls are seen within ~1s, not ~5s (which gives
+    // sweep time to intercept and exhaust).
+    process.env.MAIL_XREADGROUP_BLOCK_MS = '1000';
+
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -160,6 +176,14 @@ export class TestEnvironment {
 
     const appRedisClient = app.get<Redis>(REDIS_CLIENT);
     const cacheManager = app.get<Cache<RedisStore>>(CACHE_MANAGER);
+    // MailOutboxConsumer / IncidentMailListener each park a blocking
+    // XREADGROUP on their own dedicated connection (design D13) — same
+    // reasoning as appRedisClient below: without a forced disconnect() at
+    // teardown, app.close() waits out their BLOCK window on every spec
+    // file that boots AppModule (every e2e file, since MailModule is
+    // wired in globally).
+    const mailBlockingClient = app.get<Redis>(MAIL_BLOCKING_CLIENT);
+    const mailEventsBlockingClient = app.get<Redis>(MAIL_EVENTS_BLOCKING_CLIENT);
 
     const pg = new Pool({
       host: dbHost,
@@ -187,6 +211,8 @@ export class TestEnvironment {
       redisContainer,
       appRedisClient,
       cacheManager,
+      mailBlockingClient,
+      mailEventsBlockingClient,
     );
   }
 
@@ -213,6 +239,21 @@ export class TestEnvironment {
     // NOT redisStreams.flushdb() — that would delete the `incidents:events`
     // stream and the `realtime` consumer group RealtimeStreamsConsumer
     // creates once at boot; nothing recreates it after startup.
+
+    // Clear mail streams (entries only, NOT consumer groups) so each test
+    // starts clean. MAXLEN 0 deletes all entries but preserves the stream
+    // and any consumer groups already registered on it, preventing NOGROUP
+    // errors when MailOutboxConsumer.loop() tries to XREADGROUP.
+    try {
+      await this.redisStreams.xtrim('mail:outbox', 'MAXLEN', '~', '0');
+    } catch {
+      // Stream doesn't exist yet (first test run) — expected.
+    }
+    try {
+      await this.redisStreams.xtrim('mail:dead', 'MAXLEN', '~', '0');
+    } catch {
+      // Stream doesn't exist yet — expected.
+    }
   }
 
   /**
@@ -225,13 +266,13 @@ export class TestEnvironment {
    */
   async provisionUser(
     permissions: string[],
-    overrides: { deviceUuid?: string } = {},
+    overrides: { deviceUuid?: string; email?: string } = {},
   ): Promise<ProvisionedUser> {
     const deviceUuid = overrides.deviceUuid ?? `operator-${randomUUID()}`;
 
     await this.pg.query(
-      'INSERT INTO users (device_uuid, permissions, is_active) VALUES ($1, $2::jsonb, true)',
-      [deviceUuid, JSON.stringify(permissions)],
+      'INSERT INTO users (device_uuid, permissions, is_active, email) VALUES ($1, $2::jsonb, true, $3)',
+      [deviceUuid, JSON.stringify(permissions), overrides.email ?? null],
     );
 
     const response = await request(this.httpServer)
@@ -254,15 +295,11 @@ export class TestEnvironment {
   }
 
   async stop(): Promise<void> {
-    // AuthService.login emits 'auth.login' fire-and-forget — it is not
-    // awaited (design D7 passive fan-out) — so UsersService.handleAuthLogin
-    // can still be mid-write when the HTTP response for the *last* login in
-    // a spec file already returned. Without this grace window, closing the
-    // DB under it throws a "Connection terminated" error into Nest's global
-    // logger during teardown. This is a real gap in the app's own
-    // fire-and-forget event pattern, not just test noise — flagged in
-    // apply-progress; not fixed here, out of scope for the harness itself.
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    // AuthService.login + MailOutboxConsumer/IncidentMailListener sweep timers emit
+    // fire-and-forget — they are not awaited — so listeners can still be mid-write
+    // when the HTTP response returns. MailOutboxConsumer.sweep runs every 300ms in
+    // test; give 2 cycles for final retry/dead-letter operations to complete.
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     // cache-manager-redis-yet (node-redis under the hood, not ioredis)
     // keeps its client open with auto-reconnect after app.close() unless
@@ -293,6 +330,8 @@ export class TestEnvironment {
     // exits within milliseconds instead of Jest waiting out the block
     // window on every single spec file.
     this.appRedisClient.disconnect();
+    this.mailBlockingClient.disconnect();
+    this.mailEventsBlockingClient.disconnect();
 
     await this.redisContainer.stop();
     await this.postgresContainer.stop();

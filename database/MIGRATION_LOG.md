@@ -22,6 +22,8 @@ actually been run against that environment.
 | 0007 | assignments | assignments table (one active assignment per incident, unique constraint) | ✅ Applied | Andy Alejandro | 2026-08-15 | supabase |
 | 0008 | anonymous_read_comments | adds "READ comments" to the anonymous ceiling (product decision: read + contribute, never modify) | ✅ Applied | Andy Alejandro | 2026-08-15 | supabase |
 | 0009 | roles_permissions | roles.permissions jsonb column, permissions catalog table, users.role_id + users.permission_version (pv), seeded 'reporter' role replacing the T1.4 inline stub | ⏳ Pending | | | supabase |
+| 0010 | user_email | adds nullable `users.email` + unique partial index (design D11) — address source for Mail module (T3.5) event-routing recipients | ⏳ Pending | | | supabase |
+| 0011 | notifications | notifications table (user_id FK, incident_id FK, type, message, data jsonb, read bool, created_at + processed_at timestamps) + indexes on (user_id, created_at) and (user_id, read) for list and count queries (T3.3) | ⏳ Pending | | | supabase |
 
 ## Status legend
 

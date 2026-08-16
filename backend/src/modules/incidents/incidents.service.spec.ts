@@ -1,9 +1,12 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { Cache } from 'cache-manager';
+import type { Redis } from 'ioredis';
 import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService, INCIDENTS_STREAM_KEY } from './incidents.service';
 import { GeofencingService } from '../geofencing/geofencing.service';
 
-function makeRow(overrides: Partial<any> = {}) {
+function makeRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'inc-1',
     title: 'Pothole',
@@ -49,9 +52,9 @@ describe('IncidentsService', () => {
     service = new IncidentsService(
       repo as unknown as IncidentsRepository,
       geofencing as unknown as GeofencingService,
-      eventEmitter as any,
-      redis as any,
-      cache as any,
+      eventEmitter as unknown as jest.Mocked<EventEmitter2>,
+      redis as unknown as jest.Mocked<Redis>,
+      cache as unknown as jest.Mocked<Cache>,
     );
   });
 
@@ -61,7 +64,7 @@ describe('IncidentsService', () => {
       repo.create.mockResolvedValue(makeRow());
 
       const result = await service.create(
-        { title: 'Pothole', lat: -2.2, lng: -80.8 } as any,
+        { title: 'Pothole', lat: -2.2, lng: -80.8 } as unknown as Parameters<typeof service.create>[0],
         'user-1',
       );
 
@@ -87,7 +90,7 @@ describe('IncidentsService', () => {
       repo.create.mockResolvedValue(makeRow({ zone_id: null, geofence_matched: false }));
 
       const result = await service.create(
-        { title: 'Pothole', lat: 0, lng: 0 } as any,
+        { title: 'Pothole', lat: 0, lng: 0 } as unknown as Parameters<typeof service.create>[0],
         'user-1',
       );
 

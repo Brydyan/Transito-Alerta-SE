@@ -1,5 +1,9 @@
 import { NotFoundException } from '@nestjs/common';
+import type { Repository } from 'typeorm';
 import { RolesService } from './roles.service';
+import { RoleEntity } from '../../entities/role.entity';
+import { UserEntity } from '../../entities/user.entity';
+import { AuthService } from '../auth/auth.service';
 
 describe('RolesService', () => {
   let roleRepo: { findOne: jest.Mock };
@@ -11,7 +15,7 @@ describe('RolesService', () => {
     roleRepo = { findOne: jest.fn() };
     userRepo = { findOne: jest.fn(), save: jest.fn(async (x) => x) };
     authService = { invalidatePermissionCache: jest.fn() };
-    service = new RolesService(roleRepo as any, userRepo as any, authService as any);
+    service = new RolesService(roleRepo as unknown as jest.Mocked<Repository<RoleEntity>>, userRepo as unknown as jest.Mocked<Repository<UserEntity>>, authService as unknown as jest.Mocked<AuthService>);
   });
 
   describe('listPermissions', () => {

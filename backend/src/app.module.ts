@@ -13,6 +13,8 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { MenusModule } from './modules/menus/menus.module';
+import { MailModule } from './modules/mail/mail.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 
 @Module({
@@ -28,6 +30,8 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
     RolesModule,
     PermissionsModule,
     MenusModule,
+    MailModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

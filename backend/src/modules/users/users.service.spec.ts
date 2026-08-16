@@ -1,5 +1,8 @@
 import { NotFoundException } from '@nestjs/common';
+import type { Repository } from 'typeorm';
 import { UsersService, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './users.service';
+import { UserEntity } from '../../entities/user.entity';
+import { UserSessionEntity } from '../../entities/user-session.entity';
 
 describe('UsersService', () => {
   let userRepo: { findOne: jest.Mock; update: jest.Mock; findAndCount: jest.Mock };
@@ -11,7 +14,7 @@ describe('UsersService', () => {
     userRepo = { findOne: jest.fn(), update: jest.fn(), findAndCount: jest.fn() };
     sessionRepo = { findOne: jest.fn(), save: jest.fn(), create: jest.fn((x) => x) };
     avatarStorage = { upload: jest.fn() };
-    service = new UsersService(userRepo as any, sessionRepo as any, avatarStorage as any);
+    service = new UsersService(userRepo as unknown as jest.Mocked<Repository<UserEntity>>, sessionRepo as unknown as jest.Mocked<Repository<UserSessionEntity>>, avatarStorage as unknown as any);
   });
 
   describe('findById', () => {

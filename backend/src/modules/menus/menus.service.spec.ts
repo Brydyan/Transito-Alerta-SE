@@ -1,3 +1,4 @@
+import { AuthService } from '../auth/auth.service';
 import { MenusService } from './menus.service';
 
 describe('MenusService', () => {
@@ -6,7 +7,7 @@ describe('MenusService', () => {
 
   beforeEach(() => {
     authService = { getPermissionsByUserId: jest.fn() };
-    service = new MenusService(authService as any);
+    service = new MenusService(authService as unknown as jest.Mocked<AuthService>);
   });
 
   it('resolves permissions via AuthService.getPermissionsByUserId (same cache path as PermissionGuard)', async () => {

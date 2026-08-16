@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import type { Redis } from 'ioredis';
 import { RealtimeStreamsConsumer, RETRY_BACKOFF_MS } from './streams.consumer';
 import { EventsGateway } from './events.gateway';
 
@@ -10,7 +11,7 @@ describe('RealtimeStreamsConsumer', () => {
   beforeEach(() => {
     redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn(), quit: jest.fn().mockResolvedValue('OK') };
     gateway = { broadcast: jest.fn() };
-    consumer = new RealtimeStreamsConsumer(redis as any, gateway as unknown as EventsGateway);
+    consumer = new RealtimeStreamsConsumer(redis as unknown as jest.Mocked<Redis>, gateway as unknown as EventsGateway);
   });
 
   describe('processResponse', () => {
@@ -71,7 +72,7 @@ describe('RealtimeStreamsConsumer — loop resilience', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn(), quit: jest.fn().mockResolvedValue('OK') };
-    consumer = new RealtimeStreamsConsumer(redis as any, { broadcast: jest.fn() } as any);
+    consumer = new RealtimeStreamsConsumer(redis as unknown as jest.Mocked<Redis>, { broadcast: jest.fn() } as unknown as EventsGateway);
     errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
 

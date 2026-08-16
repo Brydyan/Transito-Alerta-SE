@@ -1,4 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
+import type { Cache } from 'cache-manager';
+import type { Redis } from 'ioredis';
 import { GeofencingRepository } from './geofencing.repository';
 import { GeofencingService } from './geofencing.service';
 
@@ -14,8 +16,8 @@ describe('GeofencingService', () => {
     redis = { sadd: jest.fn(), smembers: jest.fn(), del: jest.fn() };
     service = new GeofencingService(
       repository as unknown as GeofencingRepository,
-      cache as any,
-      redis as any,
+      cache as unknown as jest.Mocked<Cache>,
+      redis as unknown as jest.Mocked<Redis>,
     );
   });
 

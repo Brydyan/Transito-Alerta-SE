@@ -25,7 +25,7 @@ describe('AssignmentsController', () => {
       incident_id: 'inc-1',
       operator_id: 'op-1',
       role: 'primary',
-    } as any);
+    } as unknown as Parameters<typeof controller.assign>[0]);
 
     expect(service.assign).toHaveBeenCalledWith('inc-1', 'op-1', 'primary');
     expect(result).toEqual({ id: 'a-1' });

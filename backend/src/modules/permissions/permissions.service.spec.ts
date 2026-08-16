@@ -1,4 +1,6 @@
+import type { Repository } from 'typeorm';
 import { PermissionsService } from './permissions.service';
+import { PermissionEntity } from '../../entities/permission.entity';
 
 describe('PermissionsService', () => {
   let repo: { find: jest.Mock };
@@ -6,7 +8,7 @@ describe('PermissionsService', () => {
 
   beforeEach(() => {
     repo = { find: jest.fn() };
-    service = new PermissionsService(repo as any);
+    service = new PermissionsService(repo as unknown as jest.Mocked<Repository<PermissionEntity>>);
   });
 
   describe('findAll', () => {
