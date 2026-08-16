@@ -37,6 +37,18 @@ export class UsersService {
     return user;
   }
 
+  async findOne(id: string): Promise<UserEntity | null> {
+    return this.userRepo.findOne({ where: { id } });
+  }
+
+  async findByRole(roleName: string): Promise<UserEntity[]> {
+    return this.userRepo
+      .createQueryBuilder('u')
+      .leftJoinAndSelect('u.role', 'r')
+      .where('r.name = :roleName', { roleName })
+      .getMany();
+  }
+
   async updateProfile(id: string, input: UpdateProfileInput): Promise<UserEntity> {
     await this.userRepo.update(id, input);
     return this.findById(id);
