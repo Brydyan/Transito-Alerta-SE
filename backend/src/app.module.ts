@@ -15,6 +15,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { MenusModule } from './modules/menus/menus.module';
 import { MailModule } from './modules/mail/mail.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { IncidentCategoriesModule } from './modules/incident-categories/incident-categories.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 
 @Module({
@@ -32,6 +33,7 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
     MenusModule,
     MailModule,
     NotificationsModule,
+    IncidentCategoriesModule,
   ],
   controllers: [AppController],
   providers: [
