@@ -59,7 +59,7 @@ export class IncidentNotificationsListener {
   }) {
     try {
       const user = await this.usersService.findOne(payload.assignedToId);
-      if (user) {
+      if (user?.id) {
         await this.notificationsService.notify(
           user,
           NotificationType.INCIDENT_ASSIGNED,
@@ -92,7 +92,7 @@ export class IncidentNotificationsListener {
 
       for (const userId of recipientIds) {
         const user = await this.usersService.findOne(userId);
-        if (user) {
+        if (user?.id) {
           await this.notificationsService.notify(
             user,
             NotificationType.INCIDENT_STATUS_CHANGED,
@@ -128,7 +128,7 @@ export class IncidentNotificationsListener {
         if (userId === payload.author_id) continue; // No notificar al autor
 
         const user = await this.usersService.findOne(userId);
-        if (user) {
+        if (user?.id) {
           await this.notificationsService.notify(
             user,
             NotificationType.COMMENT_ADDED,
