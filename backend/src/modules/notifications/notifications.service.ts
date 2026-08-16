@@ -25,7 +25,7 @@ export class NotificationsService {
     type: NotificationType,
     message: string,
     incidentId?: string,
-    data?: Record<string, any>,
+    data?: Record<string, unknown>,
   ): Promise<Notification | null> {
     // Dedup: same user, same type, same incident en últimos 60s
     const now = new Date();
@@ -52,7 +52,7 @@ export class NotificationsService {
       incident_id: incidentId || null,
       type,
       message,
-      data: data || {},
+      data: (data || {}) as Record<string, unknown>,
       read: false,
     });
 

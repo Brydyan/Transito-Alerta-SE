@@ -22,7 +22,7 @@ export function hasPermission(
   action: string,
   resource: string,
 ): boolean {
-  return userPermissions.includes(formatPermissionString(action as any, resource));
+  return userPermissions.includes(formatPermissionString(action, resource));
 }
 
 /**

@@ -25,7 +25,7 @@ export class NotificationsController {
     @Query('skip', ParseIntPipe) skip = 0,
     @Query('take', ParseIntPipe) take = 20,
   ) {
-    const userId = (req.user as any).id;
+    const userId = (req.user as { id: string }).id;
     const { data, total } =
       await this.notificationsService.findByUser(userId, skip, take);
 
@@ -49,7 +49,7 @@ export class NotificationsController {
    */
   @Get('unread')
   async countUnread(@Req() req: Request) {
-    const userId = (req.user as any).id;
+    const userId = (req.user as { id: string }).id;
     const count = await this.notificationsService.countUnread(userId);
     return { unread: count };
   }
@@ -60,7 +60,7 @@ export class NotificationsController {
    */
   @Patch(':id/read')
   async markAsRead(@Param('id') id: string, @Req() req: Request) {
-    const userId = (req.user as any).id;
+    const userId = (req.user as { id: string }).id;
     const success = await this.notificationsService.markAsRead(id, userId);
 
     if (!success) {
@@ -76,7 +76,7 @@ export class NotificationsController {
    */
   @Patch('read-all')
   async markAllAsRead(@Req() req: Request) {
-    const userId = (req.user as any).id;
+    const userId = (req.user as { id: string }).id;
     const count = await this.notificationsService.markAllAsRead(userId);
     return { marked: count };
   }
