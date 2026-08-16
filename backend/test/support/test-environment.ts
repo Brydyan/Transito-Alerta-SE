@@ -146,6 +146,10 @@ export class TestEnvironment {
     // production defaults, without faking timers around real Redis I/O.
     process.env.MAIL_SWEEP_INTERVAL_MS = '300';
     process.env.MAIL_CLAIM_IDLE_MS = '500';
+    // XREADGROUP BLOCK timeout: 1s in tests (vs 5s prod) so entries
+    // enqueued between loop calls are seen within ~1s, not ~5s (which gives
+    // sweep time to intercept and exhaust).
+    process.env.MAIL_XREADGROUP_BLOCK_MS = '1000';
 
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],

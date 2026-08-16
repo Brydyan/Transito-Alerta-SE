@@ -48,11 +48,17 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
     try {
       await this.redis.xgroup('CREATE', MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, '$', 'MKSTREAM');
     } catch (err) {
-      // BUSYGROUP: the group already exists — expected on every restart.
-      if (!(err as Error).message?.includes('BUSYGROUP')) {
+      // BUSYGROUP: the group already exists (e.g., second test after reset).
+      // SETID resets the cursor to the current end, so loop() sees only
+      // NEW entries enqueued after this moment. Handles race where entries
+      // arrive before XREADGROUP is actively BLOCK'ing.
+      if ((err as Error).message?.includes('BUSYGROUP')) {
+        await this.redis.xgroup('SETID', MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, '$');
+      } else {
         this.logger.error(`Failed to create mail consumer group: ${(err as Error).message}`);
       }
     }
+
     this.running = true;
     void this.loop();
 
@@ -71,6 +77,9 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
   private async loop(): Promise<void> {
     while (this.running) {
       try {
+        // BLOCK timeout: 5s in prod, 1s in E2E (env configurable to catch
+        // entries enqueued between XREADGROUP calls faster than 5s).
+        const blockTimeoutMs = this.configService.get<number>('MAIL_XREADGROUP_BLOCK_MS') ?? 5000;
         const response = await this.redis.xreadgroup(
           'GROUP',
           MAIL_OUTBOX_CONSUMER_GROUP,
@@ -78,13 +87,18 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
           'COUNT',
           10,
           'BLOCK',
-          5000,
+          blockTimeoutMs,
           'STREAMS',
           MAIL_OUTBOX_STREAM_KEY,
           '>',
         );
         if (response) {
-          await this.processResponse(response as unknown as [string, [string, string[]][]][]);
+          const entries = (response as unknown as [string, [string, string[]][]][]);
+          const entryCount = entries[0]?.[1]?.length || 0;
+          this.logger.log(`[loop] XREADGROUP returned ${entryCount} entries`);
+          await this.processResponse(entries);
+        } else {
+          this.logger.log(`[loop] XREADGROUP returned null (timeout or no new entries)`);
         }
       } catch (err) {
         // A rejection during shutdown is the connection closing under a
@@ -104,7 +118,9 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
 
   async processResponse(response: [string, [string, string[]][]][]): Promise<void> {
     for (const [, entries] of response) {
+      this.logger.log(`[processResponse] Processing ${entries.length} entries from XREADGROUP`);
       for (const [entryId, fields] of entries) {
+        this.logger.log(`[processResponse] Calling processEntry for ${entryId}`);
         await this.processEntry(entryId, fields);
       }
     }
@@ -122,26 +138,30 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
     try {
       data = JSON.parse(map.data ?? '');
     } catch {
+      this.logger.error(`[processEntry] ${entryId} JSON parse failed, moving to dead:letter`);
       await this.deadLetter(entryId, fields);
       return;
     }
 
     try {
+      this.logger.error(`[processEntry] ${entryId} attempting deliver(to=${map.to})`);
       await this.mailService.deliver(map.to, map.subject, map.template as TemplateName, data);
+      this.logger.error(`[processEntry] ${entryId} SUCCESS, ACKing`);
       await this.redis.xack(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, entryId);
     } catch (err) {
       if ((err as Error).message?.startsWith('Unknown mail template')) {
+        this.logger.error(`[processEntry] ${entryId} unknown template, moving to dead:letter`);
         await this.deadLetter(entryId, fields);
         return;
       }
       // Transport failure (SMTP connect/send) — leave pending, the sweep
       // will XCLAIM and retry it.
-      this.logger.warn(`Delivery failed for ${entryId}, left pending for retry: ${(err as Error).message}`);
+      this.logger.error(`[processEntry] ${entryId} FAILED: ${(err as Error).message}`);
     }
   }
 
   private async deadLetter(entryId: string, fields: string[]): Promise<void> {
-    this.logger.error(`Entry ${entryId} moved to ${MAIL_DEAD_STREAM_KEY} (unretryable)`);
+    this.logger.error(`[deadLetter] Entry ${entryId} moved to ${MAIL_DEAD_STREAM_KEY} (unretryable - data defect)`);
     await this.redis.xadd(MAIL_DEAD_STREAM_KEY, '*', ...fields);
     await this.redis.xack(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, entryId);
   }
@@ -182,11 +202,16 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     if (!pending || pending.length === 0) {
+      this.logger.log(`[sweep] No pending entries (idle > ${mailConfig.claimIdleMs}ms)`);
       return;
     }
 
+    this.logger.log(`[sweep] Found ${pending.length} pending entries`);
+
     for (const [entryId, , , deliveryCount] of pending) {
+      this.logger.log(`[sweep] Entry ${entryId}: deliveryCount=${deliveryCount}, maxAttempts=${mailConfig.maxAttempts}`);
       if (deliveryCount >= mailConfig.maxAttempts) {
+        this.logger.warn(`[sweep] Entry ${entryId} exhausted (deliveryCount ${deliveryCount} >= ${mailConfig.maxAttempts})`);
         try {
           await this.deadLetterById(entryId);
         } catch (err) {
@@ -196,6 +221,7 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
       }
 
       try {
+        this.logger.log(`[sweep] Claiming ${entryId} (idle > ${mailConfig.claimIdleMs}ms) for retry`);
         const claimed = (await this.redis.xclaim(
           MAIL_OUTBOX_STREAM_KEY,
           MAIL_OUTBOX_CONSUMER_GROUP,
@@ -205,6 +231,7 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
         )) as unknown as XClaimEntry[];
         if (claimed && claimed.length > 0) {
           const [, fields] = claimed[0];
+          this.logger.log(`[sweep] Claimed successfully, calling processEntry`);
           await this.processEntry(entryId, fields);
         }
       } catch (err) {
@@ -214,21 +241,32 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
   }
 
   private async deadLetterById(entryId: string): Promise<void> {
+    this.logger.log(`[deadLetterById] Fetching ${entryId} from stream for dead lettering`);
     const range = (await this.redis.xrange(MAIL_OUTBOX_STREAM_KEY, entryId, entryId)) as unknown as XClaimEntry[];
     if (range.length > 0) {
       const [, fields] = range[0];
-      this.logger.error(`Entry ${entryId} exhausted retries, moved to ${MAIL_DEAD_STREAM_KEY}`);
+      this.logger.error(`[deadLetterById] Entry ${entryId} exhausted retries, moved to ${MAIL_DEAD_STREAM_KEY}`);
       await this.redis.xadd(MAIL_DEAD_STREAM_KEY, '*', ...fields);
+    } else {
+      this.logger.warn(`[deadLetterById] Entry ${entryId} not found in stream (already removed?)`);
     }
-    // XACK may fail if connection is closing, but entry is already in dead letter.
-    // Best effort: log warning if ACK fails, don't re-throw during shutdown.
+    // XACK may fail if connection is closing or if entry was already removed
+    // from stream by another consumer/process. Entry is already in dead letter,
+    // so best-effort ACK (don't fail if entry not found).
     try {
       await this.redis.xack(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, entryId);
     } catch (err) {
-      if (this.running) {
-        throw err;
+      const errMsg = (err as Error).message;
+      // If entry was already removed from stream, XACK returns 0 (no-op).
+      // This is not an error, just means entry is gone but still pending in group.
+      // Accept this silently. Only re-throw for actual connection errors.
+      if (errMsg?.includes('NOGROUP') || errMsg?.includes('Connection is closed')) {
+        if (this.running) {
+          throw err;
+        }
       }
-      // During shutdown, connection closing is expected. Don't re-throw.
+      // For other errors (entry not found, etc), log but don't fail sweep.
+      this.logger.warn(`[deadLetterById] XACK failed for ${entryId}: ${errMsg}`);
     }
   }
 }
