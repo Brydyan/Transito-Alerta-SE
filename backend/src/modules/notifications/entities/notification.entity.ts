@@ -40,6 +40,7 @@ export class Notification {
   message: string;
 
   @Column('jsonb', { default: '{}' })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: Record<string, any>;
 
   @Column('boolean', { default: false })

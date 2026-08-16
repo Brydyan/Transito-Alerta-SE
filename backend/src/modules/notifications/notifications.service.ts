@@ -36,6 +36,7 @@ export class NotificationsService {
         user_id: user.id,
         type,
         ...(incidentId ? { incident_id: incidentId } : {}),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         created_at: (() => sixtySecondsAgo)() as any,
       },
     });
