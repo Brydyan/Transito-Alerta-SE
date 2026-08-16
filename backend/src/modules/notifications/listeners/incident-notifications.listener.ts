@@ -28,16 +28,18 @@ export class IncidentNotificationsListener {
       const admins = await this.usersService.findByRole('admin');
 
       for (const admin of admins) {
-        await this.notificationsService.notify(
-          admin,
-          NotificationType.INCIDENT_CREATED,
-          `Nuevo incidente: ${payload.title}`,
-          payload.incidentId,
-          {
-            location: payload.location,
-            createdBy: payload.createdById,
-          },
-        );
+        if (admin?.id) {
+          await this.notificationsService.notify(
+            admin,
+            NotificationType.INCIDENT_CREATED,
+            `Nuevo incidente: ${payload.title}`,
+            payload.incidentId,
+            {
+              location: payload.location,
+              createdBy: payload.createdById,
+            },
+          );
+        }
       }
     } catch (error) {
       this.logger.error(

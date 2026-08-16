@@ -276,15 +276,11 @@ export class TestEnvironment {
   }
 
   async stop(): Promise<void> {
-    // AuthService.login emits 'auth.login' fire-and-forget — it is not
-    // awaited (design D7 passive fan-out) — so UsersService.handleAuthLogin
-    // can still be mid-write when the HTTP response for the *last* login in
-    // a spec file already returned. Without this grace window, closing the
-    // DB under it throws a "Connection terminated" error into Nest's global
-    // logger during teardown. This is a real gap in the app's own
-    // fire-and-forget event pattern, not just test noise — flagged in
-    // apply-progress; not fixed here, out of scope for the harness itself.
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    // AuthService.login + MailOutboxConsumer/IncidentMailListener sweep timers emit
+    // fire-and-forget — they are not awaited — so listeners can still be mid-write
+    // when the HTTP response returns. MailOutboxConsumer.sweep runs every 300ms in
+    // test; give 2 cycles for final retry/dead-letter operations to complete.
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     // cache-manager-redis-yet (node-redis under the hood, not ioredis)
     // keeps its client open with auto-reconnect after app.close() unless
