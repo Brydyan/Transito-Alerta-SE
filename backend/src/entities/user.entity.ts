@@ -43,6 +43,27 @@ export class UserEntity {
   @Column({ name: 'organization_id', type: 'uuid', nullable: true })
   organizationId!: string | null;
 
+  /**
+   * FK to `roles` (T3.1 — 0009_roles_permissions.sql). Replaces the inline
+   * `role` varchar stub as the authoritative source RolesService.assignRole
+   * writes to; `role` (varchar) is left in place for backward compat with
+   * existing reads and is not removed by this migration.
+   */
+  @Column({ name: 'role_id', type: 'uuid', nullable: true })
+  roleId!: string | null;
+
+  /**
+   * Permission version (design D2's `pv`). Bumped by
+   * RolesService.assignRole on every role reassignment so a stale cached
+   * `perm:*` Redis blob can be told apart from a fresh one without
+   * reissuing any JWT. Not currently compared against the JWT `pv` claim —
+   * this task invalidates the Redis cache directly (see
+   * AuthService.invalidatePermissionCache); comparing against the token
+   * claim is a possible follow-up, not required by R6/R7.
+   */
+  @Column({ name: 'permission_version', type: 'integer', default: 1 })
+  permissionVersion!: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

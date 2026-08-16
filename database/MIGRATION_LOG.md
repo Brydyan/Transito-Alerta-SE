@@ -21,6 +21,7 @@ actually been run against that environment.
 | 0006 | users | users profile columns (first/last name, avatar_url, role, organization_id) + user_sessions table | ✅ Applied | Andy Alejandro | 2026-08-15 | supabase |
 | 0007 | assignments | assignments table (one active assignment per incident, unique constraint) | ✅ Applied | Andy Alejandro | 2026-08-15 | supabase |
 | 0008 | anonymous_read_comments | adds "READ comments" to the anonymous ceiling (product decision: read + contribute, never modify) | ✅ Applied | Andy Alejandro | 2026-08-15 | supabase |
+| 0009 | roles_permissions | roles.permissions jsonb column, permissions catalog table, users.role_id + users.permission_version (pv), seeded 'reporter' role replacing the T1.4 inline stub | ⏳ Pending | | | supabase |
 
 ## Status legend
 

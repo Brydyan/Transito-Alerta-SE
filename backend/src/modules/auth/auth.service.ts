@@ -163,6 +163,20 @@ export class AuthService {
     return permissions;
   }
 
+  /**
+   * Invalidates a user's cached permission blob under BOTH keying schemes
+   * (design D2's `pv` bump). Called by RolesService.assignRole after a
+   * role reassignment writes new permissions to the user row, so the very
+   * next request rebuilds `perm:*` from the DB instead of serving the
+   * stale cached set for up to `permissionCacheTtlSeconds` more.
+   */
+  async invalidatePermissionCache(userId: string, deviceUuid: string): Promise<void> {
+    await Promise.all([
+      this.cache.del(`${PERMISSION_CACHE_PREFIX}${deviceUuid}`),
+      this.cache.del(`${PERMISSION_CACHE_PREFIX}uid:${userId}`),
+    ]);
+  }
+
   private signAccessToken(userId: string): string {
     const payload: JwtPayload = { sub: userId, typ: 'access', jti: randomUUID(), pv: 1 };
     return this.jwtService.sign(payload, {

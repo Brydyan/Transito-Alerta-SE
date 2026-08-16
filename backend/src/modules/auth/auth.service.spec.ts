@@ -168,6 +168,33 @@ describe('AuthService', () => {
   });
 });
 
+describe('AuthService.invalidatePermissionCache', () => {
+  let cache: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
+  let service: AuthService;
+
+  beforeEach(() => {
+    cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+    service = new AuthService(
+      {} as any,
+      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
+      cache as any,
+      { get: () => makeAuthConfig() } as unknown as ConfigService,
+      { emit: jest.fn() } as any,
+    );
+  });
+
+  // RolesService.assignRole (T3.1, design D2) must purge BOTH cache
+  // schemas — device_uuid-keyed (getPermissions) and uid-keyed
+  // (getPermissionsByUserId, what JwtStrategy actually calls per request)
+  // — or a reassignment would only ever appear to take effect.
+  it('deletes both the device_uuid-keyed and uid-keyed cache entries', async () => {
+    await service.invalidatePermissionCache('user-1', 'device-abc');
+
+    expect(cache.del).toHaveBeenCalledWith(`${PERMISSION_CACHE_PREFIX}device-abc`);
+    expect(cache.del).toHaveBeenCalledWith(`${PERMISSION_CACHE_PREFIX}uid:user-1`);
+  });
+});
+
 describe('AuthService.getPermissionsByUserId', () => {
   let userRepo: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
   let cache: { get: jest.Mock; set: jest.Mock };

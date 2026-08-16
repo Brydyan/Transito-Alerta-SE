@@ -10,6 +10,8 @@ import { CommentsModule } from './modules/comments/comments.module';
 import { UsersModule } from './modules/users/users.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { RolesModule } from './modules/roles/roles.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 
 @Module({
@@ -22,6 +24,8 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
     UsersModule,
     AssignmentsModule,
     RealtimeModule,
+    RolesModule,
+    PermissionsModule,
   ],
   controllers: [AppController],
   providers: [

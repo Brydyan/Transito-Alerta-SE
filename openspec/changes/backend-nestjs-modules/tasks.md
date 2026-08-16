@@ -174,17 +174,17 @@ Migration numbering deviates from this file (see per-task notes below and apply-
 
 ## PHASE 3 — Scale + RBAC (Week 4)
 
-### T3.1 — Roles + Permissions modules
+### T3.1 — Roles + Permissions modules [x] DONE (this batch)
 - Requirement: R6 (Roles), R7 (Permissions), formalizes D2/D3 groundwork from T1.4
 - Depends on: T1.4
 - Duration: 3h | PR size: ~220 LOC | Tests: 6
-- Files: `backend/src/modules/roles/*`, `backend/src/modules/permissions/*`, `database/migrations/0006_roles_permissions.sql` (+ down)
-- Work: `Role` entity (id, name, permissions JSON array of `"ACTION resource"` strings), `Permission` entity (resource, action enum READ/CREATE/UPDATE/DELETE) consumed by `PermissionGuard`. `RoleService.listPermissions`, `assignRole` (bumps `pv` per D2 to invalidate cached blobs). Replace T1.4's inline `reporter` stub with a real seeded role row.
-- Acceptance criteria:
-  - Role with no assigned permissions denies every mutating action for a user holding only that role (R6 scenario)
-  - New resource introduced with no permission entries default-denies (R7 scenario — matches PermissionGuard's default-deny from T1.4)
-  - Role reassignment bumps `pv`, invalidating the user's cached `perm:{sub}` set
-- Test scenarios: empty-permission role denies all mutations; unknown resource default-denies; role assignment bumps pv and forces Redis rebuild.
+- Files: `backend/src/modules/roles/*`, `backend/src/modules/permissions/*`, `database/migrations/0009_roles_permissions.sql` (+ down) — renumbered from the file's original `0006` slot; `0006`-`0008` were already taken by Phase 2's Users/Assignments/anonymous-ceiling migrations (see apply-progress's migration-renumbering note). ⏳ Pending — not yet applied to Supabase (CC3, human-applied by hand).
+- Work: `Role` entity (id, name, permissions JSON array of `"ACTION resource"` strings — added `permissions` column to the existing 0001 `roles` table). `Permission` entity (catalog table: resource, action enum READ/CREATE/UPDATE/DELETE/ASSIGN) — informational only, PermissionGuard still compares flat strings, never queries this table (D3). `RolesService.listPermissions(roleId)`, `assignRole(userId, roleId)` — denormalizes the role's permissions onto `users.permissions` (what AuthService actually reads), bumps `users.permission_version` (D2 `pv`), and invalidates BOTH cached permission keys (device_uuid-keyed and uid-keyed) via a new `AuthService.invalidatePermissionCache`. Replaced T1.4's inline `reporter` stub (`users.role` varchar, never role-backed) with a real seeded `roles` row — seed data intentionally mirrors, but does not drive, the anonymous ceiling (which stays governed solely by `auth.config.ts`).
+- Acceptance criteria: all met.
+  - Role with no assigned permissions denies every mutating action for a user holding only that role (R6 scenario) — e2e-proven.
+  - New resource introduced with no permission entries default-denies (R7 scenario — matches PermissionGuard's default-deny from T1.4) — unit-proven (`listPermissions`/`findAll` empty-array cases).
+  - Role reassignment bumps `pv`, invalidating the user's cached `perm:{sub}` set — e2e-proven with the SAME still-live access token across the reassignment (not a fresh login).
+- Test scenarios: empty-permission role denies all mutations; unknown resource default-denies; role assignment bumps pv and forces Redis rebuild. Delivered as 33 unit tests (`roles.service.spec.ts`, `roles.controller.spec.ts`, `permissions.service.spec.ts`, `permissions.controller.spec.ts`, `auth.service.spec.ts` additions) + 5 e2e tests (`test/e2e/roles.e2e-spec.ts`).
 
 ### T3.2 — Organizations module [P]
 - Requirement: R8 (Organizations)
