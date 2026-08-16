@@ -236,19 +236,19 @@ export class TestEnvironment {
     // stream and the `realtime` consumer group RealtimeStreamsConsumer
     // creates once at boot; nothing recreates it after startup.
 
-    // Recreate mail consumer group to reset last-delivered-id. onModuleInit
-    // ignores BUSYGROUP, so the group persists with its old cursor; new
-    // entries added in this test would never be consumed (XREADGROUP > won't
-    // return entries older than the previous stream position).
+    // Clear mail streams (entries only, NOT consumer groups) so each test
+    // starts clean. MAXLEN 0 deletes all entries but preserves the stream
+    // and any consumer groups already registered on it, preventing NOGROUP
+    // errors when MailOutboxConsumer.loop() tries to XREADGROUP.
     try {
-      await this.redisStreams.xgroup('DESTROY', 'mail:outbox', 'mail');
+      await this.redisStreams.xtrim('mail:outbox', 'MAXLEN', '~', '0');
     } catch {
-      // Group doesn't exist on first run — expected.
+      // Stream doesn't exist yet (first test run) — expected.
     }
     try {
-      await this.redisStreams.xgroup('CREATE', 'mail:outbox', 'mail', '$', 'MKSTREAM');
+      await this.redisStreams.xtrim('mail:dead', 'MAXLEN', '~', '0');
     } catch {
-      // Group already exists or stream creation failed — let the app recreate on next boot.
+      // Stream doesn't exist yet — expected.
     }
   }
 
