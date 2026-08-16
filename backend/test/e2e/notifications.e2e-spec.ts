@@ -13,18 +13,18 @@ describe('Notifications E2E', () => {
         {
           provide: NotificationsService,
           useValue: {
-            notify: jest.fn(),
-            findByUser: jest.fn(),
-            markAsRead: jest.fn(),
-            markAllAsRead: jest.fn(),
-            countUnread: jest.fn(),
+            notify: jest.fn().mockResolvedValue({ id: 'notif-1' }),
+            findByUser: jest.fn().mockResolvedValue([]),
+            markAsRead: jest.fn().mockResolvedValue(true),
+            markAllAsRead: jest.fn().mockResolvedValue(true),
+            countUnread: jest.fn().mockResolvedValue(0),
           },
         },
         {
           provide: UsersService,
           useValue: {
-            findOne: jest.fn(),
-            findByRole: jest.fn(),
+            findOne: jest.fn().mockResolvedValue({ id: 'user-123', email: 'test@example.com' }),
+            findByRole: jest.fn().mockResolvedValue([{ id: 'admin-1' }]),
           },
         },
       ],
