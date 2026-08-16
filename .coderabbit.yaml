@@ -1,0 +1,294 @@
+# CodeRabbit Configuration — Transito Alerta SE
+# Custom review rules for NestJS monolith + Strict TDD + DDD architecture
+
+language: "typescript"
+early_exit: false
+
+review:
+  # High-level review settings
+  review_comment_levels:
+    - improvement
+    - nitpick
+    - bug_risk
+
+  # Automatically request changes for critical issues
+  request_changes_on_severity: critical
+
+  # Max lines of code per file to review (avoids noise on large refactors)
+  max_lines_per_file: 500
+
+  # Request new tests for new code
+  require_test_coverage: true
+  test_coverage_threshold: 80
+
+  # Minimal file review (config, docs, no code review)
+  skip_review_for:
+    - "**/*.md"
+    - "**/*.json"
+    - ".github/workflows/*.yml"
+    - "docs/**"
+
+rules:
+  ## TDD Enforcement
+  - name: "strict-tdd-red-first"
+    description: "Verify tests exist BEFORE implementation code changes"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.service.ts"
+      - type: "added_or_modified"
+        path: "backend/src/**/*.controller.ts"
+    checks:
+      - "Test file must be modified in same commit"
+      - "Test changes must appear BEFORE implementation changes in git log"
+      - "Error assertions (expect.rejects) before success path"
+    severity: "critical"
+
+  - name: "test-naming-convention"
+    description: "Test files use .spec.ts or .e2e-spec.ts"
+    patterns:
+      - type: "added"
+        path: "backend/test/**/*.ts"
+    checks:
+      - "File name ends with .spec.ts or .e2e-spec.ts"
+      - "describe() uses module name as first arg"
+    severity: "warning"
+
+  ## NestJS Module Structure
+  - name: "module-structure-ddd"
+    description: "Modules follow DDD structure: entity, service, controller, dto, listener"
+    patterns:
+      - type: "added"
+        path: "backend/src/modules/*/**.ts"
+    checks:
+      - "*.entity.ts defines TypeORM @Entity"
+      - "*.service.ts exported from module with @Injectable"
+      - "*.controller.ts defines @Controller and HTTP routes"
+      - "listeners/ folder contains passive @OnEvent handlers (D7 pattern)"
+      - "No direct module-to-module imports (use passive listeners instead)"
+    severity: "critical"
+
+  - name: "no-circular-dependencies"
+    description: "Modules import only lower layers; no upward dependencies"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/modules/*/*.ts"
+    checks:
+      - "Import from entities/, core/, or same module only"
+      - "Never import sibling modules directly"
+      - "UsersModule never imports IncidentsModule"
+      - "MailModule is transport-only (no domain logic)"
+    severity: "critical"
+
+  ## Type Safety
+  - name: "typeorm-safety"
+    description: "TypeORM queries avoid runtime errors"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.service.ts"
+    checks:
+      - "Repository.find/findOne use type-safe repository methods"
+      - "QueryBuilder results nullish-coalesced: result.affected ?? 0"
+      - "No raw SQL without parameterized queries"
+      - "Migration UP and DOWN scripts exist together"
+    severity: "critical"
+
+  - name: "import-paths-correct"
+    description: "Relative import paths resolve correctly"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.ts"
+    checks:
+      - "UserEntity imported from ../../../entities/user.entity"
+      - "Notification imported from ./entities/notification.entity"
+      - "Services from ./notifications.service (same folder)"
+      - "No ../../users/entities/../ chains"
+    severity: "warning"
+
+  ## Security
+  - name: "auth-permission-guard"
+    description: "All guarded routes use @UseGuards(JwtAuthGuard, PermissionGuard)"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.controller.ts"
+    checks:
+      - "POST/PATCH/DELETE routes protected by guards"
+      - "PermissionGuard specifies required permission string"
+      - "Incident routes gate on MANAGE_INCIDENTS or MANAGE_ALL"
+      - "No bare @UseGuards(JwtAuthGuard) — add PermissionGuard too"
+    severity: "critical"
+
+  - name: "credential-secrets-leak"
+    description: "Never commit .env, API keys, JWT secrets"
+    patterns:
+      - type: "added"
+    checks:
+      - ".env* files not added"
+      - "JWT_*_SECRET not in code (use ConfigModule)"
+      - "DB passwords not hardcoded"
+      - "AWS_SECRET_ACCESS_KEY not in repo"
+      - "SMTP_PASSWORD not hardcoded"
+    severity: "critical"
+
+  - name: "env-schema-validation"
+    description: "All new env vars declared in core.config.ts"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/core/config/**"
+    checks:
+      - "ConfigModule uses @nestjs/config + class-validator"
+      - "New env vars added to CoreConfig class"
+      - "@IsString/@IsNumber/@IsOptional annotations present"
+    severity: "warning"
+
+  ## Redis & Caching
+  - name: "redis-key-namespacing"
+    description: "Redis keys use consistent namespacing"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.service.ts"
+    checks:
+      - "Pub/Sub channels: user:{id}:notifications or domain:event"
+      - "Streams: domain:outbox (mail:outbox, incidents:events)"
+      - "Cache keys: cache:domain:resource:{id}"
+      - "No hardcoded Redis keys without namespace prefix"
+    severity: "warning"
+
+  - name: "redis-connection-isolation"
+    description: "Blocking operations (XREADGROUP, BLPOP) use dedicated connection"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.consumer.ts"
+    checks:
+      - "RealtimeStreamsConsumer injects separate REDIS_SUBSCRIBER or REDIS_STREAMS"
+      - "XREADGROUP ... BLOCK not on shared REDIS_CLIENT"
+      - "@Inject(REDIS_STREAMS) or similar, not @Inject(REDIS_CLIENT)"
+    severity: "critical"
+
+  ## Database Migrations
+  - name: "migration-paired-files"
+    description: "UP and DOWN migration scripts always paired"
+    patterns:
+      - type: "added"
+        path: "database/migrations/*.sql"
+    checks:
+      - "Matching database/rollback/NNNN.DOWN.sql exists"
+      - "DOWN script is exact reverse of UP script"
+      - "No data-destroying rollbacks (preserve old columns until grace period)"
+    severity: "critical"
+
+  - name: "migration-naming-convention"
+    description: "Migration file names follow NNNN_description.sql"
+    patterns:
+      - type: "added"
+        path: "database/migrations/*.sql"
+    checks:
+      - "File name matches /^\\d{4}_[a-z_]+\\.sql$/"
+      - "Updated MIGRATION_LOG.md with entry"
+      - "Description matches intent (e.g., 0011_notifications.sql for notification schema)"
+    severity: "warning"
+
+  ## Code Style
+  - name: "snake-case-response-keys"
+    description: "HTTP responses use snake_case keys via SnakeCaseResponseInterceptor"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.controller.ts"
+    checks:
+      - "DTOs use snake_case field names"
+      - "No camelCase in JSON responses"
+      - "coordinates: { lat, lng }, not { latitude, longitude }"
+    severity: "warning"
+
+  - name: "no-console-logs-in-production"
+    description: "Use Logger service, never console.log"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.ts"
+    checks:
+      - "No console.log/console.error calls"
+      - "Use Logger.log/Logger.error from @nestjs/common"
+      - "Logger instantiated: private readonly logger = new Logger(ClassName.name)"
+    severity: "warning"
+
+  - name: "no-any-types"
+    description: "Avoid any; use explicit types or generics"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.ts"
+    checks:
+      - "No variables typed as any"
+      - "Use generics for Repository<T>, Service<T>"
+      - "Exception: test mocks may use as any sparingly"
+    severity: "nitpick"
+
+  ## Performance
+  - name: "n-plus-one-queries"
+    description: "Eager load relations to avoid N+1 queries"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.service.ts"
+    checks:
+      - "Repository.find uses relations: ['user', 'incident'] when accessed"
+      - "QueryBuilder uses leftJoinAndSelect for optional relations"
+      - "Comment: consider DataLoader if repeated user lookup"
+    severity: "warning"
+
+  - name: "deduplication-windows"
+    description: "Notifications/events implement dedup windows per spec"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.listener.ts"
+    checks:
+      - "Notifications check 60s dedup window: (user_id, type, incident_id)"
+      - "StatusHistory does not dedup (append-only)"
+      - "Redis Streams consumer tracks XPENDING for retry/DLQ"
+    severity: "warning"
+
+  ## Testing
+  - name: "e2e-test-isolation"
+    description: "E2E tests use fresh database/Redis per suite"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/test/e2e/**"
+    checks:
+      - "beforeAll sets up testDatabase via TestContainers or docker-compose"
+      - "afterEach clears tables or rolls back transaction"
+      - "No test pollution between suites"
+    severity: "warning"
+
+  - name: "mock-vs-integration"
+    description: "Unit tests mock dependencies; e2e tests use real containers"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/test/**"
+    checks:
+      - "*.spec.ts mocks Repository, Redis, external APIs"
+      - "*.e2e-spec.ts uses real database + redis via testDatabase fixture"
+      - "No bare HTTP mocking in e2e (use real HTTP layer via supertest)"
+    severity: "warning"
+
+  ## Documentation
+  - name: "code-comments-why-not-what"
+    description: "Comments explain WHY, not WHAT"
+    patterns:
+      - type: "added_or_modified"
+        path: "backend/src/**/*.ts"
+    checks:
+      - "No comment on obvious code: // increment counter"
+      - "Comment only non-obvious logic: // 60s dedup window per D9 to prevent spam"
+      - "Link to design pattern: // See D7: passive listener pattern"
+    severity: "nitpick"
+
+# Ignore files/folders
+ignore:
+  - node_modules/
+  - dist/
+  - coverage/
+  - "**/*.json"
+  - ".eslintrc*"
+  - "babel.config*"
+
+# Notification channels (if integrated with Slack/Discord)
+notifications:
+  on_critical: "notify"  # Notify reviewer of critical issues
+  on_warning: "comment"  # Comment on PR for warnings
