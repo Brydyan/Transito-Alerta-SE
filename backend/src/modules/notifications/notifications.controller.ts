@@ -4,7 +4,6 @@ import {
   Patch,
   Param,
   Query,
-  UseGuards,
   Req,
   BadRequestException,
   ParseIntPipe,
