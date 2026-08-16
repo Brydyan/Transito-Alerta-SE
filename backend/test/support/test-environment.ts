@@ -12,7 +12,11 @@ import type { RedisStore } from 'cache-manager-redis-yet';
 import { AppModule } from '../../src/app.module';
 import { SnakeCaseResponseInterceptor } from '../../src/common/interceptors/snake-case-response.interceptor';
 import { RedisIoAdapter } from '../../src/modules/realtime/redis-io.adapter';
-import { REDIS_CLIENT } from '../../src/core/core.module';
+import {
+  MAIL_BLOCKING_CLIENT,
+  MAIL_EVENTS_BLOCKING_CLIENT,
+  REDIS_CLIENT,
+} from '../../src/core/core.module';
 import { applyMigrations } from './run-migrations';
 
 export interface ProvisionedUser {
@@ -62,6 +66,8 @@ export class TestEnvironment {
     private readonly redisContainer: StartedTestContainer,
     private readonly appRedisClient: Redis,
     private readonly cacheManager: Cache<RedisStore>,
+    private readonly mailBlockingClient: Redis,
+    private readonly mailEventsBlockingClient: Redis,
   ) {}
 
   static async start(): Promise<TestEnvironment> {
@@ -135,6 +141,12 @@ export class TestEnvironment {
     process.env.CACHE_TTL_SECONDS = '60';
     process.env.GEOFENCING_CACHE_TTL_SECONDS = '60';
 
+    // MailModule always loads (AppModule) — shrink the sweep/idle windows
+    // so mail.e2e-spec.ts's retry scenario doesn't wait out the 10s/30s
+    // production defaults, without faking timers around real Redis I/O.
+    process.env.MAIL_SWEEP_INTERVAL_MS = '300';
+    process.env.MAIL_CLAIM_IDLE_MS = '500';
+
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -160,6 +172,14 @@ export class TestEnvironment {
 
     const appRedisClient = app.get<Redis>(REDIS_CLIENT);
     const cacheManager = app.get<Cache<RedisStore>>(CACHE_MANAGER);
+    // MailOutboxConsumer / IncidentMailListener each park a blocking
+    // XREADGROUP on their own dedicated connection (design D13) — same
+    // reasoning as appRedisClient below: without a forced disconnect() at
+    // teardown, app.close() waits out their BLOCK window on every spec
+    // file that boots AppModule (every e2e file, since MailModule is
+    // wired in globally).
+    const mailBlockingClient = app.get<Redis>(MAIL_BLOCKING_CLIENT);
+    const mailEventsBlockingClient = app.get<Redis>(MAIL_EVENTS_BLOCKING_CLIENT);
 
     const pg = new Pool({
       host: dbHost,
@@ -187,6 +207,8 @@ export class TestEnvironment {
       redisContainer,
       appRedisClient,
       cacheManager,
+      mailBlockingClient,
+      mailEventsBlockingClient,
     );
   }
 
@@ -225,13 +247,13 @@ export class TestEnvironment {
    */
   async provisionUser(
     permissions: string[],
-    overrides: { deviceUuid?: string } = {},
+    overrides: { deviceUuid?: string; email?: string } = {},
   ): Promise<ProvisionedUser> {
     const deviceUuid = overrides.deviceUuid ?? `operator-${randomUUID()}`;
 
     await this.pg.query(
-      'INSERT INTO users (device_uuid, permissions, is_active) VALUES ($1, $2::jsonb, true)',
-      [deviceUuid, JSON.stringify(permissions)],
+      'INSERT INTO users (device_uuid, permissions, is_active, email) VALUES ($1, $2::jsonb, true, $3)',
+      [deviceUuid, JSON.stringify(permissions), overrides.email ?? null],
     );
 
     const response = await request(this.httpServer)
@@ -293,6 +315,8 @@ export class TestEnvironment {
     // exits within milliseconds instead of Jest waiting out the block
     // window on every single spec file.
     this.appRedisClient.disconnect();
+    this.mailBlockingClient.disconnect();
+    this.mailEventsBlockingClient.disconnect();
 
     await this.redisContainer.stop();
     await this.postgresContainer.stop();

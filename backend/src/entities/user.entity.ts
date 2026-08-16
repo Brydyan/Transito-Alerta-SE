@@ -37,6 +37,15 @@ export class UserEntity {
   @Column({ name: 'avatar_url', type: 'varchar', nullable: true })
   avatarUrl!: string | null;
 
+  /**
+   * Mail module (T3.5 — 0010_user_email.sql, design D11). Nullable: every
+   * anonymous identity and every pre-existing authenticated user has no
+   * address until one is added. `IncidentMailListener` skips (debug log,
+   * no retry) any recipient resolved with `email === null`.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  email!: string | null;
+
   @Column({ type: 'varchar', default: 'reporter' })
   role!: string;
 

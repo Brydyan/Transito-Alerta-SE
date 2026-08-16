@@ -10,6 +10,7 @@ import databaseConfig from '../config/database.config';
 import authConfig from '../config/auth.config';
 import cacheConfig from '../config/cache.config';
 import { CacheConfig } from '../config/cache.config';
+import mailConfig from '../config/mail.config';
 
 /**
  * DI token for the raw ioredis client — used where cache-manager's Cache
@@ -34,6 +35,25 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
 export const REDIS_BLOCKING_CLIENT = 'REDIS_BLOCKING_CLIENT';
 
 /**
+ * Dedicated blocking connection for MailOutboxConsumer (design D8/D13) —
+ * XREADGROUP on `mail:outbox`. Same reasoning as REDIS_BLOCKING_CLIENT: a
+ * blocking consumer must never share a connection with a producer, and two
+ * *different* blocking consumers must not share one either (a slow SMTP
+ * delivery loop pausing between reads must never stall event ingestion on
+ * the other stream, and vice versa).
+ */
+export const MAIL_BLOCKING_CLIENT = 'MAIL_BLOCKING_CLIENT';
+
+/**
+ * Dedicated blocking connection for IncidentMailListener (design D8/D13) —
+ * XREADGROUP on `incidents:events`, consumer group `mail`. Separate both
+ * from REDIS_BLOCKING_CLIENT (RealtimeStreamsConsumer's own group on the
+ * same stream) and from MAIL_BLOCKING_CLIENT (delivery backpressure must
+ * never block event consumption — D8).
+ */
+export const MAIL_EVENTS_BLOCKING_CLIENT = 'MAIL_EVENTS_BLOCKING_CLIENT';
+
+/**
  * CoreModule — Config, TypeORM, Redis cache, EventEmitter2.
  * Imported by AppModule; every feature module depends on it transitively
  * (design "Module Dependency DAG").
@@ -43,7 +63,7 @@ export const REDIS_BLOCKING_CLIENT = 'REDIS_BLOCKING_CLIENT';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, authConfig, cacheConfig],
+      load: [databaseConfig, authConfig, cacheConfig, mailConfig],
       envFilePath: ['.env'],
     }),
     TypeOrmModule.forRootAsync({
@@ -94,6 +114,32 @@ export const REDIS_BLOCKING_CLIENT = 'REDIS_BLOCKING_CLIENT';
         });
       },
     },
+    {
+      provide: MAIL_BLOCKING_CLIENT,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const cacheConf = config.get<CacheConfig>('cache')!;
+        return new Redis(cacheConf.streamsUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: true,
+          retryStrategy: (times) => Math.min(times * 200, 5000),
+        });
+      },
+    },
+    {
+      provide: MAIL_EVENTS_BLOCKING_CLIENT,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const cacheConf = config.get<CacheConfig>('cache')!;
+        return new Redis(cacheConf.streamsUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: true,
+          retryStrategy: (times) => Math.min(times * 200, 5000),
+        });
+      },
+    },
   ],
   exports: [
     ConfigModule,
@@ -102,6 +148,8 @@ export const REDIS_BLOCKING_CLIENT = 'REDIS_BLOCKING_CLIENT';
     EventEmitterModule,
     REDIS_CLIENT,
     REDIS_BLOCKING_CLIENT,
+    MAIL_BLOCKING_CLIENT,
+    MAIL_EVENTS_BLOCKING_CLIENT,
   ],
 })
 export class CoreModule {}
