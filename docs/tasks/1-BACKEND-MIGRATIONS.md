@@ -16,10 +16,10 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
   - 25+ suites de prueba, 150+ pruebas, todas pasando
   - Migraciones de BD 0003-0007 aplicadas, 0006 creada para columnas de perfil de Users
 
-- **Fase 3 (T3.1-T3.10)**: 🟡 ~82% Completada
+- **Fase 3 (T3.1-T3.10)**: 🟡 ~83% Completada
   - ✅ Completadas: T3.1 (Roles + Permissions), T3.10 (Menus), T3.5 (Mail), T3.3 (Notifications)
   - 🟡 En Progreso / Pendiente: T3.2 (Organizations), T3.4 (StatusHistory), T3.6 (Invitations), T3.7 (IncidentCategories), T3.8 (Locations), T3.9 (Sessions)
-  - 6 tareas restantes, ~10 días de esfuerzo
+  - 6 tareas restantes, ~9-10 días de esfuerzo
 
 - **Fase 4 (T4.1-T4.4)**: ⏳ Planeada
   - 🟡 Parcial: T4.1a (harness E2E completo, T4.1b diferido), T4.1a paso 2 (flujos de workflow + regresiones completadas)
@@ -85,11 +85,11 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 - Registro de falla (nunca silent drop, R13)
 
 **Criterios de Aceptación**:
-- [ ] Envío exitoso registrado con ID de entrada
-- [ ] Envío fallido registrado con contexto diagnóstico (R13)
-- [ ] Renderizado de template con interpolación de variable + escape de contenido de usuario (R3)
-- [ ] Entradas estancadas reclamadas y reintentadas después de 30s inactiva (sweep XPENDING)
-- [ ] Dead-letter después de 3 intentos
+- [x] Envío exitoso registrado con ID de entrada
+- [x] Envío fallido registrado con contexto diagnóstico (R13)
+- [x] Renderizado de template con interpolación de variable + escape de contenido de usuario (R3)
+- [x] Entradas estancadas reclamadas y reintentadas después de 30s inactiva (sweep XPENDING)
+- [x] Dead-letter después de 3 intentos
 
 ### T3.6: Módulo Invitations 🟡 (BLOQUEADA en T3.5, T3.1)
 **Depende de**: T3.1 (Roles), T3.5 (Mail)
@@ -167,8 +167,8 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 | 0007 | assignments | tabla assignments | Aplicada | Renumerada (originalmente 0006) |
 | 0008 | anonymous_read_comments | roles_permissions | Aplicada | Agrega grant de techo de anonymous reporter |
 | 0009 | roles_permissions | tablas roles, permissions | Pendiente | Entidad Role con JSONB permissions, tabla catálogo permissions |
-| 0010 | user_email | columna email de users | Pendiente | `users.email` nullable + índice parcial único (para ruteo Mail, T3.5) |
-| 0011 | notifications | tabla notifications | Pendiente | id, user_id FK, incident_id FK nullable, type enum, message, data jsonb, read bool, created_at, processed_at + índices |
+| 0010 | user_email | columna email de users | Aplicada | `users.email` nullable + índice parcial único (para ruteo Mail, T3.5) |
+| 0011 | notifications | tabla notifications | Aplicada | id, user_id FK, incident_id FK nullable, type enum, message, data jsonb, read bool, created_at, processed_at + índices |
 | 0012 | incident_categories | tabla incident_categories | Planeada (T3.7) | Jerarquía adjacency-list |
 | 0013 | invitations | tabla invitations | Planeada (T3.6) | Token single-use, expiración 24h |
 | 0014 | status_history | tabla status_history | Planeada (T3.4) | Auditoría solo-append |
@@ -178,11 +178,11 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 ## Criterios de Éxito
 
-- [x] 4/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1, T3.3, T3.5, T3.10)
-- [x] 50+ suites de prueba, 300+ pruebas, cobertura 70%+ por módulo
-- [x] Migraciones de BD 0001-0011 escritas + 0001-0008 aplicadas a Supabase; 0009-0010 pendientes
-- [x] Harness E2E (Testcontainers) funcionando; 4 flujos principales en verde
+- [x] 6/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1, T3.3, T3.5, T3.10)
+- [x] 38+ suites de prueba, 288+ pruebas (257 unit + 31 E2E), cobertura 70%+ por módulo
+- [x] Migraciones de BD 0001-0011 escritas + 0001-0011 aplicadas a Supabase; 0009 pendiente
+- [x] Harness E2E (Testcontainers) funcionando; 6 flujos principales en verde (Mail, Regressions, Roles, Flows, Health, Notifications)
 - [ ] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas
 - [x] Seguridad: rate limiting ✅, CORS ✅, regresión SQL injection ✅, type safety ✅
 - [x] Documentación: README, contrato API, runbook de despliegue ✅
-- [x] CI/CD: ESLint ✅, Typecheck ✅, Test ✅, E2E optimizado (paralelizado 4 workers)
+- [x] CI/CD: ESLint ✅, Typecheck ✅, Build ✅, 257 unit tests ✅, 31 E2E tests ✅
