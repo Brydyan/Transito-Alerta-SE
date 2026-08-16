@@ -184,7 +184,11 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
 
     for (const [entryId, , , deliveryCount] of pending) {
       if (deliveryCount >= mailConfig.maxAttempts) {
-        await this.deadLetterById(entryId);
+        try {
+          await this.deadLetterById(entryId);
+        } catch (err) {
+          this.logger.error(`Sweep deadLetterById failed for ${entryId}: ${(err as Error).message}`);
+        }
         continue;
       }
 

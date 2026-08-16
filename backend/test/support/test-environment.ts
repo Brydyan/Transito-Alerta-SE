@@ -235,6 +235,21 @@ export class TestEnvironment {
     // NOT redisStreams.flushdb() — that would delete the `incidents:events`
     // stream and the `realtime` consumer group RealtimeStreamsConsumer
     // creates once at boot; nothing recreates it after startup.
+
+    // Recreate mail consumer group to reset last-delivered-id. onModuleInit
+    // ignores BUSYGROUP, so the group persists with its old cursor; new
+    // entries added in this test would never be consumed (XREADGROUP > won't
+    // return entries older than the previous stream position).
+    try {
+      await this.redisStreams.xgroup('DESTROY', 'mail:outbox', 'mail');
+    } catch {
+      // Group doesn't exist on first run — expected.
+    }
+    try {
+      await this.redisStreams.xgroup('CREATE', 'mail:outbox', 'mail', '$', 'MKSTREAM');
+    } catch {
+      // Group already exists or stream creation failed — let the app recreate on next boot.
+    }
   }
 
   /**
