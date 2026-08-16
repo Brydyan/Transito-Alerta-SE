@@ -255,4 +255,42 @@ describe('IncidentCategories e2e (T3.7)', () => {
       .set(authHeader(reader))
       .expect(403);
   });
+
+  // TS-11: Invalid name -> 400 (DTO validation)
+  it('rejects a missing or empty name with 400 (TS-11)', async () => {
+    await createCategory({} as { name: string }).expect(400);
+
+    const empty = await createCategory({ name: '' }).expect(400);
+    expect(empty.body.message).toBeDefined();
+
+    // Update path rejects an empty name too — @IsOptional only skips the
+    // validators when the key is absent, not when it is present and blank.
+    const category = await createCategory({ name: 'Valid' }).expect(201);
+    await request(env.httpServer)
+      .patch(`/api/incident-categories/${category.body.id as string}`)
+      .set(authHeader(admin))
+      .send({ name: '' })
+      .expect(400);
+  });
+
+  // TS-12: parent_id referencing a non-existent category -> 400
+  it('rejects a parent_id that does not reference an existing category with 400 (TS-12)', async () => {
+    const missingParentId = '00000000-0000-0000-0000-000000000000';
+
+    const created = await createCategory({ name: 'Orphan', parent_id: missingParentId }).expect(
+      400,
+    );
+    expect(created.body.message).toMatch(/parent/i);
+
+    // Same guard on the update path — a valid category re-parented to a
+    // non-existent id is rejected before the write, not deferred to the FK.
+    const category = await createCategory({ name: 'Existing' }).expect(201);
+    const updated = await request(env.httpServer)
+      .patch(`/api/incident-categories/${category.body.id as string}`)
+      .set(authHeader(admin))
+      .send({ parent_id: missingParentId })
+      .expect(400);
+
+    expect(updated.body.message).toMatch(/parent/i);
+  });
 });
