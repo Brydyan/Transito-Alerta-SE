@@ -225,7 +225,7 @@ export class TestEnvironment {
    */
   async reset(): Promise<void> {
     await this.pg.query(
-      'TRUNCATE TABLE assignments, comments, incidents, user_sessions, users RESTART IDENTITY CASCADE',
+      'TRUNCATE TABLE assignments, comments, incidents, incident_categories, user_sessions, users RESTART IDENTITY CASCADE',
     );
     // 0001's anonymous seed row (ON CONFLICT DO NOTHING) only helps if the
     // row already exists — the TRUNCATE above just removed it, and every
