@@ -82,27 +82,24 @@ export class IncidentNotificationsListener {
    * Notificar a usuarios interesados (creador, asignado)
    */
   @OnEvent('incident.status_changed')
-  async onIncidentStatusChanged(payload: {
-    incidentId: string;
-    oldStatus: string;
-    newStatus: string;
-    changedById: string;
-    relatedUserIds: string[];
-    title: string;
-  }) {
+  async onIncidentStatusChanged(payload: Record<string, unknown>) {
     try {
-      for (const userId of payload.relatedUserIds) {
+      const reporterId = payload.citizen_id as string | undefined;
+      const assigneeId = payload.assigned_to as string | undefined | null;
+      const recipientIds = [reporterId, assigneeId].filter(
+        (id): id is string => Boolean(id),
+      );
+
+      for (const userId of recipientIds) {
         const user = await this.usersService.findOne(userId);
         if (user) {
           await this.notificationsService.notify(
             user,
             NotificationType.INCIDENT_STATUS_CHANGED,
-            `Estado del incidente actualizado: ${payload.oldStatus} → ${payload.newStatus}`,
-            payload.incidentId,
+            `Estado del incidente actualizado: ${payload.status}`,
+            payload.id as string,
             {
-              oldStatus: payload.oldStatus,
-              newStatus: payload.newStatus,
-              changedBy: payload.changedById,
+              status: payload.status,
             },
           );
         }
@@ -119,27 +116,27 @@ export class IncidentNotificationsListener {
    * Notificar a usuarios que siguen el incidente
    */
   @OnEvent('comment.added')
-  async onCommentAdded(payload: {
-    incidentId: string;
-    commentId: string;
-    authorId: string;
-    relatedUserIds: string[];
-    preview: string;
-  }) {
+  async onCommentAdded(payload: Record<string, unknown>) {
     try {
-      for (const userId of payload.relatedUserIds) {
-        if (userId === payload.authorId) continue; // No notificar al autor
+      const reporterId = payload.reporter_id as string | undefined;
+      const priorCommenterIds = (payload.prior_commenter_ids as string[] | undefined) ?? [];
+      const recipientIds = [reporterId, ...priorCommenterIds].filter(
+        (id): id is string => Boolean(id),
+      );
+
+      for (const userId of recipientIds) {
+        if (userId === payload.author_id) continue; // No notificar al autor
 
         const user = await this.usersService.findOne(userId);
         if (user) {
           await this.notificationsService.notify(
             user,
             NotificationType.COMMENT_ADDED,
-            `Nuevo comentario: ${payload.preview.substring(0, 100)}...`,
-            payload.incidentId,
+            `Nuevo comentario en el incidente`,
+            payload.incident_id as string,
             {
-              commentId: payload.commentId,
-              author: payload.authorId,
+              commentId: payload.id as string,
+              author: payload.author_id as string,
             },
           );
         }

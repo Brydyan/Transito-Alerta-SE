@@ -44,7 +44,7 @@ export class UsersService {
   async findByRole(roleName: string): Promise<UserEntity[]> {
     return this.userRepo
       .createQueryBuilder('u')
-      .leftJoinAndSelect('u.role', 'r')
+      .leftJoinAndSelect('roles', 'r', 'u.role_id = r.id')
       .where('r.name = :roleName', { roleName })
       .getMany();
   }
