@@ -161,6 +161,12 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
    * this consumer and `processEntry` retries the send.
    */
   async sweep(): Promise<void> {
+    // Guard: skip sweep if module is shutting down. setInterval callbacks
+    // may execute after onModuleDestroy() begins cleanup.
+    if (!this.running) {
+      return;
+    }
+
     const mailConfig = this.configService.get<MailConfig>('mail')!;
     let pending: XPendingRow[];
     try {
@@ -174,7 +180,10 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
         10,
       )) as unknown as XPendingRow[];
     } catch (err) {
-      this.logger.error(`Sweep XPENDING failed: ${(err as Error).message}`);
+      // Suppress logging connection errors during shutdown.
+      if (this.running) {
+        this.logger.error(`Sweep XPENDING failed: ${(err as Error).message}`);
+      }
       return;
     }
 
@@ -217,6 +226,15 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
       this.logger.error(`Entry ${entryId} exhausted retries, moved to ${MAIL_DEAD_STREAM_KEY}`);
       await this.redis.xadd(MAIL_DEAD_STREAM_KEY, '*', ...fields);
     }
-    await this.redis.xack(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, entryId);
+    // XACK may fail if connection is closing, but entry is already in dead letter.
+    // Best effort: log warning if ACK fails, don't re-throw during shutdown.
+    try {
+      await this.redis.xack(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, entryId);
+    } catch (err) {
+      if (this.running) {
+        throw err;
+      }
+      // During shutdown, connection closing is expected. Don't re-throw.
+    }
   }
 }

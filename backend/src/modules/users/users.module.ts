@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { RoleEntity } from '../../entities/role.entity';
 import { UserEntity } from '../../entities/user.entity';
 import { UserSessionEntity } from '../../entities/user-session.entity';
 import { AvatarStorageService } from './avatar-storage.service';
@@ -9,7 +10,7 @@ import { UsersService } from './users.service';
 
 /** UsersModule (R4) — design DAG: `Users -> Roles, Organizations (optional)`. */
 @Module({
-  imports: [TypeOrmModule.forFeature([UserEntity, UserSessionEntity])],
+  imports: [TypeOrmModule.forFeature([UserEntity, UserSessionEntity, RoleEntity])],
   controllers: [UsersController],
   providers: [UsersService, AvatarStorageService],
   exports: [UsersService],
