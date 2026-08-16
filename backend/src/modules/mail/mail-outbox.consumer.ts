@@ -161,12 +161,6 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
    * this consumer and `processEntry` retries the send.
    */
   async sweep(): Promise<void> {
-    // Guard: skip sweep if module is shutting down. setInterval callbacks
-    // may execute after onModuleDestroy() begins cleanup.
-    if (!this.running) {
-      return;
-    }
-
     const mailConfig = this.configService.get<MailConfig>('mail')!;
     let pending: XPendingRow[];
     try {
