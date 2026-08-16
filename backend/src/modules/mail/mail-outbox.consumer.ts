@@ -195,9 +195,6 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
   }
 
   private async sweepImpl(): Promise<void> {
-    // Skip if shutting down (running=false set in onModuleDestroy).
-    if (!this.running) return;
-
     const mailConfig = this.configService.get<MailConfig>('mail')!;
     let pending: XPendingRow[];
     try {
