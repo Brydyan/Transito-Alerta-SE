@@ -16,10 +16,10 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
   - 25+ suites de prueba, 150+ pruebas, todas pasando
   - Migraciones de BD 0003-0007 aplicadas, 0006 creada para columnas de perfil de Users
 
-- **Fase 3 (T3.1-T3.10)**: 🟡 ~83% Completada
-  - ✅ Completadas: T3.1 (Roles + Permissions), T3.10 (Menus), T3.5 (Mail), T3.3 (Notifications)
-  - 🟡 En Progreso / Pendiente: T3.2 (Organizations), T3.4 (StatusHistory), T3.6 (Invitations), T3.7 (IncidentCategories), T3.8 (Locations), T3.9 (Sessions)
-  - 6 tareas restantes, ~9-10 días de esfuerzo
+- **Fase 3 (T3.1-T3.10)**: 🟡 ~85% Completada
+  - ✅ Completadas: T3.1 (Roles + Permissions), T3.10 (Menus), T3.5 (Mail), T3.3 (Notifications), T3.7 (IncidentCategories)
+  - 🟡 En Progreso / Pendiente: T3.2 (Organizations), T3.4 (StatusHistory), T3.6 (Invitations), T3.8 (Locations), T3.9 (Sessions)
+  - 5 tareas restantes, ~8 días de esfuerzo
 
 - **Fase 4 (T4.1-T4.4)**: ⏳ Planeada
   - 🟡 Parcial: T4.1a (harness E2E completo, T4.1b diferido), T4.1a paso 2 (flujos de workflow + regresiones completadas)
@@ -106,20 +106,30 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 - [ ] Nuevo usuario obtiene rol invitado (no reporter por defecto)
 - [ ] Email enviado a dirección invitada (mockeado en unit, real en e2e)
 
-### T3.7: Módulo IncidentCategories 🟡 (EN PROGRESO)
+### T3.7: Módulo IncidentCategories ✅ (COMPLETADA)
 **Depende de**: T2.1 (Incidents)
 
 **Qué hace**:
-- Entidad `IncidentCategory`: id, name, parent_id (FK self, nullable) — adjacency list
-- `getSubtree(parentId)`: consulta CTE recursiva retorna parent + todos los descendientes (R10)
-- `list()`: todas las categorías (plana)
-- `create()`: nueva categoría con parent opcional
-- Wire `Incident.category_id` FK (opcional, reportes pueden ser sin categorizar)
+- Entidad `IncidentCategory`: id (uuid), name, parent_id (FK self, nullable, ON DELETE SET NULL) — adjacency list plana
+- `getSubtree(rootId)`: CTE recursiva (`WITH RECURSIVE`) retorna subtree completo a cualquier profundidad; `buildTree()` arma el anidado en memoria (función pura)
+- `list(filters)`: paginada con filtros `search` (ILIKE) y `parent_id` (incluye `null` = solo raíces)
+- `create()` / `update()`: guard de ciclos por ancestor-walk (rechaza self-parent y re-parent a descendiente)
+- Wire `incidents.category_id` FK (ON DELETE RESTRICT) — solo esquema en esta tarea, sin wiring de DTO/service
 
 **Criterios de Aceptación**:
-- [ ] Consultar parent retorna subtree completo (R10), no solo hijos directos
-- [ ] Referencias circulares rechazadas en write (consultar ancestor_id en ruta descendiente)
-- [ ] E2E: jerarquía anidada 3-niveles profunda, consultar root retorna todos los 7 descendientes
+- [x] Consultar parent retorna subtree completo (R10), no solo hijos directos — CTE recursiva, no eager-load de 2 niveles como Laravel
+- [x] Referencias circulares rechazadas en write (ancestor-walk, 400) — cierra un gap que Laravel nunca resolvió
+- [x] E2E: jerarquía anidada 3-niveles profunda, consultar root retorna todos los descendientes
+- [x] Borrar categoría referenciada por un incidente → 409 (PG 23503 mapeado)
+- [x] Borrar padre promueve hijos a raíz (SET NULL), no cascada
+- [x] Permisos CREATE/UPDATE/DELETE con recurso `incident-categories` (hyphenated, por `inferResourceFromPath`)
+
+**Fuera de alcance (decisiones registradas en SDD)**:
+- Org-scoping M:N de categorías (Laravel lo tiene; spec NestJS no lo pide — acopla con T3.2 sin construir)
+- Constraint leaf-only para incidentes (pertenece al dominio Incidents, patrón D7)
+- Soft deletes (ninguna entidad del stack NestJS los usa)
+
+**Artefactos SDD**: `openspec/changes/t3.7-incident-categories/` (design.md, tasks.md) + Engram `sdd/t3.7-incident-categories/*`
 
 ### T3.8: Módulo Locations (CRUD Geo Zones) 🟡 (EN PROGRESO)
 **Depende de**: T2.0 (Geofencing), T2.1 (Incidents)
@@ -152,8 +162,8 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 ## Auditoría de Migración de Base de Datos
 
-### Actualmente Aplicadas (Supabase): 0001-0008
-### Actualmente Pendientes (no aún aplicadas): 0009-0010
+### Actualmente Aplicadas (Supabase): 0001-0008, 0010-0011
+### Actualmente Pendientes (no aún aplicadas): 0009, 0012
 ### Migraciones Fase 3 (escritas/planeadas): 0011-0017
 
 | ID | Nombre | Entidad | Estado | Notas |
@@ -169,7 +179,7 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 | 0009 | roles_permissions | tablas roles, permissions | Pendiente | Entidad Role con JSONB permissions, tabla catálogo permissions |
 | 0010 | user_email | columna email de users | Aplicada | `users.email` nullable + índice parcial único (para ruteo Mail, T3.5) |
 | 0011 | notifications | tabla notifications | Aplicada | id, user_id FK, incident_id FK nullable, type enum, message, data jsonb, read bool, created_at, processed_at + índices |
-| 0012 | incident_categories | tabla incident_categories | Planeada (T3.7) | Jerarquía adjacency-list |
+| 0012 | incident_categories | tabla incident_categories | Escrita (T3.7) | Adjacency-list uuid, `parent_id` ON DELETE SET NULL, `incidents.category_id` ON DELETE RESTRICT, seed de permisos `incident-categories`. Rollback en `database/rollback/0012_incident_categories.DOWN.sql`. Pendiente de aplicar a Supabase |
 | 0013 | invitations | tabla invitations | Planeada (T3.6) | Token single-use, expiración 24h |
 | 0014 | status_history | tabla status_history | Planeada (T3.4) | Auditoría solo-append |
 | 0015 | locations | triggers CRUD geo_zones | Planeada (T3.8) | Invalidación de caché en edición de zona |
@@ -178,10 +188,10 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 ## Criterios de Éxito
 
-- [x] 6/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1, T3.3, T3.5, T3.10)
-- [x] 38+ suites de prueba, 288+ pruebas (257 unit + 31 E2E), cobertura 70%+ por módulo
-- [x] Migraciones de BD 0001-0011 escritas + 0001-0011 aplicadas a Supabase; 0009 pendiente
-- [x] Harness E2E (Testcontainers) funcionando; 6 flujos principales en verde (Mail, Regressions, Roles, Flows, Health, Notifications)
+- [x] 7/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1, T3.3, T3.5, T3.7, T3.10)
+- [x] 41 suites unit + 7 E2E, 335 pruebas (294 unit + 41 E2E), cobertura 70%+ por módulo
+- [x] Migraciones de BD 0001-0012 escritas; 0001-0008 y 0010-0011 aplicadas a Supabase; 0009 y 0012 pendientes
+- [x] Harness E2E (Testcontainers) funcionando; 7 flujos en verde (Mail, Regressions, Roles, Flows, Health, Notifications, IncidentCategories)
 - [ ] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas
 - [x] Seguridad: rate limiting ✅, CORS ✅, regresión SQL injection ✅, type safety ✅
 - [x] Documentación: README, contrato API, runbook de despliegue ✅

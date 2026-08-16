@@ -1,0 +1,82 @@
+schema: spec-driven
+version: "1.0"
+project: Transito-Alerta-SE
+
+## Todos los comandos (npm test, lint, typecheck, build) se ejecutan desde
+## este directorio, no desde la raíz del repo.
+working_dir: backend
+
+## Project Context
+context: |
+  Tech Stack: NestJS 10.4.4, TypeScript 5.5.4, PostgreSQL + TypeORM, Redis, Socket.io
+  Architecture: Modular NestJS (16 domain modules planned), RBAC permissions, PostGIS geofencing, Redis Streams consumers
+  Testing: Jest 29.7.0 (unit + e2e), Testcontainers (integration), real Postgres/Redis
+  Style: ESLint 8.57.0 (@typescript-eslint), Prettier (inferred)
+  Deployment: NestJS CLI build, Docker
+
+## Testing & Quality
+testing:
+  strict_tdd: true
+  runner:
+    framework: Jest
+    command: npm test
+  layers:
+    unit:
+      available: true
+      tool: Jest
+      command: npm test
+    integration:
+      available: true
+      tool: Testcontainers + Jest
+      command: npm test
+    e2e:
+      available: true
+      tool: Jest (jest-e2e.json config)
+      command: npm run test:e2e
+  coverage:
+    available: true
+    command: npm run test:cov
+  quality:
+    linter:
+      tool: ESLint
+      command: npm run lint
+    type_checker:
+      tool: TypeScript
+      command: npm run typecheck
+    formatter: Prettier (assumed)
+
+## SDD Rules for This Project
+rules:
+  proposal:
+    - Include DB schema changes (new migrations)
+    - Identify permission requirements (RBAC rules)
+    - Reference domain module dependencies
+  specs:
+    - Use Given/When/Then for scenarios
+    - Specify query behavior (pagination, filters, sorting)
+    - Define validation rules (constraints, constraints checks)
+  design:
+    - Document entity relationships (FK, soft deletes, indexes)
+    - Show TypeORM decorators/patterns used
+    - Include Redis caching strategy (if applicable)
+  tasks:
+    - Group by phase: Entity → Migration → Service → Controller → Tests
+    - Keep tasks atomic (1-2h each)
+  apply:
+    - Follow existing NestJS patterns (service/controller/repository/dto)
+    - Use @nestjs/testing for mocks
+    - Soft deletes on domain entities (established pattern)
+  verify:
+    - Run full test suite: npm test && npm run test:e2e
+    - Check linting: npm run lint
+    - Type safety: npm run typecheck
+    - Integration tests with real Testcontainers
+
+## CI/CD
+ci:
+  commands:
+    - npm run lint
+    - npm run typecheck
+    - npm run build
+    - npm test
+    - npm run test:e2e
