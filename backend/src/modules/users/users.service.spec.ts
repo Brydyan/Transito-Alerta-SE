@@ -11,7 +11,7 @@ describe('UsersService', () => {
     userRepo = { findOne: jest.fn(), update: jest.fn(), findAndCount: jest.fn() };
     sessionRepo = { findOne: jest.fn(), save: jest.fn(), create: jest.fn((x) => x) };
     avatarStorage = { upload: jest.fn() };
-    service = new UsersService(userRepo as any, sessionRepo as any, avatarStorage as any);
+    service = new UsersService(userRepo as Partial<typeof userRepo>, sessionRepo as Partial<typeof sessionRepo>, avatarStorage as Partial<typeof avatarStorage>);
   });
 
   describe('findById', () => {

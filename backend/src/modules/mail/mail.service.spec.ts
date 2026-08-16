@@ -26,7 +26,7 @@ describe('MailService', () => {
         maxAttempts: 3,
       }),
     };
-    service = new MailService(redis as any, config as unknown as ConfigService);
+    service = new MailService(redis as Partial<typeof redis>, config as unknown as ConfigService);
   });
 
   describe('renderTemplate', () => {
@@ -96,7 +96,7 @@ describe('MailService', () => {
       });
       const sendMail = jest.fn().mockResolvedValue({ messageId: 'abc' });
       (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
-      service = new MailService(redis as any, config as unknown as ConfigService);
+      service = new MailService(redis as Partial<typeof redis>, config as unknown as ConfigService);
 
       await service.deliver('user@example.com', 'Subject', 'incident.created', { title: 'x' });
 
@@ -139,7 +139,7 @@ describe('MailService', () => {
       });
       const sendMail = jest.fn().mockResolvedValue({ messageId: 'abc' });
       (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
-      service = new MailService(redis as any, config as unknown as ConfigService);
+      service = new MailService(redis as Partial<typeof redis>, config as unknown as ConfigService);
       const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
       const debugSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
 
@@ -168,7 +168,7 @@ describe('MailService', () => {
       });
       const sendMail = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
       (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
-      service = new MailService(redis as any, config as unknown as ConfigService);
+      service = new MailService(redis as Partial<typeof redis>, config as unknown as ConfigService);
 
       await expect(
         service.deliver('user@example.com', 'Subject', 'incident.created', { title: 'x' }),

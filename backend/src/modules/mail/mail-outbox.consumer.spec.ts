@@ -47,7 +47,7 @@ describe('MailOutboxConsumer', () => {
       get: jest.fn().mockReturnValue({ sweepIntervalMs: 10_000, claimIdleMs: 30_000, maxAttempts: 3 }),
     };
     consumer = new MailOutboxConsumer(
-      redis as any,
+      redis as Partial<typeof redis>,
       mailService as unknown as MailService,
       config as unknown as ConfigService,
     );

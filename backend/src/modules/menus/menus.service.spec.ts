@@ -6,7 +6,7 @@ describe('MenusService', () => {
 
   beforeEach(() => {
     authService = { getPermissionsByUserId: jest.fn() };
-    service = new MenusService(authService as any);
+    service = new MenusService(authService as Partial<typeof authService>);
   });
 
   it('resolves permissions via AuthService.getPermissionsByUserId (same cache path as PermissionGuard)', async () => {

@@ -11,7 +11,7 @@ describe('RolesService', () => {
     roleRepo = { findOne: jest.fn() };
     userRepo = { findOne: jest.fn(), save: jest.fn(async (x) => x) };
     authService = { invalidatePermissionCache: jest.fn() };
-    service = new RolesService(roleRepo as any, userRepo as any, authService as any);
+    service = new RolesService(roleRepo as Partial<typeof roleRepo>, userRepo as Partial<typeof userRepo>, authService as Partial<typeof authService>);
   });
 
   describe('listPermissions', () => {

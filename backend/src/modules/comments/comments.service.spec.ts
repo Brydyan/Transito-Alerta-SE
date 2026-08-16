@@ -47,7 +47,7 @@ describe('CommentsService', () => {
       delete: jest.fn(),
     };
     eventEmitter = { emit: jest.fn() };
-    service = new CommentsService(repo as any, eventEmitter as any);
+    service = new CommentsService(repo as Partial<typeof repo>, eventEmitter as Partial<typeof eventEmitter>);
   });
 
   describe('create', () => {

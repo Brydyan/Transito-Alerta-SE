@@ -22,7 +22,7 @@ describe('ResponseCacheInterceptor', () => {
 
   it('passes through to the handler (no cache hit) when no @Cacheable metadata is set', (done) => {
     jest.spyOn(reflector, 'get').mockReturnValue(undefined);
-    const interceptor = new ResponseCacheInterceptor(cacheManager as any, reflector);
+    const interceptor = new ResponseCacheInterceptor(cacheManager as Partial<typeof cacheManager>, reflector);
     const next: CallHandler = { handle: () => of({ value: 'fresh' }) };
 
     interceptor.intercept(makeContext('/api/incidents'), next).subscribe((result) => {
@@ -35,7 +35,7 @@ describe('ResponseCacheInterceptor', () => {
   it('returns the cached value directly when a cache hit exists for a @Cacheable route', (done) => {
     jest.spyOn(reflector, 'get').mockReturnValue({ ttlSeconds: 30 });
     cacheManager.get.mockResolvedValue({ value: 'cached' });
-    const interceptor = new ResponseCacheInterceptor(cacheManager as any, reflector);
+    const interceptor = new ResponseCacheInterceptor(cacheManager as Partial<typeof cacheManager>, reflector);
     const next: CallHandler = { handle: () => of({ value: 'fresh' }) };
 
     interceptor.intercept(makeContext('/api/incidents'), next).subscribe((result) => {
@@ -47,7 +47,7 @@ describe('ResponseCacheInterceptor', () => {
   it('stores the fresh handler response in cache on a miss, using the configured ttl', (done) => {
     jest.spyOn(reflector, 'get').mockReturnValue({ ttlSeconds: 30 });
     cacheManager.get.mockResolvedValue(undefined);
-    const interceptor = new ResponseCacheInterceptor(cacheManager as any, reflector);
+    const interceptor = new ResponseCacheInterceptor(cacheManager as Partial<typeof cacheManager>, reflector);
     const next: CallHandler = { handle: () => of({ value: 'fresh' }) };
 
     interceptor.intercept(makeContext('/api/incidents'), next).subscribe((result) => {

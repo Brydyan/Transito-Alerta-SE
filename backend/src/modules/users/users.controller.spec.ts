@@ -30,7 +30,7 @@ describe('UsersController', () => {
 
   it('GET /me delegates to service.findById with the authenticated user id', async () => {
     service.findById.mockResolvedValue({ id: 'u1' });
-    const req = { user: { userId: 'u1', permissions: [] } } as any;
+    const req = { user: { userId: 'u1', permissions: [] } } as unknown as Express.Request;
 
     const result = await controller.me(req);
 
@@ -40,9 +40,9 @@ describe('UsersController', () => {
 
   it('PATCH /me delegates to service.updateProfile', async () => {
     service.updateProfile.mockResolvedValue({ id: 'u1', firstName: 'Ana' });
-    const req = { user: { userId: 'u1', permissions: [] } } as any;
+    const req = { user: { userId: 'u1', permissions: [] } } as unknown as Express.Request;
 
-    const result = await controller.updateProfile({ first_name: 'Ana' } as any, req);
+    const result = await controller.updateProfile({ first_name: 'Ana' } as unknown as Parameters<typeof controller.updateProfile>[0], req);
 
     expect(service.updateProfile).toHaveBeenCalledWith('u1', { firstName: 'Ana', lastName: undefined });
     expect(result).toEqual({ id: 'u1', firstName: 'Ana' });
@@ -50,8 +50,8 @@ describe('UsersController', () => {
 
   it('POST /me/avatar delegates to service.updateAvatar with the uploaded file', async () => {
     service.updateAvatar.mockResolvedValue({ id: 'u1', avatarUrl: 'https://x' });
-    const req = { user: { userId: 'u1', permissions: [] } } as any;
-    const file = { buffer: Buffer.from('x'), mimetype: 'image/png', originalname: 'a.png' } as any;
+    const req = { user: { userId: 'u1', permissions: [] } } as unknown as Express.Request;
+    const file = { buffer: Buffer.from('x'), mimetype: 'image/png', originalname: 'a.png' } as unknown as Express.Multer.File;
 
     const result = await controller.updateAvatar(file, req);
 

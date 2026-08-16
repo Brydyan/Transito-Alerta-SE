@@ -39,10 +39,10 @@ describe('Notifications E2E', () => {
   describe('Notifications Service', () => {
     it('should create notification for incident.created event', async () => {
       const mockUser = { id: 'user-123', email: 'test@example.com', name: 'Test' };
-      jest.spyOn(usersService, 'findOne').mockResolvedValue(mockUser as any);
+      jest.spyOn(usersService, 'findOne').mockResolvedValue(mockUser as unknown as Awaited<ReturnType<typeof usersService.findOne>>);
 
       const notification = await notificationsService.notify(
-        mockUser as any,
+        mockUser as unknown as Parameters<typeof notificationsService.notify>[0],
         NotificationType.INCIDENT_CREATED,
         'New incident reported',
         'incident-123',
@@ -57,7 +57,7 @@ describe('Notifications E2E', () => {
       // First call returns notification
       jest
         .spyOn(notificationsService, 'notify')
-        .mockResolvedValueOnce({ id: 'notif-1' } as any);
+        .mockResolvedValueOnce({ id: 'notif-1' } as unknown as Awaited<ReturnType<typeof notificationsService.notify>>);
 
       // Second call within 60s returns null
       jest
@@ -65,12 +65,12 @@ describe('Notifications E2E', () => {
         .mockResolvedValueOnce(null);
 
       const notif1 = await notificationsService.notify(
-        mockUser as any,
+        mockUser as unknown as Parameters<typeof notificationsService.notify>[0],
         NotificationType.INCIDENT_ASSIGNED,
         'Test',
       );
       const notif2 = await notificationsService.notify(
-        mockUser as any,
+        mockUser as unknown as Parameters<typeof notificationsService.notify>[0],
         NotificationType.INCIDENT_ASSIGNED,
         'Test',
       );
@@ -104,7 +104,7 @@ describe('Notifications E2E', () => {
         total: 1,
       };
 
-      jest.spyOn(notificationsService, 'findByUser').mockResolvedValue(mockData as any);
+      jest.spyOn(notificationsService, 'findByUser').mockResolvedValue(mockData as unknown as Awaited<ReturnType<typeof notificationsService.findByUser>>);
 
       const { data, total } = await notificationsService.findByUser('user-123');
 
@@ -116,7 +116,7 @@ describe('Notifications E2E', () => {
   describe('Incident Notifications Listener', () => {
     it('should emit notifications on incident.created event', async () => {
       const admins = [{ id: 'admin-1', email: 'admin@example.com' }];
-      jest.spyOn(usersService, 'findByRole').mockResolvedValue(admins as any);
+      jest.spyOn(usersService, 'findByRole').mockResolvedValue(admins as unknown as Awaited<ReturnType<typeof usersService.findByRole>>);
 
       const result = await usersService.findByRole('admin');
 

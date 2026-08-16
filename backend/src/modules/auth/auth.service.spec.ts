@@ -36,11 +36,11 @@ describe('AuthService', () => {
     configService = { get: () => makeAuthConfig() } as unknown as ConfigService;
     eventEmitter = { emit: jest.fn() };
     service = new AuthService(
-      userRepo as any,
+      userRepo as Partial<typeof userRepo>,
       jwtService as unknown as JwtService,
-      cache as any,
+      cache as Partial<typeof cache>,
       configService,
-      eventEmitter as any,
+      eventEmitter as Partial<typeof eventEmitter>,
     );
   });
 
@@ -175,11 +175,11 @@ describe('AuthService.invalidatePermissionCache', () => {
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
     service = new AuthService(
-      {} as any,
+      {} as Partial<Record<string, unknown>>,
       { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as any,
+      cache as Partial<typeof cache>,
       { get: () => makeAuthConfig() } as unknown as ConfigService,
-      { emit: jest.fn() } as any,
+      { emit: jest.fn() } as Partial<{ emit: jest.Mock }>,
     );
   });
 
@@ -204,11 +204,11 @@ describe('AuthService.getPermissionsByUserId', () => {
     userRepo = { findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
     cache = { get: jest.fn(), set: jest.fn() };
     service = new AuthService(
-      userRepo as any,
+      userRepo as Partial<typeof userRepo>,
       { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as any,
+      cache as Partial<typeof cache>,
       { get: () => makeAuthConfig() } as unknown as ConfigService,
-      { emit: jest.fn() } as any,
+      { emit: jest.fn() } as Partial<{ emit: jest.Mock }>,
     );
   });
 

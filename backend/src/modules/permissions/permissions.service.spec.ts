@@ -6,7 +6,7 @@ describe('PermissionsService', () => {
 
   beforeEach(() => {
     repo = { find: jest.fn() };
-    service = new PermissionsService(repo as any);
+    service = new PermissionsService(repo as Partial<typeof repo>);
   });
 
   describe('findAll', () => {

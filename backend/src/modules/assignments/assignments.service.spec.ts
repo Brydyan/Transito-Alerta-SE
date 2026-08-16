@@ -23,7 +23,7 @@ describe('AssignmentsService', () => {
     };
     eventEmitter = { emit: jest.fn() };
     redis = { xadd: jest.fn() };
-    service = new AssignmentsService(repo as any, eventEmitter as any, redis as any);
+    service = new AssignmentsService(repo as Partial<typeof repo>, eventEmitter as Partial<typeof eventEmitter>, redis as Partial<typeof redis>);
   });
 
   describe('assign', () => {

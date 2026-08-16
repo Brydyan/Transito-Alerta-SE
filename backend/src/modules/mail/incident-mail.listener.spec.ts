@@ -21,10 +21,10 @@ describe('IncidentMailListener', () => {
     userRepo = { findOne: jest.fn() };
     dataSource = { query: jest.fn().mockResolvedValue([]) };
     listener = new IncidentMailListener(
-      redis as any,
+      redis as Partial<typeof redis>,
       mailService as unknown as MailService,
-      userRepo as any,
-      dataSource as any,
+      userRepo as Partial<typeof userRepo>,
+      dataSource as Partial<typeof dataSource>,
     );
   });
 

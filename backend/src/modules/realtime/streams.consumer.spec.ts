@@ -10,7 +10,7 @@ describe('RealtimeStreamsConsumer', () => {
   beforeEach(() => {
     redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn(), quit: jest.fn().mockResolvedValue('OK') };
     gateway = { broadcast: jest.fn() };
-    consumer = new RealtimeStreamsConsumer(redis as any, gateway as unknown as EventsGateway);
+    consumer = new RealtimeStreamsConsumer(redis as Partial<typeof redis>, gateway as unknown as EventsGateway);
   });
 
   describe('processResponse', () => {
@@ -71,7 +71,7 @@ describe('RealtimeStreamsConsumer — loop resilience', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     redis = { xgroup: jest.fn(), xreadgroup: jest.fn(), xack: jest.fn(), quit: jest.fn().mockResolvedValue('OK') };
-    consumer = new RealtimeStreamsConsumer(redis as any, { broadcast: jest.fn() } as any);
+    consumer = new RealtimeStreamsConsumer(redis as Partial<typeof redis>, { broadcast: jest.fn() } as Partial<EventsGateway>);
     errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
 

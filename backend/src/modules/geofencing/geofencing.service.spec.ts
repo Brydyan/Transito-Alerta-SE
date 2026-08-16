@@ -14,8 +14,8 @@ describe('GeofencingService', () => {
     redis = { sadd: jest.fn(), smembers: jest.fn(), del: jest.fn() };
     service = new GeofencingService(
       repository as unknown as GeofencingRepository,
-      cache as any,
-      redis as any,
+      cache as Partial<typeof cache>,
+      redis as Partial<typeof redis>,
     );
   });
 

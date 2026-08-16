@@ -70,7 +70,7 @@ describe('RateLimiterGuard', () => {
 
   beforeEach(() => {
     cacheManager = { get: jest.fn(), set: jest.fn() };
-    guard = new RateLimiterGuard(cacheManager as any, makeConfig(3), makeJwtService());
+    guard = new RateLimiterGuard(cacheManager as Partial<typeof cacheManager>, makeConfig(3), makeJwtService());
   });
 
   function keyUsed(): string {

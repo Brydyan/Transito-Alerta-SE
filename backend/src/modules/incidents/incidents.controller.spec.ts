@@ -36,9 +36,9 @@ describe('IncidentsController', () => {
 
   it('POST / delegates to service.create with the authenticated citizen id', async () => {
     service.create.mockResolvedValue({ id: 'inc-1' });
-    const req = { user: { userId: 'user-1', permissions: [] } } as any;
+    const req = { user: { userId: 'user-1', permissions: [] } } as unknown as Express.Request;
 
-    const result = await controller.create({ title: 'x', lat: -2.2, lng: -80.8 } as any, req);
+    const result = await controller.create({ title: 'x', lat: -2.2, lng: -80.8 } as unknown as Parameters<typeof controller.create>[0], req);
 
     expect(service.create).toHaveBeenCalledWith(
       { title: 'x', lat: -2.2, lng: -80.8 },
@@ -66,9 +66,9 @@ describe('IncidentsController', () => {
 
   it('PATCH /:id/status delegates to service.updateStatus with the actor id', async () => {
     service.updateStatus.mockResolvedValue({ id: 'inc-1', status: 'in_progress' });
-    const req = { user: { userId: 'operator-1', permissions: [] } } as any;
+    const req = { user: { userId: 'operator-1', permissions: [] } } as unknown as Express.Request;
 
-    const result = await controller.updateStatus('inc-1', { status: 'in_progress' } as any, req);
+    const result = await controller.updateStatus('inc-1', { status: 'in_progress' } as unknown as Parameters<typeof controller.updateStatus>[1], req);
 
     expect(service.updateStatus).toHaveBeenCalledWith('inc-1', 'in_progress', 'operator-1');
     expect(result).toEqual({ id: 'inc-1', status: 'in_progress' });

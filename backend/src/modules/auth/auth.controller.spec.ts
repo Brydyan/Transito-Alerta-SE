@@ -54,7 +54,7 @@ describe('AuthController', () => {
         deviceUuid: 'device-abc',
         permissions: ['READ incidents', 'CREATE incidents'],
       });
-      const req = { user: { userId: 'user-1', permissions: [] } } as any;
+      const req = { user: { userId: 'user-1', permissions: [] } } as unknown as Express.Request;
 
       const result = await controller.me(req);
 

@@ -36,7 +36,7 @@ describe('RolesController', () => {
   it('POST /:id/assign delegates to service.assignRole', async () => {
     service.assignRole.mockResolvedValue({ id: 'user-1' });
 
-    const result = await controller.assign('role-1', { user_id: 'user-1' } as any);
+    const result = await controller.assign('role-1', { user_id: 'user-1' } as unknown as Parameters<typeof controller.assign>[1]);
 
     expect(service.assignRole).toHaveBeenCalledWith('user-1', 'role-1');
     expect(result).toEqual({ id: 'user-1' });
