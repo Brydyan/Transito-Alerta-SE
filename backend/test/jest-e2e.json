@@ -7,5 +7,5 @@
   },
   "testEnvironment": "node",
   "testTimeout": 120000,
-  "maxWorkers": 4
+  "maxWorkers": 1
 }
