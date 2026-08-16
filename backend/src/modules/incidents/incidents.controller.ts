@@ -22,7 +22,7 @@ import { UpdateIncidentStatusDto } from './dto/update-incident-status.dto';
 import { IncidentRow } from './incidents.repository';
 import { IncidentsService } from './incidents.service';
 
-interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request {
   user?: { userId: string; permissions: string[] };
 }
 

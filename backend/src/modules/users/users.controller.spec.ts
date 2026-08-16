@@ -1,6 +1,7 @@
 import { Reflector } from '@nestjs/core';
-import { UsersController } from './users.controller';
+import { UsersController, AuthenticatedRequest } from './users.controller';
 import { UsersService } from './users.service';
+import { UploadedFile } from './avatar-storage.service';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
 
 describe('UsersController', () => {
@@ -30,7 +31,7 @@ describe('UsersController', () => {
 
   it('GET /me delegates to service.findById with the authenticated user id', async () => {
     service.findById.mockResolvedValue({ id: 'u1' });
-    const req = { user: { userId: 'u1', permissions: [] } } as unknown as Express.Request;
+    const req = { user: { userId: 'u1', permissions: [] } } as unknown as AuthenticatedRequest;
 
     const result = await controller.me(req);
 
@@ -40,7 +41,7 @@ describe('UsersController', () => {
 
   it('PATCH /me delegates to service.updateProfile', async () => {
     service.updateProfile.mockResolvedValue({ id: 'u1', firstName: 'Ana' });
-    const req = { user: { userId: 'u1', permissions: [] } } as unknown as Express.Request;
+    const req = { user: { userId: 'u1', permissions: [] } } as unknown as AuthenticatedRequest;
 
     const result = await controller.updateProfile({ first_name: 'Ana' } as unknown as Parameters<typeof controller.updateProfile>[0], req);
 
@@ -50,8 +51,8 @@ describe('UsersController', () => {
 
   it('POST /me/avatar delegates to service.updateAvatar with the uploaded file', async () => {
     service.updateAvatar.mockResolvedValue({ id: 'u1', avatarUrl: 'https://x' });
-    const req = { user: { userId: 'u1', permissions: [] } } as unknown as Express.Request;
-    const file = { buffer: Buffer.from('x'), mimetype: 'image/png', originalname: 'a.png' } as unknown as Express.Multer.File;
+    const req = { user: { userId: 'u1', permissions: [] } } as unknown as AuthenticatedRequest;
+    const file = { buffer: Buffer.from('x'), mimetype: 'image/png', originalname: 'a.png' } as unknown as UploadedFile;
 
     const result = await controller.updateAvatar(file, req);
 

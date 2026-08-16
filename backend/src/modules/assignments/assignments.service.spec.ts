@@ -1,5 +1,9 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { Repository } from 'typeorm';
+import type { Redis } from 'ioredis';
 import { AssignmentsService } from './assignments.service';
+import { AssignmentEntity } from '../../entities/assignment.entity';
 
 describe('AssignmentsService', () => {
   let repo: {
@@ -23,7 +27,7 @@ describe('AssignmentsService', () => {
     };
     eventEmitter = { emit: jest.fn() };
     redis = { xadd: jest.fn() };
-    service = new AssignmentsService(repo as Partial<typeof repo>, eventEmitter as Partial<typeof eventEmitter>, redis as Partial<typeof redis>);
+    service = new AssignmentsService(repo as unknown as jest.Mocked<Repository<AssignmentEntity>>, eventEmitter as unknown as jest.Mocked<EventEmitter2>, redis as unknown as jest.Mocked<Redis>);
   });
 
   describe('assign', () => {

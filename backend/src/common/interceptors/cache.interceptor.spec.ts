@@ -1,6 +1,7 @@
 import { of } from 'rxjs';
 import { CallHandler, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import type { Cache } from 'cache-manager';
 import { CACHEABLE_KEY, ResponseCacheInterceptor } from './cache.interceptor';
 
 function makeContext(path: string): ExecutionContext {
@@ -22,7 +23,7 @@ describe('ResponseCacheInterceptor', () => {
 
   it('passes through to the handler (no cache hit) when no @Cacheable metadata is set', (done) => {
     jest.spyOn(reflector, 'get').mockReturnValue(undefined);
-    const interceptor = new ResponseCacheInterceptor(cacheManager as Partial<typeof cacheManager>, reflector);
+    const interceptor = new ResponseCacheInterceptor(cacheManager as unknown as jest.Mocked<Cache>, reflector);
     const next: CallHandler = { handle: () => of({ value: 'fresh' }) };
 
     interceptor.intercept(makeContext('/api/incidents'), next).subscribe((result) => {
@@ -35,7 +36,7 @@ describe('ResponseCacheInterceptor', () => {
   it('returns the cached value directly when a cache hit exists for a @Cacheable route', (done) => {
     jest.spyOn(reflector, 'get').mockReturnValue({ ttlSeconds: 30 });
     cacheManager.get.mockResolvedValue({ value: 'cached' });
-    const interceptor = new ResponseCacheInterceptor(cacheManager as Partial<typeof cacheManager>, reflector);
+    const interceptor = new ResponseCacheInterceptor(cacheManager as unknown as jest.Mocked<Cache>, reflector);
     const next: CallHandler = { handle: () => of({ value: 'fresh' }) };
 
     interceptor.intercept(makeContext('/api/incidents'), next).subscribe((result) => {
@@ -47,7 +48,7 @@ describe('ResponseCacheInterceptor', () => {
   it('stores the fresh handler response in cache on a miss, using the configured ttl', (done) => {
     jest.spyOn(reflector, 'get').mockReturnValue({ ttlSeconds: 30 });
     cacheManager.get.mockResolvedValue(undefined);
-    const interceptor = new ResponseCacheInterceptor(cacheManager as Partial<typeof cacheManager>, reflector);
+    const interceptor = new ResponseCacheInterceptor(cacheManager as unknown as jest.Mocked<Cache>, reflector);
     const next: CallHandler = { handle: () => of({ value: 'fresh' }) };
 
     interceptor.intercept(makeContext('/api/incidents'), next).subscribe((result) => {

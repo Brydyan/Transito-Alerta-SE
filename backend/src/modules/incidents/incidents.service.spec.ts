@@ -1,4 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { Cache } from 'cache-manager';
+import type { Redis } from 'ioredis';
 import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService, INCIDENTS_STREAM_KEY } from './incidents.service';
 import { GeofencingService } from '../geofencing/geofencing.service';
@@ -49,9 +52,9 @@ describe('IncidentsService', () => {
     service = new IncidentsService(
       repo as unknown as IncidentsRepository,
       geofencing as unknown as GeofencingService,
-      eventEmitter as Partial<typeof eventEmitter>,
-      redis as Partial<typeof redis>,
-      cache as Partial<typeof cache>,
+      eventEmitter as unknown as jest.Mocked<EventEmitter2>,
+      redis as unknown as jest.Mocked<Redis>,
+      cache as unknown as jest.Mocked<Cache>,
     );
   });
 

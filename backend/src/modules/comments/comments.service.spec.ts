@@ -1,4 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { Repository } from 'typeorm';
 import { CommentsService, sanitizeContent } from './comments.service';
 import { CommentEntity } from '../../entities/comment.entity';
 
@@ -47,7 +49,7 @@ describe('CommentsService', () => {
       delete: jest.fn(),
     };
     eventEmitter = { emit: jest.fn() };
-    service = new CommentsService(repo as Partial<typeof repo>, eventEmitter as Partial<typeof eventEmitter>);
+    service = new CommentsService(repo as unknown as jest.Mocked<Repository<CommentEntity>>, eventEmitter as unknown as jest.Mocked<EventEmitter2>);
   });
 
   describe('create', () => {

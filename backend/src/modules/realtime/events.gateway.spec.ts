@@ -1,3 +1,4 @@
+import { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { EventsGateway } from './events.gateway';
 import { AuthService } from '../auth/auth.service';
 
@@ -21,7 +22,7 @@ describe('EventsGateway', () => {
     authService = { validateToken: jest.fn(), getPermissionsByUserId: jest.fn() };
     gateway = new EventsGateway(authService as unknown as AuthService);
     server = { to: jest.fn().mockReturnThis(), emit: jest.fn() };
-    gateway.server = server as Partial<typeof server>;
+    gateway.server = server as unknown as jest.Mocked<Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>;
   });
 
   describe('handleConnection', () => {
@@ -30,7 +31,7 @@ describe('EventsGateway', () => {
       authService.getPermissionsByUserId.mockResolvedValue(['READ incidents']);
       const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
 
-      await gateway.handleConnection(socket as Partial<typeof socket>);
+      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
 
       expect(authService.validateToken).toHaveBeenCalledWith('valid.jwt');
       expect(socket.join).toHaveBeenCalledWith('user:user-1');
@@ -43,7 +44,7 @@ describe('EventsGateway', () => {
       });
       const socket = makeSocket({ handshake: { auth: { token: 'garbage' }, query: {} } });
 
-      await gateway.handleConnection(socket as Partial<typeof socket>);
+      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
 
       expect(socket.disconnect).toHaveBeenCalled();
       expect(socket.join).not.toHaveBeenCalled();
@@ -54,7 +55,7 @@ describe('EventsGateway', () => {
     it('allows joining a geo/org/incident room when the socket holds READ incidents', async () => {
       const socket = makeSocket({ data: { userId: 'user-1', permissions: ['READ incidents'] } });
 
-      const result = await gateway.handleJoin(socket as Partial<typeof socket>, { room: 'geo:zone-1' });
+      const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>, { room: 'geo:zone-1' });
 
       expect(socket.join).toHaveBeenCalledWith('geo:zone-1');
       expect(result).toEqual({ joined: true, room: 'geo:zone-1' });
@@ -63,7 +64,7 @@ describe('EventsGateway', () => {
     it('denies joining when the socket lacks READ incidents', async () => {
       const socket = makeSocket({ data: { userId: 'user-1', permissions: [] } });
 
-      const result = await gateway.handleJoin(socket as Partial<typeof socket>, { room: 'geo:zone-1' });
+      const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>, { room: 'geo:zone-1' });
 
       expect(socket.join).not.toHaveBeenCalled();
       expect(result).toEqual({ joined: false, room: 'geo:zone-1' });
@@ -72,7 +73,7 @@ describe('EventsGateway', () => {
     it('rejects a room name outside the geo:/org:/incident: namespace (no role-based rooms)', async () => {
       const socket = makeSocket({ data: { userId: 'user-1', permissions: ['READ incidents'] } });
 
-      const result = await gateway.handleJoin(socket as Partial<typeof socket>, { room: 'admins' });
+      const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>, { room: 'admins' });
 
       expect(socket.join).not.toHaveBeenCalled();
       expect(result).toEqual({ joined: false, room: 'admins' });
@@ -106,7 +107,7 @@ describe('EventsGateway — permission identity (regression)', () => {
   beforeEach(() => {
     authService = { validateToken: jest.fn(), getPermissionsByUserId: jest.fn() };
     gateway = new EventsGateway(authService as unknown as AuthService);
-    gateway.server = { to: jest.fn().mockReturnThis(), emit: jest.fn() } as Partial<{ to: jest.Mock; emit: jest.Mock }>;
+    gateway.server = { to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as jest.Mocked<Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>;
   });
 
   // The JWT `sub` claim is user.id. Passing it to getPermissions(), which
@@ -118,7 +119,7 @@ describe('EventsGateway — permission identity (regression)', () => {
     authService.getPermissionsByUserId.mockResolvedValue(['READ incidents']);
     const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
 
-    await gateway.handleConnection(socket as Partial<typeof socket>);
+    await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
 
     expect(authService.getPermissionsByUserId).toHaveBeenCalledWith('user-1');
     expect(socket.data.permissions).toEqual(['READ incidents']);
@@ -128,9 +129,9 @@ describe('EventsGateway — permission identity (regression)', () => {
     authService.validateToken.mockReturnValue({ sub: 'user-1', typ: 'access', jti: 'x', pv: 1 });
     authService.getPermissionsByUserId.mockResolvedValue(['READ incidents']);
     const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
-    await gateway.handleConnection(socket as Partial<typeof socket>);
+    await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
 
-    const result = await gateway.handleJoin(socket as Partial<typeof socket>, { room: 'geo:zone-1' });
+    const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>, { room: 'geo:zone-1' });
 
     expect(result).toEqual({ joined: true, room: 'geo:zone-1' });
     expect(socket.join).toHaveBeenCalledWith('geo:zone-1');

@@ -1,5 +1,5 @@
 import { Reflector } from '@nestjs/core';
-import { CommentsController } from './comments.controller';
+import { CommentsController, AuthenticatedRequest } from './comments.controller';
 import { CommentsService } from './comments.service';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
 
@@ -30,7 +30,7 @@ describe('CommentsController', () => {
 
   it('POST / delegates to service.create with the authenticated user id', async () => {
     service.create.mockResolvedValue({ id: 'c-1' });
-    const req = { user: { userId: 'user-1', permissions: [] } } as unknown as Express.Request;
+    const req = { user: { userId: 'user-1', permissions: [] } } as unknown as AuthenticatedRequest;
 
     const result = await controller.create({ incident_id: 'inc-1', content: 'hi' } as unknown as Parameters<typeof controller.create>[0], req);
 
@@ -50,7 +50,7 @@ describe('CommentsController', () => {
   });
 
   it('DELETE /:id delegates to service.delete with the requester id', async () => {
-    const req = { user: { userId: 'user-1', permissions: [] } } as unknown as Express.Request;
+    const req = { user: { userId: 'user-1', permissions: [] } } as unknown as AuthenticatedRequest;
 
     await controller.remove('c-1', req);
 

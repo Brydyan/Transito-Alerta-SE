@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
-
+import type { Redis } from 'ioredis';
 import { MailOutboxConsumer, MAIL_OUTBOX_CONSUMER_GROUP } from './mail-outbox.consumer';
 import { MAIL_DEAD_STREAM_KEY, MAIL_OUTBOX_STREAM_KEY, MailService } from './mail.service';
 
@@ -47,7 +47,7 @@ describe('MailOutboxConsumer', () => {
       get: jest.fn().mockReturnValue({ sweepIntervalMs: 10_000, claimIdleMs: 30_000, maxAttempts: 3 }),
     };
     consumer = new MailOutboxConsumer(
-      redis as Partial<typeof redis>,
+      redis as unknown as jest.Mocked<Redis>,
       mailService as unknown as MailService,
       config as unknown as ConfigService,
     );

@@ -1,8 +1,10 @@
 import { Logger } from '@nestjs/common';
-
+import type { Repository } from 'typeorm';
+import type { Redis } from 'ioredis';
 import { IncidentMailListener, INCIDENT_MAIL_CONSUMER_GROUP } from './incident-mail.listener';
 import { MailService } from './mail.service';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
+import { UserEntity } from '../../entities/user.entity';
 
 function streamResponse(type: string, data: unknown, entryId = '1-0'): [string, [string, string[]][]][] {
   return [[INCIDENTS_STREAM_KEY, [[entryId, ['type', type, 'data', JSON.stringify(data)]]]]];
@@ -21,10 +23,10 @@ describe('IncidentMailListener', () => {
     userRepo = { findOne: jest.fn() };
     dataSource = { query: jest.fn().mockResolvedValue([]) };
     listener = new IncidentMailListener(
-      redis as Partial<typeof redis>,
+      redis as unknown as jest.Mocked<Redis>,
       mailService as unknown as MailService,
-      userRepo as Partial<typeof userRepo>,
-      dataSource as Partial<typeof dataSource>,
+      userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
+      dataSource as unknown as any,
     );
   });
 

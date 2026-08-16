@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import {
   formatPermissionString,
   inferResourceFromPath,
+  PermissionAction,
   REQUIRE_PERMISSION_KEY,
   RequiredPermission,
 } from '../decorators/require-permission.decorator';
@@ -19,7 +20,7 @@ import {
  */
 export function hasPermission(
   userPermissions: string[],
-  action: string,
+  action: PermissionAction,
   resource: string,
 ): boolean {
   return userPermissions.includes(formatPermissionString(action, resource));

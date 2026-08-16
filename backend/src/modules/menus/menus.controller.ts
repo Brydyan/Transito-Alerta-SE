@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MenuEntry } from './menu-map';
 import { MenusService } from './menus.service';
 
-interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request {
   user: { userId: string; permissions: string[] };
 }
 

@@ -19,7 +19,7 @@ import { CommentEntity } from '../../entities/comment.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { CommentsService } from './comments.service';
 
-interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request {
   user?: { userId: string; permissions: string[] };
 }
 

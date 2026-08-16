@@ -1,4 +1,4 @@
-import { AuthController } from './auth.controller';
+import { AuthController, AuthenticatedRequest } from './auth.controller';
 import { AuthService } from './auth.service';
 
 describe('AuthController', () => {
@@ -54,7 +54,7 @@ describe('AuthController', () => {
         deviceUuid: 'device-abc',
         permissions: ['READ incidents', 'CREATE incidents'],
       });
-      const req = { user: { userId: 'user-1', permissions: [] } } as unknown as Express.Request;
+      const req = { user: { userId: 'user-1', permissions: [] } } as unknown as AuthenticatedRequest;
 
       const result = await controller.me(req);
 
