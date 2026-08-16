@@ -12,6 +12,7 @@ import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { MenusModule } from './modules/menus/menus.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 
 @Module({
@@ -26,6 +27,7 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
     RealtimeModule,
     RolesModule,
     PermissionsModule,
+    MenusModule,
   ],
   controllers: [AppController],
   providers: [

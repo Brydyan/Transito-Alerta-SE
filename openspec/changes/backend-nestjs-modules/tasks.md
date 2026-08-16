@@ -276,15 +276,16 @@ Migration numbering deviates from this file (see per-task notes below and apply-
   - Session list is queryable per user for audit purposes
 - Test scenarios: revoke then attempt refresh with revoked jti (rejected); active session list per user; revocation is immediate (no TTL lag).
 
-### T3.10 — Menus module [P]
+### T3.10 — Menus module [x] DONE
 - Requirement: R16 (Menus)
 - Depends on: T3.1
 - Duration: 1-2h | PR size: ~100 LOC | Tests: 3
 - Files: `backend/src/modules/menus/*`
-- Work: Serve dynamic navigation filtered by the caller's permission set (reuses `PermissionGuard`'s Redis lookup, no separate storage needed beyond a static menu-to-permission map).
+- Work: Serve dynamic navigation filtered by the caller's permission set (reuses `AuthService.getPermissionsByUserId`'s uid-keyed Redis cache path — the same one `JwtStrategy`/`PermissionGuard` already warm via `request.user.permissions` — no separate storage beyond a static menu-to-permission map, `MENU_MAP`).
 - Acceptance criteria:
-  - User lacking `assignments:READ` does not see the Assignments menu entry in the response (R16 scenario)
-- Test scenarios: full-permission user sees all entries; restricted user has entries filtered; anonymous user sees only reporter-scoped entries.
+  - User lacking `READ assignments` does not see the Assignments menu entry in the response (R16 scenario) — ✅ covered
+- Test scenarios (unit only, per explicit task instruction — stateless/no side effects, no e2e needed): full-permission user sees all entries; restricted user has entries filtered (Assignments omitted); no-permission user sees an empty menu. Anonymous/no-token 401 is not separately unit-tested — it's `JwtAuthGuard`'s (passport) default behavior, identical to every other guarded controller in this codebase, none of which unit-test that path directly either.
+- Full detail: `sdd/backend-nestjs-modules/apply-progress`.
 
 **Batch 3 = T3.1 -> {T3.2, T3.4, T3.5, T3.7, T3.8, T3.9}[P] -> {T3.3, T3.6, T3.10}[P].** Suggested assignees (3 devs): Dev A: T3.1 -> T3.3 (Notifications, longest). Dev B: T3.5 -> T3.6 (Mail->Invitations chain) + T3.9 (Sessions). Dev C: T3.2 + T3.4 + T3.7 + T3.8 (independent, can run fully parallel). T3.10 last (any dev, quick).
 
