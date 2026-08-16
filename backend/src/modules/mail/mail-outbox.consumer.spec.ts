@@ -16,12 +16,6 @@ function entryFields(overrides: Partial<Record<string, string>> = {}): string[] 
   return Object.entries(map).flat();
 }
 
-function makeBusygroupError(): Error {
-  // Build the error message dynamically so Jest doesn't parse the literal "BUSYGROUP"
-  const msg = 'BUSY' + 'GROUP' + ' Consumer Group name already exists';
-  return new Error(msg);
-}
-
 describe('MailOutboxConsumer', () => {
   let redis: {
     xgroup: jest.Mock;

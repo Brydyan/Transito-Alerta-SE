@@ -55,12 +55,12 @@ describe('Mail module e2e (T3.5)', () => {
     // test. This ensures pendingCount() starts at 0 for each test.
     try {
       await env.redisStreams.xgroup('DESTROY', MAIL_OUTBOX_STREAM_KEY, MAIL_CONSUMER_GROUP);
-    } catch (err) {
+    } catch {
       // Group may not exist yet or already destroyed
     }
     try {
       await env.redisStreams.xgroup('CREATE', MAIL_OUTBOX_STREAM_KEY, MAIL_CONSUMER_GROUP, '$', 'MKSTREAM');
-    } catch (err) {
+    } catch {
       // If it fails, the MailOutboxConsumer will create it on startup
     }
   });
