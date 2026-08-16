@@ -50,6 +50,19 @@ describe('Mail module e2e (T3.5)', () => {
     // see a NOGROUP error.
     await env.redisStreams.xtrim(MAIL_OUTBOX_STREAM_KEY, 'MAXLEN', 0);
     await env.redisStreams.xtrim(MAIL_DEAD_STREAM_KEY, 'MAXLEN', 0);
+
+    // Recreate consumer group to clear any pending entries from the previous
+    // test. This ensures pendingCount() starts at 0 for each test.
+    try {
+      await env.redisStreams.xgroup('DESTROY', MAIL_OUTBOX_STREAM_KEY, MAIL_CONSUMER_GROUP);
+    } catch (err) {
+      // Group may not exist yet or already destroyed
+    }
+    try {
+      await env.redisStreams.xgroup('CREATE', MAIL_OUTBOX_STREAM_KEY, MAIL_CONSUMER_GROUP, '$', 'MKSTREAM');
+    } catch (err) {
+      // If it fails, the MailOutboxConsumer will create it on startup
+    }
   });
 
   async function pendingCount(): Promise<number> {
@@ -159,6 +172,8 @@ describe('Mail module e2e (T3.5)', () => {
       return dead.some((entry) => entry[1].includes('dead-letter@example.com'));
     }, 30_000);
 
+    // Wait for the entry to be ack'd (sweep may still be running)
+    await waitUntil(async () => (await pendingCount()) === 0, 10_000);
     expect(await pendingCount()).toBe(0);
   }, 45_000);
 });

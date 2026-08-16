@@ -32,6 +32,7 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MailOutboxConsumer.name);
   readonly consumerName = `mail-consumer-${process.pid}-${Math.random().toString(36).slice(2)}`;
   private running = false;
+  private sweeping = false;
   private sweepTimer?: ReturnType<typeof setInterval>;
 
   constructor(
@@ -181,6 +182,19 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
    * this consumer and `processEntry` retries the send.
    */
   async sweep(): Promise<void> {
+    // Early exit if already sweeping — prevents parallel sweep execution
+    // (setInterval fires every 300ms but sweep may take >300ms).
+    if (this.sweeping) return;
+
+    this.sweeping = true;
+    try {
+      await this.sweepImpl();
+    } finally {
+      this.sweeping = false;
+    }
+  }
+
+  private async sweepImpl(): Promise<void> {
     const mailConfig = this.configService.get<MailConfig>('mail')!;
     let pending: XPendingRow[];
     try {
@@ -241,32 +255,51 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
   }
 
   private async deadLetterById(entryId: string): Promise<void> {
-    this.logger.log(`[deadLetterById] Fetching ${entryId} from stream for dead lettering`);
+    this.logger.log(`[deadLetterById] Processing ${entryId} for dead letter`);
     const range = (await this.redis.xrange(MAIL_OUTBOX_STREAM_KEY, entryId, entryId)) as unknown as XClaimEntry[];
-    if (range.length > 0) {
-      const [, fields] = range[0];
-      this.logger.error(`[deadLetterById] Entry ${entryId} exhausted retries, moved to ${MAIL_DEAD_STREAM_KEY}`);
-      await this.redis.xadd(MAIL_DEAD_STREAM_KEY, '*', ...fields);
-    } else {
-      this.logger.warn(`[deadLetterById] Entry ${entryId} not found in stream (already removed?)`);
+    if (range.length === 0) {
+      this.logger.warn(`[deadLetterById] ${entryId} not found in stream (already removed?)`);
+      return;
     }
-    // XACK may fail if connection is closing or if entry was already removed
-    // from stream by another consumer/process. Entry is already in dead letter,
-    // so best-effort ACK (don't fail if entry not found).
+
+    const [, fields] = range[0];
+    this.logger.error(`[deadLetterById] ${entryId} exhausted retries, moving to ${MAIL_DEAD_STREAM_KEY}`);
+
+    // Move to dead letter (XADD)
     try {
-      await this.redis.xack(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, entryId);
+      await this.redis.xadd(MAIL_DEAD_STREAM_KEY, '*', ...fields);
+    } catch (err) {
+      this.logger.error(`[deadLetterById] XADD failed for ${entryId}: ${(err as Error).message}`);
+      return;
+    }
+
+    // Remove from origin stream (XDEL). This ensures XPENDING won't see it
+    // again when it looks at which entries exist, even if XACK below fails.
+    try {
+      const delResult = await this.redis.xdel(MAIL_OUTBOX_STREAM_KEY, entryId);
+      this.logger.error(`[deadLetterById] XDEL returned ${delResult} for ${entryId}`);
+    } catch (err) {
+      this.logger.error(`[deadLetterById] XDEL failed for ${entryId}: ${(err as Error).message}`);
+    }
+
+    // XACK to clear from consumer group pending list. Entry is already in
+    // dead letter, so best-effort (don't fail if this returns 0 or throws).
+    try {
+      const ackResult = await this.redis.xack(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, entryId);
+      this.logger.error(`[deadLetterById] XACK returned ${ackResult} for ${entryId}`);
     } catch (err) {
       const errMsg = (err as Error).message;
-      // If entry was already removed from stream, XACK returns 0 (no-op).
-      // This is not an error, just means entry is gone but still pending in group.
-      // Accept this silently. Only re-throw for actual connection errors.
-      if (errMsg?.includes('NOGROUP') || errMsg?.includes('Connection is closed')) {
-        if (this.running) {
-          throw err;
-        }
+      // Connection closed during shutdown: expected, don't fail.
+      if (errMsg?.includes('Connection is closed')) {
+        return;
       }
-      // For other errors (entry not found, etc), log but don't fail sweep.
-      this.logger.warn(`[deadLetterById] XACK failed for ${entryId}: ${errMsg}`);
+      // NOGROUP during shutdown: expected, don't re-throw.
+      if (errMsg?.includes('NOGROUP')) {
+        if (!this.running) return;
+        throw err;
+      }
+      // Other errors: log but don't fail.
+      this.logger.warn(`[deadLetterById] XACK threw for ${entryId}: ${errMsg}`);
     }
   }
 }

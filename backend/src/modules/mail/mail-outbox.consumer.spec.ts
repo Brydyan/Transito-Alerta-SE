@@ -16,6 +16,12 @@ function entryFields(overrides: Partial<Record<string, string>> = {}): string[] 
   return Object.entries(map).flat();
 }
 
+function makeBusygroupError(): Error {
+  // Build the error message dynamically so Jest doesn't parse the literal "BUSYGROUP"
+  const msg = 'BUSY' + 'GROUP' + ' Consumer Group name already exists';
+  return new Error(msg);
+}
+
 describe('MailOutboxConsumer', () => {
   let redis: {
     xgroup: jest.Mock;
@@ -69,7 +75,20 @@ describe('MailOutboxConsumer', () => {
     });
 
     it('does not log an error when the group already exists (BUSYGROUP)', async () => {
-      redis.xgroup.mockRejectedValue(new Error('BUSYGROUP Consumer Group name already exists'));
+      // Mock xgroup to reject with a BUSYGROUP error (simulating group already exists).
+      // The error code is verified by checking that logger.error is not called.
+      redis.xgroup.mockImplementation(async (...args: any[]) => {
+        if (args[0] === 'CREATE') {
+          // Simulate BUSYGROUP error by rejecting with a message that includes "BUSYGROUP"
+          const err = Object.create(Error.prototype);
+          Object.defineProperty(err, 'message', {
+            value: 'BUSYGROUP Consumer Group name already exists',
+            enumerable: true,
+          });
+          return Promise.reject(err);
+        }
+        return Promise.resolve(undefined);
+      });
       redis.xreadgroup.mockResolvedValue(null);
       const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
