@@ -46,4 +46,4 @@ Source: `sdd/t3.8-locations/spec` (obs #415), `sdd/t3.8-locations/design` (obs #
 
 ## Implementation Order
 
-Sequential, each phase gates the next: 1.1-1.3 (schema/entity) → 2.1-2.3 (geofencing cache additions, TDD) → 3.1-3.4 (repository, TDD) → 4.1-4.3 (service, TDD) → 5.1-5.8 (DTOs/module/controller, TDD for controller) → 6.1 (e2e, all layers wired). Total 25 tasks. Phase 2 is independent of Phase 1 (no schema dependency) and could run in parallel with 1.1-1.3, but is sequenced after for review simplicity; Phases 3-6 are strictly sequential.
+Sequential, each phase gates the next: 1.1-1.3 (schema/entity) → 2.1-2.3 (geofencing cache additions, TDD) → 3.1-3.4 (repository, TDD) → 4.1-4.3 (service, TDD) → 5.1-5.8 (DTOs/module/controller, TDD for controller) → 6.1 (e2e, all layers wired). Total 22 tasks. Phase 2 is independent of Phase 1 (no schema dependency) and could run in parallel with 1.1-1.3, but is sequenced after for review simplicity; Phases 3-6 are strictly sequential.
