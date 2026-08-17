@@ -1,7 +1,10 @@
 import { Reflector } from '@nestjs/core';
-import { CommentsController, AuthenticatedRequest } from './comments.controller';
+import { CommentsController } from './comments.controller';
 import { CommentsService } from './comments.service';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
+import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+
+const GLOBAL_SCOPE = { kind: 'global' as const };
 
 describe('CommentsController', () => {
   let service: {
@@ -30,7 +33,9 @@ describe('CommentsController', () => {
 
   it('POST / delegates to service.create with the authenticated user id', async () => {
     service.create.mockResolvedValue({ id: 'c-1' });
-    const req = { user: { userId: 'user-1', permissions: [] } } as unknown as AuthenticatedRequest;
+    const req = {
+      user: { userId: 'user-1', permissions: [], scope: GLOBAL_SCOPE },
+    } as unknown as AuthenticatedRequest;
 
     const result = await controller.create({ incident_id: 'inc-1', content: 'hi' } as unknown as Parameters<typeof controller.create>[0], req);
 
@@ -41,16 +46,19 @@ describe('CommentsController', () => {
     expect(result).toEqual({ id: 'c-1' });
   });
 
-  it('GET /incident/:incidentId delegates to service.findByIncident', async () => {
+  it('GET /incident/:incidentId delegates to service.findByIncident with the caller scope', async () => {
     service.findByIncident.mockResolvedValue([]);
+    const req = {
+      user: { userId: 'user-1', permissions: [], scope: GLOBAL_SCOPE },
+    } as unknown as AuthenticatedRequest;
 
-    await controller.findByIncident('inc-1');
+    await controller.findByIncident('inc-1', req);
 
-    expect(service.findByIncident).toHaveBeenCalledWith('inc-1');
+    expect(service.findByIncident).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE);
   });
 
   it('DELETE /:id delegates to service.delete with the requester id', async () => {
-    const req = { user: { userId: 'user-1', permissions: [] } } as unknown as AuthenticatedRequest;
+    const req = { user: { userId: 'user-1', permissions: [], scope: GLOBAL_SCOPE } } as unknown as AuthenticatedRequest;
 
     await controller.remove('c-1', req);
 

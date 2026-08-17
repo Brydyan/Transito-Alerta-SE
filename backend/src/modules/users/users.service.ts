@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindManyOptions, Repository } from 'typeorm';
 
 import { UserEntity } from '../../entities/user.entity';
 import { UserSessionEntity } from '../../entities/user-session.entity';
+import { RoleEntity } from '../../entities/role.entity';
+import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
+import { assertCanManage } from '../../common/authz/assert-can-manage';
+import { AuthService } from '../auth/auth.service';
 import { AvatarStorageService, UploadedFile } from './avatar-storage.service';
 
 export const DEFAULT_PAGE_SIZE = 20;
@@ -27,6 +31,8 @@ export class UsersService {
     @InjectRepository(UserSessionEntity)
     private readonly sessionRepo: Repository<UserSessionEntity>,
     private readonly avatarStorage: AvatarStorageService,
+    @InjectRepository(RoleEntity) private readonly roleRepo: Repository<RoleEntity>,
+    private readonly authService: AuthService,
   ) {}
 
   async findById(id: string): Promise<UserEntity> {
@@ -60,12 +66,45 @@ export class UsersService {
     return this.findById(id);
   }
 
-  async list(page = 1, limit = DEFAULT_PAGE_SIZE): Promise<{ items: UserEntity[]; total: number }> {
+  /**
+   * `scope` is a REQUIRED parameter (T3.2 design D3, Data Visibility
+   * table) — never optional, never defaulted. `callerId` is only read for
+   * `public` scope ("self only"); every other branch ignores it.
+   */
+  async list(
+    page = 1,
+    limit = DEFAULT_PAGE_SIZE,
+    scope: SubjectScope,
+    callerId?: string,
+  ): Promise<{ items: UserEntity[]; total: number }> {
     const take = Math.min(limit, MAX_PAGE_SIZE);
     const safePage = Math.max(page, 1);
     const skip = (safePage - 1) * take;
 
-    const [items, total] = await this.userRepo.findAndCount({ take, skip });
+    switch (scope.kind) {
+      case 'global':
+        return this.findAndCount({ take, skip });
+      case 'org':
+      case 'org_assigned':
+        return this.findAndCount({ take, skip, where: { organizationId: scope.organizationId } });
+      case 'public': {
+        if (!callerId) {
+          return { items: [], total: 0 };
+        }
+        const self = await this.userRepo.findOne({ where: { id: callerId } });
+        return self ? { items: [self], total: 1 } : { items: [], total: 0 };
+      }
+      case 'deny':
+        return { items: [], total: 0 };
+    }
+  }
+
+  private async findAndCount(options: {
+    take: number;
+    skip: number;
+    where?: { organizationId: string };
+  }): Promise<{ items: UserEntity[]; total: number }> {
+    const [items, total] = await this.userRepo.findAndCount(options as FindManyOptions<UserEntity>);
     return { items, total };
   }
 
@@ -87,5 +126,41 @@ export class UsersService {
     }
     const session = this.sessionRepo.create({ userId, deviceUuid });
     await this.sessionRepo.save(session);
+  }
+
+  /**
+   * `PATCH /api/users/:id/organization` (T3.2 design D12). Loads the
+   * target `{id, organizationId, roleName}` via a LEFT JOIN-equivalent
+   * (role looked up by `roleId`), then `assertCanManage` (D9/D10/D11 —
+   * 404 invisible, 403 out-ranked) BEFORE the write. `organization_id:
+   * null` is accepted (removes the user from their org, D1 — falls to
+   * `deny`, never `global`). Invalidates the target's permission cache
+   * (design "Cache invalidation") — `permission_version` is deliberately
+   * NOT bumped (D7: an org move does not change the permission set).
+   */
+  async updateOrganization(
+    actor: AuthContext,
+    targetId: string,
+    organizationId: string | null,
+  ): Promise<UserEntity> {
+    const target = await this.userRepo.findOne({ where: { id: targetId } });
+    if (!target) {
+      throw new NotFoundException(`User ${targetId} not found`);
+    }
+
+    const role = target.roleId
+      ? await this.roleRepo.findOne({ where: { id: target.roleId } })
+      : null;
+
+    assertCanManage(actor, {
+      id: target.id,
+      organizationId: target.organizationId,
+      roleName: role?.name ?? null,
+    });
+
+    await this.userRepo.update(targetId, { organizationId });
+    await this.authService.invalidatePermissionCache(target.id, target.deviceUuid);
+
+    return this.findById(targetId);
   }
 }

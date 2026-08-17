@@ -6,6 +6,8 @@ import { Repository } from 'typeorm';
 
 import { REDIS_CLIENT } from '../../core/core.module';
 import { AssignmentEntity } from '../../entities/assignment.entity';
+import { SubjectScope } from '../../common/authz/subject-scope';
+import { IncidentsRepository } from '../incidents/incidents.repository';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
 
 /**
@@ -20,6 +22,7 @@ export class AssignmentsService {
     private readonly assignmentRepo: Repository<AssignmentEntity>,
     private readonly eventEmitter: EventEmitter2,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly incidentsRepository: IncidentsRepository,
   ) {}
 
   async assign(incidentId: string, operatorId: string, role = 'primary'): Promise<AssignmentEntity> {
@@ -54,7 +57,17 @@ export class AssignmentsService {
     await this.assignmentRepo.delete(assignmentId);
   }
 
-  list(incidentId: string): Promise<AssignmentEntity[]> {
+  /**
+   * Resolves the PARENT incident under the caller's scope first (T3.2
+   * design D3 table) — assignments do not scope their own rows. 404 when
+   * the parent is invisible, even though the caller holds READ
+   * assignments.
+   */
+  async list(incidentId: string, scope: SubjectScope): Promise<AssignmentEntity[]> {
+    const incident = await this.incidentsRepository.findOne(incidentId, scope);
+    if (!incident) {
+      throw new NotFoundException(`Incident ${incidentId} not found`);
+    }
     return this.assignmentRepo.find({ where: { incidentId } });
   }
 }

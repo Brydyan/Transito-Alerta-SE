@@ -3,13 +3,16 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AuthConfig } from '../../config/auth.config';
+import { AuthContext } from '../../common/authz/subject-scope';
 import { AuthService } from './auth.service';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 
 /**
  * JwtStrategy — extracts+verifies the access token from the
- * Authorization: Bearer header and attaches { sub, permissions } to
- * request.user for downstream guards (PermissionGuard).
+ * Authorization: Bearer header and attaches the full `AuthContext`
+ * (permissions + organizationId + roleName + scope, T3.2 design) to
+ * `request.user` for downstream guards (PermissionGuard) and every
+ * scope-aware controller/service.
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -25,12 +28,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: JwtPayload) {
+  async validate(payload: JwtPayload): Promise<AuthContext> {
     if (payload.typ !== 'access') {
       throw new UnauthorizedException('Token is not an access token');
     }
     // `sub` is user.id — resolve by id, not by device_uuid.
-    const permissions = await this.authService.getPermissionsByUserId(payload.sub);
-    return { userId: payload.sub, permissions };
+    return this.authService.getAuthContextByUserId(payload.sub);
   }
 }

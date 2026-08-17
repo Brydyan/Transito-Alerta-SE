@@ -205,7 +205,10 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
       .query({ zone_id: SANTA_ELENA_ZONE_ID, status: 'pending' })
       .set(auth)
       .expect(200);
-    const pendingListKey = `incidents:list:${SANTA_ELENA_ZONE_ID}:pending`;
+    // T3.2 — list cache key now carries a scope discriminator (design
+    // "Scope-blind list cache" risk mitigation); this operator has no
+    // seeded role (role_id IS NULL, D2) -> `public` scope -> `:p`.
+    const pendingListKey = `incidents:list:${SANTA_ELENA_ZONE_ID}:pending:p`;
     expect(await env.redisCache.get(pendingListKey)).not.toBeNull();
 
     await request(env.httpServer)
@@ -220,7 +223,7 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
       .query({ zone_id: SANTA_ELENA_ZONE_ID, status: 'in_progress' })
       .set(auth)
       .expect(200);
-    const inProgressListKey = `incidents:list:${SANTA_ELENA_ZONE_ID}:in_progress`;
+    const inProgressListKey = `incidents:list:${SANTA_ELENA_ZONE_ID}:in_progress:p`;
     expect(await env.redisCache.get(inProgressListKey)).not.toBeNull();
 
     const resolved = await request(env.httpServer)

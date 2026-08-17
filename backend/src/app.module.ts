@@ -17,6 +17,8 @@ import { MailModule } from './modules/mail/mail.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { IncidentCategoriesModule } from './modules/incident-categories/incident-categories.module';
 import { GeoZonesModule } from './modules/geo-zones/geo-zones.module';
+import { StatusHistoryModule } from './modules/status-history/status-history.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 
 @Module({
@@ -24,6 +26,7 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
     CoreModule,
     AuthModule,
     GeofencingModule,
+    OrganizationsModule,
     IncidentsModule,
     CommentsModule,
     UsersModule,
@@ -36,6 +39,7 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
     NotificationsModule,
     IncidentCategoriesModule,
     GeoZonesModule,
+    StatusHistoryModule,
   ],
   controllers: [AppController],
   providers: [

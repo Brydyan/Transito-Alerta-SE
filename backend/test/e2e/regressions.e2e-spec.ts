@@ -249,7 +249,11 @@ describe('E2E regressions — one test per shipped defect (T4.1a step 2, Part A)
       .set(auth)
       .expect(200);
 
-    const listingKey = `incidents:list:${SANTA_ELENA_ZONE_ID}:pending`;
+    // T3.2 design ("Scope-blind list cache" risk mitigation): the list
+    // cache key now carries a scope discriminator so org A's cached array
+    // can never be served to org B. This operator holds no seeded role
+    // (role_id IS NULL, D2), so it resolves to `public` scope -> `:p`.
+    const listingKey = `incidents:list:${SANTA_ELENA_ZONE_ID}:pending:p`;
     expect(await env.redisCache.get(listingKey)).not.toBeNull();
 
     await request(env.httpServer)

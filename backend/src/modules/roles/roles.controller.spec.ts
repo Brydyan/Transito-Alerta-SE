@@ -2,6 +2,9 @@ import { Reflector } from '@nestjs/core';
 import { RolesController } from './roles.controller';
 import { RolesService } from './roles.service';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
+import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+
+const GLOBAL_SCOPE = { kind: 'global' as const };
 
 describe('RolesController', () => {
   let service: { listPermissions: jest.Mock; assignRole: jest.Mock };
@@ -33,12 +36,18 @@ describe('RolesController', () => {
     expect(result).toEqual(['READ incidents']);
   });
 
-  it('POST /:id/assign delegates to service.assignRole', async () => {
+  it('POST /:id/assign delegates to service.assignRole with the full actor context', async () => {
     service.assignRole.mockResolvedValue({ id: 'user-1' });
+    const actor = { userId: 'admin-1', permissions: [], scope: GLOBAL_SCOPE };
+    const req = { user: actor } as unknown as AuthenticatedRequest;
 
-    const result = await controller.assign('role-1', { user_id: 'user-1' } as unknown as Parameters<typeof controller.assign>[1]);
+    const result = await controller.assign(
+      'role-1',
+      { user_id: 'user-1' } as unknown as Parameters<typeof controller.assign>[1],
+      req,
+    );
 
-    expect(service.assignRole).toHaveBeenCalledWith('user-1', 'role-1');
+    expect(service.assignRole).toHaveBeenCalledWith(actor, 'user-1', 'role-1');
     expect(result).toEqual({ id: 'user-1' });
   });
 });

@@ -1,9 +1,21 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import { RolesService } from './roles.service';
 import { RoleEntity } from '../../entities/role.entity';
 import { UserEntity } from '../../entities/user.entity';
 import { AuthService } from '../auth/auth.service';
+import { AuthContext } from '../../common/authz/subject-scope';
+
+function makeActor(overrides: Partial<AuthContext> = {}): AuthContext {
+  return {
+    userId: 'admin-1',
+    permissions: ['ASSIGN roles'],
+    organizationId: null,
+    roleName: 'admin_sistema',
+    scope: { kind: 'global' },
+    ...overrides,
+  };
+}
 
 describe('RolesService', () => {
   let roleRepo: { findOne: jest.Mock };
@@ -55,7 +67,7 @@ describe('RolesService', () => {
     it('throws NotFoundException when the role does not exist', async () => {
       roleRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.assignRole('user-1', 'ghost-role')).rejects.toBeInstanceOf(
+      await expect(service.assignRole(makeActor(), 'user-1', 'ghost-role')).rejects.toBeInstanceOf(
         NotFoundException,
       );
       expect(userRepo.save).not.toHaveBeenCalled();
@@ -65,7 +77,7 @@ describe('RolesService', () => {
       roleRepo.findOne.mockResolvedValue({ id: 'role-1', permissions: ['READ incidents'] });
       userRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.assignRole('ghost-user', 'role-1')).rejects.toBeInstanceOf(
+      await expect(service.assignRole(makeActor(), 'ghost-user', 'role-1')).rejects.toBeInstanceOf(
         NotFoundException,
       );
       expect(userRepo.save).not.toHaveBeenCalled();
@@ -84,7 +96,7 @@ describe('RolesService', () => {
         permissionVersion: 1,
       });
 
-      const result = await service.assignRole('user-1', 'role-1');
+      const result = await service.assignRole(makeActor(), 'user-1', 'role-1');
 
       expect(userRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -105,7 +117,7 @@ describe('RolesService', () => {
         permissionVersion: 1,
       });
 
-      await service.assignRole('user-1', 'role-1');
+      await service.assignRole(makeActor(), 'user-1', 'role-1');
 
       expect(authService.invalidatePermissionCache).toHaveBeenCalledWith(
         'user-1',
@@ -125,9 +137,76 @@ describe('RolesService', () => {
         permissionVersion: 1,
       });
 
-      const result = await service.assignRole('user-1', 'empty-role');
+      const result = await service.assignRole(makeActor(), 'user-1', 'empty-role');
 
       expect(result.permissions).toEqual([]);
+    });
+
+    describe('rank/visibility check (T3.2 D9/D10 — assertCanManage before assignment)', () => {
+      it('rejects 403 INSUFFICIENT_ROLE_RANK when the target user currently outranks the actor equally', async () => {
+        const actor = makeActor({
+          roleName: 'admin_organizacion',
+          organizationId: 'org-A',
+          scope: { kind: 'org', organizationId: 'org-A' },
+        });
+        // Destination role lookup, then the target's CURRENT role lookup.
+        roleRepo.findOne
+          .mockResolvedValueOnce({ id: 'role-new', name: 'reporter', permissions: [] })
+          .mockResolvedValueOnce({ id: 'role-sys', name: 'admin_sistema' });
+        userRepo.findOne.mockResolvedValue({
+          id: 'target-1',
+          organizationId: 'org-A',
+          roleId: 'role-sys',
+          deviceUuid: 'device-target',
+          permissionVersion: 1,
+        });
+
+        await expect(
+          service.assignRole(actor, 'target-1', 'role-new'),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(userRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('rejects 404 when the target user is not visible under the actor scope', async () => {
+        const actor = makeActor({
+          roleName: 'admin_organizacion',
+          organizationId: 'org-A',
+          scope: { kind: 'org', organizationId: 'org-A' },
+        });
+        roleRepo.findOne
+          .mockResolvedValueOnce({ id: 'role-new', name: 'reporter', permissions: [] })
+          .mockResolvedValueOnce({ id: 'role-op', name: 'operador_organizacion' });
+        userRepo.findOne.mockResolvedValue({
+          id: 'target-1',
+          organizationId: 'org-B',
+          roleId: 'role-op',
+          deviceUuid: 'device-target',
+          permissionVersion: 1,
+        });
+
+        await expect(
+          service.assignRole(actor, 'target-1', 'role-new'),
+        ).rejects.toBeInstanceOf(NotFoundException);
+        expect(userRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('allows the assignment when the actor outranks a visible target', async () => {
+        const actor = makeActor(); // admin_sistema, global
+        roleRepo.findOne
+          .mockResolvedValueOnce({ id: 'role-new', name: 'operador_organizacion', permissions: ['READ incidents'] })
+          .mockResolvedValueOnce({ id: 'role-old', name: 'reporter' });
+        userRepo.findOne.mockResolvedValue({
+          id: 'target-1',
+          organizationId: null,
+          roleId: 'role-old',
+          deviceUuid: 'device-target',
+          permissionVersion: 1,
+        });
+
+        const result = await service.assignRole(actor, 'target-1', 'role-new');
+
+        expect(result.roleId).toBe('role-new');
+      });
     });
   });
 });

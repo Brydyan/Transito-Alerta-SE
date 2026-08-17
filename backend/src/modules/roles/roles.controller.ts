@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { PermissionGuard } from '../../common/guards/permission.guard';
+import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserEntity } from '../../entities/user.entity';
 import { AssignRoleDto } from './dto/assign-role.dto';
@@ -25,7 +26,11 @@ export class RolesController {
 
   @Post(':id/assign')
   @RequirePermission('ASSIGN')
-  assign(@Param('id') id: string, @Body() dto: AssignRoleDto): Promise<UserEntity> {
-    return this.rolesService.assignRole(dto.user_id, id);
+  assign(
+    @Param('id') id: string,
+    @Body() dto: AssignRoleDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<UserEntity> {
+    return this.rolesService.assignRole(req.user!, dto.user_id, id);
   }
 }

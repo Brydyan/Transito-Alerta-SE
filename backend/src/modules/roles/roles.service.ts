@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 
 import { RoleEntity } from '../../entities/role.entity';
 import { UserEntity } from '../../entities/user.entity';
+import { AuthContext } from '../../common/authz/subject-scope';
+import { assertCanManage } from '../../common/authz/assert-can-manage';
 import { AuthService } from '../auth/auth.service';
 
 /**
@@ -46,8 +48,14 @@ export class RolesService {
    * onto the user row, bumps `permission_version`, and invalidates both
    * cached permission keys (device_uuid-keyed and uid-keyed) so the very
    * next request reflects the new role instead of a TTL-stale one.
+   *
+   * `assertCanManage` (T3.2 design D9/D10) runs BEFORE the write, against
+   * the target's CURRENT role (not the destination one) — 404 if the
+   * target is invisible under the actor's scope, 403
+   * `INSUFFICIENT_ROLE_RANK` if visible but the actor does not outrank
+   * them.
    */
-  async assignRole(userId: string, roleId: string): Promise<UserEntity> {
+  async assignRole(actor: AuthContext, userId: string, roleId: string): Promise<UserEntity> {
     const role = await this.roleRepo.findOne({ where: { id: roleId } });
     if (!role) {
       throw new NotFoundException(`Role ${roleId} not found`);
@@ -57,6 +65,15 @@ export class RolesService {
     if (!user) {
       throw new NotFoundException(`User ${userId} not found`);
     }
+
+    const currentRole = user.roleId
+      ? await this.roleRepo.findOne({ where: { id: user.roleId } })
+      : null;
+    assertCanManage(actor, {
+      id: user.id,
+      organizationId: user.organizationId,
+      roleName: currentRole?.name ?? null,
+    });
 
     user.roleId = role.id;
     user.permissions = role.permissions ?? [];

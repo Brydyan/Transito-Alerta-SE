@@ -3,16 +3,40 @@ import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import type { Cache } from 'cache-manager';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 
 import { UserEntity } from '../../entities/user.entity';
 import { AuthConfig } from '../../config/auth.config';
+import { AuthContext } from '../../common/authz/subject-scope';
+import { resolveSubjectScope } from '../../common/authz/resolve-subject-scope';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 
-export const PERMISSION_CACHE_PREFIX = 'perm:';
+/**
+ * T3.2 design D6: reshaped to `perm:v2:` (both the device_uuid-keyed and
+ * uid-keyed variants) — the uid-keyed cached value's shape changes from
+ * `string[]` to an `AuthContext`-shaped object, and the legacy `perm:`
+ * prefix must NEVER be reused for a differently-shaped value (a deploy
+ * against a warm Redis would otherwise read `cached.permissions ===
+ * undefined` and 403 every request for up to the full TTL). Old `perm:`
+ * keys are abandoned, not migrated — they simply expire.
+ */
+export const PERMISSION_CACHE_PREFIX = 'perm:v2:';
+
+interface CachedAuthContext {
+  permissions: string[];
+  organizationId: string | null;
+  roleName: string | null;
+}
+
+interface AuthContextRow {
+  permissions: string[] | null;
+  organization_id: string | null;
+  device_uuid: string;
+  role_name: string | null;
+}
 
 export interface AuthTokens {
   access_token: string;
@@ -34,6 +58,7 @@ export class AuthService {
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   private get authConfig(): AuthConfig {
@@ -132,35 +157,87 @@ export class AuthService {
   }
 
   /**
-   * Resolves permissions from a user id (the JWT `sub` claim).
-   *
-   * JwtStrategy only has `sub` on the token, which is `user.id` — not the
-   * device_uuid that {@link getPermissions} expects. Both are strings, so
-   * passing one where the other is required type-checks cleanly and silently
-   * resolves to no permissions, 403ing every guarded endpoint.
+   * Resolves permissions from a user id (the JWT `sub` claim). Thin
+   * wrapper (T3.2 design D6) — {@link getAuthContextByUserId} is now the
+   * single source, so every existing caller of this method keeps working
+   * unchanged.
    */
   async getPermissionsByUserId(userId: string): Promise<string[]> {
+    return (await this.getAuthContextByUserId(userId)).permissions;
+  }
+
+  /**
+   * Resolves the full per-request `AuthContext` (permissions +
+   * organizationId + roleName + derived scope) from a user id in ONE
+   * query, cached under `perm:v2:uid:{userId}` (T3.2 design D6).
+   *
+   * The anonymous branch CANNOT short-circuit before the query on the uid
+   * path — `userId` alone does not reveal the device (design "Correction
+   * to the proposal's wording"). `device_uuid` is loaded, then checked:
+   * when it equals the configured anonymous device, `permissions` is
+   * replaced by `anonymousPermissions` and org/role are forced to `null`
+   * — the DB row's own `permissions` are ignored for it, so the anonymous
+   * ceiling stays governed by `auth.config.ts` alone.
+   *
+   * `scope` is derived, never cached (derivation is free; caching it
+   * would create a second thing to invalidate).
+   */
+  async getAuthContextByUserId(userId: string): Promise<AuthContext> {
     const { anonymousDeviceUuid, anonymousPermissions, permissionCacheTtlSeconds } =
       this.authConfig;
 
     const key = `${PERMISSION_CACHE_PREFIX}uid:${userId}`;
-    const cached = await this.cache.get<string[]>(key);
+    const cached = await this.cache.get<CachedAuthContext>(key);
     if (cached) {
-      return cached;
+      return {
+        userId,
+        permissions: cached.permissions,
+        organizationId: cached.organizationId,
+        roleName: cached.roleName,
+        scope: resolveSubjectScope(cached.roleName, cached.organizationId, userId),
+      };
     }
 
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) {
-      return [];
+    const rows: AuthContextRow[] = await this.dataSource.query(
+      `SELECT u.permissions, u.organization_id, u.device_uuid, r.name AS role_name
+         FROM users u
+         LEFT JOIN roles r ON r.id = u.role_id
+        WHERE u.id = $1`,
+      [userId],
+    );
+    const row = rows[0];
+
+    if (!row) {
+      // Do NOT cache a miss (same reasoning as getPermissions): pinning an
+      // unknown user id to public/[] for the whole TTL would keep a
+      // freshly-provisioned account 403ing until the entry expired.
+      return {
+        userId,
+        permissions: [],
+        organizationId: null,
+        roleName: null,
+        scope: resolveSubjectScope(null, null, userId),
+      };
     }
 
-    const permissions =
-      user.deviceUuid === anonymousDeviceUuid
-        ? anonymousPermissions
-        : (user.permissions ?? []);
+    const isAnonymous = row.device_uuid === anonymousDeviceUuid;
+    const permissions = isAnonymous ? anonymousPermissions : (row.permissions ?? []);
+    const organizationId = isAnonymous ? null : row.organization_id;
+    const roleName = isAnonymous ? null : row.role_name;
 
-    await this.cache.set(key, permissions, permissionCacheTtlSeconds * 1000);
-    return permissions;
+    await this.cache.set(
+      key,
+      { permissions, organizationId, roleName },
+      permissionCacheTtlSeconds * 1000,
+    );
+
+    return {
+      userId,
+      permissions,
+      organizationId,
+      roleName,
+      scope: resolveSubjectScope(roleName, organizationId, userId),
+    };
   }
 
   /**

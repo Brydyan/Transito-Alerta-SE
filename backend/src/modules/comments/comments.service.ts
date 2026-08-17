@@ -4,6 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { CommentEntity } from '../../entities/comment.entity';
+import { SubjectScope } from '../../common/authz/subject-scope';
+import { IncidentsRepository } from '../incidents/incidents.repository';
 import { CreateCommentDto } from './dto/create-comment.dto';
 
 const SCRIPT_TAG_PATTERN = /<script[^>]*>[\s\S]*?<\/script\s*>/gi;
@@ -35,6 +37,7 @@ export class CommentsService {
     @InjectRepository(CommentEntity)
     private readonly commentRepo: Repository<CommentEntity>,
     private readonly eventEmitter: EventEmitter2,
+    private readonly incidentsRepository: IncidentsRepository,
   ) {}
 
   async create(dto: CreateCommentDto, userId: string): Promise<CommentEntity> {
@@ -48,7 +51,17 @@ export class CommentsService {
     return saved;
   }
 
-  findByIncident(incidentId: string): Promise<CommentEntity[]> {
+  /**
+   * Resolves the PARENT incident under the caller's scope first (T3.2
+   * design D3 table) — comments do not scope their own rows. 404 when the
+   * parent is invisible, even though the caller holds READ comments.
+   */
+  async findByIncident(incidentId: string, scope: SubjectScope): Promise<CommentEntity[]> {
+    const incident = await this.incidentsRepository.findOne(incidentId, scope);
+    if (!incident) {
+      throw new NotFoundException(`Incident ${incidentId} not found`);
+    }
+
     return this.commentRepo.find({
       where: { incidentId },
       order: { createdAt: 'ASC' },

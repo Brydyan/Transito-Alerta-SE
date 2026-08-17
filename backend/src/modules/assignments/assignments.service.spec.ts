@@ -4,6 +4,11 @@ import type { Repository } from 'typeorm';
 import type { Redis } from 'ioredis';
 import { AssignmentsService } from './assignments.service';
 import { AssignmentEntity } from '../../entities/assignment.entity';
+import { IncidentsRepository } from '../incidents/incidents.repository';
+import { SubjectScope } from '../../common/authz/subject-scope';
+
+const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
+const ORG_A_SCOPE: SubjectScope = { kind: 'org', organizationId: 'org-A' };
 
 describe('AssignmentsService', () => {
   let repo: {
@@ -15,6 +20,7 @@ describe('AssignmentsService', () => {
   };
   let eventEmitter: { emit: jest.Mock };
   let redis: { xadd: jest.Mock };
+  let incidentsRepository: { findOne: jest.Mock };
   let service: AssignmentsService;
 
   beforeEach(() => {
@@ -27,7 +33,13 @@ describe('AssignmentsService', () => {
     };
     eventEmitter = { emit: jest.fn() };
     redis = { xadd: jest.fn() };
-    service = new AssignmentsService(repo as unknown as jest.Mocked<Repository<AssignmentEntity>>, eventEmitter as unknown as jest.Mocked<EventEmitter2>, redis as unknown as jest.Mocked<Redis>);
+    incidentsRepository = { findOne: jest.fn() };
+    service = new AssignmentsService(
+      repo as unknown as jest.Mocked<Repository<AssignmentEntity>>,
+      eventEmitter as unknown as jest.Mocked<EventEmitter2>,
+      redis as unknown as jest.Mocked<Redis>,
+      incidentsRepository as unknown as IncidentsRepository,
+    );
   });
 
   describe('assign', () => {
@@ -95,15 +107,24 @@ describe('AssignmentsService', () => {
     });
   });
 
-  describe('list', () => {
-    it('returns assignments for the given incident', async () => {
+  describe('list (T3.2 D3 — parent-incident scope check)', () => {
+    it('returns assignments when the parent incident is visible under scope', async () => {
+      incidentsRepository.findOne.mockResolvedValue({ id: 'inc-1' });
       const rows = [{ id: 'a-1' }];
       repo.find.mockResolvedValue(rows);
 
-      const result = await service.list('inc-1');
+      const result = await service.list('inc-1', GLOBAL_SCOPE);
 
+      expect(incidentsRepository.findOne).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE);
       expect(repo.find).toHaveBeenCalledWith({ where: { incidentId: 'inc-1' } });
       expect(result).toEqual(rows);
+    });
+
+    it('throws 404 when the parent incident is invisible under scope', async () => {
+      incidentsRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.list('inc-1', ORG_A_SCOPE)).rejects.toBeInstanceOf(NotFoundException);
+      expect(repo.find).not.toHaveBeenCalled();
     });
   });
 });

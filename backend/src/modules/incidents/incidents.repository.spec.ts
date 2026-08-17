@@ -1,5 +1,8 @@
 import { DataSource } from 'typeorm';
 import { IncidentsRepository , unwrapReturningRows} from './incidents.repository';
+import { SubjectScope } from '../../common/authz/subject-scope';
+
+const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
 
 describe('IncidentsRepository', () => {
   let dataSource: { query: jest.Mock };
@@ -23,6 +26,7 @@ describe('IncidentsRepository', () => {
         citizenId: 'user-1',
         zoneId: 'zone-1',
         geofenceMatched: true,
+        organizationId: 'org-1',
       });
 
       const [sql, params] = dataSource.query.mock.calls[0];
@@ -38,6 +42,7 @@ describe('IncidentsRepository', () => {
         'user-1',
         'zone-1',
         true,
+        'org-1',
       ]);
     });
 
@@ -54,6 +59,7 @@ describe('IncidentsRepository', () => {
         citizenId: 'user-1',
         zoneId: null,
         geofenceMatched: false,
+        organizationId: null,
       });
 
       expect(result).toEqual(row);
@@ -61,10 +67,10 @@ describe('IncidentsRepository', () => {
   });
 
   describe('findAll', () => {
-    it('filters by zoneId and status when provided', async () => {
+    it('filters by zoneId and status when provided (scope required, D3)', async () => {
       dataSource.query.mockResolvedValue([]);
 
-      await repository.findAll({ zoneId: 'zone-1', status: 'pending' });
+      await repository.findAll({ zoneId: 'zone-1', status: 'pending' }, GLOBAL_SCOPE);
 
       const [sql, params] = dataSource.query.mock.calls[0];
       expect(sql).toContain('zone_id = $1');
@@ -72,14 +78,24 @@ describe('IncidentsRepository', () => {
       expect(params).toEqual(['zone-1', 'pending']);
     });
 
-    it('has no WHERE clause when no filters are given', async () => {
+    it('has no WHERE beyond the scope fragment when no filters are given', async () => {
       dataSource.query.mockResolvedValue([]);
 
-      await repository.findAll();
+      await repository.findAll({}, GLOBAL_SCOPE);
 
       const [sql, params] = dataSource.query.mock.calls[0];
-      expect(sql).not.toContain('WHERE');
+      expect(sql).toContain('WHERE TRUE');
       expect(params).toEqual([]);
+    });
+
+    it('applies the scope fragment (org scope filters by organization_id)', async () => {
+      dataSource.query.mockResolvedValue([]);
+
+      await repository.findAll({}, { kind: 'org', organizationId: 'org-1' });
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('organization_id = $1');
+      expect(params).toEqual(['org-1']);
     });
   });
 
@@ -87,9 +103,19 @@ describe('IncidentsRepository', () => {
     it('returns null when no row matches', async () => {
       dataSource.query.mockResolvedValue([]);
 
-      const result = await repository.findOne('missing');
+      const result = await repository.findOne('missing', GLOBAL_SCOPE);
 
       expect(result).toBeNull();
+    });
+
+    it('applies the scope fragment alongside the id filter', async () => {
+      dataSource.query.mockResolvedValue([]);
+
+      await repository.findOne('inc-1', { kind: 'org', organizationId: 'org-1' });
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('WHERE id = $1 AND organization_id = $2');
+      expect(params).toEqual(['inc-1', 'org-1']);
     });
   });
 

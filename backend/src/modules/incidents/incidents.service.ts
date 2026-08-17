@@ -7,6 +7,9 @@ import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../core/core.module';
 import { IncidentStatus } from '../../entities/incident.entity';
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
+import { OrganizationsService } from '../organizations/organizations.service';
+import { SubjectScope } from '../../common/authz/subject-scope';
+import { scopeCacheKey } from '../../common/authz/scope-sql';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { IncidentRow, IncidentsRepository } from './incidents.repository';
 
@@ -40,6 +43,7 @@ export class IncidentsService {
   constructor(
     private readonly incidentsRepository: IncidentsRepository,
     private readonly geofencingService: GeofencingService,
+    private readonly organizationsService: OrganizationsService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
@@ -50,12 +54,20 @@ export class IncidentsService {
    * accepted (201), persisted with zone_id=null, geofence_matched=false.
    * GeofencingService.resolveZone never throws for "outside a zone" — only
    * for malformed coordinates.
+   *
+   * `organization_id` is derived from the resolved ZONE (T3.2 design D4),
+   * never from the creator's own organization — the creator is
+   * overwhelmingly a citizen/anonymous device with no organization, so
+   * "creator's org" would leave scoping inert for the flow that matters.
+   * NULL when outside every zone, or the zone has no organization.
    */
   async create(dto: CreateIncidentDto, citizenId: string): Promise<IncidentRow> {
     const { zone_id: zoneId } = await this.geofencingService.resolveZone({
       lat: dto.lat,
       lng: dto.lng,
     });
+
+    const org = await this.organizationsService.findByZone(zoneId);
 
     const row = await this.incidentsRepository.create({
       title: dto.title,
@@ -66,6 +78,7 @@ export class IncidentsService {
       citizenId,
       zoneId,
       geofenceMatched: zoneId !== null,
+      organizationId: org?.id ?? null,
     });
 
     await this.purgeListCaches(zoneId);
@@ -74,14 +87,25 @@ export class IncidentsService {
     return row;
   }
 
-  async findAll(zoneId?: string, status?: IncidentStatus): Promise<IncidentRow[]> {
-    const key = this.listCacheKey(zoneId, status);
+  /**
+   * `scope` is a REQUIRED parameter (T3.2 design D3) — never optional,
+   * never defaulted; an unscoped call fails `tsc`, not a silent `global`
+   * leak. The list cache KEY carries the scope discriminator (design
+   * "Scope-blind list cache" risk mitigation) — threading scope into the
+   * repository alone would still serve org A's cached array to org B.
+   */
+  async findAll(
+    zoneId: string | undefined,
+    status: IncidentStatus | undefined,
+    scope: SubjectScope,
+  ): Promise<IncidentRow[]> {
+    const key = this.listCacheKey(zoneId, status, scope);
     const cached = await this.cache.get<IncidentRow[]>(key);
     if (cached) {
       return cached;
     }
 
-    const rows = await this.incidentsRepository.findAll({ zoneId, status });
+    const rows = await this.incidentsRepository.findAll({ zoneId, status }, scope);
     await this.cache.set(key, rows, INCIDENTS_LIST_CACHE_TTL_MS);
 
     // Register under the zone's tag-set so a later write purges EVERY cached
@@ -97,8 +121,8 @@ export class IncidentsService {
     return rows;
   }
 
-  async findOne(id: string): Promise<IncidentRow> {
-    const row = await this.incidentsRepository.findOne(id);
+  async findOne(id: string, scope: SubjectScope): Promise<IncidentRow> {
+    const row = await this.incidentsRepository.findOne(id, scope);
     if (!row) {
       throw new NotFoundException(`Incident ${id} not found`);
     }
@@ -109,8 +133,9 @@ export class IncidentsService {
     id: string,
     nextStatus: IncidentStatus,
     actorId: string,
+    scope: SubjectScope,
   ): Promise<IncidentRow> {
-    const current = await this.incidentsRepository.findOne(id);
+    const current = await this.incidentsRepository.findOne(id, scope);
     if (!current) {
       throw new NotFoundException(`Incident ${id} not found`);
     }
@@ -128,7 +153,11 @@ export class IncidentsService {
     }
 
     await this.purgeListCaches(updated.zone_id);
-    await this.publish('incident.status_changed', { ...updated, actor_id: actorId });
+    await this.publish('incident.status_changed', {
+      ...updated,
+      actor_id: actorId,
+      previous_status: current.status,
+    });
 
     return updated;
   }
@@ -138,8 +167,12 @@ export class IncidentsService {
     await this.redis.xadd(INCIDENTS_STREAM_KEY, '*', 'type', type, 'data', JSON.stringify(data));
   }
 
-  private listCacheKey(zoneId?: string, status?: string): string {
-    return `incidents:list:${zoneId ?? 'all'}:${status ?? 'all'}`;
+  private listCacheKey(
+    zoneId: string | undefined,
+    status: string | undefined,
+    scope: SubjectScope,
+  ): string {
+    return `incidents:list:${zoneId ?? 'all'}:${status ?? 'all'}:${scopeCacheKey(scope)}`;
   }
 
   /**
