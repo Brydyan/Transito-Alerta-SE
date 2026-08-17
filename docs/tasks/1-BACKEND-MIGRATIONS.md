@@ -215,9 +215,15 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 > ⚠️ **Renumeración**: este documento reservaba 0014 para `invitations` (T3.6) y 0015 para
 > `status_history` (T3.4), y no asignaba ningún slot a T3.2. Lo entregado fue **0014 =
-> status_history** y **0015 = organizations_scoping**. En consecuencia, `invitations` pasa a
-> **0016** y `sessions` a **0017**. Las dos aplicadas son independientes entre sí por contrato
-> explícito: ninguna referencia objetos de la otra, así que el orden de aplicación no importaba.
+> status_history** y **0015 = organizations_scoping**. Luego **T3.9 tomó 0016**, así que
+> `invitations` quedó desplazada dos veces y ahora es **0017**.
+>
+> Las dos aplicadas son independientes entre sí por contrato explícito: ninguna referencia
+> objetos de la otra, así que el orden de aplicación no importaba.
+>
+> **Antes de escribir una migración nueva, mirá `database/MIGRATION_LOG.md`, no esta tabla.**
+> El log es la fuente de verdad sobre qué número está tomado; esta tabla es planificación y
+> puede quedar atrasada — ya pasó una vez y casi provoca una colisión.
 
 > Fuente de verdad: `database/MIGRATION_LOG.md`. Las migraciones se aplican a mano
 > (CC3), así que pasar los tests E2E no dice nada del estado de Supabase — el harness
@@ -240,8 +246,8 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 | 0013 | geo_zones_hierarchy | columnas de geo_zones | Aplicada (T3.8) | Añade `parent_id` self-FK + `level` con CHECK `('provincia','canton','parroquia','zona')`, índice, backfill del seed por UUID determinista, y seed de permisos `geo-zones`. Rollback en `database/rollback/0013_geo_zones_hierarchy.DOWN.sql`. Aplicada a Supabase el 2026-08-16 |
 | 0014 | status_history | tabla status_history | **Aplicada** (T3.4) | Auditoría solo-append. `incident_id` FK CASCADE, `changed_by_user_id` FK SET NULL, `previous_status`/`new_status` con CHECK contra el vocabulario de estados, `event_id` UNIQUE para inserción idempotente desde Streams, índice `(incident_id, created_at, id)`. Rollback en `database/rollback/0014_status_history.DOWN.sql`. Aplicada a Supabase y dev local el 2026-08-17 |
 | 0015 | organizations_scoping | columna de incidents + seeds de roles | **Aplicada** (T3.2) | Índice UNIQUE parcial en `organizations(zone_id)` creado **primero**, para que una anomalía de dos orgs en una zona aborte la migración en vez de asignar incidentes a un tenant arbitrario; `incidents.organization_id` FK SET NULL + índice; backfill por join de zona (los de `zone_id` NULL quedan NULL, estado real y esperado); catálogo de permisos `organizations`; seed de los 4 roles staff (`reporter` ya venía de 0009 y no se toca). Rollback en `database/rollback/0015_organizations_scoping.DOWN.sql`. Aplicada a Supabase y dev local el 2026-08-17 |
-| 0016 | invitations | tabla invitations | Planeada (T3.6) | Token single-use, expiración 24h. **Renumerada desde 0014** |
-| 0017 | sessions | tabla sessions | Planeada (T3.9) | Seguimiento JWT + revocación. **Renumerada desde 0016** |
+| 0016 | sessions_revocation | columnas de `user_sessions` | Planeada (T3.9) | **No crea tabla nueva**: `user_sessions` existe desde 0006 como stub de tracking de dispositivo. 0016 la vuelve portadora de seguridad — `refresh_token_hash`, `previous_refresh_token_hash`, `rotated_at`, `ip_address`, `user_agent`, `revoked_at`, `expires_at`. Ver `openspec/changes/t3.9-sessions/proposal.md` |
+| 0017 | invitations | tabla invitations | Planeada (T3.6) | Token single-use. **Renumerada dos veces**: 0014 → 0016 → 0017, porque T3.4 tomó 0014 y T3.9 toma 0016. TTL a definir (GeoReporta usa 48h, este doc decía 24h) |
 
 ## Criterios de Éxito
 
