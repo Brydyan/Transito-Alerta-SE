@@ -153,115 +153,366 @@
 - Dark mode (Tailwind dark:class)
 - Error tracking (Sentry)
 
+## Arquitectura de Componentes (Basada en Mockups)
+
+### Layout Principal
+```
+AppComponent (root)
+├── SidebarComponent (nav: Dashboard, Incidencias, Usuarios, Roles, Ubicaciones, Categorías, Organizaciones, Reportar, Perfil, Mapa)
+├── HeaderComponent (notificaciones, usuario dropdown, settings)
+└── RouterOutlet (rutas)
+```
+
+### Componentes por Mockup
+
+#### Dashboard (01-01-dashboard-principal.png)
+- `DashboardComponent` (page container)
+  - `KpiCardsComponent` (Total, En proceso, Resueltas, Pendientes, Tiempo promedio)
+  - `TopCategoriesChartComponent` (ECharts horizontal bar)
+  - `RecentActivityComponent` (tabla incidents recientes con status badges)
+  - `WeeklyPerformanceChartComponent` (ECharts bar chart: recibidas vs resueltas)
+  - `SummaryCardsComponent` (footer cards: En Línea, Crítico, Eficiencia)
+
+#### Lista de Incidencias (02-01-lista-de-incidencias)
+- `IncidentsListComponent` (page container)
+  - `IncidentsFilterComponent` (search, status dropdown, priority dropdown, filter button)
+  - `IncidentsTableComponent` (sortable/filtrable: title, priority badge, status badge, location, fecha, actions)
+  - `PaginationComponent` (1-10 de 14)
+
+#### Formulario Multi-paso (09-02/03/04/05)
+- `IncidentReportComponent` (page container)
+  - `StepperComponent` (4 pasos: 1-Información Básica, 2-Categorización, 3-Ubicación, 4-Revisión)
+    - `Step1BasicInfoComponent` (title, priority, description textarea, nota importante)
+    - `Step2MediaComponent` (upload image, preview con compresión)
+    - `Step3LocationComponent` (mapa Leaflet interactivo, Usar mi ubicación, Lat/Lng inputs, 3 info cards)
+    - `Step4ReviewComponent` (resumen datos, botón submit)
+
+#### Gestión de Usuarios (03-01/02)
+- `UsersManagementComponent` (lista con tabla)
+  - `UsersTableComponent` (CRUD actions)
+  - `UserFormComponent` (crear/editar modal)
+
+#### Gestión de Roles (04-01/02)
+- `RolesManagementComponent` (lista)
+  - `RolesTableComponent` (CRUD)
+  - `RoleFormComponent` (crear/editar)
+
+#### Ubicaciones (06-01/02)
+- `LocationsManagementComponent` (lista)
+  - `LocationsMapComponent` (Leaflet con polygons)
+  - `LocationFormComponent` (crear/editar)
+
+#### Categorías (07-01)
+- `CategoriesManagementComponent` (lista)
+  - `CategoriesTableComponent`
+  - `CategoryFormComponent`
+
+#### Organizaciones (08-01)
+- `OrganizationsManagementComponent` (lista)
+  - `OrganizationsTableComponent`
+  - `OrganizationFormComponent`
+
+### Colores Tailwind (Basados en Mockups)
+```
+// Purples (primary)
+text-purple-600, bg-purple-600, border-purple-600
+
+// Status badges
+bg-green-500 (baja), bg-blue-600 (en proceso), bg-red-500 (alta), 
+bg-yellow-500 (media), bg-gray-600 (cerrada)
+
+// Utilities
+bg-gradient-to-r from-purple-600 to-purple-400 (KPI cards)
+shadow-lg, rounded-lg (cards)
+```
+
+---
+
 ## Checklist de Implementación (Fase 5A-5C)
 
-### Fase 5A: Scaffold Angular + Servicios
+### Fase 5A: Scaffold Angular + Servicios + Layout (Semanas 4-5)
 
-#### Bootstrap Angular 17+
-- [ ] Crear proyecto Angular: `npm create @angular@latest transito-alerta-pwa --skip-install --skip-git`
-- [ ] Instalar núcleo: `@angular/core@17`, `@angular/common@17`, `@angular/forms@17`, `@angular/router@17`
-- [ ] Instalar RxJS: `rxjs@7.8`
-- [ ] Instalar TypeScript: `typescript@5.2`
-- [ ] Configurar componentes standalone (remover NgModule si usar arquitectura basada en signals)
+#### Bootstrap Angular 17+ & Tailwind
+- [ ] Crear proyecto Angular: `ng new transito-alerta-pwa --skip-git`
+- [ ] Instalar Tailwind: `npm install -D tailwindcss postcss autoprefixer`
+- [ ] Init Tailwind: `npx tailwindcss init -p`
+- [ ] Configurar tailwind.config.js con content paths
+- [ ] Importar Tailwind en styles.css
 
-#### Servicio de Autenticación
-- [ ] Implementar `AuthService` (espeja backend T1.4):
-  - Registro de dispositivo: `POST /api/auth/login {device_uuid}` → almacenar JWT en sessionStorage
-  - Parsing de JWT: extraer claims `sub`, `typ`, `pv`
-  - Refresh de token: `POST /api/auth/refresh` → rotar refresh token, lista negra viejo jti
-  - Verificación de permiso: `hasPermission('READ', 'incidents')`
-- [ ] Http Interceptor: auto-inyectar JWT en todas las solicitudes, manejar 401 con refresh + retry
-- [ ] Test: device login → JWT issuado → GET /api/me retorna permisos
+#### SidebarComponent
+- [ ] Logo + branding (purple)
+- [ ] Menu items con icons: Dashboard, Incidencias, Usuarios, Roles, Ubicaciones, Categorías, Organizaciones, Reportar, Perfil, Mapa
+- [ ] Routing links (routerLink)
+- [ ] Active link highlight (purple)
+- [ ] Colapsable en mobile (hamburger button)
+- [ ] Test: click menu item → ruta cambia
 
-#### Servicio de Geolocalización
-- [ ] Wrapper sobre HTML5 Geolocation API
-- [ ] Retornar Observable<{lat, lng}> (patrón RxJS)
-- [ ] Fallback a ubicación por defecto del navegador si permiso denegado
-- [ ] Test: Playwright mock geolocalización, verificar valores pasados al form de incident
+#### HeaderComponent
+- [ ] Logo texto "Transito-Alerta"
+- [ ] Search bar (placeholder search)
+- [ ] Notification bell (icon)
+- [ ] Settings icon
+- [ ] User dropdown (nombre, rol, logout)
+- [ ] Responsive: hide search en mobile
+- [ ] Test: click logout → redirect a login
 
-#### Servicio IndexedDB (Cola Offline)
-- [ ] Wrapper usando librería `idb` (no API cruda de IndexedDB)
+#### AppComponent + Routing
+- [ ] Layout: sidebar + header + outlet
+- [ ] Rutas principales:
+  - `/dashboard` → DashboardComponent
+  - `/incidents` → IncidentsListComponent
+  - `/incidents/new` → IncidentReportComponent (stepper)
+  - `/users` → UsersManagementComponent
+  - `/roles` → RolesManagementComponent
+  - `/locations` → LocationsManagementComponent
+  - `/categories` → CategoriesManagementComponent
+  - `/organizations` → OrganizationsManagementComponent
+  - `/profile` → ProfileComponent
+  - `/map` → MapComponent
+- [ ] Test: navigate between routes, layout persists
+
+#### AuthService (JWT + Device UUID)
+- [ ] Implementar login: `POST /api/auth/login {device_uuid}` → JWT en sessionStorage
+- [ ] Parsing JWT: extraer `sub`, `typ`, `pv`
+- [ ] Refresh token: `POST /api/auth/refresh`
+- [ ] Verificación de permiso: `hasPermission('READ', 'incidents')`
+- [ ] AuthGuard para rutas protegidas
+- [ ] Test: device login → JWT almacenado → GET /api/me retorna permisos
+
+#### HttpInterceptor (JWT + Error Handling)
+- [ ] Auth interceptor: inyectar `Authorization: Bearer {JWT}`
+- [ ] Error interceptor: 401 → refresh → reintentar
+- [ ] Config base URL: `http://localhost:3001/api`
+- [ ] Test: token expirado → refresh llamado → reintentar
+
+#### GeolocationService
+- [ ] Wrapper HTML5 Geolocation API
+- [ ] Return Observable<{lat, lng}>
+- [ ] Fallback a default location si permiso denegado
+- [ ] Test: mock geolocation, verificar values
+
+#### IndexedDB Service (Cola Offline)
+- [ ] Wrapper librería `idb`
 - [ ] Esquema: tabla `incidents` (id, data, synced, created_at)
-- [ ] Método enqueue: persistir incident a IndexedDB cuando offline
-- [ ] Método sync: cuando online, POST todos los incidents en cola, marcar como synced
-- [ ] Test: encolar incident offline → ir online → POST llamado → synced = true
+- [ ] `enqueue(incident)` → persistir cuando offline
+- [ ] `sync()` → POST incidents, marcar synced
+- [ ] Test: offline → enqueue → online → sync → synced=true
 
-#### HTTP Interceptor
-- [ ] Auth interceptor: agregar header `Authorization: Bearer {JWT}`
-- [ ] Error interceptor: 401 → refresh token → reintentar solicitud
-- [ ] Config base URL: todas las solicitudes a `http://localhost:3001/api`
-- [ ] Test: token expirado → refresh llamado → solicitud reintentada con token nuevo
+#### Unit Tests Coverage
+- [ ] AuthService tests (login, refresh, hasPermission)
+- [ ] GeolocationService tests
+- [ ] IndexedDB tests
+- [ ] 70%+ coverage
+- [ ] Jest + jest-preset-angular
 
-### Fase 5B: Features + UI
+**Aceptación 5A**:
+- [ ] Angular app bootea, layout visible
+- [ ] Rutas funcionan, layout persiste
+- [ ] Login device → JWT en sessionStorage
+- [ ] Geolocalización retorna lat/lng
+- [ ] Cola IndexedDB encola/sincroniza
+- [ ] HTTP interceptor inyecta JWT
 
-#### Componente Citizen Report
-- [ ] Form reactiva: title, description, location (lat/lng), priority, category
-- [ ] Campo upload de imagen + preview de compresión (Canvas API)
-- [ ] Botón geolocalización: popular lat/lng via GeolocationService
-- [ ] Verificación de geofence: validación client-side (Turf.js point-in-polygon)
-- [ ] Lógica de submit:
-  - Si online: POST a backend inmediatamente
-  - Si offline: encolar en IndexedDB, notificar usuario "saved offline"
-  - En reconnect: sincronizar cola via OfflineSyncService
-- [ ] Test: Playwright reportar incident, verificar HTTP POST o cola IndexedDB
+---
 
-#### Dashboard Admin
-- [ ] Mapa Leaflet: mostrar todos los incidents como pins, color por status (pending=rojo, in_progress=amarillo, resolved=verde)
-- [ ] Tabla de incidents: sortable por created_at/priority/status, filtrable por zone/status
-- [ ] Actualizaciones en tiempo real: conexión Socket.io a namespace `/incidents`, suscribirse a salas (geo/org)
-- [ ] Charts: gráfico de barras ECharts (incidents por status), heatmap (distribución geo)
-- [ ] Test: Playwright crear incident → aparece en mapa + tabla instantáneamente
+### Fase 5B: Componentes UI + Real-time (Semanas 5-6)
+
+#### DashboardComponent + KPI Cards
+- [ ] Traer datos: `GET /api/incidents/stats`
+- [ ] Render 5 KPI cards (color gradients: purple, cyan, green, red, purple)
+- [ ] Total incidencias, En proceso, Resueltas, Pendientes, Tiempo promedio
+- [ ] Mostrar deltas (↑ 8% vs mes anterior)
+- [ ] Tailwind: `bg-gradient-to-r from-purple-600 to-purple-400`, `rounded-lg`, `shadow-lg`, `text-white`
+- [ ] Test: datos se cargan, valores mostrados
+
+#### TopCategoriesChartComponent (ECharts)
+- [ ] Instalar: `npm install echarts ngx-echarts`
+- [ ] Query: `GET /api/incidents/stats/categories?top=5`
+- [ ] Horizontal bar chart (Incidencia 1-3 con values)
+- [ ] Colors: azul claro/oscuro (Series)
+- [ ] Test: chart renders, mouse-over tooltip muestra valores
+
+#### RecentActivityComponent
+- [ ] Query: `GET /api/incidents?limit=5&sort=-created_at`
+- [ ] Tabla con columns: title, priority (badge), status (badge), location, fecha, actions menu
+- [ ] Status badges: green (baja), blue (en proceso), red (alta), yellow (media), gray (cerrada)
+- [ ] Click row → navigate to incident detail
+- [ ] Test: tabla muestra datos, click row navega
+
+#### WeeklyPerformanceChart (ECharts)
+- [ ] Query: `GET /api/incidents/stats/weekly`
+- [ ] Bar chart: días semana (Lun-Dom), recibidas vs resueltas
+- [ ] Colors: purple (recibidas), green (resueltas)
+- [ ] Test: chart renders, legend funciona
+
+#### IncidentReportComponent (Multi-paso Stepper)
+- [ ] StepperComponent: 4 steps (numeric indicators + labels)
+- [ ] Active step highlighted en purple
+- [ ] Disable next steps hasta current complete
+- [ ] Show/hide steps basado en current step
+
+**Step 1: Basic Info**
+- [ ] Form fields: title, priority (dropdown), description (textarea)
+- [ ] Placeholder text: "Ej. Baches en calle principal"
+- [ ] Validación: title required, description min 10 chars
+- [ ] Info box: "Nota importante" (grayish bg)
+- [ ] Buttons: Cancelar, Siguiente Paso (purple)
+- [ ] Test: form validation, next button disabled si invalid
+
+**Step 2: Media/Categorization**
+- [ ] File upload: image input + drag-drop
+- [ ] Preview de imagen con tamaño/format
+- [ ] Canvas API compresión: <200KB WebP
+- [ ] Show before/after tamaño
+- [ ] Category select dropdown
+- [ ] Buttons: Anterior, Siguiente
+- [ ] Test: upload image → compress → preview matches
+
+**Step 3: Location**
+- [ ] Leaflet map (satellite view)
+- [ ] Click map → marker en coordenadas
+- [ ] "Usar mi ubicación actual" button → GeolocationService
+- [ ] Display Lat/Lng en inputs (readonly o editable)
+- [ ] Zona coverage info (3 cards: GPS precision, Capa administrativa, Zonas cobertura)
+- [ ] Instructions: "Haga clic en el mapa para marcar las coordenadas"
+- [ ] Buttons: Anterior, Siguiente
+- [ ] Test: click map → marker, geoloc button → autofill, cards show info
+
+**Step 4: Review**
+- [ ] Resumen de datos (title, priority, description, image thumbnail, lat/lng, category)
+- [ ] Editar link para cada sección (back to step)
+- [ ] Submit button: "Registrar Incidencia" (purple, large)
+- [ ] Offline fallback: "Guardado offline" + badge
+- [ ] Test: submit → POST /api/incidents, handle offline
+
+#### IncidentsListComponent
+- [ ] Page title "Incidencias"
+- [ ] Filters:
+  - Search input (placeholder: "Buscar por título o descripción")
+  - Status dropdown (Todos los estados)
+  - Priority dropdown (Todas las prioridades)
+  - Filter button (purple)
+  - X button para clear filters
+- [ ] Table:
+  - Columns: checkbox, title, priority (badge), status (badge), location (icon), fecha, actions (3-dot menu)
+  - Sortable columns (click header)
+  - Filterable live
+  - Pagination: "Mostrando 1-10 de 14"
+- [ ] Bulk actions (checkbox header): delete, bulk-assign
+- [ ] Test: filter por status, sort por fecha, paginate
 
 #### Real-time Socket.io
-- [ ] Conectar en app init: `io('http://localhost:3001', {auth: {token: JWT}})`
-- [ ] Unirse a salas: `geo:{zone_id}`, `user:{user_id}` (server auto-join)
-- [ ] Escuchadores de evento: `incident:created`, `incident:assigned`, `comment:added`, `status:changed`
-- [ ] Actualizar state via RxJS Subject (observable incident$)
-- [ ] Test: 2 navegadores, crear incident en uno → evento recibido en otro
+- [ ] Instalar socket.io-client
+- [ ] Connect app init: `io('http://localhost:3001', {auth: {token}})`
+- [ ] Join rooms: `geo:{zone_id}`, `org:{org_id}`
+- [ ] Listen events: `incident:created`, `incident:updated`, `comment:added`, `status:changed`
+- [ ] Update UI via BehaviorSubject (incident$)
+- [ ] Test: 2 tabs, create incident en uno → aparece en otro en <2s
 
-#### Setup Tailwind CSS
-- [ ] Instalar: `npm install -D tailwindcss postcss autoprefixer`
-- [ ] Init: `npx tailwindcss init -p`
-- [ ] Configurar content paths (todos los archivos .component.html)
-- [ ] Importar Tailwind en `styles.css`: `@tailwind base; @tailwind components; @tailwind utilities;`
-- [ ] Dark mode: actualizar tailwind.config.js `darkMode: 'class'`
-- [ ] Test: toggle button dark/light funciona
+#### Dark Mode Toggle
+- [ ] Toggle button (moon/sun icon) en header
+- [ ] Apply `dark:` classes en Tailwind
+- [ ] Persist preference en localStorage
+- [ ] Test: toggle → theme changes, persists on reload
 
-#### Integración PWA
-- [ ] Instalar @angular/pwa: `ng add @angular/pwa`
-- [ ] Configurar `manifest.webmanifest` (nombre app, iconos, colores tema)
-- [ ] Setup estrategia de caché de Service Worker (Workbox)
-- [ ] Test: Chrome DevTools → Application → Manifest válido. Botón Install aparece.
+#### PWA Setup
+- [ ] `ng add @angular/pwa`
+- [ ] Configurar manifest.webmanifest:
+  - name: "Transito Alerta"
+  - description: "Control territorial en tiempo real"
+  - icons: (192x192, 512x512)
+  - theme_color: #7c3aed (purple)
+  - background_color: #ffffff
+- [ ] Service Worker strategies: network-first para /api, cache-first para assets
+- [ ] Test: Chrome DevTools → Manifest válido, Install button aparece
 
-### Fase 5C: Limpieza + Polish
+**Aceptación 5B**:
+- [ ] Dashboard carga KPIs + charts, real-time updates
+- [ ] Formulario multi-paso: todos steps funcionan, submit online/offline
+- [ ] Lista incidencias: filtrar, sort, paginate, real-time updates
+- [ ] PWA instalable en Chrome, iOS, Android
+- [ ] Dark mode toggle funciona
+- [ ] Lighthouse score >= 90 (performance, accessibility, PWA)
 
-#### Compresión de Imagen
-- [ ] Servicio Canvas API: comprimir imagen a <200KB WebP
-- [ ] Mostrar preview antes de upload (data URL base64)
-- [ ] Test: upload JPG 5MB → comprimir a ~150KB → preview matches
+---
+
+### Fase 5C: Polish + Testing + Performance (Semana 7)
 
 #### Error Tracking (Sentry)
-- [ ] Instalar: `npm install @sentry/angular`
-- [ ] Integrar: `Sentry.init()` en main.ts
-- [ ] HttpErrorInterceptor: capturar errores 5xx → Sentry
-- [ ] ErrorHandler: catch unhandled Promise rejections
-- [ ] Test: disparar error en componente → aparece en dashboard Sentry
+- [ ] `npm install @sentry/angular @sentry/tracing`
+- [ ] `Sentry.init()` en main.ts
+- [ ] HttpErrorInterceptor: capture 5xx → Sentry
+- [ ] Global ErrorHandler: unhandled Promise rejections
+- [ ] Test: trigger error → Sentry dashboard
+
+#### Image Compression Service
+- [ ] Canvas API: resize → WebP
+- [ ] Target <200KB
+- [ ] Quality param (0.8 default)
+- [ ] Test: 5MB JPG → ~150KB WebP
 
 #### Accesibilidad
-- [ ] Ejecutar escaneo Axe-core: `npm install --save-dev @axe-core/react`
-- [ ] Fix: falta de alt text, contraste bajo, labels faltantes
-- [ ] Objetivo: < 5 violaciones (Lighthouse accessibility >= 90)
+- [ ] Install axe-core: `npm install --save-dev @axe-core/core @axe-core/angular`
+- [ ] Scan componentes:
+  - [ ] Alt text en images
+  - [ ] Contraste >= 4.5:1
+  - [ ] Buttons tienen labels/aria-labels
+  - [ ] Form labels linked
+  - [ ] Color no solo indicador
+- [ ] Objetivo: < 5 violations
+- [ ] Test: Lighthouse accessibility >= 90
 
-#### Testing de Móvil
-- [ ] iOS Safari: testear geolocalización, cola offline, PWA install
-- [ ] Android Chrome: testear touch targets (>= 48px), sin scroll horizontal
-- [ ] Config móvil Playwright: testear ambas plataformas en CI
+#### Mobile Testing (iOS Safari, Android Chrome)
+- [ ] Geolocation: funciona ambas plataformas
+- [ ] Cola offline: enqueu/sync
+- [ ] PWA install: ambas plataformas
+- [ ] Touch targets: >= 48px
+- [ ] Sin scroll horizontal
+- [ ] Keyboard navigation: form inputs navegables
 
-#### Baseline de Performance
-- [ ] Medir Lighthouse score (objetivo >= 90)
-- [ ] Medir time-to-interactive (TTI) < 3s
-- [ ] Medir bundle size (objetivo < 500KB gzipped)
-- [ ] Test: load test con k6 (5k usuarios concurrentes)
+#### Performance Baseline
+- [ ] Medir Lighthouse score (target >= 90)
+- [ ] Time-to-interactive (TTI) < 3s
+- [ ] Bundle size < 500KB gzipped
+- [ ] Core Web Vitals:
+  - LCP (Largest Contentful Paint) < 2.5s
+  - FID (First Input Delay) < 100ms
+  - CLS (Cumulative Layout Shift) < 0.1
+- [ ] Load test: k6 5k concurrent usuarios
+
+#### E2E Tests (Playwright)
+- [ ] Scenario 1: Device login → JWT → view dashboard
+- [ ] Scenario 2: Crear incident offline → guardar IndexedDB
+- [ ] Scenario 3: Online, crear incident → POST → lista actualiza en real-time
+- [ ] Scenario 4: Mobile login → geoloc → submit incident
+- [ ] All 4 scenarios pasando
+
+**Aceptación 5C**:
+- [ ] Sentry error tracking funciona
+- [ ] Image compression <200KB
+- [ ] Axe scan < 5 violations (a11y)
+- [ ] Lighthouse >= 90 (performance, a11y, PWA)
+- [ ] iOS/Android: geoloc, offline, PWA, touch targets OK
+- [ ] Bundle < 500KB gzipped
+- [ ] E2E tests 4/4 passing
+- [ ] TTI < 3s, LCP < 2.5s
+
+---
+
+## Mejoras Visuales Integradas (vs GeoReporta)
+
+| Aspecto | GeoReporta | Transito-Alerta | Beneficio |
+|---------|-----------|-----------------|-----------|
+| **Colores** | Bootstrap blue/green | Purple primary + tailored badges | Diferenciación visual clara, brand consistency |
+| **Typography** | Default | Tailwind font-family stack | Professional, legible en mobile |
+| **Spacing** | Inconsistent | Tailwind spacing scale (px-4, py-8) | Consistent visual rhythm |
+| **Shadows** | Basic | Tailwind shadow-lg on cards | Depth, modern look |
+| **Dark Mode** | No | Tailwind dark: | Accessibility, user preference |
+| **Icons** | Mixed | Heroicons consistent | Unified visual language |
+| **Charts** | C3.js | ECharts (moderno, reactivo) | Better interactivity, animations |
+| **Maps** | Leaflet | Leaflet + satellite layer | Rich geofencing context |
+| **Responsive** | Bootstrap grid | Tailwind grid + mobile-first | Better mobile UX |
+| **Forms** | Bootstrap forms | Tailwind + reactive forms | Type-safe, real-time validation |
 
 ---
 
