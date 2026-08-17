@@ -16,10 +16,10 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
   - 25+ suites de prueba, 150+ pruebas, todas pasando
   - Migraciones de BD 0003-0007 aplicadas, 0006 creada para columnas de perfil de Users
 
-- **Fase 3 (T3.1-T3.10)**: 🟡 ~85% Completada
-  - ✅ Completadas: T3.1 (Roles + Permissions), T3.10 (Menus), T3.5 (Mail), T3.3 (Notifications), T3.7 (IncidentCategories)
-  - 🟡 En Progreso / Pendiente: T3.2 (Organizations), T3.4 (StatusHistory), T3.6 (Invitations), T3.8 (Locations), T3.9 (Sessions)
-  - 5 tareas restantes, ~8 días de esfuerzo
+- **Fase 3 (T3.1-T3.10)**: 🟡 ~88% Completada
+  - ✅ Completadas: T3.1 (Roles + Permissions), T3.10 (Menus), T3.5 (Mail), T3.3 (Notifications), T3.7 (IncidentCategories), T3.8 (Locations)
+  - 🟡 En Progreso / Pendiente: T3.2 (Organizations), T3.4 (StatusHistory), T3.6 (Invitations), T3.9 (Sessions)
+  - 4 tareas restantes, ~6-7 días de esfuerzo
 
 - **Fase 4 (T4.1-T4.4)**: ⏳ Planeada
   - 🟡 Parcial: T4.1a (harness E2E completo, T4.1b diferido), T4.1a paso 2 (flujos de workflow + regresiones completadas)
@@ -131,19 +131,31 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 **Artefactos SDD**: `openspec/changes/t3.7-incident-categories/` (design.md, tasks.md) + Engram `sdd/t3.7-incident-categories/*`
 
-### T3.8: Módulo Locations (CRUD Geo Zones) 🟡 (EN PROGRESO)
+### T3.8: Módulo Locations (CRUD Geo Zones) ✅ (COMPLETADA)
 **Depende de**: T2.0 (Geofencing), T2.1 (Incidents)
 
 **Qué hace**:
-- Admin CRUD sobre `geo_zones` (crear/actualizar/eliminar polígonos límites)
-- `POST /api/admin/locations`: validar permiso `CREATE locations`, aceptar GeoJSON/WKT, crear fila
-- `PATCH /api/admin/locations/{id}`: validar límite (ST_IsValid), purgar caché `geo:tags:{zone_id}` (escenario CC5), actualizar columna `geom`
-- `DELETE /api/admin/locations/{id}`: archivar (soft-delete) para pista de auditoría
+- Admin CRUD sobre la tabla `geo_zones` **ya existente** (migración 0002) — no se creó tabla `locations` nueva
+- Migración 0013: añade `parent_id` (self-FK) y `level` con CHECK `('provincia','canton','parroquia','zona')`, más el backfill del seed
+- `POST /api/geo-zones`: acepta GeoJSON, coerciona `Polygon` → `MultiPolygon` vía `ST_Multi`, valida con `ST_IsValid`
+- `PATCH /api/geo-zones/{id}`: valida límite y purga el caché de puntos (CC5)
+- `DELETE /api/geo-zones/{id}`: marca `active = false`; la fila sobrevive y los hijos siguen activos
+- `GET /api/geo-zones/tree`: CTE recursiva con tope de profundidad; guard de ciclos por ancestor-walk
 
 **Criterios de Aceptación**:
-- [ ] Editar límite purga caché tagged; siguiente búsqueda refleja límite nuevo (CC5)
-- [ ] Escritura de polígono inválido rechazada con mensaje diagnóstico
-- [ ] E2E: reducir zona Santa Elena, re-enviar incidente en borde previo → ahora fuera
+- [x] Editar límite purga caché tagged; siguiente búsqueda refleja límite nuevo (CC5)
+- [x] Escritura de polígono inválido rechazada con mensaje diagnóstico (`ST_IsValidReason` verbatim)
+- [x] E2E: reducir zona, re-enviar incidente en borde previo → ahora fuera
+- [x] Jerarquía provincia → cantón con backfill verificado del seed sembrado
+- [x] Desactivar un padre no cascadea a los hijos
+
+**Desvíos deliberados del texto de esta tarea** (decisión del usuario, registrados en el proposal):
+- Ruta `geo-zones`, no `/api/admin/locations`: ningún otro controller usa prefijo `admin/`, e `inferResourceFromPath` derivaría el recurso `admin`, rompiendo el patrón de los demás
+- Borrado con `active=false` en vez de soft-delete nuevo: las FK son `ON DELETE SET NULL`, así que un borrado real desligaría organizaciones e incidentes en silencio; y ninguna entidad del stack usa soft deletes
+
+**Corrección de fondo incluida**: `purgeZoneCache()` no alcanzaba el caché de puntos `geo:point:{lat}:{lng}` (TTL 60s) porque esas claves nunca se etiquetaban — CC5 era falso durante hasta un minuto tras editar un límite. Resuelto con un tag-set dedicado `geo:tags:points`, con test de regresión que impide volver a mezclarlo con `ALL_ZONES_TAG` (que `incidents.service.ts` purga en cada escritura).
+
+**Artefactos SDD**: `openspec/changes/archive/t3.8-locations/` + Engram `sdd/t3.8-locations/*`
 
 ### T3.9: Módulo Sessions 🟡 (EN PROGRESO)
 **Depende de**: T1.4 (Auth)
@@ -163,8 +175,8 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 ## Auditoría de Migración de Base de Datos
 
 ### Actualmente Aplicadas (Supabase): 0001-0008, 0010-0011
-### Actualmente Pendientes (no aún aplicadas): 0009, 0012
-### Migraciones Fase 3 (escritas/planeadas): 0011-0017
+### Actualmente Pendientes (no aún aplicadas): 0009, 0012, 0013
+### Migraciones Fase 3 (escritas/planeadas): 0011-0016
 
 | ID | Nombre | Entidad | Estado | Notas |
 |----|------|--------|--------|-------|
@@ -180,19 +192,18 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 | 0010 | user_email | columna email de users | Aplicada | `users.email` nullable + índice parcial único (para ruteo Mail, T3.5) |
 | 0011 | notifications | tabla notifications | Aplicada | id, user_id FK, incident_id FK nullable, type enum, message, data jsonb, read bool, created_at, processed_at + índices |
 | 0012 | incident_categories | tabla incident_categories | Escrita (T3.7) | Adjacency-list uuid, `parent_id` ON DELETE SET NULL, `incidents.category_id` ON DELETE RESTRICT, seed de permisos `incident-categories`. Rollback en `database/rollback/0012_incident_categories.DOWN.sql`. Pendiente de aplicar a Supabase |
-| 0013 | invitations | tabla invitations | Planeada (T3.6) | Token single-use, expiración 24h |
-| 0014 | status_history | tabla status_history | Planeada (T3.4) | Auditoría solo-append |
-| 0015 | locations | triggers CRUD geo_zones | Planeada (T3.8) | Invalidación de caché en edición de zona |
+| 0013 | geo_zones_hierarchy | columnas de geo_zones | Escrita (T3.8) | Añade `parent_id` self-FK + `level` con CHECK `('provincia','canton','parroquia','zona')`, índice, backfill del seed por UUID determinista, y seed de permisos `geo-zones`. Rollback en `database/rollback/0013_geo_zones_hierarchy.DOWN.sql`. Pendiente de aplicar a Supabase |
+| 0014 | invitations | tabla invitations | Planeada (T3.6) | Token single-use, expiración 24h |
+| 0015 | status_history | tabla status_history | Planeada (T3.4) | Auditoría solo-append |
 | 0016 | sessions | tabla sessions | Planeada (T3.9) | Seguimiento JWT + revocación |
-| 0017 | mail | (sin nueva tabla) | Planeada (T3.5) | Solo config (templates de email almacenados en filesystem o env vars) |
 
 ## Criterios de Éxito
 
-- [x] 7/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1, T3.3, T3.5, T3.7, T3.10)
-- [x] 41 suites unit + 7 E2E, 335 pruebas (294 unit + 41 E2E), cobertura 70%+ por módulo
-- [x] Migraciones de BD 0001-0012 escritas; 0001-0008 y 0010-0011 aplicadas a Supabase; 0009 y 0012 pendientes
-- [x] Harness E2E (Testcontainers) funcionando; 7 flujos en verde (Mail, Regressions, Roles, Flows, Health, Notifications, IncidentCategories)
+- [x] 8/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1, T3.3, T3.5, T3.7, T3.8, T3.10)
+- [x] 44 suites unit + 8 E2E, 435 pruebas (372 unit + 63 E2E), cobertura 70%+ por módulo
+- [x] Migraciones de BD 0001-0013 escritas; 0001-0008 y 0010-0011 aplicadas a Supabase; 0009, 0012 y 0013 pendientes
+- [x] Harness E2E (Testcontainers) funcionando; 8 flujos en verde (Mail, Regressions, Roles, Flows, Health, Notifications, IncidentCategories, GeoZones)
 - [ ] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas
 - [x] Seguridad: rate limiting ✅, CORS ✅, regresión SQL injection ✅, type safety ✅
 - [x] Documentación: README, contrato API, runbook de despliegue ✅
-- [x] CI/CD: ESLint ✅, Typecheck ✅, Build ✅, 257 unit tests ✅, 31 E2E tests ✅
+- [x] CI/CD: ESLint ✅, Typecheck ✅, Build ✅, 372 unit tests ✅, 63 E2E tests ✅
