@@ -49,6 +49,10 @@ export class IncidentEntity {
   @Column({ name: 'geofence_matched', type: 'boolean', default: false })
   geofenceMatched!: boolean;
 
+  /** T3.7 — schema-only column; no service/DTO wiring in this task. */
+  @Column({ name: 'category_id', type: 'uuid', nullable: true })
+  categoryId!: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

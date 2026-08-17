@@ -6,18 +6,18 @@ import type Redis from 'ioredis';
 
 import { REDIS_CLIENT } from '../../core/core.module';
 import { IncidentStatus } from '../../entities/incident.entity';
-import { GeofencingService } from '../geofencing/geofencing.service';
+import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { IncidentRow, IncidentsRepository } from './incidents.repository';
 
 export const INCIDENTS_STREAM_KEY = 'incidents:events';
 const INCIDENTS_LIST_CACHE_TTL_MS = 30_000;
 
-/**
- * Tag-set covering listings that are not scoped to a single zone. Any write,
- * in any zone, invalidates them.
- */
-export const ALL_ZONES_TAG = '__all_zones__';
+// Re-exported so every existing importer of `ALL_ZONES_TAG` from this module
+// keeps compiling unchanged (T3.8 design D10). The constant itself now lives
+// in geofencing.service.ts, alongside the tag machinery (tagCacheKey /
+// purgeZoneCache) it is purged through.
+export { ALL_ZONES_TAG };
 
 /**
  * Legal forward-only transitions (spec R2: pending -> in_progress ->
