@@ -16,10 +16,10 @@ Source: `sdd/t3.8-locations/spec` (obs #415), `sdd/t3.8-locations/design` (obs #
 
 ## Phase 3: Repository (geo-zones module, raw SQL)
 
-- [ ] 3.1 RED: create `backend/src/modules/geo-zones/geo-zones.repository.spec.ts` for the geometry write path — `ST_SetSRID(ST_GeomFromGeoJSON($1::text),4326)` then `ST_Multi(...)` coercion, and a pre-flight validity round trip returning `ST_IsValid`, `ST_IsValidReason`, `ST_IsEmpty`, `ST_GeometryType` (design D6, catches a Point silently promoted to MULTIPOINT)
-- [ ] 3.2 GREEN: implement `backend/src/modules/geo-zones/geo-zones.repository.ts` write methods (`insert`, `update` with explicit `parent_id_provided` boolean param since COALESCE cannot distinguish "absent" from "null=detach to root"), plus reads (`findById`, `list` w/ filters, `ST_AsGeoJSON(polygon)::json` always returned as MultiPolygon) via `@InjectDataSource().query()`
-- [ ] 3.3 RED: add tests for `getSubtree(rootId)` recursive CTE (depth cap 1000, sorted by name per level, includes inactive) and `validateNoCycles(zoneId, proposedParentId)` ancestor-walk (self-parent, direct A→B→A, transitive A→B→C→A)
-- [ ] 3.4 GREEN: implement `getSubtree()` recursive CTE and `validateNoCycles()` ancestor walk in `geo-zones.repository.ts`, called inside the write transaction
+- [x] 3.1 RED: create `backend/src/modules/geo-zones/geo-zones.repository.spec.ts` for the geometry write path — `ST_SetSRID(ST_GeomFromGeoJSON($1::text),4326)` then `ST_Multi(...)` coercion, and a pre-flight validity round trip returning `ST_IsValid`, `ST_IsValidReason`, `ST_IsEmpty`, `ST_GeometryType` (design D6, catches a Point silently promoted to MULTIPOINT)
+- [x] 3.2 GREEN: implement `backend/src/modules/geo-zones/geo-zones.repository.ts` write methods (`insert`, `update` with explicit `parent_id_provided` boolean param since COALESCE cannot distinguish "absent" from "null=detach to root"), plus reads (`findById`, `list` w/ filters, `ST_AsGeoJSON(polygon)::json` always returned as MultiPolygon) via `@InjectDataSource().query()`
+- [x] 3.3 RED: add tests for `getSubtree(rootId)` recursive CTE (depth cap 1000, sorted by name per level, includes inactive) and `validateNoCycles(zoneId, proposedParentId)` ancestor-walk (self-parent, direct A→B→A, transitive A→B→C→A)
+- [x] 3.4 GREEN: implement `getSubtree()` recursive CTE and `validateNoCycles()` ancestor walk in `geo-zones.repository.ts`, called inside the write transaction
 
 ## Phase 4: Service (business logic + error mapping + cache purge)
 
