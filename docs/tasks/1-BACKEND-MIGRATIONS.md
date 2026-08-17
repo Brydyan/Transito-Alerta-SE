@@ -174,9 +174,13 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 ## Auditoría de Migración de Base de Datos
 
-### Actualmente Aplicadas (Supabase): 0001-0008, 0010-0011
-### Actualmente Pendientes (no aún aplicadas): 0009, 0012, 0013
+### Actualmente Aplicadas (Supabase): 0001-0008
+### Actualmente Pendientes (no aún aplicadas): 0009-0013
 ### Migraciones Fase 3 (escritas/planeadas): 0011-0016
+
+> Fuente de verdad: `database/MIGRATION_LOG.md`. Las migraciones se aplican a mano
+> (CC3), así que pasar los tests E2E no dice nada del estado de Supabase — el harness
+> corre contra Testcontainers.
 
 | ID | Nombre | Entidad | Estado | Notas |
 |----|------|--------|--------|-------|
@@ -189,8 +193,8 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 | 0007 | assignments | tabla assignments | Aplicada | Renumerada (originalmente 0006) |
 | 0008 | anonymous_read_comments | roles_permissions | Aplicada | Agrega grant de techo de anonymous reporter |
 | 0009 | roles_permissions | tablas roles, permissions | Pendiente | Entidad Role con JSONB permissions, tabla catálogo permissions |
-| 0010 | user_email | columna email de users | Aplicada | `users.email` nullable + índice parcial único (para ruteo Mail, T3.5) |
-| 0011 | notifications | tabla notifications | Aplicada | id, user_id FK, incident_id FK nullable, type enum, message, data jsonb, read bool, created_at, processed_at + índices |
+| 0010 | user_email | columna email de users | Pendiente | `users.email` nullable + índice parcial único (para ruteo Mail, T3.5) |
+| 0011 | notifications | tabla notifications | Pendiente | id, user_id FK, incident_id FK nullable, type enum, message, data jsonb, read bool, created_at, processed_at + índices |
 | 0012 | incident_categories | tabla incident_categories | Escrita (T3.7) | Adjacency-list uuid, `parent_id` ON DELETE SET NULL, `incidents.category_id` ON DELETE RESTRICT, seed de permisos `incident-categories`. Rollback en `database/rollback/0012_incident_categories.DOWN.sql`. Pendiente de aplicar a Supabase |
 | 0013 | geo_zones_hierarchy | columnas de geo_zones | Escrita (T3.8) | Añade `parent_id` self-FK + `level` con CHECK `('provincia','canton','parroquia','zona')`, índice, backfill del seed por UUID determinista, y seed de permisos `geo-zones`. Rollback en `database/rollback/0013_geo_zones_hierarchy.DOWN.sql`. Pendiente de aplicar a Supabase |
 | 0014 | invitations | tabla invitations | Planeada (T3.6) | Token single-use, expiración 24h |
@@ -201,7 +205,7 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 - [x] 8/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1, T3.3, T3.5, T3.7, T3.8, T3.10)
 - [x] 44 suites unit + 8 E2E, 435 pruebas (372 unit + 63 E2E), cobertura 70%+ por módulo
-- [x] Migraciones de BD 0001-0013 escritas; 0001-0008 y 0010-0011 aplicadas a Supabase; 0009, 0012 y 0013 pendientes
+- [x] Migraciones de BD 0001-0013 escritas; 0001-0008 aplicadas a Supabase; 0009-0013 pendientes de aplicar
 - [x] Harness E2E (Testcontainers) funcionando; 8 flujos en verde (Mail, Regressions, Roles, Flows, Health, Notifications, IncidentCategories, GeoZones)
 - [ ] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas
 - [x] Seguridad: rate limiting ✅, CORS ✅, regresión SQL injection ✅, type safety ✅

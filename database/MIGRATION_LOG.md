@@ -24,6 +24,8 @@ actually been run against that environment.
 | 0009 | roles_permissions | roles.permissions jsonb column, permissions catalog table, users.role_id + users.permission_version (pv), seeded 'reporter' role replacing the T1.4 inline stub | ⏳ Pending | | | supabase |
 | 0010 | user_email | adds nullable `users.email` + unique partial index (design D11) — address source for Mail module (T3.5) event-routing recipients | ⏳ Pending | | | supabase |
 | 0011 | notifications | notifications table (user_id FK, incident_id FK, type, message, data jsonb, read bool, created_at + processed_at timestamps) + indexes on (user_id, created_at) and (user_id, read) for list and count queries (T3.3) | ⏳ Pending | | | supabase |
+| 0012 | incident_categories | incident_categories adjacency-list table (uuid PK, self-FK `parent_id` ON DELETE SET NULL) + index; `incidents.category_id` ON DELETE RESTRICT + index; permission catalog rows for the `incident-categories` resource (T3.7) | ⏳ Pending | | | supabase |
+| 0013 | geo_zones_hierarchy | adds `geo_zones.parent_id` self-FK ON DELETE SET NULL and `geo_zones.level` with a CHECK over (provincia, canton, parroquia, zona) + index; backfills the seeded Santa Elena province and its 3 cantons by deterministic UUID; permission catalog rows for the `geo-zones` resource (T3.8). Depends on the 0003 seed having run | ⏳ Pending | | | supabase |
 
 ## Status legend
 
