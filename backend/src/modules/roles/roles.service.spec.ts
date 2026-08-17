@@ -208,5 +208,142 @@ describe('RolesService', () => {
         expect(result.roleId).toBe('role-new');
       });
     });
+
+    describe('granted-role rank check (security/assign-role-rank-gap — assertCanGrantRole after assignment)', () => {
+      it('rejects 403 INSUFFICIENT_ROLE_RANK when an admin_organizacion grants admin_sistema to a role-less user in its own org (the escalation)', async () => {
+        const actor = makeActor({
+          roleName: 'admin_organizacion',
+          organizationId: 'org-A',
+          scope: { kind: 'org', organizationId: 'org-A' },
+        });
+        roleRepo.findOne.mockResolvedValueOnce({
+          id: 'role-new',
+          name: 'admin_sistema',
+          permissions: [],
+        });
+        userRepo.findOne.mockResolvedValue({
+          id: 'target-1',
+          organizationId: 'org-A',
+          roleId: null,
+          deviceUuid: 'device-target',
+          permissionVersion: 1,
+        });
+
+        await expect(
+          service.assignRole(actor, 'target-1', 'role-new'),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(userRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('rejects 403 when an admin_organizacion grants admin_organizacion (equal rank) to a role-less user in its own org', async () => {
+        const actor = makeActor({
+          roleName: 'admin_organizacion',
+          organizationId: 'org-A',
+          scope: { kind: 'org', organizationId: 'org-A' },
+        });
+        roleRepo.findOne.mockResolvedValueOnce({
+          id: 'role-new',
+          name: 'admin_organizacion',
+          permissions: [],
+        });
+        userRepo.findOne.mockResolvedValue({
+          id: 'target-1',
+          organizationId: 'org-A',
+          roleId: null,
+          deviceUuid: 'device-target',
+          permissionVersion: 1,
+        });
+
+        await expect(
+          service.assignRole(actor, 'target-1', 'role-new'),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(userRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('allows an admin_organizacion to grant operador_organizacion to a role-less user in its own org', async () => {
+        const actor = makeActor({
+          roleName: 'admin_organizacion',
+          organizationId: 'org-A',
+          scope: { kind: 'org', organizationId: 'org-A' },
+        });
+        roleRepo.findOne.mockResolvedValueOnce({
+          id: 'role-new',
+          name: 'operador_organizacion',
+          permissions: ['READ incidents'],
+        });
+        userRepo.findOne.mockResolvedValue({
+          id: 'target-1',
+          organizationId: 'org-A',
+          roleId: null,
+          deviceUuid: 'device-target',
+          permissionVersion: 1,
+        });
+
+        const result = await service.assignRole(actor, 'target-1', 'role-new');
+
+        expect(result.roleId).toBe('role-new');
+      });
+
+      it('rejects 403 when an admin_sistema grants admin_sistema (equal rank — no peer promotion)', async () => {
+        const actor = makeActor({ roleName: 'admin_sistema', scope: { kind: 'global' } });
+        roleRepo.findOne.mockResolvedValueOnce({
+          id: 'role-new',
+          name: 'admin_sistema',
+          permissions: [],
+        });
+        userRepo.findOne.mockResolvedValue({
+          id: 'target-1',
+          organizationId: null,
+          roleId: null,
+          deviceUuid: 'device-target',
+          permissionVersion: 1,
+        });
+
+        await expect(
+          service.assignRole(actor, 'target-1', 'role-new'),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(userRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('allows an admin_sistema to grant admin_organizacion', async () => {
+        const actor = makeActor({ roleName: 'admin_sistema', scope: { kind: 'global' } });
+        roleRepo.findOne.mockResolvedValueOnce({
+          id: 'role-new',
+          name: 'admin_organizacion',
+          permissions: [],
+        });
+        userRepo.findOne.mockResolvedValue({
+          id: 'target-1',
+          organizationId: null,
+          roleId: null,
+          deviceUuid: 'device-target',
+          permissionVersion: 1,
+        });
+
+        const result = await service.assignRole(actor, 'target-1', 'role-new');
+
+        expect(result.roleId).toBe('role-new');
+      });
+
+      it('allows an actor with roleName === null to grant any role (D2 additivity preserved)', async () => {
+        const actor = makeActor({ roleName: null, scope: { kind: 'global' } });
+        roleRepo.findOne.mockResolvedValueOnce({
+          id: 'role-new',
+          name: 'admin_sistema',
+          permissions: [],
+        });
+        userRepo.findOne.mockResolvedValue({
+          id: 'target-1',
+          organizationId: 'org-A',
+          roleId: null,
+          deviceUuid: 'device-target',
+          permissionVersion: 1,
+        });
+
+        const result = await service.assignRole(actor, 'target-1', 'role-new');
+
+        expect(result.roleId).toBe('role-new');
+      });
+    });
   });
 });

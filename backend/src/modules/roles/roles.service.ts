@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 import { RoleEntity } from '../../entities/role.entity';
 import { UserEntity } from '../../entities/user.entity';
 import { AuthContext } from '../../common/authz/subject-scope';
-import { assertCanManage } from '../../common/authz/assert-can-manage';
+import { assertCanGrantRole, assertCanManage } from '../../common/authz/assert-can-manage';
 import { AuthService } from '../auth/auth.service';
 
 /**
@@ -54,6 +54,13 @@ export class RolesService {
    * target is invisible under the actor's scope, 403
    * `INSUFFICIENT_ROLE_RANK` if visible but the actor does not outrank
    * them.
+   *
+   * `assertCanGrantRole` runs immediately after, against the role being
+   * GRANTED — closes the privilege-escalation gap where a role-less
+   * target (`rankOf = MAX_SAFE_INTEGER`) always passed the check above
+   * regardless of which role the actor was about to hand out
+   * (security/assign-role-rank-gap). Ordered after `assertCanManage` so a
+   * target the actor cannot even see still yields 404, not 403 (D11).
    */
   async assignRole(actor: AuthContext, userId: string, roleId: string): Promise<UserEntity> {
     const role = await this.roleRepo.findOne({ where: { id: roleId } });
@@ -74,6 +81,7 @@ export class RolesService {
       organizationId: user.organizationId,
       roleName: currentRole?.name ?? null,
     });
+    assertCanGrantRole(actor, role.name ?? null);
 
     user.roleId = role.id;
     user.permissions = role.permissions ?? [];
