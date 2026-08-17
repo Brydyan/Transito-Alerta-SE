@@ -1,7 +1,6 @@
 import { DataSource } from 'typeorm';
 import {
   buildZoneTree,
-  GeoZoneNode,
   GeoZoneTreeRow,
   GeoZonesRepository,
   MAX_DEPTH,

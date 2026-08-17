@@ -16,6 +16,7 @@ import { MenusModule } from './modules/menus/menus.module';
 import { MailModule } from './modules/mail/mail.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { IncidentCategoriesModule } from './modules/incident-categories/incident-categories.module';
+import { GeoZonesModule } from './modules/geo-zones/geo-zones.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 
 @Module({
@@ -34,6 +35,7 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
     MailModule,
     NotificationsModule,
     IncidentCategoriesModule,
+    GeoZonesModule,
   ],
   controllers: [AppController],
   providers: [
