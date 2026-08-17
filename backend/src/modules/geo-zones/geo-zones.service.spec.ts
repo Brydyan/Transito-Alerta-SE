@@ -181,6 +181,35 @@ describe('GeoZonesService', () => {
         } as never),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
+
+    // Postgres raises rather than returning a row when ST_GeomFromGeoJSON
+    // cannot parse the input at all (E7). That throw must surface as a 400,
+    // not escape as a 500 — the payload is the caller's fault, not ours.
+    it('maps a ST_GeomFromGeoJSON parse failure to 400, not a 500 (E7)', async () => {
+      repo.validateGeometry.mockRejectedValue(
+        new Error('error: Unknown geometry type: NotAType'),
+      );
+
+      const call = service.create({
+        name: 'Unparseable',
+        level: 'zona',
+        polygon: { type: 'NotAType', coordinates: [] },
+      } as never);
+
+      await expect(call).rejects.toBeInstanceOf(BadRequestException);
+      await expect(call).rejects.toMatchObject({ message: 'Invalid GeoJSON geometry' });
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('maps a parse failure on update to 400 as well (E7)', async () => {
+      repo.findById.mockResolvedValue(makeZone({ level: 'zona' }));
+      repo.validateGeometry.mockRejectedValue(new Error('error: Invalid GeoJSON representation'));
+
+      await expect(
+        service.update('zone-1', { polygon: { type: 'Garbage' } } as never),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('update', () => {

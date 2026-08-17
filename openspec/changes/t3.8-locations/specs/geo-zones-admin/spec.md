@@ -86,7 +86,20 @@ GIVEN `level: "ciudad"` (not in the allowed set). WHEN `POST /geo-zones`. THEN 4
 GIVEN `parent_id` referencing a non-existent uuid. WHEN `POST /geo-zones`. THEN 400 `PARENT_NOT_FOUND`.
 
 ### TS-7: Cycle Rejected on Re-parent
-GIVEN chain A(provincia)→B(canton)→C(parroquia). WHEN `PATCH /geo-zones/A { parent_id: C }`. THEN 400 `CYCLIC_PARENT`; no row mutated.
+GIVEN chain A(zona)→B(zona)→C(zona). WHEN `PATCH /geo-zones/A { parent_id: C }`. THEN 400 `CYCLIC_PARENT`; no row mutated.
+
+> **Corrected after verification.** This scenario originally read
+> `A(provincia)→B(canton)→C(parroquia)`, which is unreachable: `provincia` is the
+> only level whose required parent level is `null`, so re-parenting a `provincia`
+> always fails the level-compatibility check (`INVALID_PARENT_LEVEL`) before the
+> cycle guard ever runs. The unreachability is structural rather than an artifact
+> of check ordering — for every level-constrained pair (`canton`→`provincia`,
+> `parroquia`→`canton`) the required ancestor level is one that can never itself
+> carry a non-null `parent_id`, so it can never become a descendant of the node
+> closing the loop. `zona` is the only level with an unconstrained parent, and
+> therefore the only level at which a genuine cycle can form and reach
+> `CYCLIC_PARENT`. The requirement is unchanged; only the scenario that
+> exercises it was wrong.
 
 ### TS-8: Tree Depth ≥ 2
 GIVEN seeded Santa Elena (provincia) with 3 cantón children (post-0013 backfill). WHEN `GET /geo-zones/tree`. THEN 200; Santa Elena appears with exactly 3 children at depth 1.
