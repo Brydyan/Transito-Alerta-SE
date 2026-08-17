@@ -5,6 +5,11 @@ import type { Redis } from 'ioredis';
 import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService, INCIDENTS_STREAM_KEY } from './incidents.service';
 import { GeofencingService } from '../geofencing/geofencing.service';
+import { OrganizationsService } from '../organizations/organizations.service';
+import { SubjectScope } from '../../common/authz/subject-scope';
+
+const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
+const ORG_A_SCOPE: SubjectScope = { kind: 'org', organizationId: 'org-A' };
 
 function makeRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -17,6 +22,7 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     assigned_to: null,
     zone_id: 'zone-1',
     geofence_matched: true,
+    organization_id: 'org-A',
     lat: -2.2,
     lng: -80.8,
     created_at: new Date(),
@@ -33,6 +39,7 @@ describe('IncidentsService', () => {
     updateStatus: jest.Mock;
   };
   let geofencing: { resolveZone: jest.Mock; purgeZoneCache: jest.Mock; tagCacheKey: jest.Mock };
+  let organizations: { findByZone: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
   let redis: { xadd: jest.Mock };
   let cache: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
@@ -46,12 +53,14 @@ describe('IncidentsService', () => {
       updateStatus: jest.fn(),
     };
     geofencing = { resolveZone: jest.fn(), purgeZoneCache: jest.fn(), tagCacheKey: jest.fn() };
+    organizations = { findByZone: jest.fn() };
     eventEmitter = { emit: jest.fn() };
     redis = { xadd: jest.fn() };
     cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
     service = new IncidentsService(
       repo as unknown as IncidentsRepository,
       geofencing as unknown as GeofencingService,
+      organizations as unknown as OrganizationsService,
       eventEmitter as unknown as jest.Mocked<EventEmitter2>,
       redis as unknown as jest.Mocked<Redis>,
       cache as unknown as jest.Mocked<Cache>,
@@ -59,8 +68,9 @@ describe('IncidentsService', () => {
   });
 
   describe('create', () => {
-    it('resolves a zone, persists geofence_matched=true, purges zone cache, and emits events', async () => {
+    it('resolves a zone, derives organization_id from the zone (D4 — never the creator\'s own org), purges zone cache, and emits events', async () => {
       geofencing.resolveZone.mockResolvedValue({ zone_id: 'zone-1', zone: { id: 'zone-1' } });
+      organizations.findByZone.mockResolvedValue({ id: 'org-A', name: 'Org A', zone_id: 'zone-1', created_at: new Date() });
       repo.create.mockResolvedValue(makeRow());
 
       const result = await service.create(
@@ -69,8 +79,14 @@ describe('IncidentsService', () => {
       );
 
       expect(geofencing.resolveZone).toHaveBeenCalledWith({ lat: -2.2, lng: -80.8 });
+      expect(organizations.findByZone).toHaveBeenCalledWith('zone-1');
       expect(repo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ zoneId: 'zone-1', geofenceMatched: true, citizenId: 'user-1' }),
+        expect.objectContaining({
+          zoneId: 'zone-1',
+          geofenceMatched: true,
+          citizenId: 'user-1',
+          organizationId: 'org-A',
+        }),
       );
       expect(geofencing.purgeZoneCache).toHaveBeenCalledWith('zone-1');
       expect(eventEmitter.emit).toHaveBeenCalledWith('incident.created', expect.any(Object));
@@ -85,21 +101,33 @@ describe('IncidentsService', () => {
       expect(result.geofence_matched).toBe(true);
     });
 
-    it('still accepts (does not throw) an incident outside all zones, persisting geofence_matched=false (R2)', async () => {
+    it('still accepts (does not throw) an incident outside all zones, persisting organization_id=null (R2/D4)', async () => {
       geofencing.resolveZone.mockResolvedValue({ zone_id: null, zone: null });
-      repo.create.mockResolvedValue(makeRow({ zone_id: null, geofence_matched: false }));
+      repo.create.mockResolvedValue(makeRow({ zone_id: null, geofence_matched: false, organization_id: null }));
 
       const result = await service.create(
         { title: 'Pothole', lat: 0, lng: 0 } as unknown as Parameters<typeof service.create>[0],
         'user-1',
       );
 
+      expect(organizations.findByZone).toHaveBeenCalledWith(null);
       expect(repo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ zoneId: null, geofenceMatched: false }),
+        expect.objectContaining({ zoneId: null, geofenceMatched: false, organizationId: null }),
       );
-      // No zone to purge — purgeZoneCache is a no-op guarded by GeofencingService itself,
-      // but the service must still call it (or skip it) without throwing.
       expect(result.geofence_matched).toBe(false);
+    });
+
+    it('persists organization_id=null when the zone has no organization', async () => {
+      geofencing.resolveZone.mockResolvedValue({ zone_id: 'zone-9', zone: { id: 'zone-9' } });
+      organizations.findByZone.mockResolvedValue(null);
+      repo.create.mockResolvedValue(makeRow({ zone_id: 'zone-9', organization_id: null }));
+
+      await service.create(
+        { title: 'X', lat: 1, lng: 1 } as unknown as Parameters<typeof service.create>[0],
+        'user-1',
+      );
+
+      expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ organizationId: null }));
     });
   });
 
@@ -108,22 +136,36 @@ describe('IncidentsService', () => {
       const row = makeRow();
       cache.get.mockResolvedValue([row]);
 
-      const result = await service.findAll('zone-1');
+      const result = await service.findAll('zone-1', undefined, GLOBAL_SCOPE);
 
       expect(result).toEqual([row]);
       expect(repo.findAll).not.toHaveBeenCalled();
     });
 
-    it('queries and caches the list by zone on a miss', async () => {
+    it('queries and caches the list by zone+scope on a miss', async () => {
       const row = makeRow();
       cache.get.mockResolvedValue(undefined);
       repo.findAll.mockResolvedValue([row]);
 
-      const result = await service.findAll('zone-1');
+      const result = await service.findAll('zone-1', undefined, GLOBAL_SCOPE);
 
-      expect(repo.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1' });
+      expect(repo.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1', status: undefined }, GLOBAL_SCOPE);
       expect(cache.set).toHaveBeenCalled();
       expect(result).toEqual([row]);
+    });
+
+    // Design "Scope-blind list cache" risk: threading scope into the
+    // repository alone would still serve org A's cached array to org B —
+    // the cache KEY itself must carry the scope discriminator.
+    it('caches org and global scope under DISTINCT keys for the same zone/status', async () => {
+      cache.get.mockResolvedValue(undefined);
+      repo.findAll.mockResolvedValue([]);
+
+      await service.findAll('zone-1', undefined, GLOBAL_SCOPE);
+      await service.findAll('zone-1', undefined, ORG_A_SCOPE);
+
+      const keysUsed = cache.set.mock.calls.map((call) => call[0]);
+      expect(new Set(keysUsed).size).toBe(2);
     });
   });
 
@@ -132,15 +174,16 @@ describe('IncidentsService', () => {
       const row = makeRow();
       repo.findOne.mockResolvedValue(row);
 
-      const result = await service.findOne('inc-1');
+      const result = await service.findOne('inc-1', GLOBAL_SCOPE);
 
+      expect(repo.findOne).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE);
       expect(result).toEqual(row);
     });
 
-    it('throws NotFoundException when missing', async () => {
+    it('throws NotFoundException when missing or invisible under scope (D11 — 404, never 403)', async () => {
       repo.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne('missing')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.findOne('missing', ORG_A_SCOPE)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
@@ -149,8 +192,9 @@ describe('IncidentsService', () => {
       repo.findOne.mockResolvedValue(makeRow({ status: 'pending' }));
       repo.updateStatus.mockResolvedValue(makeRow({ status: 'in_progress' }));
 
-      const result = await service.updateStatus('inc-1', 'in_progress', 'operator-1');
+      const result = await service.updateStatus('inc-1', 'in_progress', 'operator-1', GLOBAL_SCOPE);
 
+      expect(repo.findOne).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE);
       expect(repo.updateStatus).toHaveBeenCalledWith('inc-1', 'in_progress');
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'incident.status_changed',
@@ -171,7 +215,7 @@ describe('IncidentsService', () => {
       repo.findOne.mockResolvedValue(makeRow({ status: 'in_progress' }));
       repo.updateStatus.mockResolvedValue(makeRow({ status: 'resolved' }));
 
-      const result = await service.updateStatus('inc-1', 'resolved', 'operator-1');
+      const result = await service.updateStatus('inc-1', 'resolved', 'operator-1', GLOBAL_SCOPE);
 
       expect(result.status).toBe('resolved');
     });
@@ -180,7 +224,7 @@ describe('IncidentsService', () => {
       repo.findOne.mockResolvedValue(makeRow({ status: 'pending' }));
 
       await expect(
-        service.updateStatus('inc-1', 'resolved', 'operator-1'),
+        service.updateStatus('inc-1', 'resolved', 'operator-1', GLOBAL_SCOPE),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(repo.updateStatus).not.toHaveBeenCalled();
     });
@@ -189,7 +233,7 @@ describe('IncidentsService', () => {
       repo.findOne.mockResolvedValue(makeRow({ status: 'resolved' }));
 
       await expect(
-        service.updateStatus('inc-1', 'pending', 'operator-1'),
+        service.updateStatus('inc-1', 'pending', 'operator-1', GLOBAL_SCOPE),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -197,15 +241,15 @@ describe('IncidentsService', () => {
       repo.findOne.mockResolvedValue(makeRow({ status: 'pending' }));
 
       await expect(
-        service.updateStatus('inc-1', 'pending', 'operator-1'),
+        service.updateStatus('inc-1', 'pending', 'operator-1', GLOBAL_SCOPE),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('throws NotFoundException when the incident does not exist', async () => {
+    it('throws NotFoundException when the incident does not exist or is invisible under scope', async () => {
       repo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.updateStatus('missing', 'in_progress', 'operator-1'),
+        service.updateStatus('missing', 'in_progress', 'operator-1', ORG_A_SCOPE),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

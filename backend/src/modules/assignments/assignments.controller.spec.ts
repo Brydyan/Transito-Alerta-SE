@@ -2,6 +2,9 @@ import { Reflector } from '@nestjs/core';
 import { AssignmentsController } from './assignments.controller';
 import { AssignmentsService } from './assignments.service';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
+import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+
+const GLOBAL_SCOPE = { kind: 'global' as const };
 
 describe('AssignmentsController', () => {
   let service: { assign: jest.Mock; release: jest.Mock; list: jest.Mock };
@@ -36,9 +39,12 @@ describe('AssignmentsController', () => {
     expect(service.release).toHaveBeenCalledWith('a-1');
   });
 
-  it('GET /incident/:incidentId delegates to service.list', async () => {
+  it('GET /incident/:incidentId delegates to service.list with the caller scope', async () => {
     service.list.mockResolvedValue([]);
-    await controller.list('inc-1');
-    expect(service.list).toHaveBeenCalledWith('inc-1');
+    const req = {
+      user: { userId: 'user-1', permissions: [], scope: GLOBAL_SCOPE },
+    } as unknown as AuthenticatedRequest;
+    await controller.list('inc-1', req);
+    expect(service.list).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE);
   });
 });

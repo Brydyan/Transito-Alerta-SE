@@ -54,6 +54,16 @@ export const MAIL_BLOCKING_CLIENT = 'MAIL_BLOCKING_CLIENT';
 export const MAIL_EVENTS_BLOCKING_CLIENT = 'MAIL_EVENTS_BLOCKING_CLIENT';
 
 /**
+ * Dedicated blocking connection for IncidentStatusHistoryListener (T3.4
+ * design D1) — XREADGROUP on `incidents:events`, consumer group
+ * `status-history`. This is the 5th such connection; same reasoning as
+ * MAIL_EVENTS_BLOCKING_CLIENT: ioredis serialises commands per connection
+ * and `XREADGROUP ... BLOCK` holds one for the whole window, so sharing
+ * would put every sweep XPENDING/XCLAIM behind another consumer's block.
+ */
+export const STATUS_HISTORY_EVENTS_BLOCKING_CLIENT = 'STATUS_HISTORY_EVENTS_BLOCKING_CLIENT';
+
+/**
  * CoreModule — Config, TypeORM, Redis cache, EventEmitter2.
  * Imported by AppModule; every feature module depends on it transitively
  * (design "Module Dependency DAG").
@@ -140,6 +150,19 @@ export const MAIL_EVENTS_BLOCKING_CLIENT = 'MAIL_EVENTS_BLOCKING_CLIENT';
         });
       },
     },
+    {
+      provide: STATUS_HISTORY_EVENTS_BLOCKING_CLIENT,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const cacheConf = config.get<CacheConfig>('cache')!;
+        return new Redis(cacheConf.streamsUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: true,
+          retryStrategy: (times) => Math.min(times * 200, 5000),
+        });
+      },
+    },
   ],
   exports: [
     ConfigModule,
@@ -150,6 +173,7 @@ export const MAIL_EVENTS_BLOCKING_CLIENT = 'MAIL_EVENTS_BLOCKING_CLIENT';
     REDIS_BLOCKING_CLIENT,
     MAIL_BLOCKING_CLIENT,
     MAIL_EVENTS_BLOCKING_CLIENT,
+    STATUS_HISTORY_EVENTS_BLOCKING_CLIENT,
   ],
 })
 export class CoreModule {}

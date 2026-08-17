@@ -11,20 +11,16 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
 
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { PermissionGuard } from '../../common/guards/permission.guard';
+import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { IncidentStatus } from '../../entities/incident.entity';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { UpdateIncidentStatusDto } from './dto/update-incident-status.dto';
 import { IncidentRow } from './incidents.repository';
 import { IncidentsService } from './incidents.service';
-
-export interface AuthenticatedRequest extends Request {
-  user?: { userId: string; permissions: string[] };
-}
 
 /**
  * IncidentsController (R2) — calibration slice. Anonymous devices hold
@@ -49,16 +45,17 @@ export class IncidentsController {
   @Get()
   @RequirePermission('READ')
   findAll(
+    @Req() req: AuthenticatedRequest,
     @Query('zone_id') zoneId?: string,
     @Query('status') status?: IncidentStatus,
   ): Promise<IncidentRow[]> {
-    return this.incidentsService.findAll(zoneId, status);
+    return this.incidentsService.findAll(zoneId, status, req.user!.scope);
   }
 
   @Get(':id')
   @RequirePermission('READ')
-  findOne(@Param('id') id: string): Promise<IncidentRow> {
-    return this.incidentsService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<IncidentRow> {
+    return this.incidentsService.findOne(id, req.user!.scope);
   }
 
   @Patch(':id/status')
@@ -69,6 +66,6 @@ export class IncidentsController {
     @Body() dto: UpdateIncidentStatusDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<IncidentRow> {
-    return this.incidentsService.updateStatus(id, dto.status, req.user!.userId);
+    return this.incidentsService.updateStatus(id, dto.status, req.user!.userId, req.user!.scope);
   }
 }

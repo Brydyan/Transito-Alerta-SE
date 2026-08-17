@@ -1,4 +1,4 @@
-import { hasPermission } from '../../common/guards/permission.guard';
+import { AuthContext } from '../../common/authz/subject-scope';
 
 export interface RealtimeEventPayload {
   zone_id?: string | null;
@@ -50,12 +50,47 @@ export function resolveRoomsForEvent(payload: RealtimeEventPayload): string[] {
 }
 
 /**
- * Join-time authorization gate (design D6: "authorization becomes a
- * join-time check, not a per-message filter"). A socket may join a
- * geo:{zone_id}/org:{org_id}/incident:{id} room only if its permission set
- * grants READ on incidents; user:{id} rooms require no extra check beyond
- * being authenticated as that user (checked by the caller).
+ * Join-time authorization gate (design D6/D11 — T3.2 rewrite). Authorizes
+ * the SPECIFIC requested room against the caller's `AuthContext.scope`,
+ * not just a global "holds READ incidents" check — the T3.2 accident this
+ * closes: any staff identity could previously join ANY `org:{id}`.
+ *
+ * `ownerOrgId` is pre-fetched by the caller (`RoomAuthorizer`, async PK
+ * lookup) for `geo:`/`incident:` rooms — this function stays pure, no I/O.
+ * Unknown namespace -> `false` (default-deny, as today).
  */
-export function canJoinRoom(permissions: string[]): boolean {
-  return hasPermission(permissions, 'READ', 'incidents');
+export function canJoinRoom(ctx: AuthContext, room: string, ownerOrgId?: string | null): boolean {
+  if (room.startsWith('user:')) {
+    const targetUserId = room.slice('user:'.length);
+    return targetUserId === ctx.userId;
+  }
+
+  if (room.startsWith('org:')) {
+    const targetOrgId = room.slice('org:'.length);
+    switch (ctx.scope.kind) {
+      case 'global':
+        return true;
+      case 'org':
+      case 'org_assigned':
+        return targetOrgId === ctx.scope.organizationId;
+      case 'public':
+      case 'deny':
+        return false;
+    }
+  }
+
+  if (room.startsWith('geo:') || room.startsWith('incident:')) {
+    switch (ctx.scope.kind) {
+      case 'global':
+      case 'public':
+        return true;
+      case 'org':
+      case 'org_assigned':
+        return ownerOrgId === ctx.scope.organizationId;
+      case 'deny':
+        return false;
+    }
+  }
+
+  return false;
 }

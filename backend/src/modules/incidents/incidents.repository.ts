@@ -3,6 +3,8 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 import { IncidentPriority, IncidentStatus } from '../../entities/incident.entity';
+import { SubjectScope } from '../../common/authz/subject-scope';
+import { scopeToSql } from '../../common/authz/scope-sql';
 
 export interface IncidentRow {
   id: string;
@@ -14,6 +16,7 @@ export interface IncidentRow {
   assigned_to: string | null;
   zone_id: string | null;
   geofence_matched: boolean;
+  organization_id: string | null;
   lat: number;
   lng: number;
   created_at: Date;
@@ -29,11 +32,12 @@ export interface CreateIncidentInput {
   citizenId: string;
   zoneId: string | null;
   geofenceMatched: boolean;
+  organizationId: string | null;
 }
 
 const SELECT_COLUMNS = `
   id, title, description, status, priority,
-  citizen_id, assigned_to, zone_id, geofence_matched,
+  citizen_id, assigned_to, zone_id, geofence_matched, organization_id,
   ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng,
   created_at, updated_at
 `;
@@ -50,9 +54,9 @@ export class IncidentsRepository {
   async create(input: CreateIncidentInput): Promise<IncidentRow> {
     const rows: IncidentRow[] = await this.dataSource.query(
       `INSERT INTO incidents
-         (title, description, location, status, priority, citizen_id, zone_id, geofence_matched)
+         (title, description, location, status, priority, citizen_id, zone_id, geofence_matched, organization_id)
        VALUES
-         ($1, $2, ST_SetSRID(ST_Point($3, $4), 4326), 'pending', $5, $6, $7, $8)
+         ($1, $2, ST_SetSRID(ST_Point($3, $4), 4326), 'pending', $5, $6, $7, $8, $9)
        RETURNING ${SELECT_COLUMNS}`,
       [
         input.title,
@@ -63,12 +67,21 @@ export class IncidentsRepository {
         input.citizenId,
         input.zoneId,
         input.geofenceMatched,
+        input.organizationId,
       ],
     );
     return rows[0];
   }
 
-  async findAll(filters: { zoneId?: string; status?: IncidentStatus } = {}): Promise<IncidentRow[]> {
+  /**
+   * `scope` is a REQUIRED parameter (T3.2 design D3) — never optional,
+   * never defaulted. An unscoped call is a compile error, not a silent
+   * `global` leak.
+   */
+  async findAll(
+    filters: { zoneId?: string; status?: IncidentStatus },
+    scope: SubjectScope,
+  ): Promise<IncidentRow[]> {
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -81,6 +94,10 @@ export class IncidentsRepository {
       conditions.push(`status = $${params.length}`);
     }
 
+    const scopeSql = scopeToSql(scope, { table: 'incidents', paramOffset: params.length + 1 });
+    conditions.push(scopeSql.fragment);
+    params.push(...scopeSql.params);
+
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     return this.dataSource.query(
@@ -89,10 +106,11 @@ export class IncidentsRepository {
     );
   }
 
-  async findOne(id: string): Promise<IncidentRow | null> {
+  async findOne(id: string, scope: SubjectScope): Promise<IncidentRow | null> {
+    const scopeSql = scopeToSql(scope, { table: 'incidents', paramOffset: 2 });
     const rows: IncidentRow[] = await this.dataSource.query(
-      `SELECT ${SELECT_COLUMNS} FROM incidents WHERE id = $1`,
-      [id],
+      `SELECT ${SELECT_COLUMNS} FROM incidents WHERE id = $1 AND ${scopeSql.fragment}`,
+      [id, ...scopeSql.params],
     );
     return rows[0] ?? null;
   }

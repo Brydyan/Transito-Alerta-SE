@@ -10,7 +10,8 @@ import {
 import type { Server, Socket } from 'socket.io';
 
 import { AuthService } from '../auth/auth.service';
-import { canJoinRoom, resolveRoomsForEvent, userRoom } from './room.util';
+import { RoomAuthorizer } from './room-authorizer.service';
+import { resolveRoomsForEvent, userRoom } from './room.util';
 
 const ROOM_NAMESPACE_PREFIXES = ['geo:', 'org:', 'incident:'];
 
@@ -36,7 +37,10 @@ export class EventsGateway implements OnGatewayConnection {
 
   private readonly logger = new Logger(EventsGateway.name);
 
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly roomAuthorizer: RoomAuthorizer,
+  ) {}
 
   async handleConnection(@ConnectedSocket() socket: Socket): Promise<void> {
     const token = this.extractToken(socket);
@@ -47,12 +51,14 @@ export class EventsGateway implements OnGatewayConnection {
 
     try {
       const payload = this.authService.validateToken(token);
-      // `sub` is user.id — resolve by id. getPermissions() expects a
-      // device_uuid and would silently return [], which canJoinRoom() then
-      // refuses, taking every room join down with it.
-      const permissions = await this.authService.getPermissionsByUserId(payload.sub);
-      socket.data.userId = payload.sub;
-      socket.data.permissions = permissions;
+      // `sub` is user.id — resolve by id. The full AuthContext (T3.2
+      // design) is set on socket.data, mirroring req.user on the HTTP
+      // side — the same source of truth for both transports (design
+      // "Sequence Flows").
+      const ctx = await this.authService.getAuthContextByUserId(payload.sub);
+      socket.data.userId = ctx.userId;
+      socket.data.permissions = ctx.permissions;
+      socket.data.scope = ctx.scope;
       // Awaited: with the Redis adapter, join() is asynchronous — not
       // awaiting races the first event emitted to this room.
       await socket.join(userRoom(payload.sub));
@@ -69,9 +75,24 @@ export class EventsGateway implements OnGatewayConnection {
   ): Promise<{ joined: boolean; room: string }> {
     const { room } = body;
     const isNamespaced = ROOM_NAMESPACE_PREFIXES.some((prefix) => room.startsWith(prefix));
-    const permissions: string[] = socket.data?.permissions ?? [];
 
-    if (!isNamespaced || !canJoinRoom(permissions)) {
+    if (!isNamespaced) {
+      return { joined: false, room };
+    }
+
+    // T3.2 design D11 — RoomAuthorizer authorizes the SPECIFIC room
+    // against the connecting socket's AuthContext, not just a global
+    // permission check.
+    const ctx = {
+      userId: socket.data?.userId,
+      permissions: socket.data?.permissions ?? [],
+      organizationId: socket.data?.scope?.organizationId ?? null,
+      roleName: null,
+      scope: socket.data?.scope ?? { kind: 'public' },
+    };
+    const authorized = await this.roomAuthorizer.authorize(ctx, room);
+
+    if (!authorized) {
       return { joined: false, room };
     }
 

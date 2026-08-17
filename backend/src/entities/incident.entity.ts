@@ -53,6 +53,14 @@ export class IncidentEntity {
   @Column({ name: 'category_id', type: 'uuid', nullable: true })
   categoryId!: string | null;
 
+  /**
+   * T3.2 — derived from the resolved zone at write time (design D4), never
+   * from the creator's own organization. NULL when outside every zone, or
+   * the zone has no organization (migration 0015).
+   */
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId!: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

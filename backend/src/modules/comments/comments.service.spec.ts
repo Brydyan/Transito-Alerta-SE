@@ -3,6 +3,11 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Repository } from 'typeorm';
 import { CommentsService, sanitizeContent } from './comments.service';
 import { CommentEntity } from '../../entities/comment.entity';
+import { IncidentsRepository } from '../incidents/incidents.repository';
+import { SubjectScope } from '../../common/authz/subject-scope';
+
+const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
+const ORG_A_SCOPE: SubjectScope = { kind: 'org', organizationId: 'org-A' };
 
 describe('sanitizeContent', () => {
   it('strips <script> tags entirely, including their contents', () => {
@@ -38,6 +43,7 @@ describe('CommentsService', () => {
     delete: jest.Mock;
   };
   let eventEmitter: { emit: jest.Mock };
+  let incidentsRepository: { findOne: jest.Mock };
   let service: CommentsService;
 
   beforeEach(() => {
@@ -49,7 +55,12 @@ describe('CommentsService', () => {
       delete: jest.fn(),
     };
     eventEmitter = { emit: jest.fn() };
-    service = new CommentsService(repo as unknown as jest.Mocked<Repository<CommentEntity>>, eventEmitter as unknown as jest.Mocked<EventEmitter2>);
+    incidentsRepository = { findOne: jest.fn() };
+    service = new CommentsService(
+      repo as unknown as jest.Mocked<Repository<CommentEntity>>,
+      eventEmitter as unknown as jest.Mocked<EventEmitter2>,
+      incidentsRepository as unknown as IncidentsRepository,
+    );
   });
 
   describe('create', () => {
@@ -72,18 +83,29 @@ describe('CommentsService', () => {
     });
   });
 
-  describe('findByIncident', () => {
-    it('returns comments for the given incident', async () => {
+  describe('findByIncident (T3.2 D3 — parent-incident scope check)', () => {
+    it('returns comments when the parent incident is visible under scope', async () => {
+      incidentsRepository.findOne.mockResolvedValue({ id: 'inc-1' });
       const rows: CommentEntity[] = [{ id: 'c-1' } as CommentEntity];
       repo.find.mockResolvedValue(rows);
 
-      const result = await service.findByIncident('inc-1');
+      const result = await service.findByIncident('inc-1', GLOBAL_SCOPE);
 
+      expect(incidentsRepository.findOne).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE);
       expect(repo.find).toHaveBeenCalledWith({
         where: { incidentId: 'inc-1' },
         order: { createdAt: 'ASC' },
       });
       expect(result).toEqual(rows);
+    });
+
+    it('throws 404 when the parent incident is invisible under scope (cross-org)', async () => {
+      incidentsRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.findByIncident('inc-1', ORG_A_SCOPE)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(repo.find).not.toHaveBeenCalled();
     });
   });
 

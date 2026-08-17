@@ -10,18 +10,14 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
 
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { PermissionGuard } from '../../common/guards/permission.guard';
+import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CommentEntity } from '../../entities/comment.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { CommentsService } from './comments.service';
-
-export interface AuthenticatedRequest extends Request {
-  user?: { userId: string; permissions: string[] };
-}
 
 /**
  * CommentsController (R3). Anonymous devices hold "CREATE comments" on the
@@ -45,8 +41,11 @@ export class CommentsController {
 
   @Get('incident/:incidentId')
   @RequirePermission('READ')
-  findByIncident(@Param('incidentId') incidentId: string): Promise<CommentEntity[]> {
-    return this.commentsService.findByIncident(incidentId);
+  findByIncident(
+    @Param('incidentId') incidentId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<CommentEntity[]> {
+    return this.commentsService.findByIncident(incidentId, req.user!.scope);
   }
 
   @Delete(':id')

@@ -16,6 +16,7 @@ import {
   MAIL_BLOCKING_CLIENT,
   MAIL_EVENTS_BLOCKING_CLIENT,
   REDIS_CLIENT,
+  STATUS_HISTORY_EVENTS_BLOCKING_CLIENT,
 } from '../../src/core/core.module';
 import { applyMigrations } from './run-migrations';
 
@@ -25,6 +26,14 @@ export interface ProvisionedUser {
   accessToken: string;
   refreshToken: string;
   permissions: string[];
+}
+
+/** T3.2 D13 — organization/role overrides for tenant-isolation e2e fixtures. */
+export interface ProvisionUserOverrides {
+  deviceUuid?: string;
+  email?: string;
+  organizationId?: string | null;
+  roleName?: string;
 }
 
 const ANONYMOUS_PERMISSIONS_JSON =
@@ -68,6 +77,7 @@ export class TestEnvironment {
     private readonly cacheManager: Cache<RedisStore>,
     private readonly mailBlockingClient: Redis,
     private readonly mailEventsBlockingClient: Redis,
+    private readonly statusHistoryEventsBlockingClient: Redis,
   ) {}
 
   static async start(): Promise<TestEnvironment> {
@@ -151,6 +161,14 @@ export class TestEnvironment {
     // sweep time to intercept and exhaust).
     process.env.MAIL_XREADGROUP_BLOCK_MS = '1000';
 
+    // StatusHistoryModule always loads (AppModule) — same shrink rationale
+    // as Mail's tunables above (design D2): fast sweep/idle windows so the
+    // e2e idempotency/redelivery scenarios don't wait out the 10s/30s
+    // production defaults.
+    process.env.STATUS_HISTORY_XREADGROUP_BLOCK_MS = '1000';
+    process.env.STATUS_HISTORY_SWEEP_INTERVAL_MS = '300';
+    process.env.STATUS_HISTORY_CLAIM_IDLE_MS = '500';
+
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -184,6 +202,7 @@ export class TestEnvironment {
     // wired in globally).
     const mailBlockingClient = app.get<Redis>(MAIL_BLOCKING_CLIENT);
     const mailEventsBlockingClient = app.get<Redis>(MAIL_EVENTS_BLOCKING_CLIENT);
+    const statusHistoryEventsBlockingClient = app.get<Redis>(STATUS_HISTORY_EVENTS_BLOCKING_CLIENT);
 
     const pg = new Pool({
       host: dbHost,
@@ -213,6 +232,7 @@ export class TestEnvironment {
       cacheManager,
       mailBlockingClient,
       mailEventsBlockingClient,
+      statusHistoryEventsBlockingClient,
     );
   }
 
@@ -225,7 +245,7 @@ export class TestEnvironment {
    */
   async reset(): Promise<void> {
     await this.pg.query(
-      'TRUNCATE TABLE assignments, comments, incidents, incident_categories, user_sessions, users RESTART IDENTITY CASCADE',
+      'TRUNCATE TABLE assignments, comments, status_history, incidents, incident_categories, user_sessions, users RESTART IDENTITY CASCADE',
     );
     // 0001's anonymous seed row (ON CONFLICT DO NOTHING) only helps if the
     // row already exists — the TRUNCATE above just removed it, and every
@@ -263,16 +283,39 @@ export class TestEnvironment {
    * rather than hand-signing a JWT, so the returned token always matches
    * whatever AuthService actually signs (secret, claims, expiry) instead of
    * a second implementation that could drift from it.
+   *
+   * T3.2 D13: `organizationId`/`roleName` overrides insert `organization_id`
+   * and a `role_id` (looked up by name against the 0015-seeded roles)
+   * directly — never through the HTTP API, so every tenant-isolation test
+   * does not depend on the correctness of the authorization code under
+   * test. `permissions` stays an explicit, independent parameter (existing
+   * convention) — it is NOT derived from `roleName` here.
    */
   async provisionUser(
     permissions: string[],
-    overrides: { deviceUuid?: string; email?: string } = {},
+    overrides: ProvisionUserOverrides = {},
   ): Promise<ProvisionedUser> {
     const deviceUuid = overrides.deviceUuid ?? `operator-${randomUUID()}`;
 
+    let roleId: string | null = null;
+    if (overrides.roleName) {
+      const { rows } = await this.pg.query<{ id: string }>(
+        'SELECT id FROM roles WHERE name = $1',
+        [overrides.roleName],
+      );
+      roleId = rows[0]?.id ?? null;
+    }
+
     await this.pg.query(
-      'INSERT INTO users (device_uuid, permissions, is_active, email) VALUES ($1, $2::jsonb, true, $3)',
-      [deviceUuid, JSON.stringify(permissions), overrides.email ?? null],
+      `INSERT INTO users (device_uuid, permissions, is_active, email, organization_id, role_id)
+       VALUES ($1, $2::jsonb, true, $3, $4, $5)`,
+      [
+        deviceUuid,
+        JSON.stringify(permissions),
+        overrides.email ?? null,
+        overrides.organizationId ?? null,
+        roleId,
+      ],
     );
 
     const response = await request(this.httpServer)
@@ -332,6 +375,7 @@ export class TestEnvironment {
     this.appRedisClient.disconnect();
     this.mailBlockingClient.disconnect();
     this.mailEventsBlockingClient.disconnect();
+    this.statusHistoryEventsBlockingClient.disconnect();
 
     await this.redisContainer.stop();
     await this.postgresContainer.stop();
