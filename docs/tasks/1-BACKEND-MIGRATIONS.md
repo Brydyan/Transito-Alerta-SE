@@ -18,16 +18,18 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 - **Fase 3 (T3.1-T3.10)**: 🟡 ~88% Completada
   - ✅ Completadas: T3.1 (Roles + Permissions), T3.10 (Menus), T3.5 (Mail), T3.3 (Notifications), T3.7 (IncidentCategories), T3.8 (Locations)
-  - 🟡 En Progreso / Pendiente: T3.2 (Organizations), T3.4 (StatusHistory), T3.6 (Invitations), T3.9 (Sessions)
+  - ⏳ Pendientes: T3.2 (Organizations), T3.4 (StatusHistory), T3.6 (Invitations), T3.9 (Sessions)
   - 4 tareas restantes, ~6-7 días de esfuerzo
+  - **Esquema al día**: migraciones 0009-0013 aplicadas a Supabase el 2026-08-16; no queda ninguna pendiente
+  - 44 suites unit + 8 E2E, 435 pruebas en verde; los 3 jobs de CI (backend, integration, migrations) verificados localmente
 
 - **Fase 4 (T4.1-T4.4)**: ⏳ Planeada
   - 🟡 Parcial: T4.1a (harness E2E completo, T4.1b diferido), T4.1a paso 2 (flujos de workflow + regresiones completadas)
   - ⏳ Pendiente: T4.2 (Load testing), T4.3 (Security hardening), T4.4 (Documentación)
 
-## Estado Fase 3: 7 Tareas Restantes
+## Estado Fase 3: 4 Tareas Restantes
 
-### T3.2: Módulo Organizations 🟡 (EN PROGRESO)
+### T3.2: Módulo Organizations ⏳ (PENDIENTE — siguiente recomendada)
 **Tamaño PR**: ~180 LOC | **Pruebas**: 4 unit + 2 e2e | **Duración**: 2-3h  
 **Depende de**: T2.1 (Incidents), T2.3 (Users), T3.1 (Roles)
 
@@ -59,7 +61,7 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 - ✅ Índices en (user_id, created_at) y (user_id, read) para queries rápidas
 - ✅ E2E tests verifican crear, dedup, marcar-leído, contar sin-leer
 
-### T3.4: Módulo StatusHistory (Pista de Auditoría) 🟡 (EN PROGRESO)
+### T3.4: Módulo StatusHistory (Pista de Auditoría) ⏳ (PENDIENTE)
 **Depende de**: T2.1 (Incidents)
 
 **Qué hace**:
@@ -91,7 +93,7 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 - [x] Entradas estancadas reclamadas y reintentadas después de 30s inactiva (sweep XPENDING)
 - [x] Dead-letter después de 3 intentos
 
-### T3.6: Módulo Invitations 🟡 (BLOQUEADA en T3.5, T3.1)
+### T3.6: Módulo Invitations ⏳ (PENDIENTE — desbloqueada: T3.1 y T3.5 completadas)
 **Depende de**: T3.1 (Roles), T3.5 (Mail)
 
 **Qué hace**:
@@ -157,7 +159,7 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 **Artefactos SDD**: `openspec/changes/archive/t3.8-locations/` + Engram `sdd/t3.8-locations/*`
 
-### T3.9: Módulo Sessions 🟡 (EN PROGRESO)
+### T3.9: Módulo Sessions ⏳ (PENDIENTE)
 **Depende de**: T1.4 (Auth)
 
 **Qué hace**:
@@ -174,9 +176,9 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 ## Auditoría de Migración de Base de Datos
 
-### Actualmente Aplicadas (Supabase): 0001-0008
-### Actualmente Pendientes (no aún aplicadas): 0009-0013
-### Migraciones Fase 3 (escritas/planeadas): 0011-0016
+### Actualmente Aplicadas (Supabase): 0001-0013 ✅ (0009-0013 aplicadas el 2026-08-16)
+### Actualmente Pendientes (no aún aplicadas): ninguna
+### Migraciones Fase 3 (planeadas, aún sin escribir): 0014-0016
 
 > Fuente de verdad: `database/MIGRATION_LOG.md`. Las migraciones se aplican a mano
 > (CC3), así que pasar los tests E2E no dice nada del estado de Supabase — el harness
@@ -192,11 +194,11 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 | 0006 | users | columnas de perfil de users | Aplicada | Nuevo slot (originalmente sin declarar) para first_name, last_name, avatar_url |
 | 0007 | assignments | tabla assignments | Aplicada | Renumerada (originalmente 0006) |
 | 0008 | anonymous_read_comments | roles_permissions | Aplicada | Agrega grant de techo de anonymous reporter |
-| 0009 | roles_permissions | tablas roles, permissions | Pendiente | Entidad Role con JSONB permissions, tabla catálogo permissions |
-| 0010 | user_email | columna email de users | Pendiente | `users.email` nullable + índice parcial único (para ruteo Mail, T3.5) |
-| 0011 | notifications | tabla notifications | Pendiente | id, user_id FK, incident_id FK nullable, type enum, message, data jsonb, read bool, created_at, processed_at + índices |
-| 0012 | incident_categories | tabla incident_categories | Escrita (T3.7) | Adjacency-list uuid, `parent_id` ON DELETE SET NULL, `incidents.category_id` ON DELETE RESTRICT, seed de permisos `incident-categories`. Rollback en `database/rollback/0012_incident_categories.DOWN.sql`. Pendiente de aplicar a Supabase |
-| 0013 | geo_zones_hierarchy | columnas de geo_zones | Escrita (T3.8) | Añade `parent_id` self-FK + `level` con CHECK `('provincia','canton','parroquia','zona')`, índice, backfill del seed por UUID determinista, y seed de permisos `geo-zones`. Rollback en `database/rollback/0013_geo_zones_hierarchy.DOWN.sql`. Pendiente de aplicar a Supabase |
+| 0009 | roles_permissions | tablas roles, permissions | Aplicada | Entidad Role con JSONB permissions, tabla catálogo permissions |
+| 0010 | user_email | columna email de users | Aplicada | `users.email` nullable + índice parcial único (para ruteo Mail, T3.5) |
+| 0011 | notifications | tabla notifications | Aplicada | id, user_id FK, incident_id FK nullable, type enum, message, data jsonb, read bool, created_at, processed_at + índices |
+| 0012 | incident_categories | tabla incident_categories | Aplicada (T3.7) | Adjacency-list uuid, `parent_id` ON DELETE SET NULL, `incidents.category_id` ON DELETE RESTRICT, seed de permisos `incident-categories`. Rollback en `database/rollback/0012_incident_categories.DOWN.sql`. Pendiente de aplicar a Supabase |
+| 0013 | geo_zones_hierarchy | columnas de geo_zones | Aplicada (T3.8) | Añade `parent_id` self-FK + `level` con CHECK `('provincia','canton','parroquia','zona')`, índice, backfill del seed por UUID determinista, y seed de permisos `geo-zones`. Rollback en `database/rollback/0013_geo_zones_hierarchy.DOWN.sql`. Pendiente de aplicar a Supabase |
 | 0014 | invitations | tabla invitations | Planeada (T3.6) | Token single-use, expiración 24h |
 | 0015 | status_history | tabla status_history | Planeada (T3.4) | Auditoría solo-append |
 | 0016 | sessions | tabla sessions | Planeada (T3.9) | Seguimiento JWT + revocación |
