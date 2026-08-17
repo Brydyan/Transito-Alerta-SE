@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
 import type { Redis } from 'ioredis';
 import { GeofencingRepository } from './geofencing.repository';
-import { GeofencingService } from './geofencing.service';
+import { GeofencingService, POINT_CACHE_TAG_KEY } from './geofencing.service';
 
 describe('GeofencingService', () => {
   let repository: { findZoneByPoint: jest.Mock; findZonesNearby: jest.Mock };
@@ -206,6 +206,100 @@ describe('GeofencingService', () => {
 
       expect(result).toBeNull();
       expect(cache.set).not.toHaveBeenCalled();
+    });
+
+    // T3.8 design D-CACHE: the point-cache key must be tagged into the
+    // dedicated geo:tags:points set on a cold miss, so purgePointCache()
+    // can find it later. Never on a hit, never on a null (untracked) result.
+    it('tags the cache key into geo:tags:points on a cold miss (T3.8 D-CACHE)', async () => {
+      cache.get.mockResolvedValue(undefined);
+      repository.findZoneByPoint.mockResolvedValue({ id: 'zone-1', name: 'Zone' });
+
+      await service.getCachedZoneByPoint(-2.22881234, -80.85912345);
+
+      expect(redis.sadd).toHaveBeenCalledWith(POINT_CACHE_TAG_KEY, 'geo:point:-2.229:-80.859');
+    });
+
+    it('does NOT tag the point-cache key on a cache hit', async () => {
+      cache.get.mockResolvedValue({ id: 'zone-1', name: 'Cached Zone' });
+
+      await service.getCachedZoneByPoint(-2.2, -80.8);
+
+      expect(redis.sadd).not.toHaveBeenCalled();
+    });
+
+    it('does NOT tag the point-cache key when the point resolves outside all zones (never cached)', async () => {
+      cache.get.mockResolvedValue(undefined);
+      repository.findZoneByPoint.mockResolvedValue(null);
+
+      await service.getCachedZoneByPoint(0, 0);
+
+      expect(redis.sadd).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('tagPointCacheKey / purgePointCache (T3.8 D-CACHE)', () => {
+    it('tagPointCacheKey SADDs the cache key onto the dedicated geo:tags:points set (DB 0)', async () => {
+      await service.tagPointCacheKey('geo:point:-2.229:-80.859');
+
+      expect(redis.sadd).toHaveBeenCalledWith(
+        POINT_CACHE_TAG_KEY,
+        'geo:point:-2.229:-80.859',
+      );
+    });
+
+    it('purgePointCache reads members via SMEMBERS on the raw client (DB 0)', async () => {
+      redis.smembers.mockResolvedValue(['geo:point:-2.229:-80.859']);
+
+      await service.purgePointCache();
+
+      expect(redis.smembers).toHaveBeenCalledWith(POINT_CACHE_TAG_KEY);
+    });
+
+    it('purgePointCache deletes each tagged value through the cache (DB 1), not the raw client', async () => {
+      redis.smembers.mockResolvedValue([
+        'geo:point:-2.229:-80.859',
+        'geo:point:0.500:-78.000',
+      ]);
+
+      await service.purgePointCache();
+
+      expect(cache.del).toHaveBeenCalledWith('geo:point:-2.229:-80.859');
+      expect(cache.del).toHaveBeenCalledWith('geo:point:0.500:-78.000');
+    });
+
+    it('purgePointCache drops the tag-set itself on the raw client (DB 0)', async () => {
+      redis.smembers.mockResolvedValue(['geo:point:-2.229:-80.859']);
+
+      await service.purgePointCache();
+
+      expect(redis.del).toHaveBeenCalledWith(POINT_CACHE_TAG_KEY);
+    });
+
+    it('purgePointCache still deletes the (empty) tag-set when nothing is tagged', async () => {
+      redis.smembers.mockResolvedValue([]);
+
+      await service.purgePointCache();
+
+      expect(cache.del).not.toHaveBeenCalled();
+      expect(redis.del).toHaveBeenCalledWith(POINT_CACHE_TAG_KEY);
+    });
+
+    // The regression this design exists to prevent (task 2.2, non-negotiable):
+    // purging the incident-list caches via ALL_ZONES_TAG must NEVER touch
+    // geo:tags:points. If it did, every incident write would flush the
+    // point-containment cache — destroying the reason it exists (CC5).
+    it('REGRESSION: purging ALL_ZONES_TAG (incident write path) never reads or writes geo:tags:points', async () => {
+      const ALL_ZONES_TAG = '__all_zones__';
+      redis.smembers.mockResolvedValue(['incidents:list:__all_zones__:pending']);
+
+      await service.purgeZoneCache(ALL_ZONES_TAG);
+
+      // purgeZoneCache only ever touches geo:tags:{zoneId} — never the
+      // dedicated point-cache tag-set.
+      expect(redis.smembers).toHaveBeenCalledWith(`geo:tags:${ALL_ZONES_TAG}`);
+      expect(redis.smembers).not.toHaveBeenCalledWith(POINT_CACHE_TAG_KEY);
+      expect(redis.del).not.toHaveBeenCalledWith(POINT_CACHE_TAG_KEY);
     });
   });
 });
