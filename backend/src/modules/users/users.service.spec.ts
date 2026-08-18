@@ -2,10 +2,10 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import { UsersService, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './users.service';
 import { UserEntity } from '../../entities/user.entity';
-import { UserSessionEntity } from '../../entities/user-session.entity';
 import { RoleEntity } from '../../entities/role.entity';
 import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
 import { AuthService } from '../auth/auth.service';
+import { SessionsRepository } from '../sessions/sessions.repository';
 
 const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
 const ORG_A_SCOPE: SubjectScope = { kind: 'org', organizationId: 'org-A' };
@@ -19,24 +19,27 @@ const DENY_SCOPE: SubjectScope = { kind: 'deny', reason: 'staff_without_organiza
 
 describe('UsersService', () => {
   let userRepo: { findOne: jest.Mock; update: jest.Mock; findAndCount: jest.Mock };
-  let sessionRepo: { findOne: jest.Mock; save: jest.Mock; create: jest.Mock };
   let avatarStorage: { upload: jest.Mock };
   let roleRepo: { findOne: jest.Mock };
   let authService: { invalidatePermissionCache: jest.Mock };
+  let sessionsRepository: {
+    findActiveByUser: jest.Mock;
+    findManageableTarget: jest.Mock;
+  };
   let service: UsersService;
 
   beforeEach(() => {
     userRepo = { findOne: jest.fn(), update: jest.fn(), findAndCount: jest.fn() };
-    sessionRepo = { findOne: jest.fn(), save: jest.fn(), create: jest.fn((x) => x) };
     avatarStorage = { upload: jest.fn() };
     roleRepo = { findOne: jest.fn() };
     authService = { invalidatePermissionCache: jest.fn() };
+    sessionsRepository = { findActiveByUser: jest.fn(), findManageableTarget: jest.fn() };
     service = new UsersService(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
-      sessionRepo as unknown as jest.Mocked<Repository<UserSessionEntity>>,
       avatarStorage as unknown as any,
       roleRepo as unknown as jest.Mocked<Repository<RoleEntity>>,
       authService as unknown as AuthService,
+      sessionsRepository as unknown as SessionsRepository,
     );
   });
 
@@ -164,23 +167,112 @@ describe('UsersService', () => {
     });
   });
 
-  describe('recordSession', () => {
-    it('creates a session row for a new device', async () => {
-      sessionRepo.findOne.mockResolvedValue(null);
+  describe('getSessionsForSelf (T3.9 D9 — self, no permission/rank check)', () => {
+    function makeSelfActor(overrides: Partial<AuthContext> = {}): AuthContext {
+      return {
+        userId: 'user-1',
+        permissions: [],
+        organizationId: null,
+        roleName: null,
+        scope: PUBLIC_SCOPE,
+        sessionId: 'sid-current',
+        isAnonymous: false,
+        ...overrides,
+      };
+    }
 
-      await service.recordSession('u1', 'device-abc');
+    it('lists the actor own active sessions, marking the current one', async () => {
+      sessionsRepository.findActiveByUser.mockResolvedValue([
+        {
+          id: 'sid-current',
+          device_uuid: 'device-a',
+          ip_address: null,
+          user_agent: null,
+          created_at: new Date(),
+          last_used_at: null,
+          expires_at: new Date(),
+        },
+        {
+          id: 'sid-other',
+          device_uuid: 'device-b',
+          ip_address: null,
+          user_agent: null,
+          created_at: new Date(),
+          last_used_at: null,
+          expires_at: new Date(),
+        },
+      ]);
 
-      expect(sessionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'u1', deviceUuid: 'device-abc' }),
+      const result = await service.getSessionsForSelf(makeSelfActor());
+
+      expect(sessionsRepository.findActiveByUser).toHaveBeenCalledWith('user-1');
+      expect(result).toHaveLength(2);
+      expect(result.find((s) => s.id === 'sid-current')!.current).toBe(true);
+      expect(result.find((s) => s.id === 'sid-other')!.current).toBe(false);
+      // Never leaks a hash field.
+      expect(result[0]).not.toHaveProperty('refresh_token_hash');
+    });
+  });
+
+  describe('getSessionsForUser (T3.9 D9 — READ, visibility only, never rank)', () => {
+    function makeActor(overrides: Partial<AuthContext> = {}): AuthContext {
+      return {
+        userId: 'admin-1',
+        permissions: ['READ sessions'],
+        organizationId: 'org-A',
+        roleName: 'admin_organizacion',
+        scope: { kind: 'org', organizationId: 'org-A' },
+        sessionId: 'sid-admin',
+        isAnonymous: false,
+        ...overrides,
+      };
+    }
+
+    it('lists the target user sessions when visible under actor scope', async () => {
+      const actor = makeActor();
+      sessionsRepository.findManageableTarget.mockResolvedValue({
+        id: 'target-1',
+        organizationId: 'org-A',
+        roleName: 'operador_organizacion',
+      });
+      sessionsRepository.findActiveByUser.mockResolvedValue([]);
+
+      await service.getSessionsForUser(actor, 'target-1');
+
+      expect(sessionsRepository.findActiveByUser).toHaveBeenCalledWith('target-1');
+    });
+
+    it('throws 404 when the target user does not exist', async () => {
+      sessionsRepository.findManageableTarget.mockResolvedValue(null);
+
+      await expect(service.getSessionsForUser(makeActor(), 'missing')).rejects.toBeInstanceOf(
+        NotFoundException,
       );
     });
 
-    it('does not duplicate a session row for an already-tracked device', async () => {
-      sessionRepo.findOne.mockResolvedValue({ id: 's1' });
+    it('throws 404 when the target is not visible under the actor scope (cross-org)', async () => {
+      sessionsRepository.findManageableTarget.mockResolvedValue({
+        id: 'target-1',
+        organizationId: 'org-B',
+        roleName: 'operador_organizacion',
+      });
 
-      await service.recordSession('u1', 'device-abc');
+      await expect(
+        service.getSessionsForUser(makeActor({ scope: { kind: 'org', organizationId: 'org-A' } }), 'target-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(sessionsRepository.findActiveByUser).not.toHaveBeenCalled();
+    });
 
-      expect(sessionRepo.save).not.toHaveBeenCalled();
+    it('does NOT rank-gate — a lower-ranked actor can still list a visible higher-ranked target (D9: read != write)', async () => {
+      const actor = makeActor({ roleName: 'operador_organizacion' });
+      sessionsRepository.findManageableTarget.mockResolvedValue({
+        id: 'target-1',
+        organizationId: 'org-A',
+        roleName: 'admin_sistema', // outranks the actor
+      });
+      sessionsRepository.findActiveByUser.mockResolvedValue([]);
+
+      await expect(service.getSessionsForUser(actor, 'target-1')).resolves.toEqual([]);
     });
   });
 
@@ -192,6 +284,8 @@ describe('UsersService', () => {
         organizationId: null,
         roleName: 'admin_sistema',
         scope: { kind: 'global' },
+        sessionId: 'sid-admin-1',
+        isAnonymous: false,
         ...overrides,
       };
     }

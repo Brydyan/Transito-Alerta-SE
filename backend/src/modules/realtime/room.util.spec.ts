@@ -8,6 +8,8 @@ function ctx(scope: SubjectScope, overrides: Partial<AuthContext> = {}): AuthCon
     organizationId: scope.kind === 'org' || scope.kind === 'org_assigned' ? scope.organizationId : null,
     roleName: null,
     scope,
+    sessionId: 'session-1',
+    isAnonymous: false,
     ...overrides,
   };
 }

@@ -6,14 +6,22 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { UserEntity } from '../../entities/user.entity';
 import { AuthConfig } from '../../config/auth.config';
+import { SessionsModule } from '../sessions/sessions.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 
 /**
- * AuthModule (R1, D1/D2/D3) — device-UUID identity, dual JWT, permission
- * resolution. Guards used by all other modules (design "Module Dependency
- * DAG": `AuthModule <- guards used by all`).
+ * AuthModule (R1, D1/D2/D3; T3.9 design §8) — device-UUID identity, dual
+ * JWT, permission resolution, session lifecycle. Guards used by all other
+ * modules (design "Module Dependency DAG": `AuthModule <- guards used by
+ * all`).
+ *
+ * Imports `SessionsModule` (T3.9) for `SessionsRepository` +
+ * `RevocationCache` + `GraceBuffer` — NEVER `UsersModule` (that edge
+ * already exists in the other direction, `Users -> Auth`, so it would be a
+ * hard cycle). `SessionsModule` is a leaf with zero feature-module
+ * imports, so this edge can never cycle back.
  */
 @Module({
   imports: [
@@ -29,6 +37,7 @@ import { JwtStrategy } from './jwt.strategy';
         };
       },
     }),
+    SessionsModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

@@ -14,6 +14,8 @@ describe('UsersController', () => {
     updateAvatar: jest.Mock;
     list: jest.Mock;
     updateOrganization: jest.Mock;
+    getSessionsForSelf: jest.Mock;
+    getSessionsForUser: jest.Mock;
   };
   let controller: UsersController;
 
@@ -24,6 +26,8 @@ describe('UsersController', () => {
       updateAvatar: jest.fn(),
       list: jest.fn(),
       updateOrganization: jest.fn(),
+      getSessionsForSelf: jest.fn(),
+      getSessionsForUser: jest.fn(),
     };
     controller = new UsersController(service as unknown as UsersService);
   });
@@ -95,5 +99,39 @@ describe('UsersController', () => {
 
     expect(service.updateOrganization).toHaveBeenCalledWith(actor, 'target-1', 'org-A');
     expect(result).toEqual({ id: 'target-1', organizationId: 'org-A' });
+  });
+
+  describe('T3.9 — session listing routes', () => {
+    it('GET /me/sessions delegates to service.getSessionsForSelf with the full actor (no @RequirePermission — self bypass)', async () => {
+      const reflector = new Reflector();
+      const meta = reflector.get(REQUIRE_PERMISSION_KEY, controller.meSessions);
+      expect(meta).toBeUndefined();
+
+      service.getSessionsForSelf.mockResolvedValue([]);
+      const actor = { userId: 'u1', permissions: [], scope: GLOBAL_SCOPE, sessionId: 's1', isAnonymous: false };
+      const req = { user: actor } as unknown as AuthenticatedRequest;
+
+      const result = await controller.meSessions(req);
+
+      expect(service.getSessionsForSelf).toHaveBeenCalledWith(actor);
+      expect(result).toEqual([]);
+    });
+
+    it('GET /:id/sessions requires READ sessions', () => {
+      const reflector = new Reflector();
+      const meta = reflector.get(REQUIRE_PERMISSION_KEY, controller.userSessions);
+      expect(meta).toEqual({ action: 'READ', resource: 'sessions' });
+    });
+
+    it('GET /:id/sessions delegates to service.getSessionsForUser with the actor and target id', async () => {
+      service.getSessionsForUser.mockResolvedValue([]);
+      const actor = { userId: 'admin-1', permissions: ['READ sessions'], scope: GLOBAL_SCOPE };
+      const req = { user: actor } as unknown as AuthenticatedRequest;
+
+      const result = await controller.userSessions('target-1', req);
+
+      expect(service.getSessionsForUser).toHaveBeenCalledWith(actor, 'target-1');
+      expect(result).toEqual([]);
+    });
   });
 });

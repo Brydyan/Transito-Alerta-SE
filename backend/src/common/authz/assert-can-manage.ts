@@ -39,15 +39,28 @@ export function assertCanManage(actor: AuthContext, target: ManageableTarget): v
     return;
   }
 
-  if (!isVisibleUnderScope(actor, target)) {
-    throw new NotFoundException('User not found');
-  }
+  assertVisible(actor, target);
 
   if (!(rankOf(actor.roleName) < rankOf(target.roleName))) {
     throw new ForbiddenException({
       code: 'INSUFFICIENT_ROLE_RANK',
       message: 'Actor does not outrank the target user',
     });
+  }
+}
+
+/**
+ * Visibility-only check (T3.9 design §8 D9 — "one new export, no new
+ * axis"), promoted out of `assertCanManage` for `GET /users/:id/sessions`
+ * and similar reads that need visibility WITHOUT the rank gate (D9 rank-
+ * gates writes only). Zero behaviour change to `assertCanManage`, which now
+ * delegates here — same `actor.roleName === null` D2 short-circuit is
+ * preserved by each caller independently (harmless for sessions: 0016
+ * grants `READ sessions` only through the two seeded admin roles).
+ */
+export function assertVisible(actor: AuthContext, target: ManageableTarget): void {
+  if (!isVisibleUnderScope(actor, target)) {
+    throw new NotFoundException('User not found');
   }
 }
 

@@ -19,6 +19,7 @@ import { PermissionGuard } from '../../common/guards/permission.guard';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserEntity } from '../../entities/user.entity';
+import { SessionResponseDto } from '../sessions/dto/session-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserOrganizationDto } from './dto/update-user-organization.dto';
 import { UploadedFile as AvatarFile } from './avatar-storage.service';
@@ -52,6 +53,26 @@ export class UsersController {
     @Req() req: AuthenticatedRequest,
   ): Promise<UserEntity> {
     return this.usersService.updateAvatar(req.user!.userId, file);
+  }
+
+  /** T3.9 D9 — self, no `@RequirePermission` decorator (self bypass). */
+  @Get('me/sessions')
+  meSessions(@Req() req: AuthenticatedRequest): Promise<SessionResponseDto[]> {
+    return this.usersService.getSessionsForSelf(req.user!);
+  }
+
+  /**
+   * T3.9 D9 — a READ, so `@RequirePermission('READ', 'sessions')` gates
+   * the flat capability; `UsersService.getSessionsForUser` additionally
+   * enforces visibility (404) via `assertVisible`, never rank.
+   */
+  @Get(':id/sessions')
+  @RequirePermission('READ', 'sessions')
+  userSessions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<SessionResponseDto[]> {
+    return this.usersService.getSessionsForUser(req.user!, id);
   }
 
   @Get()

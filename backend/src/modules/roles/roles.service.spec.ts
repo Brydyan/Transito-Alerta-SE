@@ -13,6 +13,8 @@ function makeActor(overrides: Partial<AuthContext> = {}): AuthContext {
     organizationId: null,
     roleName: 'admin_sistema',
     scope: { kind: 'global' },
+    sessionId: 'session-admin-1',
+    isAnonymous: false,
     ...overrides,
   };
 }
