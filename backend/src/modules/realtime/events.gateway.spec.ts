@@ -1,6 +1,7 @@
 import { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { EventsGateway } from './events.gateway';
 import { AuthService } from '../auth/auth.service';
+import { RevocationCache } from '../sessions/revocation-cache';
 import { RoomAuthorizer } from './room-authorizer.service';
 import { AuthContext } from '../../common/authz/subject-scope';
 
@@ -22,6 +23,8 @@ function makeAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
     organizationId: null,
     roleName: null,
     scope: { kind: 'global' },
+    sessionId: null,
+    isAnonymous: false,
     ...overrides,
   };
 }
@@ -29,15 +32,18 @@ function makeAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
 describe('EventsGateway', () => {
   let authService: { validateToken: jest.Mock; getAuthContextByUserId: jest.Mock };
   let roomAuthorizer: { authorize: jest.Mock };
+  let revocationCache: { isRevoked: jest.Mock };
   let gateway: EventsGateway;
   let server: { to: jest.Mock; emit: jest.Mock };
 
   beforeEach(() => {
     authService = { validateToken: jest.fn(), getAuthContextByUserId: jest.fn() };
     roomAuthorizer = { authorize: jest.fn() };
+    revocationCache = { isRevoked: jest.fn().mockResolvedValue(false) };
     gateway = new EventsGateway(
       authService as unknown as AuthService,
       roomAuthorizer as unknown as RoomAuthorizer,
+      revocationCache as unknown as RevocationCache,
     );
     server = { to: jest.fn().mockReturnThis(), emit: jest.fn() };
     gateway.server = server as unknown as jest.Mocked<Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>;
@@ -45,7 +51,13 @@ describe('EventsGateway', () => {
 
   describe('handleConnection', () => {
     it('verifies the JWT, resolves the full AuthContext, and auto-joins user:{id}', async () => {
-      authService.validateToken.mockReturnValue({ sub: 'user-1', typ: 'access', jti: 'x', pv: 1 });
+      authService.validateToken.mockReturnValue({
+        sub: 'user-1',
+        typ: 'access',
+        jti: 'x',
+        pv: 1,
+        sid: 'sid-1',
+      });
       authService.getAuthContextByUserId.mockResolvedValue(makeAuthContext({ userId: 'user-1' }));
       const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
 
@@ -55,6 +67,7 @@ describe('EventsGateway', () => {
       expect(socket.join).toHaveBeenCalledWith('user:user-1');
       expect(socket.data.permissions).toEqual(['READ incidents']);
       expect(socket.data.scope).toEqual({ kind: 'global' });
+      expect(socket.data.sessionId).toBe('sid-1');
     });
 
     it('disconnects the socket when the token is missing or invalid', async () => {
@@ -67,6 +80,50 @@ describe('EventsGateway', () => {
 
       expect(socket.disconnect).toHaveBeenCalled();
       expect(socket.join).not.toHaveBeenCalled();
+    });
+
+    it('T3.9 — disconnects when a non-anonymous token carries no sid', async () => {
+      authService.validateToken.mockReturnValue({ sub: 'user-1', typ: 'access', jti: 'x', pv: 1 });
+      authService.getAuthContextByUserId.mockResolvedValue(makeAuthContext({ userId: 'user-1' }));
+      const socket = makeSocket({ handshake: { auth: { token: 'legacy.jwt' }, query: {} } });
+
+      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
+
+      expect(socket.disconnect).toHaveBeenCalled();
+      expect(socket.join).not.toHaveBeenCalled();
+    });
+
+    it('T3.9 — disconnects when RevocationCache reports the session revoked', async () => {
+      authService.validateToken.mockReturnValue({
+        sub: 'user-1',
+        typ: 'access',
+        jti: 'x',
+        pv: 1,
+        sid: 'sid-1',
+      });
+      authService.getAuthContextByUserId.mockResolvedValue(makeAuthContext({ userId: 'user-1' }));
+      revocationCache.isRevoked.mockResolvedValue(true);
+      const socket = makeSocket({ handshake: { auth: { token: 'revoked.jwt' }, query: {} } });
+
+      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
+
+      expect(revocationCache.isRevoked).toHaveBeenCalledWith('sid-1');
+      expect(socket.disconnect).toHaveBeenCalled();
+      expect(socket.join).not.toHaveBeenCalled();
+    });
+
+    it('T3.9 — an anonymous identity skips the sid/denylist check entirely (D8)', async () => {
+      authService.validateToken.mockReturnValue({ sub: 'anon-1', typ: 'access', jti: 'x', pv: 1 });
+      authService.getAuthContextByUserId.mockResolvedValue(
+        makeAuthContext({ userId: 'anon-1', isAnonymous: true }),
+      );
+      const socket = makeSocket({ handshake: { auth: { token: 'anon.jwt' }, query: {} } });
+
+      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
+
+      expect(revocationCache.isRevoked).not.toHaveBeenCalled();
+      expect(socket.disconnect).not.toHaveBeenCalled();
+      expect(socket.join).toHaveBeenCalledWith('user:anon-1');
     });
   });
 
@@ -131,14 +188,17 @@ describe('EventsGateway', () => {
 describe('EventsGateway — permission identity (regression)', () => {
   let authService: { validateToken: jest.Mock; getAuthContextByUserId: jest.Mock };
   let roomAuthorizer: { authorize: jest.Mock };
+  let revocationCache: { isRevoked: jest.Mock };
   let gateway: EventsGateway;
 
   beforeEach(() => {
     authService = { validateToken: jest.fn(), getAuthContextByUserId: jest.fn() };
     roomAuthorizer = { authorize: jest.fn() };
+    revocationCache = { isRevoked: jest.fn().mockResolvedValue(false) };
     gateway = new EventsGateway(
       authService as unknown as AuthService,
       roomAuthorizer as unknown as RoomAuthorizer,
+      revocationCache as unknown as RevocationCache,
     );
     gateway.server = { to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as jest.Mocked<Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>;
   });
@@ -146,7 +206,13 @@ describe('EventsGateway — permission identity (regression)', () => {
   // The JWT `sub` claim is user.id. Resolving by device_uuid would yield []
   // and every room join would be refused, going dark for every client.
   it('resolves the connecting socket AuthContext by user id', async () => {
-    authService.validateToken.mockReturnValue({ sub: 'user-1', typ: 'access', jti: 'x', pv: 1 });
+    authService.validateToken.mockReturnValue({
+      sub: 'user-1',
+      typ: 'access',
+      jti: 'x',
+      pv: 1,
+      sid: 'sid-1',
+    });
     authService.getAuthContextByUserId.mockResolvedValue(makeAuthContext({ userId: 'user-1' }));
     const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
 
@@ -157,7 +223,13 @@ describe('EventsGateway — permission identity (regression)', () => {
   });
 
   it('lets a permitted socket actually join a namespaced room', async () => {
-    authService.validateToken.mockReturnValue({ sub: 'user-1', typ: 'access', jti: 'x', pv: 1 });
+    authService.validateToken.mockReturnValue({
+      sub: 'user-1',
+      typ: 'access',
+      jti: 'x',
+      pv: 1,
+      sid: 'sid-1',
+    });
     authService.getAuthContextByUserId.mockResolvedValue(makeAuthContext({ userId: 'user-1' }));
     roomAuthorizer.authorize.mockResolvedValue(true);
     const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });

@@ -1,14 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindManyOptions, Repository } from 'typeorm';
 
 import { UserEntity } from '../../entities/user.entity';
-import { UserSessionEntity } from '../../entities/user-session.entity';
 import { RoleEntity } from '../../entities/role.entity';
 import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
-import { assertCanManage } from '../../common/authz/assert-can-manage';
+import { assertCanManage, assertVisible } from '../../common/authz/assert-can-manage';
 import { AuthService } from '../auth/auth.service';
+import { SessionResponseDto, toSessionResponseDto } from '../sessions/dto/session-response.dto';
+import { SessionsRepository } from '../sessions/sessions.repository';
 import { AvatarStorageService, UploadedFile } from './avatar-storage.service';
 
 export const DEFAULT_PAGE_SIZE = 20;
@@ -20,19 +20,23 @@ export interface UpdateProfileInput {
 }
 
 /**
- * UsersService (R4) — profile, avatar (multipart -> S3 -> signed URL),
- * paginated listing, lightweight device-tracking on new-device login.
- * Design DAG: `Users -> Roles, Organizations (optional)`.
+ * UsersService (R4; T3.9 design §8) — profile, avatar (multipart -> S3 ->
+ * signed URL), paginated listing, session listing delegation. Design DAG:
+ * `Users -> Roles, Organizations (optional), Sessions (repository only)`.
+ *
+ * Depends on `SessionsRepository` directly, NOT `SessionsService` — the
+ * latter is deliberately not exported by `SessionsModule` (design §8), so
+ * `getSessionsForUser`'s visibility check calls the same `assertVisible`
+ * pure function `SessionsService.listForTarget` uses, independently.
  */
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
-    @InjectRepository(UserSessionEntity)
-    private readonly sessionRepo: Repository<UserSessionEntity>,
     private readonly avatarStorage: AvatarStorageService,
     @InjectRepository(RoleEntity) private readonly roleRepo: Repository<RoleEntity>,
     private readonly authService: AuthService,
+    private readonly sessionsRepository: SessionsRepository,
   ) {}
 
   async findById(id: string): Promise<UserEntity> {
@@ -108,24 +112,25 @@ export class UsersService {
     return { items, total };
   }
 
-  /**
-   * Records a new-device login (spec R4). No-op if this user/device pair is
-   * already tracked — avoids a row-per-request explosion. Full session
-   * revocation/audit semantics land in T3.9 (Sessions module, R15).
-   */
-  /** Passive listener (design D7) — AuthService emits this on every login. */
-  @OnEvent('auth.login')
-  async handleAuthLogin(payload: { userId: string; deviceUuid: string }): Promise<void> {
-    await this.recordSession(payload.userId, payload.deviceUuid);
+  /** `GET /users/me/sessions` (T3.9 D9) — self, no permission/rank check. */
+  async getSessionsForSelf(actor: AuthContext): Promise<SessionResponseDto[]> {
+    const rows = await this.sessionsRepository.findActiveByUser(actor.userId);
+    return rows.map((row) => toSessionResponseDto(row, actor.sessionId));
   }
 
-  async recordSession(userId: string, deviceUuid: string): Promise<void> {
-    const existing = await this.sessionRepo.findOne({ where: { userId, deviceUuid } });
-    if (existing) {
-      return;
+  /**
+   * `GET /users/:id/sessions` (T3.9 D9) — a READ, so visibility only, never
+   * rank (design §8's "one new export, no new axis": `assertVisible`).
+   */
+  async getSessionsForUser(actor: AuthContext, targetUserId: string): Promise<SessionResponseDto[]> {
+    const target = await this.sessionsRepository.findManageableTarget(targetUserId);
+    if (!target) {
+      throw new NotFoundException(`User ${targetUserId} not found`);
     }
-    const session = this.sessionRepo.create({ userId, deviceUuid });
-    await this.sessionRepo.save(session);
+    assertVisible(actor, target);
+
+    const rows = await this.sessionsRepository.findActiveByUser(targetUserId);
+    return rows.map((row) => toSessionResponseDto(row, actor.sessionId));
   }
 
   /**

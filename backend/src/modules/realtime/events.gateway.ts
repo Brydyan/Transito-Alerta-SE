@@ -9,7 +9,9 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 
+import { AuthContext } from '../../common/authz/subject-scope';
 import { AuthService } from '../auth/auth.service';
+import { RevocationCache } from '../sessions/revocation-cache';
 import { RoomAuthorizer } from './room-authorizer.service';
 import { resolveRoomsForEvent, userRoom } from './room.util';
 
@@ -40,6 +42,7 @@ export class EventsGateway implements OnGatewayConnection {
   constructor(
     private readonly authService: AuthService,
     private readonly roomAuthorizer: RoomAuthorizer,
+    private readonly revocationCache: RevocationCache,
   ) {}
 
   async handleConnection(@ConnectedSocket() socket: Socket): Promise<void> {
@@ -56,9 +59,29 @@ export class EventsGateway implements OnGatewayConnection {
       // side — the same source of truth for both transports (design
       // "Sequence Flows").
       const ctx = await this.authService.getAuthContextByUserId(payload.sub);
+
+      // T3.9 design §3 — same two-line check as JwtStrategy.validate, so a
+      // revoked session cannot hold an open socket. Anonymous identities
+      // skip both entirely (D8).
+      if (!ctx.isAnonymous) {
+        if (!payload.sid) {
+          this.logger.warn('Rejected WS connection: access token carries no session id');
+          socket.disconnect(true);
+          return;
+        }
+        const isRevoked = await this.revocationCache.isRevoked(payload.sid);
+        if (isRevoked) {
+          this.logger.warn('Rejected WS connection: session has been revoked');
+          socket.disconnect(true);
+          return;
+        }
+      }
+
       socket.data.userId = ctx.userId;
       socket.data.permissions = ctx.permissions;
       socket.data.scope = ctx.scope;
+      socket.data.sessionId = ctx.isAnonymous ? null : (payload.sid ?? null);
+      socket.data.isAnonymous = ctx.isAnonymous;
       // Awaited: with the Redis adapter, join() is asynchronous — not
       // awaiting races the first event emitted to this room.
       await socket.join(userRoom(payload.sub));
@@ -83,12 +106,14 @@ export class EventsGateway implements OnGatewayConnection {
     // T3.2 design D11 — RoomAuthorizer authorizes the SPECIFIC room
     // against the connecting socket's AuthContext, not just a global
     // permission check.
-    const ctx = {
+    const ctx: AuthContext = {
       userId: socket.data?.userId,
       permissions: socket.data?.permissions ?? [],
       organizationId: socket.data?.scope?.organizationId ?? null,
       roleName: null,
       scope: socket.data?.scope ?? { kind: 'public' },
+      sessionId: socket.data?.sessionId ?? null,
+      isAnonymous: socket.data?.isAnonymous ?? true,
     };
     const authorized = await this.roomAuthorizer.authorize(ctx, room);
 

@@ -27,4 +27,19 @@ export interface AuthContext {
   organizationId: string | null;
   roleName: string | null;
   scope: SubjectScope;
+  /**
+   * T3.9 design §6 — the session id (`user_sessions.id`, the JWT `sid`
+   * claim), or `null` for anonymous identities (which mint no session).
+   * REQUIRED (not optional): every construction site must supply it, so a
+   * missing value fails `tsc` instead of silently defaulting (the T3.2
+   * "enforcement is a parameter" rule).
+   */
+  sessionId: string | null;
+  /**
+   * T3.9 design §3 [R4] — server-derived from `device_uuid ===
+   * anonymousDeviceUuid`, never trusted from the client. REQUIRED so
+   * `JwtStrategy.validate` can always branch on it without an `undefined`
+   * reading falsy in a security-relevant check.
+   */
+  isAnonymous: boolean;
 }

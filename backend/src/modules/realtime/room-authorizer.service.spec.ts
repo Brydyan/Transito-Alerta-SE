@@ -10,6 +10,8 @@ function ctx(overrides: Partial<AuthContext> = {}): AuthContext {
     organizationId: 'org-A',
     roleName: 'admin_organizacion',
     scope: { kind: 'org', organizationId: 'org-A' },
+    sessionId: 'session-1',
+    isAnonymous: false,
     ...overrides,
   };
 }

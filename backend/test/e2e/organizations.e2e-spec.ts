@@ -335,6 +335,56 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
         .expect(200);
       expect(res.body.organization_id).toBeNull();
     });
+
+    // security/assign-role-rank-gap: POST /roles/:id/assign rank-checks the
+    // target's CURRENT role via assertCanManage, but never rank-checked the
+    // role being GRANTED — an admin_organizacion could hand a role-less
+    // user (rankOf = MAX_SAFE_INTEGER, always passes) admin_sistema, global
+    // scope over every organization. T3.2's verify report (#441) flagged
+    // this route as unit-tested but never exercised over real HTTP
+    // (WARNING-1); these two close that gap.
+    it('admin_organizacion calling POST /roles/:id/assign to grant admin_sistema is rejected 403 INSUFFICIENT_ROLE_RANK', async () => {
+      const orgAAdmin = await env.provisionUser(['ASSIGN roles'], {
+        organizationId: orgAId,
+        roleName: 'admin_organizacion',
+      });
+      const roleLessTarget = await env.provisionUser([], { organizationId: orgAId });
+      const { rows } = await env.pg.query<{ id: string }>(
+        `SELECT id FROM roles WHERE name = 'admin_sistema'`,
+      );
+      const adminSistemaRoleId = rows[0].id;
+
+      const res = await request(env.httpServer)
+        .post(`/api/roles/${adminSistemaRoleId}/assign`)
+        .set(auth(orgAAdmin))
+        .send({ user_id: roleLessTarget.userId })
+        .expect(403);
+      expect(res.body.code ?? res.body.message).toBeDefined();
+    });
+
+    it('admin_organizacion calling POST /roles/:id/assign to grant operador_organizacion (a lower rank) succeeds', async () => {
+      const orgAAdmin = await env.provisionUser(['ASSIGN roles'], {
+        organizationId: orgAId,
+        roleName: 'admin_organizacion',
+      });
+      const roleLessTarget = await env.provisionUser([], { organizationId: orgAId });
+      const { rows } = await env.pg.query<{ id: string }>(
+        `SELECT id FROM roles WHERE name = 'operador_organizacion'`,
+      );
+      const operadorOrgRoleId = rows[0].id;
+
+      await request(env.httpServer)
+        .post(`/api/roles/${operadorOrgRoleId}/assign`)
+        .set(auth(orgAAdmin))
+        .send({ user_id: roleLessTarget.userId })
+        .expect(201);
+
+      const { rows: userRows } = await env.pg.query<{ role_id: string }>(
+        'SELECT role_id FROM users WHERE id = $1',
+        [roleLessTarget.userId],
+      );
+      expect(userRows[0].role_id).toBe(operadorOrgRoleId);
+    });
   });
 
   // ---------------------------------------------------------------------

@@ -8,4 +8,13 @@ export interface JwtPayload {
   typ: 'access' | 'refresh';
   jti: string; // refresh rotation / revocation
   pv: number; // permission version — bump invalidates cached permission blob
+  /**
+   * T3.9 design §6 — the session id (`user_sessions.id`). OPTIONAL in the
+   * type because anonymous tokens carry none (D8): forcing `sid: ''` at the
+   * anonymous mint site would be a lie the compiler would then stop
+   * questioning. REQUIRED at runtime for every non-anonymous identity —
+   * enforced at exactly two places: `JwtStrategy.validate` and
+   * `AuthService.refresh`.
+   */
+  sid?: string;
 }

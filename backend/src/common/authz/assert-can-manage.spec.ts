@@ -1,6 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
-import { assertCanManage } from './assert-can-manage';
+import { assertCanManage, assertVisible } from './assert-can-manage';
 import { AuthContext } from './subject-scope';
 
 function actor(overrides: Partial<AuthContext> = {}): AuthContext {
@@ -10,6 +10,8 @@ function actor(overrides: Partial<AuthContext> = {}): AuthContext {
     organizationId: 'org-1',
     roleName: 'admin_organizacion',
     scope: { kind: 'org', organizationId: 'org-1' },
+    sessionId: 'session-actor-1',
+    isAnonymous: false,
     ...overrides,
   };
 }
@@ -84,5 +86,49 @@ describe('assertCanManage', () => {
     const a = actor({ roleName: null, organizationId: null, scope: { kind: 'public' } });
     const target = { id: 'target-6', organizationId: 'org-9', roleName: 'admin_sistema' };
     expect(() => assertCanManage(a, target)).not.toThrow();
+  });
+});
+
+/**
+ * assertVisible (T3.9 design §8 D9 — promoted out of assertCanManage,
+ * zero behaviour change). assertCanManage's own suite above proves the
+ * refactor did not change ITS behaviour; this suite proves the promoted
+ * function is independently usable (visibility only, no rank gate) — the
+ * exact need `GET /users/:id/sessions` has (D9: reads need visibility
+ * without rank).
+ */
+describe('assertVisible', () => {
+  it('throws 404 when the target is not visible under the actor scope', () => {
+    const a = actor({ scope: { kind: 'org', organizationId: 'org-1' } });
+    const target = { id: 'target-1', organizationId: 'org-2', roleName: 'operador_organizacion' };
+    expect(() => assertVisible(a, target)).toThrow(NotFoundException);
+  });
+
+  it('does not throw when the target is visible, regardless of rank', () => {
+    const a = actor({
+      roleName: 'operador_organizacion',
+      organizationId: 'org-1',
+      scope: { kind: 'org', organizationId: 'org-1' },
+    });
+    // Higher-ranked target than the actor — assertCanManage would 403 this,
+    // but assertVisible only cares about visibility.
+    const target = { id: 'target-1', organizationId: 'org-1', roleName: 'admin_sistema' };
+    expect(() => assertVisible(a, target)).not.toThrow();
+  });
+
+  it('global scope sees every org', () => {
+    const a = actor({ roleName: 'admin_sistema', organizationId: null, scope: { kind: 'global' } });
+    const target = { id: 'target-4', organizationId: 'org-42', roleName: 'reporter' };
+    expect(() => assertVisible(a, target)).not.toThrow();
+  });
+
+  it('public scope only sees self', () => {
+    const a = actor({ userId: 'self-1', roleName: null, scope: { kind: 'public' } });
+    expect(() =>
+      assertVisible(a, { id: 'self-1', organizationId: null, roleName: null }),
+    ).not.toThrow();
+    expect(() =>
+      assertVisible(a, { id: 'other-1', organizationId: null, roleName: null }),
+    ).toThrow(NotFoundException);
   });
 });

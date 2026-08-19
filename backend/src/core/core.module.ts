@@ -64,6 +64,21 @@ export const MAIL_EVENTS_BLOCKING_CLIENT = 'MAIL_EVENTS_BLOCKING_CLIENT';
 export const STATUS_HISTORY_EVENTS_BLOCKING_CLIENT = 'STATUS_HISTORY_EVENTS_BLOCKING_CLIENT';
 
 /**
+ * DI token for the Sessions module's denylist + grace-buffer Redis client
+ * (T3.9 design §2). Lives on `cacheConf.streamsUrl` — DB 0, alongside
+ * Streams — deliberately NOT the cache-manager database (see the
+ * `REDIS_CLIENT` comment above: a cache flush must never wipe session
+ * state either).
+ *
+ * `enableOfflineQueue: false` + `commandTimeout: 50` (design §2, "Redis
+ * unreachable"): a disconnected or hung Redis must reject immediately so
+ * `RevocationCache.isRevoked` can fail OPEN (D1b) — without this, an
+ * outage would hang every authenticated request until reconnect instead of
+ * failing fast.
+ */
+export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
+
+/**
  * CoreModule — Config, TypeORM, Redis cache, EventEmitter2.
  * Imported by AppModule; every feature module depends on it transitively
  * (design "Module Dependency DAG").
@@ -163,6 +178,21 @@ export const STATUS_HISTORY_EVENTS_BLOCKING_CLIENT = 'STATUS_HISTORY_EVENTS_BLOC
         });
       },
     },
+    {
+      provide: SESSION_REDIS_CLIENT,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const cacheConf = config.get<CacheConfig>('cache')!;
+        return new Redis(cacheConf.streamsUrl, {
+          lazyConnect: true,
+          enableOfflineQueue: false,
+          commandTimeout: 50,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: true,
+          retryStrategy: (times) => Math.min(times * 200, 5000),
+        });
+      },
+    },
   ],
   exports: [
     ConfigModule,
@@ -174,6 +204,7 @@ export const STATUS_HISTORY_EVENTS_BLOCKING_CLIENT = 'STATUS_HISTORY_EVENTS_BLOC
     MAIL_BLOCKING_CLIENT,
     MAIL_EVENTS_BLOCKING_CLIENT,
     STATUS_HISTORY_EVENTS_BLOCKING_CLIENT,
+    SESSION_REDIS_CLIENT,
   ],
 })
 export class CoreModule {}

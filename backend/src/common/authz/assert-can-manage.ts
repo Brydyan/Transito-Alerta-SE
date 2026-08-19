@@ -39,14 +39,63 @@ export function assertCanManage(actor: AuthContext, target: ManageableTarget): v
     return;
   }
 
-  if (!isVisibleUnderScope(actor, target)) {
-    throw new NotFoundException('User not found');
-  }
+  assertVisible(actor, target);
 
   if (!(rankOf(actor.roleName) < rankOf(target.roleName))) {
     throw new ForbiddenException({
       code: 'INSUFFICIENT_ROLE_RANK',
       message: 'Actor does not outrank the target user',
+    });
+  }
+}
+
+/**
+ * Visibility-only check (T3.9 design §8 D9 — "one new export, no new
+ * axis"), promoted out of `assertCanManage` for `GET /users/:id/sessions`
+ * and similar reads that need visibility WITHOUT the rank gate (D9 rank-
+ * gates writes only). Zero behaviour change to `assertCanManage`, which now
+ * delegates here — same `actor.roleName === null` D2 short-circuit is
+ * preserved by each caller independently (harmless for sessions: 0016
+ * grants `READ sessions` only through the two seeded admin roles).
+ */
+export function assertVisible(actor: AuthContext, target: ManageableTarget): void {
+  if (!isVisibleUnderScope(actor, target)) {
+    throw new NotFoundException('User not found');
+  }
+}
+
+/**
+ * Rank-checks the role being GRANTED, not the target's current role
+ * (`assertCanManage` above answers a different question: "may I act on
+ * this user at all?"). Without this, `assignRole` compared the actor
+ * against the target's pre-grant role — a role-less target (`roleName:
+ * null` -> `rankOf = MAX_SAFE_INTEGER`) always passed, so any actor
+ * holding `ASSIGN roles` could hand a role-less user ANY role, including
+ * one outranking the actor itself (security/assign-role-rank-gap).
+ *
+ * Strict `<`, same as `assertCanManage`: an actor can never grant its own
+ * rank or higher, so peers cannot promote each other or a subordinate to
+ * parity.
+ *
+ * D2 additivity preserved: `actor.roleName === null` short-circuits here
+ * too, for the same reason as `assertCanManage` — every pre-T3.2 identity
+ * has `role_id IS NULL`, and gating them would retroactively restrict
+ * identities T3.2 promised to leave untouched.
+ *
+ * Call this AFTER `assertCanManage`, never before — visibility/rank on
+ * the CURRENT target must be resolved first (404 before 403, D11) so an
+ * actor who cannot even see the target does not learn anything about the
+ * grant it attempted via a different exception.
+ */
+export function assertCanGrantRole(actor: AuthContext, grantedRoleName: string | null): void {
+  if (actor.roleName === null) {
+    return;
+  }
+
+  if (!(rankOf(actor.roleName) < rankOf(grantedRoleName))) {
+    throw new ForbiddenException({
+      code: 'INSUFFICIENT_ROLE_RANK',
+      message: 'Actor does not outrank the granted role',
     });
   }
 }

@@ -12,10 +12,12 @@ import type { RedisStore } from 'cache-manager-redis-yet';
 import { AppModule } from '../../src/app.module';
 import { SnakeCaseResponseInterceptor } from '../../src/common/interceptors/snake-case-response.interceptor';
 import { RedisIoAdapter } from '../../src/modules/realtime/redis-io.adapter';
+import { PasswordHasher } from '../../src/modules/auth/password-hasher';
 import {
   MAIL_BLOCKING_CLIENT,
   MAIL_EVENTS_BLOCKING_CLIENT,
   REDIS_CLIENT,
+  SESSION_REDIS_CLIENT,
   STATUS_HISTORY_EVENTS_BLOCKING_CLIENT,
 } from '../../src/core/core.module';
 import { applyMigrations } from './run-migrations';
@@ -26,6 +28,8 @@ export interface ProvisionedUser {
   accessToken: string;
   refreshToken: string;
   permissions: string[];
+  /** T3.9 — the session id (`user_sessions.id`), null for anonymous. */
+  sid: string | null;
 }
 
 /** T3.2 D13 — organization/role overrides for tenant-isolation e2e fixtures. */
@@ -78,6 +82,7 @@ export class TestEnvironment {
     private readonly mailBlockingClient: Redis,
     private readonly mailEventsBlockingClient: Redis,
     private readonly statusHistoryEventsBlockingClient: Redis,
+    private readonly sessionRedisClient: Redis,
   ) {}
 
   static async start(): Promise<TestEnvironment> {
@@ -142,6 +147,14 @@ export class TestEnvironment {
     process.env.JWT_ACCESS_EXPIRES_IN = '15m';
     process.env.JWT_REFRESH_EXPIRES_IN = '7d';
 
+    // T3.6 — bcrypt cost is config-driven (AuthConfig.bcryptCost); the
+    // production default (12) is deliberately expensive. Every e2e spec
+    // file boots one shared AppModule, so shrinking this here (not per-file)
+    // keeps password-identity scenarios (invitations, password-reset,
+    // change-password) fast without ever hardcoding a low cost in service
+    // code (design "Testing Strategy": cost 4 in tests, never a literal).
+    process.env.BCRYPT_COST = '4';
+
     // A high ceiling — RateLimiterGuard is not what these flows exercise,
     // and the default 100 req/min shared across a growing e2e suite would
     // make failures depend on how many requests earlier tests happened to
@@ -203,6 +216,12 @@ export class TestEnvironment {
     const mailBlockingClient = app.get<Redis>(MAIL_BLOCKING_CLIENT);
     const mailEventsBlockingClient = app.get<Redis>(MAIL_EVENTS_BLOCKING_CLIENT);
     const statusHistoryEventsBlockingClient = app.get<Redis>(STATUS_HISTORY_EVENTS_BLOCKING_CLIENT);
+    // T3.9 — the denylist/grace-buffer client. Same DB (0) as REDIS_CLIENT,
+    // but a SEPARATE connection (`enableOfflineQueue: false,
+    // commandTimeout: 50`) — grabbed here only so teardown can quit it
+    // cleanly; tests read/write session keys through `env.redisStreams`
+    // (same logical database) rather than this handle directly.
+    const sessionRedisClient = app.get<Redis>(SESSION_REDIS_CLIENT);
 
     const pg = new Pool({
       host: dbHost,
@@ -233,6 +252,7 @@ export class TestEnvironment {
       mailBlockingClient,
       mailEventsBlockingClient,
       statusHistoryEventsBlockingClient,
+      sessionRedisClient,
     );
   }
 
@@ -327,14 +347,123 @@ export class TestEnvironment {
       'SELECT id FROM users WHERE device_uuid = $1',
       [deviceUuid],
     );
+    const userId = rows[0].id;
+
+    // T3.9 — every non-anonymous login writes exactly one `user_sessions`
+    // row synchronously (D2); the most recent one for this user is the one
+    // this exact login() call just created.
+    const { rows: sessionRows } = await this.pg.query<{ id: string }>(
+      'SELECT id FROM user_sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [userId],
+    );
 
     return {
-      userId: rows[0].id,
+      userId,
       deviceUuid,
       accessToken: response.body.access_token as string,
       refreshToken: response.body.refresh_token as string,
       permissions: response.body.permissions as string[],
+      sid: sessionRows[0]?.id ?? null,
     };
+  }
+
+  /**
+   * T3.9 (task 7.8) — directly revokes a session row AND writes the
+   * denylist entry (mirroring what `AuthService.revokeSession` does), for
+   * tests that need a revoked state set up without going through
+   * `POST /auth/logout` / `DELETE /api/sessions/:id`.
+   */
+  async revokeSession(sessionId: string): Promise<void> {
+    const { rows } = await this.pg.query<{ expires_at: Date | null }>(
+      `UPDATE user_sessions SET revoked_at = now() WHERE id = $1 RETURNING expires_at`,
+      [sessionId],
+    );
+    const expiresAt = rows[0]?.expires_at;
+    const ttlSeconds = expiresAt
+      ? Math.max(1, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000))
+      : 60;
+    await this.redisStreams.setex(`sess:revoked:${sessionId}`, ttlSeconds, '1');
+  }
+
+  /**
+   * T3.9 (task 7.8) — backdates `rotated_at` so grace-window boundary e2e
+   * scenarios don't need a real sleep (design §10: "Time is injected,
+   * never slept" — the DB clock cannot be injected from Node, so the row
+   * is backdated instead). Also clears any grace-buffer key for this
+   * session, since the buffer must expire together with the window it
+   * represents.
+   */
+  async backdateRotation(sessionId: string, secondsAgo: number): Promise<void> {
+    await this.pg.query(
+      `UPDATE user_sessions SET rotated_at = now() - ($2 || ' seconds')::interval WHERE id = $1`,
+      [sessionId, String(secondsAgo)],
+    );
+    const keys = await this.redisStreams.keys(`sess:grace:${sessionId}:*`);
+    if (keys.length > 0) {
+      await this.redisStreams.del(...keys);
+    }
+  }
+
+  /**
+   * T3.6 (task 8.18) — provisions a password-identity user directly (no
+   * invitation redemption involved), for scenarios that need a ready-made
+   * password login (password-reset, `PUT /auth/password`) without the
+   * accept-invitation flow itself being under test. Hashes through the
+   * app's own `PasswordHasher` instance (cost resolved from
+   * `AuthConfig.bcryptCost`, `BCRYPT_COST=4` in this harness — see
+   * `start()`), so `bcrypt.compare` inside `AuthService.loginWithPassword`
+   * succeeds against it exactly as it would for a real accept-invitation
+   * row.
+   */
+  async provisionPasswordUser(
+    email: string,
+    password: string,
+    overrides: { permissions?: string[]; roleName?: string; organizationId?: string | null } = {},
+  ): Promise<{ userId: string }> {
+    const passwordHasher = this.app.get(PasswordHasher);
+    const passwordHash = await passwordHasher.hash(password);
+
+    let roleId: string | null = null;
+    if (overrides.roleName) {
+      const { rows } = await this.pg.query<{ id: string }>('SELECT id FROM roles WHERE name = $1', [
+        overrides.roleName,
+      ]);
+      roleId = rows[0]?.id ?? null;
+    }
+
+    const { rows } = await this.pg.query<{ id: string }>(
+      `INSERT INTO users (email, password_hash, permissions, is_active, organization_id, role_id)
+       VALUES ($1, $2, $3::jsonb, true, $4, $5)
+       RETURNING id`,
+      [
+        email,
+        passwordHash,
+        JSON.stringify(overrides.permissions ?? []),
+        overrides.organizationId ?? null,
+        roleId,
+      ],
+    );
+    return { userId: rows[0].id };
+  }
+
+  /**
+   * T3.6 (task 8.18/8.12) — backdates an `invitations` row's `expires_at`
+   * directly via SQL `UPDATE`, never `sleep`/clock injection (house rule,
+   * design "Testing Strategy": "the intervals are 24h/48h").
+   */
+  async backdateInvitation(id: string, secondsAgo: number): Promise<void> {
+    await this.pg.query(
+      `UPDATE invitations SET expires_at = now() - ($2 || ' seconds')::interval WHERE id = $1`,
+      [id, String(secondsAgo)],
+    );
+  }
+
+  /** Same shape as {@link backdateInvitation}, for `password_reset_tokens`. */
+  async backdateResetToken(id: string, secondsAgo: number): Promise<void> {
+    await this.pg.query(
+      `UPDATE password_reset_tokens SET expires_at = now() - ($2 || ' seconds')::interval WHERE id = $1`,
+      [id, String(secondsAgo)],
+    );
   }
 
   async stop(): Promise<void> {
@@ -376,6 +505,7 @@ export class TestEnvironment {
     this.mailBlockingClient.disconnect();
     this.mailEventsBlockingClient.disconnect();
     this.statusHistoryEventsBlockingClient.disconnect();
+    this.sessionRedisClient.disconnect();
 
     await this.redisContainer.stop();
     await this.postgresContainer.stop();
