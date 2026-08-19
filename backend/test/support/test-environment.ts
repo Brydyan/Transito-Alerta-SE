@@ -12,6 +12,7 @@ import type { RedisStore } from 'cache-manager-redis-yet';
 import { AppModule } from '../../src/app.module';
 import { SnakeCaseResponseInterceptor } from '../../src/common/interceptors/snake-case-response.interceptor';
 import { RedisIoAdapter } from '../../src/modules/realtime/redis-io.adapter';
+import { PasswordHasher } from '../../src/modules/auth/password-hasher';
 import {
   MAIL_BLOCKING_CLIENT,
   MAIL_EVENTS_BLOCKING_CLIENT,
@@ -145,6 +146,14 @@ export class TestEnvironment {
     process.env.JWT_REFRESH_SECRET = 'e2e-refresh-secret';
     process.env.JWT_ACCESS_EXPIRES_IN = '15m';
     process.env.JWT_REFRESH_EXPIRES_IN = '7d';
+
+    // T3.6 — bcrypt cost is config-driven (AuthConfig.bcryptCost); the
+    // production default (12) is deliberately expensive. Every e2e spec
+    // file boots one shared AppModule, so shrinking this here (not per-file)
+    // keeps password-identity scenarios (invitations, password-reset,
+    // change-password) fast without ever hardcoding a low cost in service
+    // code (design "Testing Strategy": cost 4 in tests, never a literal).
+    process.env.BCRYPT_COST = '4';
 
     // A high ceiling — RateLimiterGuard is not what these flows exercise,
     // and the default 100 req/min shared across a growing e2e suite would
@@ -393,6 +402,68 @@ export class TestEnvironment {
     if (keys.length > 0) {
       await this.redisStreams.del(...keys);
     }
+  }
+
+  /**
+   * T3.6 (task 8.18) — provisions a password-identity user directly (no
+   * invitation redemption involved), for scenarios that need a ready-made
+   * password login (password-reset, `PUT /auth/password`) without the
+   * accept-invitation flow itself being under test. Hashes through the
+   * app's own `PasswordHasher` instance (cost resolved from
+   * `AuthConfig.bcryptCost`, `BCRYPT_COST=4` in this harness — see
+   * `start()`), so `bcrypt.compare` inside `AuthService.loginWithPassword`
+   * succeeds against it exactly as it would for a real accept-invitation
+   * row.
+   */
+  async provisionPasswordUser(
+    email: string,
+    password: string,
+    overrides: { permissions?: string[]; roleName?: string; organizationId?: string | null } = {},
+  ): Promise<{ userId: string }> {
+    const passwordHasher = this.app.get(PasswordHasher);
+    const passwordHash = await passwordHasher.hash(password);
+
+    let roleId: string | null = null;
+    if (overrides.roleName) {
+      const { rows } = await this.pg.query<{ id: string }>('SELECT id FROM roles WHERE name = $1', [
+        overrides.roleName,
+      ]);
+      roleId = rows[0]?.id ?? null;
+    }
+
+    const { rows } = await this.pg.query<{ id: string }>(
+      `INSERT INTO users (email, password_hash, permissions, is_active, organization_id, role_id)
+       VALUES ($1, $2, $3::jsonb, true, $4, $5)
+       RETURNING id`,
+      [
+        email,
+        passwordHash,
+        JSON.stringify(overrides.permissions ?? []),
+        overrides.organizationId ?? null,
+        roleId,
+      ],
+    );
+    return { userId: rows[0].id };
+  }
+
+  /**
+   * T3.6 (task 8.18/8.12) — backdates an `invitations` row's `expires_at`
+   * directly via SQL `UPDATE`, never `sleep`/clock injection (house rule,
+   * design "Testing Strategy": "the intervals are 24h/48h").
+   */
+  async backdateInvitation(id: string, secondsAgo: number): Promise<void> {
+    await this.pg.query(
+      `UPDATE invitations SET expires_at = now() - ($2 || ' seconds')::interval WHERE id = $1`,
+      [id, String(secondsAgo)],
+    );
+  }
+
+  /** Same shape as {@link backdateInvitation}, for `password_reset_tokens`. */
+  async backdateResetToken(id: string, secondsAgo: number): Promise<void> {
+    await this.pg.query(
+      `UPDATE password_reset_tokens SET expires_at = now() - ($2 || ' seconds')::interval WHERE id = $1`,
+      [id, String(secondsAgo)],
+    );
   }
 
   async stop(): Promise<void> {
