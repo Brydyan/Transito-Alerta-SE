@@ -5,7 +5,8 @@
  */
 export interface SessionResponseDto {
   id: string;
-  device_uuid: string;
+  /** T3.6 (0017) — nullable: sessions minted by a password login carry no device identity. */
+  device_uuid: string | null;
   ip_address: string | null;
   user_agent: string | null;
   created_at: Date;
@@ -18,7 +19,8 @@ export interface SessionResponseDto {
 export function toSessionResponseDto(
   row: {
     id: string;
-    device_uuid: string;
+    /** T3.6 (0017) — nullable: sessions minted by a password login carry no device identity. */
+  device_uuid: string | null;
     ip_address: string | null;
     user_agent: string | null;
     created_at: Date;

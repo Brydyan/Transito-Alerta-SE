@@ -19,8 +19,14 @@ export class UserEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ name: 'device_uuid', type: 'varchar', unique: true })
-  deviceUuid!: string;
+  /**
+   * T3.6 (0017) — relaxed to nullable. `users_device_uuid_key` is KEPT
+   * (design D7): Postgres UNIQUE tolerates unlimited NULLs, so
+   * password-only users (created via invitation redemption) coexist with
+   * device-only users while two real devices still cannot share a uuid.
+   */
+  @Column({ name: 'device_uuid', type: 'varchar', unique: true, nullable: true })
+  deviceUuid!: string | null;
 
   @Column({ type: 'jsonb', default: () => "'[]'" })
   permissions!: string[];
@@ -45,6 +51,15 @@ export class UserEntity {
    */
   @Column({ type: 'varchar', nullable: true })
   email!: string | null;
+
+  /**
+   * T3.6 (0017) — bcrypt cost-12 hash, `char(60)`. `NULL` for device-only
+   * accounts; set once at invitation redemption / password-reset confirm /
+   * change-password, never read or logged in plaintext (design D9, error
+   * map).
+   */
+  @Column({ name: 'password_hash', type: 'char', length: 60, nullable: true })
+  passwordHash!: string | null;
 
   @Column({ type: 'varchar', default: 'reporter' })
   role!: string;

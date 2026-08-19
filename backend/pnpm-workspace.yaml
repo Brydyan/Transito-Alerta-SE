@@ -1,5 +1,6 @@
 allowBuilds:
   '@nestjs/core': true
+  bcrypt: true
   # ssh2/cpu-features are an optional transitive dep of testcontainers (SSH
   # tunnel support we don't use — we only spin up generic Postgres/Redis
   # containers over the local Docker socket). protobufjs is pure JS and

@@ -18,8 +18,14 @@ export class UserSessionEntity {
   @Column({ name: 'user_id', type: 'uuid' })
   userId!: string;
 
-  @Column({ name: 'device_uuid', type: 'varchar' })
-  deviceUuid!: string;
+  /**
+   * T3.6 (0017) — relaxed to nullable. Password logins accept an optional
+   * `device_uuid` as a session LABEL only, never as identity (design D7);
+   * without this relaxation every password login would 500 on the session
+   * INSERT (0006 had this column `NOT NULL`).
+   */
+  @Column({ name: 'device_uuid', type: 'varchar', nullable: true })
+  deviceUuid!: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

@@ -8,7 +8,8 @@ import { ACTIVE_SESSION_SQL } from './session-validity';
 export interface SessionRow {
   id: string;
   user_id: string;
-  device_uuid: string;
+  /** T3.6 (0017) — nullable: password logins accept an optional device_uuid as a session LABEL only (design D7). */
+  device_uuid: string | null;
   created_at: Date;
   refresh_token_hash: string | null;
   previous_refresh_token_hash: string | null;
@@ -23,7 +24,7 @@ export interface SessionRow {
 export interface CreateSessionInput {
   id: string;
   userId: string;
-  deviceUuid: string;
+  deviceUuid: string | null;
   refreshTokenHash: string;
   ipAddress: string | null;
   userAgent: string | null;
@@ -164,6 +165,35 @@ export class SessionsRepository {
   private firstUpdatedRow<T>(result: unknown): T | null {
     const [rows] = result as [T[], number];
     return rows[0] ?? null;
+  }
+
+  /**
+   * Same tuple-unwrap as `firstUpdatedRow`, but returns the FULL array
+   * instead of `rows[0]` (T3.6 tasks corrections table) — `firstUpdatedRow`
+   * silently drops rows 2..N of a multi-row `UPDATE ... RETURNING`, which
+   * `revokeAllForUser` below needs in full to compute a denylist TTL per
+   * row.
+   */
+  private updatedRows<T>(result: unknown): T[] {
+    const [rows] = result as [T[], number];
+    return rows;
+  }
+
+  /**
+   * T3.6 design D6 — bulk revoke every currently-active session for a user
+   * in one statement. DB-only: this repository never touches Redis (T3.9
+   * §8) — `AuthService.revokeAllForUser` does the `RevocationCache.revoke`
+   * fan-out per row returned here.
+   */
+  async revokeAllForUser(userId: string): Promise<Array<{ id: string; expires_at: Date | null }>> {
+    const result: unknown = await this.dataSource.query(
+      `UPDATE user_sessions
+          SET revoked_at = now()
+        WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()
+      RETURNING id, expires_at`,
+      [userId],
+    );
+    return this.updatedRows<{ id: string; expires_at: Date | null }>(result);
   }
 
   /** Logging-only helper — returns a boolean, never a usable row. */

@@ -177,6 +177,40 @@ describe('SessionsRepository (T3.9 design §4)', () => {
     });
   });
 
+  describe('revokeAllForUser (T3.6 D6)', () => {
+    it('bulk-revokes every active session for the user, unwrapped via the FULL rows array', async () => {
+      // Multi-row RETURNING — proves this uses updatedRows(), not
+      // firstUpdatedRow() (which would silently drop rows 2..N).
+      dataSource.query.mockResolvedValue([
+        [
+          { id: 'sid-1', expires_at: new Date('2026-01-01') },
+          { id: 'sid-2', expires_at: new Date('2026-01-02') },
+        ],
+        2,
+      ]);
+
+      const result = await repository.revokeAllForUser('user-1');
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toMatch(/UPDATE user_sessions/);
+      expect(sql).toMatch(/SET revoked_at = now\(\)/);
+      expect(sql).toMatch(/WHERE user_id = \$1 AND revoked_at IS NULL AND expires_at > now\(\)/);
+      expect(sql).toMatch(/RETURNING id, expires_at/);
+      expect(params).toEqual(['user-1']);
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe('sid-1');
+      expect(result[1].id).toBe('sid-2');
+    });
+
+    it('returns an empty array when the user has no active sessions', async () => {
+      dataSource.query.mockResolvedValue([[], 0]);
+
+      const result = await repository.revokeAllForUser('user-1');
+
+      expect(result).toEqual([]);
+    });
+  });
+
   describe('findManageableTarget', () => {
     it('joins users LEFT JOIN roles and returns the mapped target', async () => {
       dataSource.query.mockResolvedValue([

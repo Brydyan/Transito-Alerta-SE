@@ -24,7 +24,9 @@ import {
   SessionErrorCode,
 } from '../sessions/session-errors';
 import { SessionsRepository } from '../sessions/sessions.repository';
+import { INVALID_CREDENTIALS } from './auth-errors';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { DUMMY_HASH, PasswordHasher } from './password-hasher';
 
 /**
  * T3.9 design §3 [R4]: reshaped to `perm:v3:` — `AuthContext` gains
@@ -62,16 +64,33 @@ export interface AuthTokens {
   permissions: string[];
 }
 
+export interface PasswordCredentialInput {
+  email: string;
+  password: string;
+  deviceUuid: string | null;
+}
+
 function sessionError(code: SessionErrorCode, message: string): UnauthorizedException {
   return new UnauthorizedException({ code, message });
 }
 
+function invalidCredentialsError(): UnauthorizedException {
+  return new UnauthorizedException({ code: INVALID_CREDENTIALS, message: 'Invalid email or password' });
+}
+
 /**
- * AuthService — device-UUID identity + dual JWT + Redis-cached permissions
- * + session lifecycle (T3.9). Implements D1 (identity spectrum), D2
- * (permissions in Redis, not JWT claims), CC2 (dual anonymous/
- * authenticated identity), and — new in T3.9 — is the SOLE writer of
- * `user_sessions` via `SessionsRepository` (spec "Ownership of Writes").
+ * AuthService — device-UUID identity + email/password identity (T3.6) +
+ * dual JWT + Redis-cached permissions + session lifecycle (T3.9).
+ * Implements D1 (identity spectrum), D2 (permissions in Redis, not JWT
+ * claims), CC2 (dual anonymous/authenticated identity), and is the SOLE
+ * writer of `user_sessions` via `SessionsRepository` (spec "Ownership of
+ * Writes").
+ *
+ * T3.6 design D1: `login()` keeps its exact pre-existing signature and
+ * behaviour — the device-UUID identity path is the regression gate for
+ * this whole change, proven by `auth.service.spec.ts`'s `login` describe
+ * block staying byte-for-byte unmodified. `loginWithPassword` is a sibling
+ * entry point; both converge on the private `issueSession`.
  */
 @Injectable()
 export class AuthService {
@@ -87,6 +106,11 @@ export class AuthService {
     private readonly sessionsRepository: SessionsRepository,
     private readonly revocationCache: RevocationCache,
     private readonly graceBuffer: GraceBuffer,
+    // T3.6 — optional so the pre-existing `auth.service.spec.ts` regression
+    // suite (which constructs AuthService with the original 8 positional
+    // args) keeps compiling and passing unmodified; Nest's DI container
+    // always supplies a real instance in production/e2e.
+    private readonly passwordHasher?: PasswordHasher,
   ) {}
 
   private get authConfig(): AuthConfig {
@@ -98,9 +122,10 @@ export class AuthService {
    * without a `sid` and create no session row (D8, spec "Anonymous
    * Identities"). Non-anonymous logins mint `sid` BEFORE signing (both
    * tokens carry the same `sid`), hash the refresh token (D5), then write
-   * the session row SYNCHRONOUSLY — a write failure fails the login (D2),
-   * unlike the old fire-and-forget `auth.login` event fan-out this
-   * replaces.
+   * the session row SYNCHRONOUSLY — a write failure fails the login (D2).
+   *
+   * UNCHANGED signature and behaviour (T3.6 design D1) — the tail was
+   * lifted verbatim into the private `issueSession`, nothing else differs.
    */
   async login(deviceUuid: string, meta: RequestMeta = { ip: null, userAgent: null }): Promise<AuthTokens> {
     if (!deviceUuid || !deviceUuid.trim()) {
@@ -124,6 +149,65 @@ export class AuthService {
       };
     }
 
+    return this.issueSession(user, deviceUuid, meta, permissions);
+  }
+
+  /**
+   * T3.6 design D1/D9 — `{email,password}` login. `bcrypt.compare` is
+   * ALWAYS invoked, even when the user does not exist or has no
+   * `password_hash` (compared against the constant `DUMMY_HASH` instead) —
+   * so an unknown-email 401 costs the same wall-clock as a wrong-password
+   * one (no user enumeration via timing, spec "Password Identity").
+   * `deviceUuid`, if supplied, is a session LABEL only (D7) — never
+   * identity; this path is never anonymous.
+   */
+  async loginWithPassword(
+    input: PasswordCredentialInput,
+    meta: RequestMeta = { ip: null, userAgent: null },
+  ): Promise<AuthTokens> {
+    const user = await this.userRepo.findOne({ where: { email: input.email } });
+    const hashToCompare = user?.passwordHash ?? DUMMY_HASH;
+    const passwordMatches = await this.passwordHasher!.verify(input.password, hashToCompare);
+
+    if (!user || !passwordMatches || user.isActive === false) {
+      throw invalidCredentialsError();
+    }
+
+    const permissions = await this.getPermissionsByUserId(user.id);
+    return this.issueSession(user, input.deviceUuid, meta, permissions);
+  }
+
+  /**
+   * T3.6 — invoked by `InvitationsService.redeem` AFTER its transaction
+   * commits (design "Component Design": `issueSession` runs outside the
+   * tx). Thin public wrapper around the private `issueSession` so
+   * `InvitationsModule` never needs access to `AuthService` internals.
+   * `deviceUuid` is always `null` — redemption CREATES a new identity, it
+   * never adopts a device (design D12).
+   */
+  async issueSessionForNewIdentity(
+    userId: string,
+    meta: RequestMeta = { ip: null, userAgent: null },
+  ): Promise<AuthTokens> {
+    const permissions = await this.getPermissionsByUserId(userId);
+    // issueSession only ever reads `user.id` — a full UserEntity is not
+    // needed here (the caller just committed the INSERT inside its own
+    // transaction and only has the raw row, not a hydrated entity).
+    return this.issueSession({ id: userId } as UserEntity, null, meta, permissions);
+  }
+
+  /**
+   * The `sid`/sign/hash/`SessionsRepository.create` block, lifted VERBATIM
+   * out of the pre-T3.6 `login()` tail (T3.6 design D1, task 4.1). Never
+   * called for an anonymous identity — callers branch on that BEFORE
+   * reaching here, exactly as `login()` always did.
+   */
+  private async issueSession(
+    user: UserEntity,
+    deviceUuid: string | null,
+    meta: RequestMeta,
+    permissions: string[],
+  ): Promise<AuthTokens> {
     const sid = randomUUID();
     const accessToken = this.signAccessToken(user.id, sid);
     const refreshToken = this.signRefreshToken(user.id, sid);
@@ -278,6 +362,53 @@ export class AuthService {
     await this.revocationCache.revoke(sessionId, ttlSeconds);
   }
 
+  /**
+   * T3.6 design D5/D6 — bulk revoke every currently-active session for a
+   * user, spares nobody (not even the caller's own session on
+   * `PUT /auth/password`). `SessionsRepository.revokeAllForUser` is
+   * DB-only (T3.9 §8 invariant — repository never touches Redis); this
+   * method does the `RevocationCache.revoke` fan-out per row, TTL computed
+   * exactly as `revokeSession` does. Invoked unconditionally by
+   * `PasswordResetService.confirmReset` and `changePassword` immediately
+   * after the `password_hash` write.
+   */
+  async revokeAllForUser(userId: string): Promise<void> {
+    const rows = await this.sessionsRepository.revokeAllForUser(userId);
+    await Promise.all(
+      rows.map((row) => {
+        const ttlSeconds = row.expires_at
+          ? Math.max(1, Math.ceil((row.expires_at.getTime() - Date.now()) / 1000))
+          : this.authConfig.sessionRefreshTtlSeconds;
+        return this.revocationCache.revoke(row.id, ttlSeconds);
+      }),
+    );
+  }
+
+  /**
+   * `PUT /auth/password` (T3.6, SELF-only, spec "Password Identity").
+   * `401 INVALID_CREDENTIALS` if the CURRENT password does not match
+   * (compared against `DUMMY_HASH` if the account somehow has no hash yet
+   * — defensive, not a reachable state for an authenticated caller).
+   * Success revokes every session including the caller's own (D5) — the
+   * caller must re-login, which is why the UI must say "you will be signed
+   * out everywhere".
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw invalidCredentialsError();
+    }
+
+    const matches = await this.passwordHasher!.verify(currentPassword, user.passwordHash ?? DUMMY_HASH);
+    if (!matches) {
+      throw invalidCredentialsError();
+    }
+
+    const newHash = await this.passwordHasher!.hash(newPassword);
+    await this.userRepo.update(userId, { passwordHash: newHash });
+    await this.revokeAllForUser(userId);
+  }
+
   validateToken(token: string): JwtPayload {
     try {
       return this.jwtService.verify<JwtPayload>(token, {
@@ -288,17 +419,37 @@ export class AuthService {
     }
   }
 
-  /** GET /api/auth/me support — resolves device_uuid + permissions for a user id. */
-  async getMe(userId: string): Promise<{ deviceUuid: string; permissions: string[] }> {
+  /**
+   * GET /api/auth/me support — resolves `device_uuid` + permissions for a
+   * user id. T3.6 D8: return type widens to `device_uuid: string | null`
+   * (password-only users have none) and permissions now resolve via
+   * `getPermissionsByUserId` (uid-keyed cache) for EVERY user, never the
+   * device-keyed `getPermissions(deviceUuid)` — a `null` deviceUuid would
+   * otherwise collide every password-only user onto one `perm:v3:null`
+   * cache key (the hazard named in the proposal).
+   */
+  async getMe(userId: string): Promise<{ deviceUuid: string | null; permissions: string[] }> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-    const permissions = await this.getPermissions(user.deviceUuid);
+    const permissions = await this.getPermissionsByUserId(user.id);
     return { deviceUuid: user.deviceUuid, permissions };
   }
 
-  async getPermissions(deviceUuid: string): Promise<string[]> {
+  /**
+   * T3.6 D8 — `deviceUuid: null` returns `[]` immediately, no cache
+   * read/write. Password-only users never resolve permissions through this
+   * device-keyed method (see `getMe`/`loginWithPassword`, both of which use
+   * `getPermissionsByUserId` instead) — this guard exists purely so a
+   * caller that still has only a `null` device cannot accidentally read or
+   * poison the shared `perm:v3:null` key.
+   */
+  async getPermissions(deviceUuid: string | null): Promise<string[]> {
+    if (deviceUuid === null) {
+      return [];
+    }
+
     const { anonymousDeviceUuid, anonymousPermissions, permissionCacheTtlSeconds } =
       this.authConfig;
 
@@ -421,12 +572,18 @@ export class AuthService {
    * role reassignment writes new permissions to the user row, so the very
    * next request rebuilds `perm:*` from the DB instead of serving the
    * stale cached set for up to `permissionCacheTtlSeconds` more.
+   *
+   * T3.6 D8: `deviceUuid: null` skips the device-keyed `cache.del` — there
+   * is no `perm:v3:null` key to clean up, and issuing that delete would be
+   * a harmless-but-pointless no-op every place this is now called for a
+   * password-only user.
    */
-  async invalidatePermissionCache(userId: string, deviceUuid: string): Promise<void> {
-    await Promise.all([
-      this.cache.del(`${PERMISSION_CACHE_PREFIX}${deviceUuid}`),
-      this.cache.del(`${PERMISSION_CACHE_PREFIX}uid:${userId}`),
-    ]);
+  async invalidatePermissionCache(userId: string, deviceUuid: string | null): Promise<void> {
+    const deletes = [this.cache.del(`${PERMISSION_CACHE_PREFIX}uid:${userId}`)];
+    if (deviceUuid !== null) {
+      deletes.push(this.cache.del(`${PERMISSION_CACHE_PREFIX}${deviceUuid}`));
+    }
+    await Promise.all(deletes);
   }
 
   private signAccessToken(userId: string, sid?: string): string {

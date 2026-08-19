@@ -12,7 +12,9 @@ export type TemplateName =
   | 'incident.created'
   | 'incident.assigned'
   | 'incident.status_changed'
-  | 'comment.created';
+  | 'comment.created'
+  | 'invitation'
+  | 'password-reset';
 
 type TemplateFn = (data: Record<string, unknown>) => string;
 
@@ -29,6 +31,14 @@ const TEMPLATES: Record<TemplateName, TemplateFn> = {
     `<p>An incident's status changed.</p><p><strong>Title:</strong> ${field(data, 'title')}</p><p><strong>New status:</strong> ${field(data, 'status')}</p>`,
   'comment.created': (data) =>
     `<p>A new comment was posted.</p><p><strong>Comment:</strong> ${field(data, 'content')}</p>`,
+  // T3.6 — `link` already carries the token as part of a query string; it
+  // is still passed through `field()` like every other interpolated value
+  // (task 7.1: "the token string itself must be escaped via field() like
+  // every other interpolated value").
+  invitation: (data) =>
+    `<p>You have been invited to join ${field(data, 'organizationName') || 'Transito Alerta SE'} as ${field(data, 'roleName')}.</p><p><a href="${field(data, 'link')}">Accept invitation</a></p><p>This link expires in 48 hours.</p>`,
+  'password-reset': (data) =>
+    `<p>A password reset was requested for your account.</p><p><a href="${field(data, 'link')}">Reset your password</a></p><p>This link expires in 24 hours. If you did not request this, you can ignore this email.</p>`,
 };
 
 /** Renders a named template's HTML body against escaped data. Throws for an unknown name (data defect, not retryable — D12). */

@@ -14,6 +14,17 @@ export interface AuthConfig {
   /** T3.9 design §6 [R5] — `jwtRefreshExpiresIn` ('7d') parsed to an
    * integer number of seconds, needed by the rotation SQL and `create()`. */
   sessionRefreshTtlSeconds: number;
+  /**
+   * T3.6 — bcrypt cost factor for `PasswordHasher`. Config-driven (never a
+   * hardcoded literal in service code) so unit tests can override to a
+   * cheap cost (4) while production stays at 12. Env `BCRYPT_COST`.
+   */
+  bcryptCost: number;
+  /**
+   * T3.6 — minimum password length ("a length floor", spec). No
+   * composition rules. Env `PASSWORD_MIN_LENGTH`, default 12.
+   */
+  passwordMinLength: number;
 }
 
 const DURATION_UNIT_SECONDS: Record<string, number> = {
@@ -71,5 +82,9 @@ export default registerAs('auth', (): AuthConfig => {
       ? parseInt(process.env.SESSION_REFRESH_GRACE_SECONDS, 10)
       : 30,
     sessionRefreshTtlSeconds: parseDurationSeconds(jwtRefreshExpiresIn),
+    bcryptCost: process.env.BCRYPT_COST ? parseInt(process.env.BCRYPT_COST, 10) : 12,
+    passwordMinLength: process.env.PASSWORD_MIN_LENGTH
+      ? parseInt(process.env.PASSWORD_MIN_LENGTH, 10)
+      : 12,
   };
 });
