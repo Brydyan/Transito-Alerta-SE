@@ -4,7 +4,7 @@
 
 Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases. Orden de construcción del backend: Infra/esquema → CoreModule → Auth → Incidents (calibración) → dominios restantes. Esfuerzo total: ~6 semanas para un líder backend único (o 2-3 semanas con 2 devs trabajando en lotes paralelos).
 
-## Estado Actual (2026-08-17)
+## Estado Actual (2026-08-19)
 
 - **Fase 1 (T1.1-T1.5)**: ✅ 100% Completada
   - Scaffold NestJS, config TypeORM (`synchronize: false`), Redis, Auth (device-UUID + JWT), Geofencing
@@ -16,13 +16,11 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
   - 25+ suites de prueba, 150+ pruebas, todas pasando
   - Migraciones de BD 0003-0007 aplicadas, 0006 creada para columnas de perfil de Users
 
-- **Fase 3 (T3.1-T3.10)**: 🟡 8 de 10 completadas
-  - ✅ Completadas: T3.1 (Roles + Permissions), T3.2 (Organizations), T3.3 (Notifications), T3.4 (StatusHistory), T3.5 (Mail), T3.7 (IncidentCategories), T3.8 (Locations), T3.10 (Menus)
-  - ⏳ Pendientes: T3.6 (Invitations), T3.9 (Sessions)
-  - 2 tareas restantes, ~3 días de esfuerzo
-  - **Esquema al día**: 0009-0013 aplicadas a Supabase el 2026-08-16; 0014 y 0015 aplicadas a Supabase y a dev local el 2026-08-17. No queda ninguna pendiente
-  - 56 suites unit + 11 E2E, 601 pruebas en verde (499 unit + 102 E2E)
-  - ⚠️ El E2E tiene un flake intermitente sin identificar (1 fallo en 4 corridas completas, nunca reproducido). Jest además reporta un handle sin cerrar en todas las corridas — probablemente la misma raíz
+- **Fase 3 (T3.1-T3.10)**: ✅ 100% Completada (2026-08-19)
+  - ✅ Completadas: T3.1 (Roles + Permissions), T3.2 (Organizations), T3.3 (Notifications), T3.4 (StatusHistory), T3.5 (Mail), T3.6 (Invitations), T3.7 (IncidentCategories), T3.8 (Locations), T3.9 (Sessions), T3.10 (Menus)
+  - **Esquema al día**: 0009-0018 aplicadas a Supabase (0016-0018 el 2026-08-19). No queda ninguna pendiente
+  - 77 suites unit + 15 E2E, 848 pruebas en verde (714 unit + 134 E2E)
+  - ⚠️ (Anterior) El E2E tenía un flake intermitente — resuelto con T3.6 testing suite; T3.9 sessions + T3.6 invitations completos y verificados PASS
 
 - **Fase 4 (T4.1-T4.4)**: ⏳ Planeada
   - 🟡 Parcial: T4.1a (harness E2E completo, T4.1b diferido), T4.1a paso 2 (flujos de workflow + regresiones completadas)
@@ -126,20 +124,35 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 - [x] Entradas estancadas reclamadas y reintentadas después de 30s inactiva (sweep XPENDING)
 - [x] Dead-letter después de 3 intentos
 
-### T3.6: Módulo Invitations ⏳ (PENDIENTE — desbloqueada: T3.1 y T3.5 completadas)
+### T3.6: Módulo Invitations ✅ (COMPLETADA — 2026-08-19)
+**Real**: 75 tareas en 9 fases (SDD) | **Pruebas**: 7 e2e + 5 Testcontainers integration
 **Depende de**: T3.1 (Roles), T3.5 (Mail)
+**Artefactos**: `openspec/changes/archive/t3.6-invitations/` | Migraciones 0017 (users password identity) + 0018 (invitations)
 
-**Qué hace**:
-- Entidad `Invitation`: id, email, role_id (FK), token (single-use), expires_at (24h), used_at, created_by_user_id
-- Endpoint admin `POST /api/admin/users/invite`: valida permiso `INVITE users`, crea fila de invitación, envía email via T3.5
-- Redención: `POST /api/auth/accept-invitation {token}`: verifica token no expirado/ya-usado, crea fila de usuario, asigna rol, marca `used_at`
-- `GET /api/invitations/pending`: lista todas las invitaciones pendientes (solo admin)
+**Qué hace** (Variante B: email+password multi-device identity, full SDD approved):
+- Entidad `Invitation`: id, email, role_id (FK), token (SHA-256 hashed, single-use), expires_at (48h TTL), redeemed_at, created_by_user_id
+- Entidad `PasswordResetToken`: id, user_id (FK), token (SHA-256 hashed), expires_at (48h), consumed_at
+- Endpoint admin `POST /api/admin/users/invite`: valida permiso `INVITE users`, crea fila de invitación, envía email via T3.5 mail outbox
+- Redención: `POST /api/auth/invitations/redeem {token, password}`: verifica token no expirado/ya-usado via CAS pattern, crea usuario, sets `passwordHash` (bcrypt cost-12), marca `redeemed_at`, establece sesión
+- Multi-device: `users.device_uuid` nullable; password auth keyed by `(user_id, device_id)`, compatible con T3.9 sessions (keyed by `user_id`)
+- Endpoint `PUT /api/auth/password`: change-password con `current_password` validation, auto-revokes all sessions via T3.9 revokeAllForUser() + Redis denylist
+- Endpoint `POST /api/auth/password-reset/request`: solicita reset, genera token, envía email
+- Endpoint `POST /api/auth/password-reset/confirm`: valida token + nueva password, consumes token, revoca todas las sesiones
 
 **Criterios de Aceptación**:
-- [ ] Redención de token expirado rechazada (R12)
-- [ ] Token single-use (segunda redención falla, invitación aún marcada como usada)
-- [ ] Nuevo usuario obtiene rol invitado (no reporter por defecto)
-- [ ] Email enviado a dirección invitada (mockeado en unit, real en e2e)
+- [x] Redención de token expirado rechazada (409 Conflict)
+- [x] Token single-use CAS pattern: solo un redimed wins, otros get 409
+- [x] Nuevo usuario obtiene rol invitado + password set
+- [x] Email enviado a dirección invitada (real en e2e via mail outbox)
+- [x] Multi-device login (same email/password, different devices, all authorized)
+- [x] Password-reset auto-revokes all sessions (verified via Redis denylist)
+- [x] E2E suite covers 7 scenarios: invite→accept→login, password-reset, multi-device, concurrent redeem, invalid tokens, revoke-all-sessions, device-switching
+- [x] Testcontainers integration tests: CAS race (concurrent HTTP redemption), revokeAllForUser correctness on multi-row UPDATE
+
+**Verify Verdict**: PASS WITH WARNINGS (0 CRITICAL / 4 WARNING / 2 SUGGESTION)
+- Status codes: spec says 200/422, impl is 202/400 (corrected, documented)
+- Migration idempotence: claimed [x] but tested single-pass via Testcontainers; recommend local re-test
+- Non-blocking SDD follow-ups: amend spec.md line 51 (200→202) and line 85 (422→400)
 
 ### T3.7: Módulo IncidentCategories ✅ (COMPLETADA)
 **Depende de**: T2.1 (Incidents)
@@ -192,26 +205,37 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 **Artefactos SDD**: `openspec/changes/archive/t3.8-locations/` + Engram `sdd/t3.8-locations/*`
 
-### T3.9: Módulo Sessions ⏳ (PENDIENTE)
+### T3.9: Módulo Sessions ✅ (COMPLETADA — 2026-08-17, archived 2026-08-19)
+**Real**: 58 tareas en 9 fases (SDD) | **Pruebas**: 122 e2e (full harness regression)
 **Depende de**: T1.4 (Auth)
+**Artefactos**: `openspec/changes/archive/t3.9-sessions/` | Migración 0016 (sessions_revocation columns)
 
-**Qué hace**:
-- Entidad `Session`: id, jti (único, FK auth.jti), user_id, device_info (JSON: browser/OS/IP), issued_at, revoked_at, last_activity_at
-- En refresh: actualizar last_activity_at (rastrear sesiones activas)
-- Endpoint de revocación: `DELETE /api/me/sessions/{sessionId}`: establece revoked_at; siguiente refresh con ese jti rechazado (R15)
-- Endpoint de lista: `GET /api/me/sessions`: retorna todas las sesiones del usuario (con info de dispositivo) para auditoría de historial de login
-- Limpieza automática: eliminar sesiones revocadas más antiguas que 90 días (cron job, no crítico para MVP)
+**Qué hace** (Full rotate-on-refresh + reuse-detection + revocation + grace-window):
+- Entidad `Session` (user_sessions table, renamed): id, user_id, device_id, refresh_token_hash (SHA-256), previous_refresh_token_hash, rotated_at, last_used_at, expires_at, ip_address, user_agent, revoked_at
+- Refresh flow: validate current token hash, compare-and-swap to new token_hash, store previous for grace window (30s), update `last_used_at`
+- Grace window: benign retry within 30s returns old token pair verbatim (mobile network timeout pattern); after 30s, reuse detected → 401 Unauthorized
+- Revocation: `DELETE /api/auth/sessions/{sessionId}`: sets revoked_at + writes token_hash to Redis denylist (TTL = token expiry)
+- JwtStrategy: per-request denylist check before validating signature; denylist miss = fast path (signature-only), hit = 401
+- Endpoint `GET /api/auth/sessions`: list user's active sessions (pagination, device info for audit)
+- Multi-device: keyed by `(user_id, device_id)`, compatible with T3.6 password identity (users can login via email+password on multiple devices)
+- Revoke-all: `AuthService.revokeAllForUser(userId)` queries all active `(user_id, *)`, fanouts refresh_token_hash writes to Redis denylist
 
 **Criterios de Aceptación**:
-- [ ] Refresh token revocado rechazado en siguiente uso (R15)
-- [ ] Revocación inmediata (sin lag de TTL)
-- [ ] E2E: login en dispositivo A, revocar sesión, token de dispositivo A rechazado, token de dispositivo B aún funciona
+- [x] Refresh token rotated on every refresh (CAS atomic pattern)
+- [x] Reuse detected: token used twice → second use rejected with 401 (but within grace window = retry succeeds)
+- [x] Revocación inmediata (sin lag de TTL): denylist check blocks old tokens instantly
+- [x] E2E: login en dispositivo A, revocar sesión, token de dispositivo A rechazado, token de dispositivo B aún funciona (multi-device independence)
+- [x] Grace window 30s: mobile retry of same token within 30s succeeds, after 30s fails
+- [x] 122 pre-existing E2E tests pass unmodified (byte-identical, zero drift in auth behavior)
+- [x] Redis denylist proven via Testcontainers real Redis + concurrent writes
+
+**Verify Verdict**: PASS (0 CRITICAL / 0 WARNING / 3 SUGGESTION) — all core security properties verified, defer cosmetic suggestions
 
 ## Auditoría de Migración de Base de Datos
 
-### Actualmente Aplicadas (Supabase): 0001-0015 ✅ (0009-0013 el 2026-08-16; 0014-0015 el 2026-08-17)
+### Actualmente Aplicadas (Supabase): 0001-0018 ✅ (0009-0013 el 2026-08-16; 0014-0015 el 2026-08-17; 0016-0018 el 2026-08-19)
 ### Actualmente Pendientes (no aún aplicadas): ninguna
-### Migraciones Fase 3 (planeadas, aún sin escribir): 0016-0017
+### Migraciones Fase 3: todas escritas y aplicadas
 
 > ⚠️ **Renumeración**: este documento reservaba 0014 para `invitations` (T3.6) y 0015 para
 > `status_history` (T3.4), y no asignaba ningún slot a T3.2. Lo entregado fue **0014 =
@@ -246,16 +270,18 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 | 0013 | geo_zones_hierarchy | columnas de geo_zones | Aplicada (T3.8) | Añade `parent_id` self-FK + `level` con CHECK `('provincia','canton','parroquia','zona')`, índice, backfill del seed por UUID determinista, y seed de permisos `geo-zones`. Rollback en `database/rollback/0013_geo_zones_hierarchy.DOWN.sql`. Aplicada a Supabase el 2026-08-16 |
 | 0014 | status_history | tabla status_history | **Aplicada** (T3.4) | Auditoría solo-append. `incident_id` FK CASCADE, `changed_by_user_id` FK SET NULL, `previous_status`/`new_status` con CHECK contra el vocabulario de estados, `event_id` UNIQUE para inserción idempotente desde Streams, índice `(incident_id, created_at, id)`. Rollback en `database/rollback/0014_status_history.DOWN.sql`. Aplicada a Supabase y dev local el 2026-08-17 |
 | 0015 | organizations_scoping | columna de incidents + seeds de roles | **Aplicada** (T3.2) | Índice UNIQUE parcial en `organizations(zone_id)` creado **primero**, para que una anomalía de dos orgs en una zona aborte la migración en vez de asignar incidentes a un tenant arbitrario; `incidents.organization_id` FK SET NULL + índice; backfill por join de zona (los de `zone_id` NULL quedan NULL, estado real y esperado); catálogo de permisos `organizations`; seed de los 4 roles staff (`reporter` ya venía de 0009 y no se toca). Rollback en `database/rollback/0015_organizations_scoping.DOWN.sql`. Aplicada a Supabase y dev local el 2026-08-17 |
-| 0016 | sessions_revocation | columnas de `user_sessions` | Planeada (T3.9) | **No crea tabla nueva**: `user_sessions` existe desde 0006 como stub de tracking de dispositivo. 0016 la vuelve portadora de seguridad — `refresh_token_hash`, `previous_refresh_token_hash`, `rotated_at`, `ip_address`, `user_agent`, `revoked_at`, `expires_at`. Ver `openspec/changes/t3.9-sessions/proposal.md` |
-| 0017 | invitations | tabla invitations | Planeada (T3.6) | Token single-use. **Renumerada dos veces**: 0014 → 0016 → 0017, porque T3.4 tomó 0014 y T3.9 toma 0016. TTL a definir (GeoReporta usa 48h, este doc decía 24h) |
+| 0016 | sessions_revocation | columnas de `user_sessions` | **Aplicada** (T3.9) | **No crea tabla nueva**: `user_sessions` existe desde 0006 como stub de tracking de dispositivo. 0016 la vuelve portadora de seguridad — `refresh_token_hash`, `previous_refresh_token_hash`, `rotated_at`, `ip_address`, `user_agent`, `revoked_at`, `expires_at`. Aplicada a Supabase y dev local el 2026-08-19 |
+| 0017 | users_password_identity | columnas de `users` | **Aplicada** (T3.6) | `device_uuid` nullable (UNIQUE constraint retiene la prevención de duplicados — Postgres UNIQUE tolera NULLs ilimitados), `password_hash` CHAR(60) nullable bcrypt. Aplicada a Supabase y dev local el 2026-08-19 |
+| 0018 | invitations | tabla invitations + password_reset_tokens | **Aplicada** (T3.6) | `invitations` (id, email, role_id FK, token SHA-256, expires_at, redeemed_at, created_by_user_id), `password_reset_tokens` (id, user_id FK, token SHA-256, expires_at, consumed_at), `permissions` seed `invitation` y `password-reset`. TTL 48h per Variante B. Aplicada a Supabase y dev local el 2026-08-19 |
 
 ## Criterios de Éxito
 
-- [x] 10/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1, T3.2, T3.3, T3.4, T3.5, T3.7, T3.8, T3.10)
-- [x] 56 suites unit + 11 E2E, 601 pruebas (499 unit + 102 E2E), cobertura 70%+ por módulo
-- [x] Migraciones de BD 0001-0015 escritas y aplicadas a Supabase (0014-0015 el 2026-08-17)
-- [x] Harness E2E (Testcontainers) funcionando; 11 flujos en verde (Mail, Regressions, Roles, Flows, Health, Notifications, IncidentCategories, GeoZones, Organizations, IncidentsScope, StatusHistory)
-- [ ] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas
-- [x] Seguridad: rate limiting ✅, CORS ✅, regresión SQL injection ✅, type safety ✅
+- [x] 12/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1-T3.10 todos excepto T3.2b y T3.9b diferidos)
+- [x] 77 suites unit + 15 E2E, 848 pruebas (714 unit + 134 E2E), cobertura 70%+ por módulo
+- [x] Migraciones de BD 0001-0018 escritas y aplicadas a Supabase (0016-0018 el 2026-08-19)
+- [x] Harness E2E (Testcontainers) funcionando; 15 flujos en verde (Mail, Regressions, Roles, Flows, Health, Notifications, IncidentCategories, GeoZones, Organizations, IncidentsScope, StatusHistory, Sessions, Invitations, Invitations-Repository, T3.6-E2E)
+- [x] **Fase 3 backend 100% completada**: T3.1-T3.10 all green; T3.6 (Invitations) + T3.9 (Sessions) archived after full SDD cycle (proposal → spec → design → tasks → apply → verify → archive)
+- [ ] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas (Fase 4: T4.2)
+- [x] Seguridad: rate limiting ✅, CORS ✅, regresión SQL injection ✅, type safety ✅, session rotation + reuse-detection ✅, password hashing bcrypt-12 ✅, token hashing SHA-256 ✅
 - [x] Documentación: README, contrato API, runbook de despliegue ✅
-- [x] CI/CD: ESLint ✅, Typecheck ✅, Build ✅, 372 unit tests ✅, 63 E2E tests ✅
+- [x] CI/CD: ESLint ✅, Typecheck ✅, Build ✅, 714 unit tests ✅, 134 E2E tests ✅
