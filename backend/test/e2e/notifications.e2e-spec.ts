@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import request from 'supertest';
 import { NotificationsService } from '../../src/modules/notifications/notifications.service';
 import { UsersService } from '../../src/modules/users/users.service';
 import { NotificationType } from '../../src/modules/notifications/entities/notification.entity';
+import { TestEnvironment } from '../support/test-environment';
 
 describe('Notifications E2E', () => {
   let notificationsService: NotificationsService;
@@ -123,5 +125,60 @@ describe('Notifications E2E', () => {
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('admin-1');
     });
+  });
+});
+
+// T4.3c — real TestEnvironment to assert dedup at the persistence layer.
+// The mocked unit-style describes above stub `notify` itself, which means
+// they pass even when the WHERE clause is broken. The fix lives in
+// `notifications.service.ts:40` (MoreThan replaces `as any` Date) and only
+// this describe exercises the real repo + real Postgres + real dedup window.
+describe('E2E notifications — real persistence (T4.3c)', () => {
+  let env: TestEnvironment;
+
+  beforeAll(async () => {
+    env = await TestEnvironment.start();
+  }, 120_000);
+
+  afterAll(async () => {
+    await env.stop();
+  }, 60_000);
+
+  beforeEach(async () => {
+    await env.reset();
+  });
+
+  it('deduplicates identical notifications within 60 seconds (T4.3c fix)', async () => {
+    const operator = await env.provisionUser(['CREATE incidents']);
+    const auth = { Authorization: `Bearer ${operator.accessToken}` };
+
+    // Crear incidente para tener un incidentId real
+    const incident = await request(env.httpServer)
+      .post('/api/incidents')
+      .set(auth)
+      .send({ title: 'Test dedup', lat: -2.2, lng: -80.5 })
+      .expect(201);
+
+    const incidentId = incident.body.id as string;
+
+    // Acceder al notificationsService vía el módulo de la app
+    const notificationsService = env.app.get(NotificationsService);
+
+    // Llamar notify() dos veces con mismos parámetros
+    const result1 = await notificationsService.notify(
+      { id: operator.userId } as never,
+      NotificationType.INCIDENT_CREATED,
+      'Test message',
+      incidentId,
+    );
+    const result2 = await notificationsService.notify(
+      { id: operator.userId } as never,
+      NotificationType.INCIDENT_CREATED,
+      'Test message',
+      incidentId,
+    );
+
+    expect(result1).not.toBeNull();
+    expect(result2).toBeNull();
   });
 });

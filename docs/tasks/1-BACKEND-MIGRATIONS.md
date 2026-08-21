@@ -22,11 +22,15 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
   - 77 suites unit + 15 E2E, 848 pruebas en verde (714 unit + 134 E2E)
   - ⚠️ (Anterior) El E2E tenía un flake intermitente — resuelto con T3.6 testing suite; T3.9 sessions + T3.6 invitations completos y verificados PASS
 
-- **Fase 4 (T4.1-T4.4)**: ⏳ Planeada
-  - 🟡 Parcial: T4.1a (harness E2E completo, T4.1b diferido), T4.1a paso 2 (flujos de workflow + regresiones completadas)
-  - ⏳ Pendiente: T4.2 (Load testing), T4.3 (Security hardening), T4.4 (Documentación)
+- **Fase 4 (T4.1-T4.4)**: 🟡 En Progreso
+  - ✅ T4.1a: Harness E2E completo (15 suites, 134 tests, CI `integration` job activo)
+  - ✅ T4.1a paso 2: 9 regresiones de Fases 1-2 en verde (`test/e2e/regressions.e2e-spec.ts`)
+  - ⏳ T4.1b: Diferido (no bloquea)
+  - ⏳ T4.2: Load testing — k6 scripts a crear en `load-tests/k6/`
+  - 🟡 T4.3: Security hardening — `helmet` faltante, test SQL injection faltante, fix `any` en notifications dedup
+  - ⏳ T4.4: Documentación — Swagger/OpenAPI + runbook de despliegue
 
-## Estado Fase 3: 2 Tareas Restantes
+## Estado Fase 3: ✅ COMPLETADA (2026-08-19)
 
 ### T3.2: Módulo Organizations ✅ (COMPLETADA — 2026-08-17)
 **Real**: 35 tareas en 9 fases | **Pruebas**: +2 suites E2E, ~24 suites unit tocadas  
@@ -278,10 +282,318 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 - [x] 12/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1-T3.10 todos excepto T3.2b y T3.9b diferidos)
 - [x] 77 suites unit + 15 E2E, 848 pruebas (714 unit + 134 E2E), cobertura 70%+ por módulo
-- [x] Migraciones de BD 0001-0018 escritas y aplicadas a Supabase (0016-0018 el 2026-08-19)
+- [x] Migraciones de BD 0001-0018 escritas y aplicadas a Supabase (0016-0018 el 2026-08-21)
 - [x] Harness E2E (Testcontainers) funcionando; 15 flujos en verde (Mail, Regressions, Roles, Flows, Health, Notifications, IncidentCategories, GeoZones, Organizations, IncidentsScope, StatusHistory, Sessions, Invitations, Invitations-Repository, T3.6-E2E)
 - [x] **Fase 3 backend 100% completada**: T3.1-T3.10 all green; T3.6 (Invitations) + T3.9 (Sessions) archived after full SDD cycle (proposal → spec → design → tasks → apply → verify → archive)
 - [ ] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas (Fase 4: T4.2)
-- [x] Seguridad: rate limiting ✅, CORS ✅, regresión SQL injection ✅, type safety ✅, session rotation + reuse-detection ✅, password hashing bcrypt-12 ✅, token hashing SHA-256 ✅
-- [x] Documentación: README, contrato API, runbook de despliegue ✅
+- [ ] Seguridad: rate limiting ✅, CORS ✅, **regresión SQL injection ⏳**, type safety ✅, **helmet ⏳**, session rotation ✅, password hashing bcrypt-12 ✅, token hashing SHA-256 ✅
+- [ ] Documentación: **Swagger/OpenAPI ⏳**, **runbook de despliegue ⏳**
 - [x] CI/CD: ESLint ✅, Typecheck ✅, Build ✅, 714 unit tests ✅, 134 E2E tests ✅
+
+---
+
+## Fase 4: Tareas Detalladas para Minimax
+
+> **Para Minimax Builder**: Leer esta sección completa antes de tocar código.
+> Stack de herramientas: `backend/` con `pnpm`. Tests corren desde `working_dir: backend`.
+> Strict TDD activo — test en rojo primero en cada ítem de comportamiento.
+> No agregar librerías sin que estén listadas en el apartado de cada tarea.
+
+### T4.2: Load Testing con k6 ⏳
+
+**Depende de**: nada (independiente, no bloquea el resto de Fase 4)
+**Directorio de entregables**: `load-tests/k6/` (crear en raíz del repo, no dentro de `backend/`)
+**Herramienta elegida**: k6 — soporte nativo WebSocket, modelo de VU para ramping, thresholds declarativos en el mismo script. Artillery queda descartado: su plugin WebSocket no maneja el handshake de socket.io v4.
+
+#### Estructura esperada
+
+```
+load-tests/
+  k6/
+    scenarios/
+      auth-login.js         # POST /api/auth/login, 25k VUs, ramping 0→25k en 2m
+      incidents-read.js     # GET /api/incidents con token anónimo, 25k VUs
+      ws-connections.js     # socket.io connect + join room geo:{zone_id}, 5k sockets
+    thresholds.js           # exporta objeto { thresholds } reutilizable en los 3 scripts
+    README.md               # instrucciones de ejecución: `k6 run scenarios/auth-login.js`
+  docker-compose.k6.yml     # k6 + InfluxDB + Grafana (visualización opcional, no CI)
+```
+
+#### Thresholds obligatorios (en `thresholds.js`)
+
+```js
+export const thresholds = {
+  http_req_duration: ['p(95)<200'],   // p95 < 200ms
+  http_req_failed:   ['rate<0.001'],  // error rate < 0.1%
+  ws_connecting:     ['p(95)<500'],   // WebSocket connect p95 < 500ms
+};
+```
+
+#### Patrón de cada escenario
+
+```js
+// scenarios/auth-login.js
+import http from 'k6/http';
+import { check } from 'k6';
+import { thresholds } from '../thresholds.js';
+
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:3001';
+
+export const options = {
+  scenarios: {
+    ramp_up: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '2m', target: 25000 },
+        { duration: '3m', target: 25000 },
+        { duration: '1m', target: 0 },
+      ],
+    },
+  },
+  thresholds,
+};
+
+export default function () {
+  const res = http.post(`${BASE_URL}/api/auth/login`,
+    JSON.stringify({ device_uuid: `load-test-${__VU}` }),
+    { headers: { 'Content-Type': 'application/json' } },
+  );
+  check(res, { 'status 200': (r) => r.status === 200 });
+}
+```
+
+#### Criterios de Aceptación
+
+- [ ] `k6 run scenarios/auth-login.js` termina con `✓` en todos los thresholds contra entorno local con `docker compose up`
+- [ ] `k6 run scenarios/incidents-read.js` pasa p95 < 200ms
+- [ ] `k6 run scenarios/ws-connections.js` conecta 5k sockets simultáneos sin `ws_connecting` > 500ms
+- [ ] `load-tests/k6/README.md` documenta: cómo instalar k6, cómo levantar el backend local, qué variable `BASE_URL` apuntar a staging
+
+**Nota**: Los scripts de k6 NO se agregan al CI por ahora — requieren entorno dedicado con hardware suficiente. El CI solo corre `test:e2e` (Testcontainers). Esta decisión se revisa en T4.2b (diferido).
+
+---
+
+### T4.3: Security Hardening 🟡
+
+#### T4.3a: Agregar `helmet` a `main.ts` ⏳
+
+**Archivo a modificar**: `backend/src/main.ts`
+**Librería a instalar**: `pnpm add helmet` (ya tiene `@types/helmet` si no, agregarlo también)
+
+**Cambio exacto** — agregar después del `import` de `AppModule`:
+```typescript
+import helmet from 'helmet';
+```
+
+Y dentro de `bootstrap()`, **inmediatamente después de** `NestFactory.create(AppModule)` (línea 17), antes de cualquier `app.use*` o `app.set*`:
+```typescript
+app.use(helmet());
+```
+
+**Por qué aquí**: helmet debe ser el primer middleware — si se registra después de CORS o del adapter de WebSocket, los headers de seguridad no se aplican a las primeras rutas que los demás middlewares modifican.
+
+**Test a agregar** (`backend/src/main.spec.ts` — crear si no existe, o agregar al health e2e):
+```typescript
+it('sets X-Content-Type-Options: nosniff header on every response', async () => {
+  const res = await request(env.httpServer).get('/api/health');
+  expect(res.headers['x-content-type-options']).toBe('nosniff');
+});
+```
+Agregar al `test/e2e/health.e2e-spec.ts` — ya usa `TestEnvironment`, no crea infraestructura nueva.
+
+**Criterios de Aceptación**:
+- [ ] `GET /api/health` retorna `X-Content-Type-Options: nosniff` en response headers
+- [ ] `GET /api/health` retorna `X-Frame-Options: SAMEORIGIN`
+- [ ] `pnpm run lint && pnpm run typecheck && pnpm test` pasan sin cambios
+
+---
+
+#### T4.3b: Regresión SQL Injection en E2E ⏳
+
+**Archivo a modificar**: `backend/test/e2e/regressions.e2e-spec.ts`
+
+Agregar un nuevo `describe` block **al final del archivo** (después del bloque existente), con el siguiente patrón — mismo harness `TestEnvironment`, no crea infraestructura nueva:
+
+```typescript
+describe('E2E regressions — security hardening (T4.3)', () => {
+  let env: TestEnvironment;
+
+  beforeAll(async () => { env = await TestEnvironment.start(); }, 120_000);
+  afterAll(async () => { await env.stop(); }, 60_000);
+  beforeEach(async () => { await env.reset(); });
+
+  // Todos los repositorios usan $1/$2/... parametrizados (nunca interpolación
+  // de string). Este test prueba que un payload de inyección clásica llega
+  // a la capa de persistencia como literal, no como SQL. Si algún repositorio
+  // usara interpolación, el DROP TABLE caería aquí y el siguiente SELECT fallaría.
+  it('SQL injection payload in incident title persists as literal string, does not execute DDL (T4.3)', async () => {
+    const operator = await env.provisionUser(['CREATE incidents', 'READ incidents']);
+    const maliciousTitle = "'; DROP TABLE incidents; --";
+
+    const created = await request(env.httpServer)
+      .post('/api/incidents')
+      .set('Authorization', `Bearer ${operator.accessToken}`)
+      .send({ title: maliciousTitle, lat: -2.2, lng: -80.5 })
+      .expect(201);
+
+    // Si el DROP TABLE se ejecutó, este GET devolvería 500 o 404.
+    // Si la inyección se escapó mal (e.g. título truncado), el match fallaría.
+    const fetched = await request(env.httpServer)
+      .get(`/api/incidents/${created.body.id}`)
+      .set('Authorization', `Bearer ${operator.accessToken}`)
+      .expect(200);
+
+    expect(fetched.body.title).toBe(maliciousTitle);
+  });
+
+  it('XSS payload in comment content is sanitized before persistence (T4.3)', async () => {
+    const operator = await env.provisionUser(['CREATE incidents', 'READ incidents', 'CREATE comments', 'READ comments']);
+    const auth = { Authorization: `Bearer ${operator.accessToken}` };
+
+    const incident = await request(env.httpServer)
+      .post('/api/incidents')
+      .set(auth)
+      .send({ title: 'Incidente de prueba', lat: -2.2, lng: -80.5 })
+      .expect(201);
+
+    const xssPayload = '<script>alert("xss")</script><b>bold</b>';
+
+    const comment = await request(env.httpServer)
+      .post('/api/comments')
+      .set(auth)
+      .send({ incident_id: incident.body.id, content: xssPayload })
+      .expect(201);
+
+    // sanitizeContent() elimina <script>...</script> y escapa < > " &
+    expect(comment.body.content).not.toContain('<script>');
+    expect(comment.body.content).not.toContain('alert');
+    // <b> escapado a &lt;b&gt;
+    expect(comment.body.content).toContain('&lt;b&gt;');
+  });
+});
+```
+
+**Criterios de Aceptación**:
+- [ ] Test SQL injection pasa: payload llega como literal, tabla `incidents` sobrevive
+- [ ] Test XSS pasa: `<script>` eliminado, `<b>` escapado a entidades HTML
+- [ ] `pnpm run test:e2e` verde (sin modificar tests existentes)
+
+---
+
+#### T4.3c: Fix `any` cast en `NotificationsService.notify()` ⏳
+
+**Archivo a modificar**: `backend/src/modules/notifications/notifications.service.ts`
+
+**Problema**: línea ~39 tiene `(() => sixtySecondsAgo)() as any` — un cast `any` para esquivar el tipado de TypeORM en la cláusula `where`. TypeORM provee `MoreThan` para esto.
+
+**Cambio en imports** — agregar `MoreThan` al import de `typeorm`:
+```typescript
+import { Repository, MoreThan } from 'typeorm';
+```
+
+**Cambio en el `findOne`** — reemplazar el bloque `where` con:
+```typescript
+const existing = await this.notificationRepo.findOne({
+  where: {
+    user_id: user.id,
+    type,
+    ...(incidentId ? { incident_id: incidentId } : {}),
+    created_at: MoreThan(sixtySecondsAgo),
+  },
+});
+```
+
+**Test unitario a actualizar**: `backend/src/modules/notifications/notifications.service.spec.ts` — el mock de `notificationRepo.findOne` ya existe; verificar que el test de dedup pasa con el nuevo `MoreThan`. No crear nuevo test, solo confirmar que el existente cubre el path.
+
+**Criterios de Aceptación**:
+- [ ] `pnpm run typecheck` sin errores (el `any` desaparece)
+- [ ] `pnpm test` verde (suite de notifications sin cambios de comportamiento)
+- [ ] `pnpm run lint` sin warnings de `@typescript-eslint/no-explicit-any` en este archivo
+
+---
+
+### T4.4: Documentación ⏳
+
+#### T4.4a: Swagger / OpenAPI ⏳
+
+**Librerías a instalar**: `pnpm add @nestjs/swagger swagger-ui-express`
+
+**Archivo a modificar**: `backend/src/main.ts`
+
+Agregar después de los imports existentes:
+```typescript
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+```
+
+Agregar dentro de `bootstrap()`, **después de** `app.useGlobalPipes(...)` y **antes de** `app.listen(port)`:
+```typescript
+if (process.env.NODE_ENV !== 'production') {
+  const config = new DocumentBuilder()
+    .setTitle('Transito Alerta SE — API')
+    .setDescription('Backend NestJS — migración GeoReporta')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+}
+```
+
+**Restricción importante**: NO agregar `@ApiProperty()` / `@ApiOperation()` a todos los DTOs en este paso — eso es deuda cosmética. Solo el setup mínimo de Swagger funcional. Los decoradores de los endpoints se agregan incrementalmente por módulo.
+
+**Criterios de Aceptación**:
+- [ ] `GET /api/docs` devuelve la UI de Swagger en entorno local (`NODE_ENV !== production`)
+- [ ] En producción (`NODE_ENV=production`), la ruta `/api/docs` no existe (protección de superficie)
+- [ ] `pnpm run build` sin errores de TypeScript
+
+---
+
+#### T4.4b: Runbook de Despliegue ⏳
+
+**Archivo a crear**: `docs/runbooks/deploy.md`
+
+**Contenido mínimo requerido** (Minimax lo redacta basándose en lo que ya existe en el repo):
+
+```
+# Runbook de Despliegue — Transito Alerta SE Backend
+
+## Pre-requisitos
+- Supabase project con PostGIS habilitado
+- Redis (Upstash o AWS ElastiCache)
+- Variables de entorno: JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, REDIS_URL, DATABASE_URL, SMTP_*, SENTRY_DSN (opcional), CORS_ORIGIN
+
+## Proceso (CC3 — migraciones manuales)
+1. Verificar que `database/MIGRATION_LOG.md` muestra todas las migraciones como ✅ Applied
+2. Si hay migraciones nuevas (⏳ Pending): aplicar en orden numérico en el editor SQL de Supabase
+3. Verificar rollback disponible: `database/rollback/NNNN_name.DOWN.sql` para cada una
+4. Deploy del backend: [proceso específico según plataforma: Railway / Fly.io / EC2]
+5. Health check: `GET /api/health` debe devolver 200
+6. Smoke test: `POST /api/auth/login` con device_uuid anónimo debe devolver tokens
+
+## Rollback
+Si algo falla post-deploy: aplicar `database/rollback/NNNN_name.DOWN.sql` correspondiente,
+luego hacer rollback del servicio a la versión anterior.
+
+## Variables de entorno requeridas
+[tabla con nombre, descripción, ejemplo, y si es requerida]
+```
+
+**Criterios de Aceptación**:
+- [ ] `docs/runbooks/deploy.md` existe con las secciones: Pre-requisitos, Proceso, Rollback, Variables de entorno
+- [ ] Lista completa de env vars con descripción (extraída de `backend/src/config/`)
+- [ ] Pasos de smoke test verificables manualmente con `curl`
+
+---
+
+## Orden de Ejecución Recomendado para Minimax
+
+```
+T4.3a (helmet, 15min)  →  T4.3c (fix any, 30min)  →  T4.3b (SQL injection test, 1h)
+       ↓
+T4.4a (Swagger, 1h)    →  T4.4b (runbook, 2h)
+       ↓
+T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
+```
+
+**Criterio de cierre de Fase 4**: todos los `[ ]` en esta sección marcados `[x]`, `pnpm test && pnpm run test:e2e` verde, `pnpm run typecheck && pnpm run lint` sin errores. Luego Claude QA corre `sdd-verify` sobre el conjunto.
