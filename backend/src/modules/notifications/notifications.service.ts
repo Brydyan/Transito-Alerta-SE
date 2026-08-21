@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThan, Repository } from 'typeorm';
 import { Redis } from 'ioredis';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { UserEntity } from '../../entities/user.entity';
@@ -36,8 +36,7 @@ export class NotificationsService {
         user_id: user.id,
         type,
         ...(incidentId ? { incident_id: incidentId } : {}),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        created_at: (() => sixtySecondsAgo)() as any,
+        created_at: MoreThan(sixtySecondsAgo),
       },
     });
 

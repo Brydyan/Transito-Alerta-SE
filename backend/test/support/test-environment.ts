@@ -13,6 +13,7 @@ import { AppModule } from '../../src/app.module';
 import { SnakeCaseResponseInterceptor } from '../../src/common/interceptors/snake-case-response.interceptor';
 import { RedisIoAdapter } from '../../src/modules/realtime/redis-io.adapter';
 import { PasswordHasher } from '../../src/modules/auth/password-hasher';
+import helmet from 'helmet';
 import {
   MAIL_BLOCKING_CLIENT,
   MAIL_EVENTS_BLOCKING_CLIENT,
@@ -192,6 +193,9 @@ export class TestEnvironment {
     // harness proves the real wiring (casing, validation, prefix, WS
     // adapter) and not just handler logic in isolation.
     app.useWebSocketAdapter(new RedisIoAdapter(app));
+    // T4.3a — keep the harness in lockstep with main.ts so security-headers
+    // e2e assertions see what production sees.
+    app.use(helmet());
     app.setGlobalPrefix('api');
     app.enableCors({ origin: true, credentials: true });
     app.useGlobalPipes(
