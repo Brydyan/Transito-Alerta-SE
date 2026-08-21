@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+test/
+.env*
+*.spec.ts
+*.e2e-spec.ts
