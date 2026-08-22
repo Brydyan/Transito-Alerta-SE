@@ -1,10 +1,13 @@
+packages: []
+
 allowBuilds:
   '@nestjs/core': true
+  '@scarf/scarf': true
   bcrypt: true
   # ssh2/cpu-features are an optional transitive dep of testcontainers (SSH
   # tunnel support we don't use — we only spin up generic Postgres/Redis
   # containers over the local Docker socket). protobufjs is pure JS and
-  # doesn't need a build step either. Denying all three skips native
+  # doesn't need a build step either. Skipping all three skips native
   # compilation with no loss of functionality for our use case.
   cpu-features: false
   protobufjs: false

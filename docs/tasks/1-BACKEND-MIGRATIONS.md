@@ -27,8 +27,8 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
   - ✅ T4.1a paso 2: 9 regresiones de Fases 1-2 en verde (`test/e2e/regressions.e2e-spec.ts`)
   - ⏳ T4.1b: Diferido (no bloquea)
   - ⏳ T4.2: Load testing — k6 scripts a crear en `load-tests/k6/`
-  - 🟡 T4.3: Security hardening — `helmet` faltante, test SQL injection faltante, fix `any` en notifications dedup
-  - ⏳ T4.4: Documentación — Swagger/OpenAPI + runbook de despliegue
+  - ✅ T4.3: Security hardening — `helmet@8.3.0`, fix `MoreThan` dedup, 4 tests E2E (138 total). Archivado 2026-08-21
+  - ✅ T4.4: Documentación — Swagger (`/api/docs` en dev), runbook `docs/runbooks/deploy.md`. Archivado 2026-08-21
 
 ## Estado Fase 3: ✅ COMPLETADA (2026-08-19)
 
