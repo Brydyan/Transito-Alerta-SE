@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -20,6 +23,9 @@ import { AuthenticatedRequest } from '../../common/interfaces/authenticated-requ
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserEntity } from '../../entities/user.entity';
 import { SessionResponseDto } from '../sessions/dto/session-response.dto';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { FormDataResponseDto } from './dto/form-data-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserOrganizationDto } from './dto/update-user-organization.dto';
 import { UploadedFile as AvatarFile } from './avatar-storage.service';
@@ -33,6 +39,14 @@ export class UsersController {
   @Get('me')
   me(@Req() req: AuthenticatedRequest): Promise<UserEntity> {
     return this.usersService.findById(req.user!.userId);
+  }
+
+  // T5.4 — must come BEFORE any `:id` route (defense in depth, even though
+  // no `@Get(':id')` exists today; protects against future route additions).
+  @Get('form-data')
+  @RequirePermission('READ', 'users')
+  getFormData(@Req() req: AuthenticatedRequest): Promise<FormDataResponseDto> {
+    return this.usersService.getFormData(req.user!);
   }
 
   @Patch('me')
@@ -59,6 +73,38 @@ export class UsersController {
   @Get('me/sessions')
   meSessions(@Req() req: AuthenticatedRequest): Promise<SessionResponseDto[]> {
     return this.usersService.getSessionsForSelf(req.user!);
+  }
+
+  // ---- T5.6 admin CRUD: create / show / update / delete
+  // Declared BEFORE `:id` and `:id/...` to avoid the literal segment
+  // being captured as an id param (defense in depth).
+
+  @Post()
+  @RequirePermission('CREATE')
+  adminCreate(@Body() dto: AdminCreateUserDto): Promise<UserEntity> {
+    return this.usersService.adminCreate(dto);
+  }
+
+  @Get(':id')
+  @RequirePermission('READ')
+  adminShow(@Param('id', ParseUUIDPipe) id: string): Promise<UserEntity> {
+    return this.usersService.findById(id);
+  }
+
+  @Patch(':id')
+  @RequirePermission('UPDATE')
+  adminUpdate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdminUpdateUserDto,
+  ): Promise<UserEntity> {
+    return this.usersService.adminUpdate(id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermission('DELETE')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  adminDelete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.usersService.softDelete(id);
   }
 
   /**

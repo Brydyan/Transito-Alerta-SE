@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { RoleEntity } from '../../entities/role.entity';
+import { OrganizationEntity } from '../../entities/organization.entity';
 import { UserEntity } from '../../entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { SessionsModule } from '../sessions/sessions.module';
@@ -20,7 +21,11 @@ import { UsersService } from './users.service';
  * `user_sessions`.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([UserEntity, RoleEntity]), AuthModule, SessionsModule],
+  imports: [
+    TypeOrmModule.forFeature([UserEntity, RoleEntity, OrganizationEntity]),
+    AuthModule,
+    SessionsModule,
+  ],
   controllers: [UsersController],
   providers: [UsersService, AvatarStorageService],
   exports: [UsersService],

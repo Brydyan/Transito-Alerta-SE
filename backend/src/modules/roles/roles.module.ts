@@ -7,7 +7,6 @@ import { RoleRankAudit } from '../../common/authz/role-rank.audit';
 import { AuthModule } from '../auth/auth.module';
 import { RolesController } from './roles.controller';
 import { RolesService } from './roles.service';
-
 /**
  * RolesModule (R6/R7, T3.1) — design DAG `Roles -> Permissions`. Imports
  * AuthModule for AuthService.invalidatePermissionCache (D2 pv bump), not

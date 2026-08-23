@@ -17,6 +17,13 @@ export interface IncidentRow {
   zone_id: string | null;
   geofence_matched: boolean;
   organization_id: string | null;
+  category_id: string | null;
+  claimed_by: string | null;
+  approved_by: string | null;
+  approved_at: Date | null;
+  rejected_by: string | null;
+  rejected_at: Date | null;
+  rejection_reason: string | null;
   lat: number;
   lng: number;
   created_at: Date;
@@ -38,6 +45,8 @@ export interface CreateIncidentInput {
 const SELECT_COLUMNS = `
   id, title, description, status, priority,
   citizen_id, assigned_to, zone_id, geofence_matched, organization_id,
+  category_id, claimed_by, approved_by, approved_at, rejected_by, rejected_at,
+  rejection_reason,
   ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng,
   created_at, updated_at
 `;
@@ -123,6 +132,33 @@ export class IncidentsRepository {
       [id, status],
     );
     return unwrapReturningRows<IncidentRow>(result)[0] ?? null;
+  }
+
+  /**
+   * T5.6 — partial update of mutable content fields. Each field is
+   * coalesced to its current value when null/undefined, so the caller
+   * can send any subset. `status`, `zone_id`, `organization_id` and
+   * `geofence_matched` are NEVER touched (D5).
+   */
+  async update(
+    id: string,
+    values: { title: string; description: string | null; categoryId: string | null },
+  ): Promise<IncidentRow> {
+    const result = await this.dataSource.query(
+      `UPDATE incidents
+         SET title = $2,
+             description = $3,
+             category_id = $4,
+             updated_at = now()
+       WHERE id = $1
+       RETURNING ${SELECT_COLUMNS}`,
+      [id, values.title, values.description, values.categoryId],
+    );
+    const row = unwrapReturningRows<IncidentRow>(result)[0];
+    if (!row) {
+      throw new Error(`Incident ${id} vanished mid-update`);
+    }
+    return row;
   }
 }
 

@@ -29,6 +29,15 @@ export class StatusHistoryEntity {
   @Column({ name: 'event_id', type: 'varchar' })
   eventId!: string;
 
+  /**
+   * T5.6 — populated by the reject path with the admin's reason. Null for
+   * every other status transition (approval, manual operator change, etc.).
+   * Read by the audit trail surfaced to operators who later look up the
+   * incident history.
+   */
+  @Column({ type: 'text', nullable: true })
+  notes!: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 }

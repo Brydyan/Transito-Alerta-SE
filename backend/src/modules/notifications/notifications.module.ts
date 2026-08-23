@@ -6,11 +6,16 @@ import { Notification } from './entities/notification.entity';
 import { IncidentNotificationsListener } from './listeners/incident-notifications.listener';
 import { UsersModule } from '../users/users.module';
 import { IncidentEntity } from '../../entities/incident.entity';
+import { CommentEntity } from '../../entities/comment.entity';
+import { IncidentApprovalService } from './incident-approval.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Notification, IncidentEntity]), UsersModule],
+  imports: [
+    TypeOrmModule.forFeature([Notification, IncidentEntity, CommentEntity]),
+    UsersModule,
+  ],
   controllers: [NotificationsController],
-  providers: [NotificationsService, IncidentNotificationsListener],
-  exports: [NotificationsService],
+  providers: [NotificationsService, IncidentNotificationsListener, IncidentApprovalService],
+  exports: [NotificationsService, IncidentApprovalService],
 })
 export class NotificationsModule {}

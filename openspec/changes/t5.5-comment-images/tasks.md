@@ -5,7 +5,7 @@ Migration: **0020**. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 1: Migration
 
-- [ ] 1.1 Create `database/migrations/0020_comment_images.sql`:
+- [x] 1.1 Create `database/migrations/0020_comment_images.sql`:
       - `comment_images (id uuid PK, comment_id uuid FK→comments ON DELETE CASCADE,
         storage_key varchar(500), url varchar(1000), mime_type varchar(100),
         file_size int CHECK (>0), created_at timestamptz DEFAULT now())`.
@@ -13,20 +13,20 @@ Migration: **0020**. Strict TDD. Run `npm test` baseline before Phase 1.
       - Permission rows: `INSERT INTO permissions (action, resource) VALUES ('CREATE','comment-images'),('DELETE','comment-images')`.
       - Grant both permissions to `operador_organizacion`, `operador_sistema`,
         `admin_organizacion`, `admin_sistema` via `role_permissions`.
-- [ ] 1.2 Create `database/rollback/0020_comment_images.DOWN.sql`:
+- [x] 1.2 Create `database/rollback/0020_comment_images.DOWN.sql`:
       - Remove permission grants, remove permission rows, DROP TABLE `comment_images`.
-- [ ] 1.3 Apply 0020 to local Postgres; verify `comment_images` table is created.
-- [ ] 1.4 Add entry to `database/MIGRATION_LOG.md`.
+- [x] 1.3 Apply 0020 to local Postgres; verify `comment_images` table is created.
+- [x] 1.4 Add entry to `database/MIGRATION_LOG.md`.
 
 ## Phase 2: Entity
 
-- [ ] 2.1 Create `backend/src/entities/comment-image.entity.ts` — `@Entity('comment_images')`
+- [x] 2.1 Create `backend/src/entities/comment-image.entity.ts` — `@Entity('comment_images')`
       with all columns from the migration: `id`, `commentId`, `storageKey`, `url`, `mimeType`,
       `fileSize`, `createdAt`.
 
 ## Phase 3: Storage Service
 
-- [ ] 3.1 Create `backend/src/modules/comments/comment-image-storage.service.ts` following the
+- [x] 3.1 Create `backend/src/modules/comments/comment-image-storage.service.ts` following the
       `AvatarStorageService` pattern:
       - `upload(commentId: string, file: Express.Multer.File): Promise<{key: string, url: string}>`:
         key = `comments/{commentId}/{randomUUID()}-{sanitizedOriginalname}`.
@@ -37,7 +37,7 @@ Migration: **0020**. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 4: Unit Tests (Storage Service)
 
-- [ ] 4.1 `backend/src/modules/comments/comment-image-storage.service.spec.ts`:
+- [x] 4.1 `backend/src/modules/comments/comment-image-storage.service.spec.ts`:
       - `upload`: returned key starts with `comments/{commentId}/`.
       - `upload`: `originalname` with special chars is sanitized in the key.
       - `getSignedUrl`: returns a deterministic URL for the same key.
@@ -45,12 +45,12 @@ Migration: **0020**. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 5: Comment Images Service
 
-- [ ] 5.1 Create `backend/src/modules/comments/comment-images.service.ts` injecting:
+- [x] 5.1 Create `backend/src/modules/comments/comment-images.service.ts` injecting:
       - `@InjectRepository(CommentEntity) commentRepo`
       - `@InjectRepository(CommentImageEntity) imageRepo`
       - `CommentImageStorageService`
       - `Logger`
-- [ ] 5.2 Implement `attachToComment(commentId, callerId, callerPermissions, files)`:
+- [x] 5.2 Implement `attachToComment(commentId, callerId, callerPermissions, files)`:
       - Load comment (NotFoundException if not found).
       - Ownership/permission check (ForbiddenException if fails).
       - Validate MIME types against allowlist `['image/jpeg','image/png','image/gif','image/webp']`
@@ -58,7 +58,7 @@ Migration: **0020**. Strict TDD. Run `npm test` baseline before Phase 1.
       - For each file: `storage.upload(commentId, file)` → on error throw (no DB insert).
       - `imageRepo.save(...)` for each uploaded file.
       - Return mapped `CommentImageDto[]`.
-- [ ] 5.3 Implement `removeFromComment(commentId, imageId, callerId, callerPermissions)`:
+- [x] 5.3 Implement `removeFromComment(commentId, imageId, callerId, callerPermissions)`:
       - Load image by `imageId` (NotFoundException if not found).
       - Check `image.commentId === commentId` (NotFoundException if mismatch).
       - Load comment, check ownership/permission (ForbiddenException if fails).
@@ -67,7 +67,7 @@ Migration: **0020**. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 6: Unit Tests (Comment Images Service)
 
-- [ ] 6.1 `backend/src/modules/comments/comment-images.service.spec.ts`:
+- [x] 6.1 `backend/src/modules/comments/comment-images.service.spec.ts`:
       - `attachToComment` happy path: returns array of 2 DTOs after uploading 2 files.
       - `attachToComment` non-owner without permission: throws ForbiddenException.
       - `attachToComment` user with `CREATE comment-images` permission but non-owner: succeeds.
@@ -80,22 +80,22 @@ Migration: **0020**. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 7: Controller
 
-- [ ] 7.1 Create `backend/src/modules/comments/comment-images.controller.ts`:
+- [x] 7.1 Create `backend/src/modules/comments/comment-images.controller.ts`:
       - `@Controller('comments/:id/images')`, `@UseGuards(JwtAuthGuard)`.
       - `@Post()` with `@UseInterceptors(FilesInterceptor('images', 5, { limits: { fileSize: 5 * 1024 * 1024 } }))`
         → call `commentImagesService.attachToComment(id, user.id, user.permissions, files)`
         → 201.
       - `@Delete(':imageId')` → call `commentImagesService.removeFromComment(id, imageId, user.id, user.permissions)`
         → 204 (no body).
-- [ ] 7.2 Create `backend/src/modules/comments/dto/comment-image.dto.ts` with
+- [x] 7.2 Create `backend/src/modules/comments/dto/comment-image.dto.ts` with
       `id`, `url`, `mimeType`, `fileSize`, `createdAt`.
-- [ ] 7.3 Register `CommentImagesController`, `CommentImagesService`, `CommentImageStorageService`,
+- [x] 7.3 Register `CommentImagesController`, `CommentImagesService`, `CommentImageStorageService`,
       and `TypeOrmModule.forFeature([CommentImageEntity])` in
       `backend/src/modules/comments/comments.module.ts`.
 
 ## Phase 8: E2E Tests
 
-- [ ] 8.1 `backend/test/e2e/comment-images.e2e-spec.ts`:
+- [x] 8.1 `backend/test/e2e/comment-images.e2e-spec.ts`:
       - Seed user + incident + comment owned by the user.
       - POST 2 JPEG files → 201, response array has 2 items, DB has 2 rows.
       - POST with 6 files → 422 (Multer limit).
@@ -108,7 +108,7 @@ Migration: **0020**. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 9: Lint + Type Check
 
-- [ ] 9.1 `npm run lint` — zero new violations.
-- [ ] 9.2 `npm run typecheck` — no errors.
-- [ ] 9.3 `npm run build` — clean.
-- [ ] 9.4 `npm test && npm run test:e2e` — full suite green.
+- [x] 9.1 `npm run lint` — zero new violations.
+- [x] 9.2 `npm run typecheck` — no errors.
+- [x] 9.3 `npm run build` — clean.
+- [x] 9.4 `npm test && npm run test:e2e` — full suite green.

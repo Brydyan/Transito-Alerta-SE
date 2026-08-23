@@ -3,6 +3,7 @@ import type { Repository } from 'typeorm';
 import { UsersService, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './users.service';
 import { UserEntity } from '../../entities/user.entity';
 import { RoleEntity } from '../../entities/role.entity';
+import { OrganizationEntity } from '../../entities/organization.entity';
 import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
 import { AuthService } from '../auth/auth.service';
 import { SessionsRepository } from '../sessions/sessions.repository';
@@ -20,7 +21,8 @@ const DENY_SCOPE: SubjectScope = { kind: 'deny', reason: 'staff_without_organiza
 describe('UsersService', () => {
   let userRepo: { findOne: jest.Mock; update: jest.Mock; findAndCount: jest.Mock };
   let avatarStorage: { upload: jest.Mock };
-  let roleRepo: { findOne: jest.Mock };
+  let roleRepo: { find: jest.Mock; findOne: jest.Mock };
+  let orgRepo: { find: jest.Mock; findOne: jest.Mock };
   let authService: { invalidatePermissionCache: jest.Mock };
   let sessionsRepository: {
     findActiveByUser: jest.Mock;
@@ -31,13 +33,15 @@ describe('UsersService', () => {
   beforeEach(() => {
     userRepo = { findOne: jest.fn(), update: jest.fn(), findAndCount: jest.fn() };
     avatarStorage = { upload: jest.fn() };
-    roleRepo = { findOne: jest.fn() };
+    roleRepo = { find: jest.fn(), findOne: jest.fn() };
+    orgRepo = { find: jest.fn(), findOne: jest.fn() };
     authService = { invalidatePermissionCache: jest.fn() };
     sessionsRepository = { findActiveByUser: jest.fn(), findManageableTarget: jest.fn() };
     service = new UsersService(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
       avatarStorage as unknown as any,
       roleRepo as unknown as jest.Mocked<Repository<RoleEntity>>,
+      orgRepo as unknown as jest.Mocked<Repository<OrganizationEntity>>,
       authService as unknown as AuthService,
       sessionsRepository as unknown as SessionsRepository,
     );

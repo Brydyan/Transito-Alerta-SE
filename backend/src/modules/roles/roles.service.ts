@@ -1,12 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 
 import { RoleEntity } from '../../entities/role.entity';
 import { UserEntity } from '../../entities/user.entity';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { assertCanGrantRole, assertCanManage } from '../../common/authz/assert-can-manage';
 import { AuthService } from '../auth/auth.service';
+import { CreateRoleDto } from './dto/create-role.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 
 /**
  * RolesService (R6/R7) — formalizes design D2/D3 groundwork from T1.4.
@@ -27,6 +29,7 @@ export class RolesService {
     private readonly roleRepo: Repository<RoleEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
+    private readonly dataSource: DataSource,
     private readonly authService: AuthService,
   ) {}
 
@@ -90,5 +93,68 @@ export class RolesService {
     const saved = await this.userRepo.save(user);
     await this.authService.invalidatePermissionCache(saved.id, saved.deviceUuid);
     return saved;
+  }
+
+  // ---- T5.6 CRUD: list / show / create / update / delete / syncPermissions
+
+  async findAll(): Promise<RoleEntity[]> {
+    return this.roleRepo.find({ order: { name: 'ASC' } });
+  }
+
+  async findOne(id: string): Promise<RoleEntity> {
+    const role = await this.roleRepo.findOne({ where: { id } });
+    if (!role) {
+      throw new NotFoundException(`Role ${id} not found`);
+    }
+    return role;
+  }
+
+  async create(dto: CreateRoleDto): Promise<RoleEntity> {
+    const role = this.roleRepo.create({
+      name: dto.name,
+      permissions: dto.permissions ?? [],
+    });
+    return this.roleRepo.save(role);
+  }
+
+  async update(id: string, dto: UpdateRoleDto): Promise<RoleEntity> {
+    const role = await this.findOne(id);
+    if (dto.name !== undefined) {
+      role.name = dto.name;
+    }
+    if (dto.permissions !== undefined) {
+      role.permissions = dto.permissions;
+    }
+    return this.roleRepo.save(role);
+  }
+
+  /**
+   * Refuses to delete a role that still has users assigned — same policy
+   * as GeoReporta. Prevents orphan users (`role_id` pointing at a
+   * vanished row).
+   */
+  async delete(id: string): Promise<void> {
+    const role = await this.findOne(id);
+    const userCount = await this.userRepo.count({ where: { roleId: id } });
+    if (userCount > 0) {
+      throw new ConflictException(
+        `Role ${id} has ${userCount} user(s) assigned; remove them first`,
+      );
+    }
+    await this.roleRepo.remove(role);
+  }
+
+  /**
+   * PUT semantics: REPLACE the role's permission set in a single
+   * transaction. Returns the updated role so the controller can show
+   * the new state without an extra GET.
+   */
+  async syncPermissions(id: string, permissions: string[]): Promise<RoleEntity> {
+    const role = await this.findOne(id);
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(RoleEntity);
+      role.permissions = permissions;
+      return repo.save(role);
+    });
   }
 }

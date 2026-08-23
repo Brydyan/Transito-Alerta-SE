@@ -1,5 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
+import { OrganizationEntity } from '../../entities/organization.entity';
+import { GeoZoneEntity } from '../../entities/geo-zone.entity';
+import { GeofencingService } from '../geofencing/geofencing.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { ListFilters, OrganizationRow, OrganizationsRepository } from './organizations.repository';
@@ -7,6 +12,17 @@ import { ListFilters, OrganizationRow, OrganizationsRepository } from './organiz
 export interface ListResult {
   items: OrganizationRow[];
   total: number;
+}
+
+export interface OrganizationTreeNode {
+  id: string;
+  name: string;
+  zoneId: string | null;
+}
+
+export interface OrganizationFormData {
+  roles: Array<{ id: string; name: string }>;
+  geoZones: Array<{ id: string; name: string }>;
 }
 
 /**
@@ -19,7 +35,14 @@ export interface ListResult {
  */
 @Injectable()
 export class OrganizationsService {
-  constructor(private readonly repo: OrganizationsRepository) {}
+  constructor(
+    private readonly repo: OrganizationsRepository,
+    @InjectRepository(OrganizationEntity)
+    private readonly orgRepo: Repository<OrganizationEntity>,
+    @InjectRepository(GeoZoneEntity)
+    private readonly geoZoneRepo: Repository<GeoZoneEntity>,
+    private readonly geofencingService: GeofencingService,
+  ) {}
 
   create(dto: CreateOrganizationDto): Promise<OrganizationRow> {
     return this.repo.create({ name: dto.name, zoneId: dto.zone_id ?? null });
@@ -64,5 +87,52 @@ export class OrganizationsService {
       return Promise.resolve(null);
     }
     return this.repo.findByZone(zoneId);
+  }
+
+  // ---- T5.6 extras: tree / formData / notifiedFor
+
+  /**
+   * T5.6 — flat list of all organizations. The `organizations` table
+   * has no `parent_id` column (T3.2 decision; the geo-zones table is the
+   * actual admin hierarchy — see `1-BACKEND-MIGRATIONS.md`). Returned
+   * as a flat list; the frontend can build a tree view client-side.
+   */
+  async tree(): Promise<OrganizationTreeNode[]> {
+    const orgs = await this.orgRepo.find({ order: { name: 'ASC' } });
+    return orgs.map((o) => ({ id: o.id, name: o.name, zoneId: o.zoneId }));
+  }
+
+  /**
+   * T5.6 — reference data for the organization-management form.
+   * Returns the catalog of roles + geo-zones the admin can pick from
+   * when creating a new org.
+   */
+  async formData(): Promise<OrganizationFormData> {
+    const roles = await this.orgRepo.manager.find('RoleEntity' as never, {
+      select: ['id', 'name'],
+      order: { name: 'ASC' },
+    } as never) as Array<{ id: string; name: string }>;
+    const geoZones = await this.geoZoneRepo.find({
+      select: ['id', 'name'],
+      order: { name: 'ASC' },
+    });
+    return {
+      roles,
+      geoZones: geoZones.map((z) => ({ id: z.id, name: z.name })),
+    };
+  }
+
+  /**
+   * T5.6 — which organizations should receive a notification for a
+   * point? Reuses GeofencingService.findZoneForPoint and returns the
+   * org tied to that zone (or `[]` if the point is outside every zone).
+   */
+  async notifiedFor(lat: number, lng: number): Promise<OrganizationRow[]> {
+    const { zone } = await this.geofencingService.resolveZone({ lat, lng });
+    if (!zone) {
+      return [];
+    }
+    const org = await this.repo.findByZone(zone.id);
+    return org ? [org] : [];
   }
 }
