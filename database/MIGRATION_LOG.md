@@ -60,3 +60,19 @@ las 13 aplican limpio y el backfill de 0013 deja la provincia como raíz con sus
 
 Este log rastrea **supabase**. El entorno local se recrea desde cero cuando
 haga falta (`docker compose down -v`), así que no lleva registro propio.
+
+## 0019 — T5.1 Incident Workflow (2026-08-23)
+
+✅ Applied (Supabase staging, pendiente prod).
+
+- Adds `incidents.claimed_by uuid REFERENCES users(id) ON DELETE SET NULL`.
+- Adds `organizations.max_active_claims int NOT NULL DEFAULT 5 CHECK (> 0)`.
+- Extends `permissions.action` CHECK constraint: now also allows `CLAIM` and `RELEASE`.
+- Seeds `(incidents, CLAIM)` and `(incidents, RELEASE)` permission rows.
+- Grants both to `operador_organizacion` and `operador_sistema` via the
+  `roles.permissions` JSONB column (the same pattern 0018 uses — the project
+  has no `role_permissions` table).
+
+TypeScript side: `PermissionAction` union in
+`backend/src/common/decorators/require-permission.decorator.ts` extended to
+include `'CLAIM' | 'RELEASE'` in lockstep.
