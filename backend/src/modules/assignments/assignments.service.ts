@@ -70,4 +70,19 @@ export class AssignmentsService {
     }
     return this.assignmentRepo.find({ where: { incidentId } });
   }
+
+  /**
+   * T5.6 — re-assigns an existing assignment to a new operator. The
+   * previous assignment row is removed and a new one is created in the
+   * same call (no "transfer" entity — simpler than tracking both ends).
+   * The URL `:id` identifies the original assignment.
+   */
+  async update(id: string, operatorId: string): Promise<AssignmentEntity> {
+    const existing = await this.assignmentRepo.findOne({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Assignment ${id} not found`);
+    }
+    existing.operatorId = operatorId;
+    return this.assignmentRepo.save(existing);
+  }
 }

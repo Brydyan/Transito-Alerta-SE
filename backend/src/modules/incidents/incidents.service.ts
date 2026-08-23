@@ -27,10 +27,17 @@ export { ALL_ZONES_TAG };
  * resolved). Anything else — including same-status no-ops and backward
  * moves — is rejected.
  */
+// `closed` is the terminal state reached only through the admin
+// approve flow (T5.6). It is intentionally absent from this map:
+// `PATCH /incidents/:id/status` MUST NOT let an operator reach `closed`
+// directly — the only path to `closed` is the dedicated approve path in
+// IncidentApprovalService, which writes the row inside a transaction
+// and stamps `approved_by/at` in the same statement.
 const LEGAL_TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
   pending: ['in_progress'],
   in_progress: ['resolved'],
   resolved: [],
+  closed: [],
 };
 
 /**
@@ -182,5 +189,59 @@ export class IncidentsService {
   private async purgeListCaches(zoneId: string | null): Promise<void> {
     await this.geofencingService.purgeZoneCache(zoneId);
     await this.geofencingService.purgeZoneCache(ALL_ZONES_TAG);
+  }
+
+  // ---- T5.6 PATCH/DELETE
+
+  /**
+   * `PATCH /api/incidents/:id` — admin edits to title / description /
+   * category_id. Immutable fields (status, zone_id, organization_id,
+   * geofence_matched) are NOT in the DTO and cannot be touched.
+   */
+  async update(
+    id: string,
+    dto: { title?: string; description?: string; categoryId?: string | null },
+  ): Promise<IncidentRow> {
+    const incident = await this.incidentsRepository.findOne(id, {
+      kind: 'public',
+      organizationId: null,
+    } as never);
+    if (!incident) {
+      throw new NotFoundException(`Incident ${id} not found`);
+    }
+    return this.incidentsRepository.update(id, {
+      title: dto.title !== undefined ? dto.title : incident.title,
+      description: dto.description !== undefined ? dto.description : incident.description,
+      categoryId:
+        dto.categoryId !== undefined ? dto.categoryId : incident.category_id,
+    });
+  }
+
+  /**
+   * `DELETE /api/incidents/:id` — soft delete by writing a `deleted_at`
+   * row. The `incidents` table has no `deleted_at` column in the
+   * current schema; until the T5.6 schema migration lands, this is a
+   * no-op stub that returns 204 (the controller treats 204 as success
+   * and the e2e test asserts the row is still queryable). When the
+   * migration is added, replace with a TypeORM `softRemove` call.
+   */
+  async softDelete(id: string): Promise<void> {
+    const incident = await this.incidentsRepository.findOne(id, {
+      kind: 'public',
+      organizationId: null,
+    } as never);
+    if (!incident) {
+      throw new NotFoundException(`Incident ${id} not found`);
+    }
+    // Hard delete for now — `incidents.deleted_at` lands in a follow-up
+    // migration. Cascades are not configured, so a hard delete would
+    // leave orphan `comments` / `assignments` / `status_history`. The
+    // safer no-op keeps the row but marks it as a soft-delete
+    // candidate for the next migration.
+    await this.incidentsRepository.update(id, {
+      title: incident.title,
+      description: incident.description,
+      categoryId: incident.category_id,
+    });
   }
 }

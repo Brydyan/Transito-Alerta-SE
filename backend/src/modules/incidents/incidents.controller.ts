@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -18,6 +20,7 @@ import { AuthenticatedRequest } from '../../common/interfaces/authenticated-requ
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { IncidentStatus } from '../../entities/incident.entity';
 import { CreateIncidentDto } from './dto/create-incident.dto';
+import { UpdateIncidentDto } from './dto/update-incident.dto';
 import { UpdateIncidentStatusDto } from './dto/update-incident-status.dto';
 import { IncidentRow } from './incidents.repository';
 import { IncidentsService } from './incidents.service';
@@ -67,5 +70,29 @@ export class IncidentsController {
     @Req() req: AuthenticatedRequest,
   ): Promise<IncidentRow> {
     return this.incidentsService.updateStatus(id, dto.status, req.user!.userId, req.user!.scope);
+  }
+
+  // ---- T5.6 PATCH/DELETE — declared AFTER `:id/status` to keep the
+  // status-specific route winning the matching race for the literal
+  // segment "status".
+
+  @Patch(':id')
+  @RequirePermission('UPDATE')
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateIncidentDto,
+  ): Promise<IncidentRow> {
+    return this.incidentsService.update(id, {
+      title: dto.title,
+      description: dto.description,
+      categoryId: dto.category_id,
+    });
+  }
+
+  @Delete(':id')
+  @RequirePermission('DELETE')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  delete(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
+    return this.incidentsService.softDelete(id);
   }
 }

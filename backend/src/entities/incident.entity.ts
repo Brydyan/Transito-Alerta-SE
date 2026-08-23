@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export type IncidentStatus = 'pending' | 'in_progress' | 'resolved';
+export type IncidentStatus = 'pending' | 'in_progress' | 'resolved' | 'closed';
 export type IncidentPriority = 'low' | 'medium' | 'high' | 'critical';
 
 /**
@@ -64,6 +64,27 @@ export class IncidentEntity {
   /** T5.1 — operator who currently holds the claim. NULL = unclaimed. */
   @Column({ name: 'claimed_by', type: 'uuid', nullable: true })
   claimedBy!: string | null;
+
+  /**
+   * T5.6 — admin approve/reject decision columns (migration 0021).
+   * `approved_*` and `rejected_*` are written as a pair (CHECK pair constraint)
+   * and are mutually exclusive (XOR CHECK). `closed` status is the terminal
+   * state set when `approved_by` is populated.
+   */
+  @Column({ name: 'approved_by', type: 'uuid', nullable: true })
+  approvedBy!: string | null;
+
+  @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
+  approvedAt!: Date | null;
+
+  @Column({ name: 'rejected_by', type: 'uuid', nullable: true })
+  rejectedBy!: string | null;
+
+  @Column({ name: 'rejected_at', type: 'timestamptz', nullable: true })
+  rejectedAt!: Date | null;
+
+  @Column({ name: 'rejection_reason', type: 'text', nullable: true })
+  rejectionReason!: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

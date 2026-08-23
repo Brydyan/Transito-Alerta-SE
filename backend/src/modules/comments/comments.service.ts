@@ -78,4 +78,28 @@ export class CommentsService {
     }
     await this.commentRepo.delete(commentId);
   }
+
+  // ---- T5.6: findOne + update
+
+  async findOne(id: string): Promise<CommentEntity> {
+    const comment = await this.commentRepo.findOne({ where: { id } });
+    if (!comment) {
+      throw new NotFoundException(`Comment ${id} not found`);
+    }
+    return comment;
+  }
+
+  /**
+   * T5.6 — edit an existing comment. Re-applies the same XSS sanitiser
+   * used by `create` (defense in depth). Ownership is enforced — only
+   * the original author may edit.
+   */
+  async update(id: string, content: string, requesterId: string): Promise<CommentEntity> {
+    const comment = await this.findOne(id);
+    if (comment.userId !== requesterId) {
+      throw new ForbiddenException('Only the comment owner may edit it');
+    }
+    comment.content = sanitizeContent(content);
+    return this.commentRepo.save(comment);
+  }
 }

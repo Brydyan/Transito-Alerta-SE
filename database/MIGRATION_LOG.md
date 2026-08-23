@@ -77,3 +77,7 @@ haga falta (`docker compose down -v`), así que no lleva registro propio.
 TypeScript side: `PermissionAction` union in
 `backend/src/common/decorators/require-permission.decorator.ts` extended to
 include `'CLAIM' | 'RELEASE'` in lockstep.
+| 0020 | add_closed_status_to_incidents | extends the `incidents.status` CHECK constraint to allow `closed` (admin approve terminal state). Required by T5.6 approve flow; the transition is wired through the dedicated `approve()` path, not through `LEGAL_TRANSITIONS` | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |
+| 0021 | add_decision_columns_to_incidents | adds `approved_by/at`, `rejected_by/at`, `rejection_reason` (nullable) + 3 CHECK constraints (approved pair, rejected pair, XOR) + partial index `idx_incidents_approved_at` (T5.6) | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |
+| 0022 | add_incident_pending_approval_notification_type | extends the `notifications.type` CHECK constraint to allow `incident_pending_approval` — the value emitted when an incident hits `resolved` and waits for admin moderation (T5.6) | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |
+| 0023 | add_notes_to_status_history | adds `notes` (nullable text) to `status_history` — written by the T5.6 reject path with the rejection reason as a permanent audit row | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |

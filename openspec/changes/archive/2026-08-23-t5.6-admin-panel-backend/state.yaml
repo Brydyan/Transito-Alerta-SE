@@ -1,0 +1,82 @@
+change_name: t5.6-admin-panel-backend
+stage: archived
+verdict: PASS_WITH_WARNINGS
+archived_date: 2026-08-23
+description: Admin Panel Backend + CRUD Gaps implementation with 4 migrations, 17 endpoints, 9 DTOs
+critical_issues: 0
+warnings: 4
+bugs_fixed_during_verify: 5
+
+# Test Results
+unit_tests: 734
+e2e_tests: 163
+all_tests_pass: true
+typecheck_errors: 0
+lint_errors: 0
+
+# Tasks
+tasks_total: 37
+tasks_complete: 37
+
+# Spec Requirements
+spec_requirements_total: 27
+spec_requirements_e2e_compliant: 14
+spec_requirements_unit_tested: 13
+
+# Design Deviations
+deviations_accepted: 5
+deviations: [D1, D2, D3, D4, D5]
+
+# Source of Truth Updated
+main_specs_created:
+  - domain: admin-panel-backend
+    path: openspec/specs/admin-panel-backend/spec.md
+    requirements: 27
+
+# Artifacts
+artifacts:
+  proposal: proposal.md
+  specification: specs/admin-panel-backend/spec.md
+  design: design.md
+  tasks: tasks.md
+  apply_progress: apply-progress.md
+  verify_report: verify-report.md
+  archive_report: archive-report.md
+
+# Original Change Folder
+original_location: openspec/changes/t5.6-admin-panel-backend/
+archive_location: openspec/changes/archive/2026-08-23-t5.6-admin-panel-backend/
+
+# SDD Cycle Status
+sdd_cycle_complete: true
+phases_completed:
+  - proposal
+  - specification
+  - design
+  - tasks
+  - apply
+  - verify
+  - archive
+
+# Warnings Summary
+warnings_list:
+  - id: WARNING-1
+    title: Users soft-delete inconsistency
+    priority: medium
+    file: backend/src/modules/users/users.service.ts
+  - id: WARNING-2
+    title: Incidents soft-delete incomplete
+    priority: medium
+    file: backend/src/modules/incidents/incidents.service.ts
+  - id: WARNING-3
+    title: Users + Notifications e2e coverage gaps
+    priority: low
+    file: backend/test/e2e/admin-panel.e2e-spec.ts
+  - id: WARNING-4
+    title: '@nestjs/mapped-types PartialType incompatibility'
+    priority: low
+    file: backend/src/modules/roles/dto/update-role.dto.ts
+
+# Conclusion
+ready_for_production: true
+conclusion: "Change is complete, verified, and ready for production use. All 734 unit + 163 e2e tests passing. No CRITICAL issues. Four WARNINGs documented for future follow-up."

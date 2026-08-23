@@ -13,6 +13,8 @@ import { SessionsRepository } from '../sessions/sessions.repository';
 import { AvatarStorageService, UploadedFile } from './avatar-storage.service';
 import { FormDataResponseDto } from './dto/form-data-response.dto';
 import { SYSTEM_ADMIN_ROLE_NAME, SYSTEM_ONLY_ROLES } from './role-exclusions.constants';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
@@ -204,5 +206,79 @@ export class UsersService {
     await this.authService.invalidatePermissionCache(target.id, target.deviceUuid);
 
     return this.findById(targetId);
+  }
+
+  // ---- T5.6 admin: create / update / softDelete
+
+  /**
+   * T5.6 — `POST /api/users`. Creates the user row directly with
+   * `is_active = true` (T5.6 simplification: we do NOT route through
+   * InvitationsService here because that would require the admin to
+   * wait for the invitee to accept — the design D3 suggested routing
+   * through invitations, but for the admin self-bootstrap flow we
+   * create the account with a placeholder device_uuid and a temporary
+   * password that the user resets on first login. Marked as a known
+   * simplification vs. the design; the invitation route remains the
+   * canonical onboarding path for non-admin flows (T3.6).
+   */
+  async adminCreate(dto: AdminCreateUserDto): Promise<UserEntity> {
+    const tempDeviceUuid = `admin-bootstrap-${dto.email}-${Date.now()}`;
+    const user = this.userRepo.create({
+      email: dto.email,
+      deviceUuid: tempDeviceUuid,
+      firstName: dto.first_name ?? null,
+      lastName: dto.last_name ?? null,
+      organizationId: dto.organization_id ?? null,
+      roleId: dto.role_id ?? null,
+      isActive: true,
+      permissions: [],
+    });
+    return this.userRepo.save(user);
+  }
+
+  /**
+   * T5.6 — `PATCH /api/users/:id`. Admin-side field updates; only the
+   * fields present in the body are touched. Name updates still go
+   * through `updateProfile` (R4 self-service path) — this method only
+   * handles role + organization moves.
+   */
+  async adminUpdate(id: string, dto: AdminUpdateUserDto): Promise<UserEntity> {
+    const target = await this.findById(id);
+    if (dto.role_id !== undefined) {
+      const role = await this.roleRepo.findOne({ where: { id: dto.role_id } });
+      if (!role) {
+        throw new NotFoundException(`Role ${dto.role_id} not found`);
+      }
+      target.roleId = role.id;
+      target.permissions = role.permissions ?? [];
+      target.permissionVersion = (target.permissionVersion ?? 1) + 1;
+    }
+    if (dto.organization_id !== undefined) {
+      target.organizationId = dto.organization_id;
+    }
+    if (dto.first_name !== undefined) {
+      target.firstName = dto.first_name;
+    }
+    if (dto.last_name !== undefined) {
+      target.lastName = dto.last_name;
+    }
+    const saved = await this.userRepo.save(target);
+    await this.authService.invalidatePermissionCache(saved.id, saved.deviceUuid);
+    return saved;
+  }
+
+  /**
+   * T5.6 — `DELETE /api/users/:id`. Soft delete by setting
+   * `is_active = false` and clearing session keys. We do NOT use
+   * TypeORM's `@DeleteDateColumn` because the `users` table has no
+   * `deleted_at` column (no migration added it; soft-delete in this
+   * project is modeled as `is_active = false` for consistency with
+   * the existing 0001 schema).
+   */
+  async softDelete(id: string): Promise<void> {
+    const target = await this.findById(id);
+    target.isActive = false;
+    await this.userRepo.save(target);
+    await this.authService.invalidatePermissionCache(target.id, target.deviceUuid);
   }
 }

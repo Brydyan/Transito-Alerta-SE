@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseFloatPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -19,7 +20,12 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationRow } from './organizations.repository';
-import { ListResult, OrganizationsService } from './organizations.service';
+import {
+  ListResult,
+  OrganizationFormData,
+  OrganizationTreeNode,
+  OrganizationsService,
+} from './organizations.service';
 
 /**
  * OrganizationsController (T3.2 design D8) — mirrors GeoZonesController's
@@ -45,6 +51,29 @@ export class OrganizationsController {
       page: page ? parseInt(page, 10) : undefined,
       perPage: perPage ? parseInt(perPage, 10) : undefined,
     });
+  }
+
+  // ---- T5.6 extras: tree / formData / notifiedFor
+  // Declared BEFORE `:id` route registrations to avoid the `tree` segment
+  // being captured as an id param.
+
+  @Get('tree')
+  getTree(): Promise<OrganizationTreeNode[]> {
+    return this.organizationsService.tree();
+  }
+
+  @Get('form-data')
+  @RequirePermission('READ')
+  getFormData(): Promise<OrganizationFormData> {
+    return this.organizationsService.formData();
+  }
+
+  @Get('notified-for')
+  getNotifiedFor(
+    @Query('lat', ParseFloatPipe) lat: number,
+    @Query('lng', ParseFloatPipe) lng: number,
+  ): Promise<OrganizationRow[]> {
+    return this.organizationsService.notifiedFor(lat, lng);
   }
 
   @Get(':id')
