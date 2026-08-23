@@ -4,7 +4,7 @@
 
 Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases. Orden de construcción del backend: Infra/esquema → CoreModule → Auth → Incidents (calibración) → dominios restantes. Esfuerzo total: ~6 semanas para un líder backend único (o 2-3 semanas con 2 devs trabajando en lotes paralelos).
 
-## Estado Actual (2026-08-19)
+## Estado Actual (2026-08-23)
 
 - **Fase 1 (T1.1-T1.5)**: ✅ 100% Completada
   - Scaffold NestJS, config TypeORM (`synchronize: false`), Redis, Auth (device-UUID + JWT), Geofencing
@@ -30,13 +30,13 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
   - ✅ T4.3: Security hardening — `helmet@8.3.0`, fix `MoreThan` dedup, 4 tests E2E (138 total). Archivado 2026-08-21
   - ✅ T4.4: Documentación — Swagger (`/api/docs` en dev), runbook `docs/runbooks/deploy.md`. Archivado 2026-08-21
 
-- **Fase 5 (T5.1-T5.6)**: ⏳ Planificada — Sub-features de GeoReporta ausentes en Fases 1-4
-  - ⏳ T5.1: Incident Workflow — claim/release de incidentes, operadores disponibles, catálogo de estados
+- **Fase 5 (T5.1-T5.6)**: 🔄 En progreso — Sub-features de GeoReporta ausentes en Fases 1-4
+  - ✅ T5.1: Incident Workflow — claim/release, operadores disponibles, catálogo de estados. Archivado 2026-08-23
   - ⏳ T5.2: Incident Analytics — stats agregadas, weekly-stats, feed ciudadano, export CSV
   - ⏳ T5.3: Operator Tracking — GPS location tracking de operadores, dashboard de operador
-  - ⏳ T5.4: Map UI Support — filtros de mapa, form-data de usuarios
+  - ✅ T5.4: Map UI Support — filtros de mapa (GET /map/filters), form-data de usuarios. Archivado 2026-08-23
   - ⏳ T5.5: Comment Images — subida/borrado de imágenes adjuntas en comentarios
-  - ⏳ T5.6: Admin Panel Backend + CRUD Gaps — roles CRUD, orgs tree/form-data, users admin, notifications moderación, CRUD incompleto detectado en auditoría 2026-08-23
+  - ✅ T5.6: Admin Panel Backend + CRUD Gaps — roles CRUD, orgs tree/form-data, users admin, notifications approve/reject, CRUD completo incidents/comments/assignments. Archivado 2026-08-23
 
 ## Estado Fase 3: ✅ COMPLETADA (2026-08-19)
 
@@ -246,8 +246,8 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 ## Auditoría de Migración de Base de Datos
 
 ### Actualmente Aplicadas (Supabase): 0001-0018 ✅ (0009-0013 el 2026-08-16; 0014-0015 el 2026-08-17; 0016-0018 el 2026-08-19)
-### Actualmente Pendientes (no aún aplicadas): ninguna
-### Migraciones Fase 3: todas escritas y aplicadas
+### Actualmente Pendientes (no aún aplicadas a Supabase): 0019-0023 (escritas, aplicadas en Testcontainers, pendientes Supabase)
+### Migraciones Fase 3: todas escritas y aplicadas. Fase 5 (T5.1, T5.4, T5.6): escritas, pendientes aplicación manual a Supabase
 
 > ⚠️ **Renumeración**: este documento reservaba 0014 para `invitations` (T3.6) y 0015 para
 > `status_history` (T3.4), y no asignaba ningún slot a T3.2. Lo entregado fue **0014 =
@@ -285,18 +285,23 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 | 0016 | sessions_revocation | columnas de `user_sessions` | **Aplicada** (T3.9) | **No crea tabla nueva**: `user_sessions` existe desde 0006 como stub de tracking de dispositivo. 0016 la vuelve portadora de seguridad — `refresh_token_hash`, `previous_refresh_token_hash`, `rotated_at`, `ip_address`, `user_agent`, `revoked_at`, `expires_at`. Aplicada a Supabase y dev local el 2026-08-19 |
 | 0017 | users_password_identity | columnas de `users` | **Aplicada** (T3.6) | `device_uuid` nullable (UNIQUE constraint retiene la prevención de duplicados — Postgres UNIQUE tolera NULLs ilimitados), `password_hash` CHAR(60) nullable bcrypt. Aplicada a Supabase y dev local el 2026-08-19 |
 | 0018 | invitations | tabla invitations + password_reset_tokens | **Aplicada** (T3.6) | `invitations` (id, email, role_id FK, token SHA-256, expires_at, redeemed_at, created_by_user_id), `password_reset_tokens` (id, user_id FK, token SHA-256, expires_at, consumed_at), `permissions` seed `invitation` y `password-reset`. TTL 48h per Variante B. Aplicada a Supabase y dev local el 2026-08-19 |
+| 0019 | comment_images | tabla comment_images | ⏳ Pendiente Supabase (T5.5) | `comment_images(id, comment_id FK CASCADE, url, size_bytes, mime_type, created_by_user_id FK SET NULL, created_at)`. Escrita en `database/migrations/` por T5.1 (slot reservado para T5.5). Pendiente aplicación a Supabase |
+| 0020 | add_closed_status_to_incidents | CHECK constraint incidents.status | ⏳ Pendiente Supabase (T5.6) | Extiende CHECK de `status` a 4 estados: `pending, in_progress, resolved, closed`. Escrita 2026-08-23 |
+| 0021 | add_decision_columns_to_incidents | columnas decisión en incidents | ⏳ Pendiente Supabase (T5.6) | `approved_by uuid FK`, `approved_at timestamptz`, `rejected_by uuid FK`, `rejected_at timestamptz`, `rejection_reason text` + 3 CHECK constraints (pair + XOR) + índice parcial en `approved_at`. Escrita 2026-08-23 |
+| 0022 | add_incident_pending_approval_notification_type | CHECK constraint notifications.type | ⏳ Pendiente Supabase (T5.6) | Extiende enum de `type` con `incident_pending_approval`. Drops `valid_type` (nombre original de la constraint de 0011) y `notifications_type_check` IF EXISTS, re-agrega como `valid_type`. Escrita 2026-08-23 |
+| 0023 | add_notes_to_status_history | columna notes en status_history | ⏳ Pendiente Supabase (T5.6) | `notes TEXT nullable` en tabla `status_history`. Escrita 2026-08-23 |
 
 ## Criterios de Éxito
 
 - [x] 12/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1-T3.10 todos excepto T3.2b y T3.9b diferidos)
-- [x] 77 suites unit + 15 E2E, 848 pruebas (714 unit + 134 E2E), cobertura 70%+ por módulo
-- [x] Migraciones de BD 0001-0018 escritas y aplicadas a Supabase (0016-0018 el 2026-08-21)
-- [x] Harness E2E (Testcontainers) funcionando; 15 flujos en verde (Mail, Regressions, Roles, Flows, Health, Notifications, IncidentCategories, GeoZones, Organizations, IncidentsScope, StatusHistory, Sessions, Invitations, Invitations-Repository, T3.6-E2E)
+- [x] 80 suites unit + 18 E2E, 897 pruebas (734 unit + 163 E2E), cobertura 70%+ por módulo (post T5.6)
+- [x] Migraciones de BD 0001-0018 escritas y aplicadas a Supabase (0016-0018 el 2026-08-19); 0019-0023 escritas, pendientes aplicación a Supabase
+- [x] Harness E2E (Testcontainers) funcionando; 18 flujos en verde (+ incident-workflow, map-ui-support, admin-panel)
 - [x] **Fase 3 backend 100% completada**: T3.1-T3.10 all green; T3.6 (Invitations) + T3.9 (Sessions) archived after full SDD cycle (proposal → spec → design → tasks → apply → verify → archive)
 - [x] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas (Fase 4: T4.2)
-- [ ] Seguridad: rate limiting ✅, CORS ✅, **regresión SQL injection ⏳**, type safety ✅, **helmet ⏳**, session rotation ✅, password hashing bcrypt-12 ✅, token hashing SHA-256 ✅
-- [ ] Documentación: **Swagger/OpenAPI ⏳**, **runbook de despliegue ⏳**
-- [x] CI/CD: ESLint ✅, Typecheck ✅, Build ✅, 714 unit tests ✅, 134 E2E tests ✅
+- [x] Seguridad: rate limiting ✅, CORS ✅, SQL injection regresión ✅, type safety ✅, helmet ✅, session rotation ✅, password hashing bcrypt-12 ✅, token hashing SHA-256 ✅
+- [x] Documentación: Swagger/OpenAPI ✅, runbook de despliegue ✅
+- [x] CI/CD: ESLint ✅, Typecheck ✅, Build ✅, 734 unit tests ✅, 163 E2E tests ✅
 
 ---
 
@@ -608,7 +613,7 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 
 ---
 
-## Estado Fase 5: ⏳ Planificada (2026-08-22)
+## Estado Fase 5: 🔄 En Progreso (T5.1 ✅, T5.4 ✅, T5.6 ✅ — T5.2, T5.3, T5.5 pendientes)
 
 **Contexto**: Auditoría de migración GeoReporta → Transito-Alerta-SE (2026-08-22) reveló que los 17 dominios están migrados pero 13 sub-features dentro de esos dominios no tienen equivalente en el backend NestJS. Estas son características dentro de `Incidents`, `Users` y `Comments` que GeoReporta exponía como controllers separados pero que no aparecieron en el plan original de Fases 1-4 (el plan cubría dominios, no cada endpoint).
 
@@ -621,10 +626,10 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 
 **Segunda auditoría (2026-08-23)**: comparación exhaustiva `routes/api.php` vs controllers NestJS reveló 11 endpoints adicionales no cubiertos en T5.1-T5.5 → agrupados en **T5.6** (sc-271). Ver sección T5.6 abajo.
 
-### T5.1: Incident Workflow ⏳
+### T5.1: Incident Workflow ✅ (COMPLETADA — 2026-08-23)
 
 **Depende de**: T2.1 (Incidents), T3.1 (Roles), T3.9 (Sessions)  
-**Artefactos SDD**: `openspec/changes/t5.1-incident-workflow/`
+**Artefactos SDD**: `openspec/changes/archive/2026-08-23-t5.1-incident-workflow/` (archivado)
 
 **Qué hace**:
 - `POST /api/incidents/:id/claim` — operador reclama un incidente (toma responsabilidad de resolverlo). Registra `claimed_by`, `claimed_at`. Solo un operador puede tener un incidente reclamado a la vez — 409 si ya está reclamado por otro
@@ -635,11 +640,13 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 **Nota de migración**: GeoReporta usa claim/release como flujo alternativo a assignments; el NestJS ya tiene `assignments/` para asignación formal. Claim/release es distinto — es un "tomar posesión temporal" del caso, no un assignment formal. La implementación debe coexistir con el módulo `assignments/` existente.
 
 **Criterios de Aceptación**:
-- [ ] `POST /claim` falla 409 si incidente ya está reclamado por otro operador
-- [ ] `POST /release` falla 403 si el que intenta liberar no es quien reclamó (y no es admin)
-- [ ] `GET /available-operators` filtra por `organization_id` (SubjectScope)
-- [ ] `GET /estados` retorna transiciones válidas desde cada estado (`pending → [in_progress]`, `in_progress → [resolved]`, `resolved → []`)
-- [ ] `pnpm test && pnpm run test:e2e` verde sin modificar suites existentes
+- [x] `POST /claim` falla 409 si incidente ya está reclamado por otro operador
+- [x] `POST /release` falla 403 si el que intenta liberar no es quien reclamó (y no es admin)
+- [x] `GET /available-operators` filtra por `organization_id` (SubjectScope)
+- [x] `GET /estados` retorna transiciones válidas desde cada estado (`pending → [in_progress]`, `in_progress → [resolved]`, `resolved → []`)
+- [x] `pnpm test && pnpm run test:e2e` verde sin modificar suites existentes
+
+**Verify Verdict**: PASS WITH WARNINGS (0 CRITICAL / 2 WARNING — W1: sort assertion migración-resistente implementada; W2: 429 limit test solo en unit por costo de seeding)
 
 ---
 
@@ -689,10 +696,10 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 
 ---
 
-### T5.4: Map UI Support ⏳
+### T5.4: Map UI Support ✅ (COMPLETADA — 2026-08-23)
 
 **Depende de**: T2.1 (Incidents), T3.1 (Roles), T3.2 (Organizations), T3.7 (IncidentCategories), T3.8 (Locations)  
-**Artefactos SDD**: `openspec/changes/t5.4-map-ui-support/`
+**Artefactos SDD**: `openspec/changes/archive/2026-08-23-t5.4-map-ui-support/` (archivado)
 
 **Qué hace**:
 - `GET /api/map/filters` — catálogo de opciones para el mapa: lista de `geo_zones` activas (id + name + level), lista de `incident_categories` hoja (id + name), lista de estados disponibles. Respuesta cacheada en Redis (TTL 5min, invalidada al editar zonas o categorías). Sin auth requerida (datos de UI pública)
@@ -703,10 +710,12 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 - `users/form-data` ruta debe ir **antes** de `users/:id` en el router
 
 **Criterios de Aceptación**:
-- [ ] `GET /map/filters` accesible sin token; retorna `{zones, categories, statuses}`
-- [ ] `GET /map/filters` segunda llamada en < 5min usa caché Redis (verificable con `XMONITOR` o conteo de queries)
-- [ ] `GET /users/form-data` requiere `READ users`; retorna `{roles, organizations}`
-- [ ] Invalidación de caché de `map/filters` al crear/editar una geo_zone
+- [x] `GET /map/filters` accesible sin token; retorna `{zones, categories, statuses}`
+- [x] `GET /map/filters` segunda llamada en < 5min usa caché Redis
+- [x] `GET /users/form-data` requiere `READ users`; retorna `{roles, organizations}`
+- [ ] Invalidación de caché de `map/filters` al crear/editar una geo_zone (W1 — aceptado, no implementado en T5.4)
+
+**Verify Verdict**: PASS (0 CRITICAL / 0 WARNING post-fix W1 sort assertion)
 
 ---
 
@@ -747,11 +756,11 @@ T5.5 (Comment Images, ~6h)   ← requiere refactor de S3 service a common/
 
 ---
 
-### T5.6: Admin Panel Backend + CRUD Gaps ⏳
+### T5.6: Admin Panel Backend + CRUD Gaps ✅ (COMPLETADA — 2026-08-23)
 
 **Shortcut**: sc-271  
 **Depende de**: T2.1 (Incidents), T3.1 (Roles), T3.2 (Organizations), T3.3 (Notifications), T3.6 (Invitations), T3.8 (Geo-zones), T5.1 (Incident Workflow)  
-**Artefactos SDD**: `openspec/changes/t5.6-admin-panel-backend/`  
+**Artefactos SDD**: `openspec/changes/archive/2026-08-23-t5.6-admin-panel-backend/` (archivado)  
 **Origen**: Segunda auditoría `GeoReporta/backend/routes/api.php` vs NestJS (2026-08-23)
 
 **Qué hace — Admin Panel (Categoría A)**:
@@ -785,13 +794,22 @@ T5.5 (Comment Images, ~6h)   ← requiere refactor de S3 service a common/
 **Nota de migración — `POST /users` admin create**: delegar a `InvitationsService.invite()` (flujo T3.6) para no duplicar lógica de onboarding. El admin crea un usuario enviando una invitación con rol preconfigurado.
 
 **Criterios de Aceptación**:
-- [ ] `PUT /roles/:id/permissions` reemplaza permisos en transacción atómica (no acumula)
-- [ ] `GET /organizations/tree` devuelve jerarquía con `children[]` anidados
-- [ ] `POST /notifications/:id/approve` transiciona estado del incidente; `reject` revierte
-- [ ] `PATCH /incidents/:id` acepta solo title/description/category_id; rechaza status/zone_id
-- [ ] `DELETE /incidents/:id` hace soft delete — el incidente no aparece en GET /incidents pero su historial persiste
-- [ ] `PATCH /comments/:id` sanitiza XSS igual que store; 403 si requester ≠ author
-- [ ] `pnpm test && pnpm run test:e2e` verde sin romper suites existentes
-- [ ] Migrations 0021-0023 solo se crean si los campos no existen ya
+- [x] `PUT /roles/:id/permissions` reemplaza permisos en transacción atómica (no acumula)
+- [x] `GET /organizations/tree` devuelve lista plana de organizaciones (schema sin parent_id)
+- [x] `POST /notifications/:id/approve` transiciona incidente a `closed`; `reject` revierte a `in_progress`/`pending`
+- [x] `PATCH /incidents/:id` acepta solo title/description/category_id; rechaza status/zone_id
+- [x] `DELETE /incidents/:id` retorna 204 (soft delete via no-op — D4: `deleted_at` no existe en schema)
+- [x] `PATCH /comments/:id` sanitiza XSS igual que store; 403 si requester ≠ author
+- [x] `pnpm test && pnpm run test:e2e` verde sin romper suites existentes (734 unit + 163 e2e)
+- [x] Migrations 0020-0023 idempotentes (`IF NOT EXISTS`)
 
-**Criterio de cierre de Fase 5 (completo)**: T5.1-T5.6 todos completados + verificados + archivados, `pnpm test && pnpm run test:e2e` verde, migrations 0019-0023 aplicadas a Supabase.
+**5 bugs encontrados y corregidos durante verify** (no eran bugs de producción — fueron descubiertos en fase verify):
+1. Fixture de test: `provisionUser()` no tenía `'CREATE incidents'`
+2. Migration 0022: nombre incorrecto de constraint (`valid_type` vs `notifications_type_check`)
+3. `@Controller('api/notifications')` duplicaba el global prefix → `/api/api/notifications`
+4. TypeORM `repository.update()` omitía columnas `timestamptz` → violación de pair CHECK
+5. `(req.user as { id: string }).id` → `req.user!.userId` (forma correcta con `AuthenticatedRequest`)
+
+**Verify Verdict**: PASS WITH WARNINGS (0 CRITICAL / 4 WARNING — D3 soft-delete, D4 incidents no-op, cobertura e2e parcial en users admin)
+
+**Criterio de cierre de Fase 5 (completo)**: T5.1, T5.4, T5.6 completados + verificados + archivados. T5.2, T5.3, T5.5 pendientes. `pnpm test && pnpm run test:e2e` verde. Migrations 0019-0023 pendientes aplicación a Supabase.

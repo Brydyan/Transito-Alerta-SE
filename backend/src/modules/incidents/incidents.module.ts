@@ -9,6 +9,9 @@ import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService } from './incidents.service';
 import { IncidentWorkflowController } from './incident-workflow.controller';
 import { IncidentWorkflowService } from './incident-workflow.service';
+import { IncidentAnalyticsService } from './incident-analytics.service';
+import { IncidentFeedService } from './incident-feed.service';
+import { IncidentExportService } from './incident-export.service';
 
 /**
  * IncidentsModule (design DAG: `Incidents -> Users, IncidentCategories,
@@ -26,7 +29,7 @@ import { IncidentWorkflowService } from './incident-workflow.service';
 @Module({
   imports: [GeofencingModule, OrganizationsModule, TypeOrmModule.forFeature([OrganizationEntity])],
   controllers: [IncidentWorkflowController, IncidentsController],
-  providers: [IncidentsRepository, IncidentsService, IncidentWorkflowService],
+  providers: [IncidentsRepository, IncidentsService, IncidentWorkflowService, IncidentAnalyticsService, IncidentFeedService, IncidentExportService],
   // IncidentsRepository is exported too (T3.2 D3) — Comments/Assignments
   // resolve the PARENT incident under the caller's scope before touching
   // their own rows, without importing the whole IncidentsService surface.

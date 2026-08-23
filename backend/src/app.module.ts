@@ -22,6 +22,7 @@ import { StatusHistoryModule } from './modules/status-history/status-history.mod
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { InvitationsModule } from './modules/invitations/invitations.module';
+import { OperatorsModule } from './modules/operators/operators.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 
 @Module({
@@ -46,6 +47,7 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
     StatusHistoryModule,
     SessionsModule,
     InvitationsModule,
+    OperatorsModule,
   ],
   controllers: [AppController],
   providers: [

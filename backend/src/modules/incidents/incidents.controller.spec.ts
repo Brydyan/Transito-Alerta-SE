@@ -1,6 +1,9 @@
 import { Reflector } from '@nestjs/core';
 import { IncidentsController } from './incidents.controller';
 import { IncidentsService } from './incidents.service';
+import { IncidentAnalyticsService } from './incident-analytics.service';
+import { IncidentFeedService } from './incident-feed.service';
+import { IncidentExportService } from './incident-export.service';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 
@@ -22,7 +25,12 @@ describe('IncidentsController', () => {
       findOne: jest.fn(),
       updateStatus: jest.fn(),
     };
-    controller = new IncidentsController(service as unknown as IncidentsService);
+    controller = new IncidentsController(
+      service as unknown as IncidentsService,
+      {} as IncidentAnalyticsService,
+      {} as IncidentFeedService,
+      {} as IncidentExportService,
+    );
   });
 
   it('POST / requires CREATE incidents permission (anonymous ceiling includes this)', () => {
