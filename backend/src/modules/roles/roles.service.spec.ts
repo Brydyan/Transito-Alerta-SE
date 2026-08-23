@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import type { Repository } from 'typeorm';
+import { DataSource, type Repository } from 'typeorm';
 import { RolesService } from './roles.service';
 import { RoleEntity } from '../../entities/role.entity';
 import { UserEntity } from '../../entities/user.entity';
@@ -22,14 +22,21 @@ function makeActor(overrides: Partial<AuthContext> = {}): AuthContext {
 describe('RolesService', () => {
   let roleRepo: { findOne: jest.Mock };
   let userRepo: { findOne: jest.Mock; save: jest.Mock };
+  let dataSource: { transaction: jest.Mock };
   let authService: { invalidatePermissionCache: jest.Mock };
   let service: RolesService;
 
   beforeEach(() => {
     roleRepo = { findOne: jest.fn() };
     userRepo = { findOne: jest.fn(), save: jest.fn(async (x) => x) };
+    dataSource = { transaction: jest.fn(async (cb) => cb({ getRepository: () => ({ save: async (x: unknown) => x }) })) };
     authService = { invalidatePermissionCache: jest.fn() };
-    service = new RolesService(roleRepo as unknown as jest.Mocked<Repository<RoleEntity>>, userRepo as unknown as jest.Mocked<Repository<UserEntity>>, authService as unknown as jest.Mocked<AuthService>);
+    service = new RolesService(
+      roleRepo as unknown as jest.Mocked<Repository<RoleEntity>>,
+      userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
+      dataSource as unknown as DataSource,
+      authService as unknown as jest.Mocked<AuthService>,
+    );
   });
 
   describe('listPermissions', () => {

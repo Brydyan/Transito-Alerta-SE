@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -20,6 +23,8 @@ import { AuthenticatedRequest } from '../../common/interfaces/authenticated-requ
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserEntity } from '../../entities/user.entity';
 import { SessionResponseDto } from '../sessions/dto/session-response.dto';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { FormDataResponseDto } from './dto/form-data-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserOrganizationDto } from './dto/update-user-organization.dto';
@@ -68,6 +73,38 @@ export class UsersController {
   @Get('me/sessions')
   meSessions(@Req() req: AuthenticatedRequest): Promise<SessionResponseDto[]> {
     return this.usersService.getSessionsForSelf(req.user!);
+  }
+
+  // ---- T5.6 admin CRUD: create / show / update / delete
+  // Declared BEFORE `:id` and `:id/...` to avoid the literal segment
+  // being captured as an id param (defense in depth).
+
+  @Post()
+  @RequirePermission('CREATE')
+  adminCreate(@Body() dto: AdminCreateUserDto): Promise<UserEntity> {
+    return this.usersService.adminCreate(dto);
+  }
+
+  @Get(':id')
+  @RequirePermission('READ')
+  adminShow(@Param('id', ParseUUIDPipe) id: string): Promise<UserEntity> {
+    return this.usersService.findById(id);
+  }
+
+  @Patch(':id')
+  @RequirePermission('UPDATE')
+  adminUpdate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdminUpdateUserDto,
+  ): Promise<UserEntity> {
+    return this.usersService.adminUpdate(id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermission('DELETE')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  adminDelete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.usersService.softDelete(id);
   }
 
   /**

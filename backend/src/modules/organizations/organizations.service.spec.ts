@@ -33,7 +33,12 @@ describe('OrganizationsService', () => {
       findAll: jest.fn(),
       findByZone: jest.fn(),
     };
-    service = new OrganizationsService(repo as unknown as OrganizationsRepository);
+    service = new OrganizationsService(
+      repo as unknown as OrganizationsRepository,
+      { find: jest.fn() } as never,
+      { find: jest.fn() } as never,
+      { resolveZone: jest.fn() } as never,
+    );
   });
 
   describe('create', () => {
