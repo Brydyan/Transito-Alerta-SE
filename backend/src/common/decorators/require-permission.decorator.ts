@@ -2,7 +2,17 @@ import { SetMetadata } from '@nestjs/common';
 
 export const REQUIRE_PERMISSION_KEY = 'atl:require-permission';
 
-export type PermissionAction = 'READ' | 'CREATE' | 'UPDATE' | 'DELETE' | 'ASSIGN';
+export type PermissionAction =
+  | 'READ'
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'ASSIGN'
+  // T5.1 — operator-driven claim/release workflow. The CHECK constraint on
+  // permissions.action in migration 0019 extends the allowed set in lockstep
+  // with this type; keep both in sync.
+  | 'CLAIM'
+  | 'RELEASE';
 
 export interface RequiredPermission {
   action: PermissionAction;

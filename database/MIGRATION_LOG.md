@@ -31,6 +31,7 @@ actually been run against that environment.
 | 0016 | sessions_revocation | additive `ALTER TABLE user_sessions` — 8 nullable columns (`refresh_token_hash`, `previous_refresh_token_hash`, `rotated_at`, `ip_address`, `user_agent`, `revoked_at`, `last_used_at`, `expires_at`); `expires_at` backfilled to `created_at` for pre-existing rows; 2 partial indexes (`idx_user_sessions_active`, `idx_user_sessions_revoked`); `sessions` permission catalog rows (`READ`, `DELETE`) appended to `admin_sistema`/`admin_organizacion` role matrices (T3.9). Requires 0015 (staff roles) — aborts loudly otherwise. Verified idempotent (applied twice) and rollback-clean against local Postgres 2026-08-17 | ✅ Applied | Andy Alejandro | 2026-08-21 | supabase |
 | 0017 | users_password_identity | `users.password_hash char(60)` (nullable, bcrypt); `users.device_uuid` and `user_sessions.device_uuid` relaxed to nullable — identity moves to email for password-identity users while `users_device_uuid_key` is KEPT (UNIQUE tolerates many NULLs, D7). Requires 0010 (`users.email`) — aborts loudly otherwise (T3.6) | ✅ Applied | Andy Alejandro | 2026-08-21 | supabase |
 | 0018 | invitations | `invitations` table (single-use 48h token, `token_hash` UNIQUE, `accepted_at` is the sole used-state) + `password_reset_tokens` table (single-use 24h token, same shape); 3 `invitations` permission catalog rows (`CREATE`/`READ`/`DELETE`) appended to `admin_sistema`/`admin_organizacion` role matrices. Requires 0015 (staff roles) and 0017 (T3.6) | ✅ Applied | Andy Alejandro | 2026-08-21 | supabase |
+| 0019 | incident_claim | adds `incidents.claimed_by uuid REFERENCES users(id) ON DELETE SET NULL` + partial index `idx_incidents_claimed_by`; `organizations.max_active_claims int NOT NULL DEFAULT 5 CHECK (> 0)`; extends the `permissions.action` CHECK constraint to admit `CLAIM` and `RELEASE` (in lockstep with the `PermissionAction` union in `src/common/decorators/require-permission.decorator.ts`); seeds the two new permission rows; grants both to `operador_organizacion` and `operador_sistema` via the `roles.permissions` JSONB column (the same pattern 0018 uses — the project has no `role_permissions` table; T5.1). | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |
 
 ## Status legend
 
@@ -60,3 +61,19 @@ las 13 aplican limpio y el backfill de 0013 deja la provincia como raíz con sus
 
 Este log rastrea **supabase**. El entorno local se recrea desde cero cuando
 haga falta (`docker compose down -v`), así que no lleva registro propio.
+
+## 0019 — T5.1 Incident Workflow (2026-08-23)
+
+✅ Applied (Supabase staging, pendiente prod).
+
+- Adds `incidents.claimed_by uuid REFERENCES users(id) ON DELETE SET NULL`.
+- Adds `organizations.max_active_claims int NOT NULL DEFAULT 5 CHECK (> 0)`.
+- Extends `permissions.action` CHECK constraint: now also allows `CLAIM` and `RELEASE`.
+- Seeds `(incidents, CLAIM)` and `(incidents, RELEASE)` permission rows.
+- Grants both to `operador_organizacion` and `operador_sistema` via the
+  `roles.permissions` JSONB column (the same pattern 0018 uses — the project
+  has no `role_permissions` table).
+
+TypeScript side: `PermissionAction` union in
+`backend/src/common/decorators/require-permission.decorator.ts` extended to
+include `'CLAIM' | 'RELEASE'` in lockstep.

@@ -61,6 +61,10 @@ export class IncidentEntity {
   @Column({ name: 'organization_id', type: 'uuid', nullable: true })
   organizationId!: string | null;
 
+  /** T5.1 — operator who currently holds the claim. NULL = unclaimed. */
+  @Column({ name: 'claimed_by', type: 'uuid', nullable: true })
+  claimedBy!: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
