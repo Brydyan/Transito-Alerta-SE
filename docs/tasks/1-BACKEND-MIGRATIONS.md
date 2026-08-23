@@ -829,7 +829,7 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 
 ## Auditoría de Migración GeoReporta → TASE (2026-08-23)
 
-Análisis exhaustivo de `GeoReporta/backend/routes/api.php` vs NestJS. Resultado: **todos los dominios migrados**. Un gap menor identificado.
+Análisis exhaustivo realizado 2026-08-23: `GeoReporta/backend/routes/api.php`, controllers, models y migrations vs NestJS. Fuente: agente Explore + revisión manual.
 
 ### Eliminaciones Intencionales (confirmadas)
 
@@ -844,12 +844,12 @@ Análisis exhaustivo de `GeoReporta/backend/routes/api.php` vs NestJS. Resultado
 
 ### Cobertura Confirmada
 
-Todos los demás endpoints de GeoReporta tienen equivalente en NestJS:
+Todos los endpoints de GeoReporta tienen equivalente en NestJS, con pequeñas diferencias de path (no de funcionalidad):
 - `/auth/*`, `/me`, `/invitations/*` → `auth` + `invitations` modules
-- `GET /invitations/{token}/preview` → `GET /invitations/preview?token=` (query param en vez de path param)
+- `GET /invitations/{token}/preview` → `GET /invitations/preview?token=` (query param)
 - `/incidents/*` (CRUD + claim/release/stats/feed/export/weekly-stats) → `incidents` + T5.1 + T5.2
 - `/comments/*` + images → `comments` + T5.5
-- `/assignments/*` → `assignments` module
+- `/assignments/*` → `assignments` module (rutas planas en NestJS vs nested en GeoReporta — funcionalidad equivalente)
 - `/status-history/*` → `status-history` module (T3.4)
 - `/operator/*` → `operators` module (T5.3)
 - `/notifications/*` (approve/reject) → `notifications` + T5.6
@@ -859,13 +859,55 @@ Todos los demás endpoints de GeoReporta tienen equivalente en NestJS:
 - `/users/*` (admin CRUD + form-data) → `users` + T5.6
 - `/roles/*` (CRUD + permissions sync) → `roles` + T5.6
 - `GET /permissions` → `permissions` module
-- `GET /menus/my` → `menus` module (T3.10)
-- `GET /estados` → `incidents` module (T5.1)
+- `GET /menus/my` → `GET /menus` (sin `/my`, mismo resultado) — `menus` module (T3.10)
+- `GET /estados` → `GET /incidents/statuses` — `incidents` module (T5.1)
 
-### Gap Identificado (menor)
+### Gaps Identificados
 
-| Endpoint | Estado | Acción sugerida |
+#### 🔴 Alta prioridad (bloqueantes de producción o integridad de datos)
+
+| # | Gap | Detalle |
 |---|---|---|
-| `GET /permissions/my` — lista los permisos del usuario autenticado | ❌ No implementado | Los permisos están en el JWT payload (disponibles vía `GET /me`). Si el frontend necesita un endpoint dedicado, implementar como `@Get('my')` en `PermissionsController` — ~30min |
+| G1 | **Sin endpoint de serving de imágenes** | GeoReporta tiene `GET /storage/{path}` (StorageProxyController) que traduce rutas S3 y sirve con `Cache-Control: immutable`. NestJS tiene servicios de upload pero **ningún endpoint para leer imágenes almacenadas**. Sin esto los avatares y comment images no son desplegables |
+| G2 | **Sin upload de imágenes en incidentes** | GeoReporta acepta `images[]` en `POST /incidents` via tabla polimórfica `images`. NestJS no implementa subida de imágenes en incidentes. `IncidentEntity` no tiene relación con imágenes |
+| G3 | **Hard delete en incidents y users** | GeoReporta usa `SoftDeletes` (Eloquent). NestJS `softDelete()` hace hard delete — `incidents.deleted_at` nunca fue añadida como columna (deuda documentada en T5.6 D4). Incidentes/usuarios borrados son irrecuperables |
+| G4 | **`incidents.claimed_at` ausente** | T5.1 añadió `claimed_by uuid` pero NO `claimed_at timestamp`. GeoReporta registra cuándo ocurrió el claim. Afecta reporting y dashboards |
+| G5 | **`incidents.resolution_date` ausente** | GeoReporta tiene columna dedicada (seteada por un `booted()` hook al pasar a `resolved`). NestJS deriva de `updated_at` — impreciso si el status cambia de nuevo después |
+| G6 | **`GET /organizations/notified-for` incompleto** | GeoReporta acepta `?location_id&category_id`, filtra con cobertura de categoría, y devuelve `is_claimable` por org. NestJS acepta `?lat&lng` (sin `category_id`), sin `is_claimable`. El formulario de creación de incidente muestra "Organización responsable" — la discrepancia puede asignar a una org diferente de la mostrada |
 
-> **Fuente de verdad**: `GeoReporta/backend/routes/api.php`. Análisis realizado 2026-08-23.
+#### 🟡 Media prioridad (deuda de schema o compatibilidad frontend)
+
+| # | Gap | Detalle |
+|---|---|---|
+| G7 | **Columns ausentes en `users`**: `email_verified_at`, `terms_accepted_at` (v`v0`), `terms_version`, `deleted_at` | GeoReporta tiene OTP verification (`verification_otp`, `verification_otp_expires_at`) — excluidos intencionalmente. Pero `terms_accepted_at`/`terms_version` son columnas de compliance legal. `deleted_at` → hard deletes actuales |
+| G8 | **`PATCH /assignments/:id` no permite cambiar rol** | GeoReporta `PUT /incidents/:id/assignments/:id` acepta campo `role`. NestJS solo acepta `operator_id` — no hay forma de cambiar el rol de una asignación existente |
+| G9 | **`assignments.deleted_at` ausente** | GeoReporta tiene partial UNIQUE index sobre asignaciones activas (excluye deleted). NestJS podría tener colisión de constraint al reasignar un operador previamente desasignado |
+| G10 | **`GET /notifications/unread-count` path + key mismatch** | GeoReporta: `GET /notifications/unread-count` → `{ unread_count: N }`. NestJS: `GET /notifications/unread` → `{ unread: N }`. Frontend necesita adaptar ambos (path y key) |
+
+#### 🟢 Baja prioridad (diferencias de diseño, no funcionales)
+
+| # | Gap | Detalle |
+|---|---|---|
+| G11 | **`GET /permissions/my` ausente** | GeoReporta lo tiene; NestJS expone permisos via `GET /auth/me`. No es un blocker funcional |
+| G12 | **Menus no son DB-backed** | GeoReporta tiene tabla `menus` + `menu_permission`. NestJS usa `menu-map.ts` hardcodeado — sin configuración runtime |
+| G13 | **Path renames** | `exportar→export`, `estado→status`, `estados→statuses`, `comments` nested vs flat |
+
+### Tabla polimórfica `images` (GeoReporta)
+
+GeoReporta creó en `2026_07_25_000001_create_images_table.php` una tabla `images(id, imageable_type, imageable_id, storage_path, original_name, mime_type, size, is_thumbnail, sort_order, caption, timestamps)` para avatares, comment images e incident images de forma unificada.
+
+NestJS tiene:
+- Avatares: columna `avatar_url` en `users` (string)
+- Comment images: tabla `comment_images` separada (T5.5, migration 0024)
+- Incident images: **no implementado**
+
+### Recomendación de próximos pasos (Fase 6)
+
+Ordenados por impacto:
+1. **G1 + G2**: Serving de imágenes + upload en incidentes (requiere decisión de arquitectura: tabla polimórfica unificada o tabla `incident_images` separada al estilo T5.5)
+2. **G3**: Soft delete en incidents y users (migration + TypeORM `@DeleteDateColumn`)
+3. **G4 + G5**: `incidents.claimed_at` y `incidents.resolution_date` (migrations sencillas)
+4. **G6**: Completar `GET /organizations/notified-for` con `category_id` + `is_claimable`
+5. **G10**: Fix path/key de `notifications/unread-count` (trivial)
+
+> **Fuente**: `GeoReporta/backend/routes/api.php`, `app/Http/Controllers/`, `database/migrations/`, `app/Models/`. Análisis realizado 2026-08-23 con agente Explore.
