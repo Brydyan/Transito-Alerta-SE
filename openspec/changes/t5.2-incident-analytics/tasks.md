@@ -5,25 +5,25 @@ No new migrations. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 0: DTOs
 
-- [ ] 0.1 Create `backend/src/modules/incidents/dto/stats-query.dto.ts` with class-validator
+- [x] 0.1 Create `backend/src/modules/incidents/dto/stats-query.dto.ts` with class-validator
       decorators: `inicio?`, `fin?` (IsDateString), `tipo_id?`, `ciudad_id?`, `provincia_id?`,
       `pais_id?` (IsUUID, optional).
-- [ ] 0.2 Create `backend/src/modules/incidents/dto/weekly-stats-query.dto.ts` — same fields as
+- [x] 0.2 Create `backend/src/modules/incidents/dto/weekly-stats-query.dto.ts` — same fields as
       `StatsQueryDto`.
-- [ ] 0.3 Create `backend/src/modules/incidents/dto/feed-query.dto.ts` with `bbox?` (IsString),
+- [x] 0.3 Create `backend/src/modules/incidents/dto/feed-query.dto.ts` with `bbox?` (IsString),
       `zoom?` (IsInt, 1–22), `status?`, `priority?`, `location_id?`, `incident_category_id?`,
       `per_page?` (IsInt, 1–500), `page?` (IsInt, min 1).
-- [ ] 0.4 Create `backend/src/modules/incidents/dto/export-query.dto.ts` (extends StatsQueryDto).
-- [ ] 0.5 Create `backend/src/modules/incidents/dto/stats-response.dto.ts` — interfaces for
+- [x] 0.4 Create `backend/src/modules/incidents/dto/export-query.dto.ts` (extends StatsQueryDto).
+- [x] 0.5 Create `backend/src/modules/incidents/dto/stats-response.dto.ts` — interfaces for
       `IncidentStatsResponseDto`, `WeeklyStatsResponseDto`, `FeedResponseDto`, `FeedItemDto`.
 
 ## Phase 1: Analytics Service
 
-- [ ] 1.1 Create `backend/src/modules/incidents/incident-analytics.service.ts` injecting
+- [x] 1.1 Create `backend/src/modules/incidents/incident-analytics.service.ts` injecting
       `DataSource` and `CACHE_MANAGER`.
-- [ ] 1.2 Implement `buildOrgScope(user: UserEntity): string | null` helper — returns `'system'`,
+- [x] 1.2 Implement `buildOrgScope(user: UserEntity): string | null` helper — returns `'system'`,
       `'org:{id}'`, or `'user:{id}'` based on role.
-- [ ] 1.3 Implement `getStats(query: StatsQueryDto, user: UserEntity): Promise<IncidentStatsResponseDto>`:
+- [x] 1.3 Implement `getStats(query: StatsQueryDto, user: UserEntity): Promise<IncidentStatsResponseDto>`:
       - Compute cache key: `stats:{orgScope}:{filterHash}`.
       - Try Redis cache; on miss, compute and cache for 3600s.
       - Compute: `total`, `by_status` (zero-filled for all 3 statuses), `by_priority`
@@ -32,7 +32,7 @@ No new migrations. Strict TDD. Run `npm test` baseline before Phase 1.
         `trends` (current vs previous equal-length period), `top_categories` (top 5 by count).
       - Apply org scope via WHERE clause on `organization_id`.
       - Apply date/category/location filters from `query`.
-- [ ] 1.4 Implement `getWeeklyStats(query: WeeklyStatsQueryDto, user: UserEntity): Promise<WeeklyStatsResponseDto>`:
+- [x] 1.4 Implement `getWeeklyStats(query: WeeklyStatsQueryDto, user: UserEntity): Promise<WeeklyStatsResponseDto>`:
       - Default window: last 10 days (`endDate = now, startDate = now - 9 days`).
       - Validate `fin >= inicio` when both provided (422 if not).
       - Build daily series by fetching `recibidas` (GROUP BY created_at date) and `resueltas`
@@ -43,7 +43,7 @@ No new migrations. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 2: Unit Tests (Analytics Service)
 
-- [ ] 2.1 `backend/src/modules/incidents/incident-analytics.service.spec.ts`:
+- [x] 2.1 `backend/src/modules/incidents/incident-analytics.service.spec.ts`:
       - `getStats` org scoping: system admin gets total across orgs; org-admin gets only own org.
       - `getStats` zero-fill: all status/priority keys present even with no data.
       - `getStats` trends: positive total_pct when current > previous.
@@ -54,16 +54,16 @@ No new migrations. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 3: Feed Service
 
-- [ ] 3.1 Create `backend/src/modules/incidents/incident-feed.service.ts` injecting
+- [x] 3.1 Create `backend/src/modules/incidents/incident-feed.service.ts` injecting
       `DataSource` and `CACHE_MANAGER` (for citizen Redis read model).
-- [ ] 3.2 Implement `isStaffRole(user: UserEntity): boolean` helper using role name constants.
-- [ ] 3.3 Implement `getStaffFeed(query: FeedQueryDto, user: UserEntity): Promise<FeedResponseDto>`:
+- [x] 3.2 Implement `isStaffRole(user: UserEntity): boolean` helper using role name constants.
+- [x] 3.3 Implement `getStaffFeed(query: FeedQueryDto, user: UserEntity): Promise<FeedResponseDto>`:
       - Apply org scope.
       - Optional `bbox` filter using PostGIS `ST_Within(location, ST_MakeEnvelope(...))`.
       - Hard cap 500 when `bbox` present (`LIMIT MIN(per_page, 500)`).
       - Joins: `incident_categories`, `organizations`, `users` (slim user shape).
       - Returns `{data: FeedItemDto[], meta: PaginationMeta}`.
-- [ ] 3.4 Implement `getCitizenFeed(query: FeedQueryDto): Promise<FeedResponseDto>`:
+- [x] 3.4 Implement `getCitizenFeed(query: FeedQueryDto): Promise<FeedResponseDto>`:
       - Read from Redis key `feed:incidents` (JSON array).
       - On cache miss: fall back to Postgres with no org scope, status filter applied (design D1).
       - Filter by `status`, `organization_id`, `location_id` in memory (or SQL fallback).
@@ -71,7 +71,7 @@ No new migrations. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 4: Unit Tests (Feed Service)
 
-- [ ] 4.1 `backend/src/modules/incidents/incident-feed.service.spec.ts`:
+- [x] 4.1 `backend/src/modules/incidents/incident-feed.service.spec.ts`:
       - Staff feed: returns org-scoped incidents.
       - Citizen feed: returns Redis data when present.
       - Citizen feed: falls back to Postgres when Redis key absent.
@@ -79,9 +79,9 @@ No new migrations. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 5: Export Service
 
-- [ ] 5.1 Create `backend/src/modules/incidents/incident-export.service.ts` injecting `DataSource`.
-- [ ] 5.2 Implement `countFiltered(query: ExportQueryDto, user: UserEntity): Promise<number>`.
-- [ ] 5.3 Implement `createCsvStream(query: ExportQueryDto, user: UserEntity, cap: number): Readable`:
+- [x] 5.1 Create `backend/src/modules/incidents/incident-export.service.ts` injecting `DataSource`.
+- [x] 5.2 Implement `countFiltered(query: ExportQueryDto, user: UserEntity): Promise<number>`.
+- [x] 5.3 Implement `createCsvStream(query: ExportQueryDto, user: UserEntity, cap: number): Readable`:
       - Node.js `PassThrough` stream.
       - Write CSV header row.
       - Fetch rows in batches of 500 (cursor-based or OFFSET) up to `cap`.
@@ -90,27 +90,27 @@ No new migrations. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 6: Unit Tests (Export Service)
 
-- [ ] 6.1 `backend/src/modules/incidents/incident-export.service.spec.ts`:
+- [x] 6.1 `backend/src/modules/incidents/incident-export.service.spec.ts`:
       - CSV header row matches expected columns.
       - Row count capped at 5000 when total > 5000.
       - Filters applied correctly (date range narrows result).
 
 ## Phase 7: Controller Wiring
 
-- [ ] 7.1 Add to `IncidentsController`:
+- [x] 7.1 Add to `IncidentsController`:
       - `GET /incidents/stats` → `@RequirePermissions('READ dashboard')` → `analyticsService.getStats()`.
       - `GET /incidents/weekly-stats` → same guard → `analyticsService.getWeeklyStats()`.
       - `GET /incidents/feed` → `JwtAuthGuard` + role dispatch in service → `feedService.getStaffFeed()` or `getCitizenFeed()`.
       - `GET /incidents/export` → `READ dashboard` + `@Res()` streaming → `exportService`.
-- [ ] 7.2 Register `IncidentAnalyticsService`, `IncidentFeedService`, `IncidentExportService` in
+- [x] 7.2 Register `IncidentAnalyticsService`, `IncidentFeedService`, `IncidentExportService` in
       `IncidentsModule` providers.
-- [ ] 7.3 Ensure `CacheModule` is imported in `IncidentsModule` (or globally available).
-- [ ] 7.4 Verify route order: `GET /incidents/stats`, `/weekly-stats`, `/feed`, `/export` are all
+- [x] 7.3 Ensure `CacheModule` is imported in `IncidentsModule` (or globally available).
+- [x] 7.4 Verify route order: `GET /incidents/stats`, `/weekly-stats`, `/feed`, `/export` are all
       registered BEFORE `GET /incidents/:id` to avoid shadowing.
 
 ## Phase 8: E2E Tests
 
-- [ ] 8.1 `backend/test/e2e/incident-analytics.e2e-spec.ts`:
+- [x] 8.1 `backend/test/e2e/incident-analytics.e2e-spec.ts`:
       - Seed incidents across 2 orgs.
       - System admin stats → total across both orgs.
       - Org admin stats → only own org.
@@ -123,7 +123,7 @@ No new migrations. Strict TDD. Run `npm test` baseline before Phase 1.
 
 ## Phase 9: Lint + Type Check
 
-- [ ] 9.1 `npm run lint` — zero new violations.
-- [ ] 9.2 `npm run typecheck` — no errors.
-- [ ] 9.3 `npm run build` — clean.
-- [ ] 9.4 `npm test && npm run test:e2e` — full suite green.
+- [x] 9.1 `npm run lint` — zero new violations.
+- [x] 9.2 `npm run typecheck` — no errors.
+- [x] 9.3 `npm run build` — clean.
+- [x] 9.4 `npm test && npm run test:e2e` — full suite green.
