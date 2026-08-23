@@ -829,85 +829,165 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 
 ## Auditoría de Migración GeoReporta → TASE (2026-08-23)
 
-Análisis exhaustivo realizado 2026-08-23: `GeoReporta/backend/routes/api.php`, controllers, models y migrations vs NestJS. Fuente: agente Explore + revisión manual.
+Análisis exhaustivo: `GeoReporta/backend/` (routes, controllers, models, migrations, jobs, listeners, commands) vs `backend/` (NestJS). Dos pasadas — route-level y deep domain-level.
+
+**Veredicto global: ~78-82% paridad funcional.** Todos los dominios core están portados. Los gaps se agrupan en tres clusters: (a) infraestructura de imágenes, (b) integridad de datos (soft deletes + columnas faltantes), (c) mismatches de path que rompen frontend existente.
+
+---
 
 ### Eliminaciones Intencionales (confirmadas)
 
 | Feature GeoReporta | Razón de exclusión |
 |---|---|
 | `POST /auth/google` (Firebase) | Replaced by device UUID + invitation model (D1) |
-| `POST /register` (open registration) | Replaced by invitation-only onboarding |
-| `POST/GET /email/verify-otp`, `/email/resend`, `/email/notice` | OTP email verification excluido de stack |
-| `GET /notifications/stream` (SSE) | Replaced by WebSocket + Redis Streams (T2.5) |
+| `POST /register` (open registration) | Invitation-only onboarding (posiblemente intencional) |
+| `GET /notifications/stream` (SSE) | Replaced by Socket.IO WebSocket + Redis Streams (T2.5) |
 | `apiResource /locations` (admin CRUD) | Replaced by `/geo-zones` (T3.8) |
-| `GET /locations/catalog` (citizen form cascade) | TASE deriva zona automáticamente de coordenadas GPS — sin selección administrativa manual |
+| `GET /locations/catalog` | TASE deriva zona de GPS — sin selección administrativa manual |
 
-### Cobertura Confirmada
+---
 
-Todos los endpoints de GeoReporta tienen equivalente en NestJS, con pequeñas diferencias de path (no de funcionalidad):
-- `/auth/*`, `/me`, `/invitations/*` → `auth` + `invitations` modules
-- `GET /invitations/{token}/preview` → `GET /invitations/preview?token=` (query param)
-- `/incidents/*` (CRUD + claim/release/stats/feed/export/weekly-stats) → `incidents` + T5.1 + T5.2
-- `/comments/*` + images → `comments` + T5.5
-- `/assignments/*` → `assignments` module (rutas planas en NestJS vs nested en GeoReporta — funcionalidad equivalente)
-- `/status-history/*` → `status-history` module (T3.4)
-- `/operator/*` → `operators` module (T5.3)
-- `/notifications/*` (approve/reject) → `notifications` + T5.6
-- `/map/filters` → `map` module (T5.4)
-- `/organizations/*` (tree/form-data/notified-for) → `organizations` + T5.6
-- `/incident-categories/*` (tree) → `incident-categories` module (T3.7)
-- `/users/*` (admin CRUD + form-data) → `users` + T5.6
-- `/roles/*` (CRUD + permissions sync) → `roles` + T5.6
-- `GET /permissions` → `permissions` module
-- `GET /menus/my` → `GET /menus` (sin `/my`, mismo resultado) — `menus` module (T3.10)
-- `GET /estados` → `GET /incidents/statuses` — `incidents` module (T5.1)
+### Estado por Dominio
 
-### Gaps Identificados
+| Dominio / Feature | Estado | Nota |
+|---|---|---|
+| Auth — login (device UUID + password) | ✅ | Path: `/login` → `/auth/login` |
+| Auth — refresh, logout, me, change-password | ✅ | |
+| Auth — password reset (request + confirm) | ✅ | |
+| Auth — Firebase/Google | 🚫 EXCLUIDO | |
+| Auth — auto-registro público | 🚫 EXCLUIDO | Invitation-only (T3.6) |
+| Email OTP verification | ❌ FALTA | G11 — flujo completo ausente |
+| Sessions (list, revoke) | ✅ | |
+| Invitations (create, list, delete) | ✅ | NestJS tiene más que GeoReporta |
+| Invitations — accept | ⚠️ PARCIAL | Path mismatch (G18); `terms_version` no grabado (G7) |
+| Invitations — preview | ⚠️ PARCIAL | Query param vs path param (G17) |
+| Users CRUD | ⚠️ PARCIAL | Faltan `terms_accepted_at`, `email_verified_at`, OTP cols (G7) |
+| UserAnonymizer (GDPR) | ❌ FALTA | G19 — solo `isActive=false`, sin borrado de PII |
+| Roles CRUD + syncPermissions | ✅ | |
+| Permissions catalog | ✅ | `GET /permissions` |
+| `GET /permissions/my` | ⚠️ PARCIAL | Expuesto en `GET /auth/me`; sin endpoint dedicado (G21) |
+| Menus | ⚠️ PARCIAL | Path: `/menus/my` → `/menus` (G14) |
+| Incidents CRUD | ⚠️ PARCIAL | Sin soft-delete (G3), `claimed_at` (G4), `resolution_date` (G5), image upload (G2) |
+| Incidents — claim/release | ⚠️ PARCIAL | Lógica portada; falta `claimed_at` (G4) |
+| Incidents — available-operators | ✅ | |
+| Incidents — status update | ⚠️ PARCIAL | `resolution_date` no seteada (G5); path `/estado` → `/status` (G20) |
+| Incidents — stats / weekly-stats | ✅ | |
+| Incidents — feed (Redis) | ✅ | Sin comando de rebuild post-flush (G15) |
+| Incidents — export CSV | ⚠️ PARCIAL | Path `exportar`→`export` (G12); sin XLSX/PDF (G12) |
+| Incidents — image upload | ❌ FALTA | G2 — `POST /incidents` no acepta `images[]` |
+| Comments CRUD | ✅ | URL flat vs shallow-nested (G22) |
+| Comment images | ✅ | T5.5 |
+| Assignments — create/list/delete | ⚠️ PARCIAL | Hard delete en vez de soft (G9); URL structure (G22) |
+| Assignments — cambiar rol | ❌ FALTA | G8/G16 — PATCH solo cambia operador, no rol |
+| Status history | ✅ | |
+| `GET /estados` (catálogo estados) | ⚠️ PARCIAL | Path top-level → nested `/incidents/statuses` (G20) |
+| Notifications — list, mark-read, mark-all-read | ✅ | |
+| Notifications — approve/reject | ✅ | |
+| Notifications — unread count | ⚠️ PARCIAL | Path + key mismatch (G10) — **badge del frontend roto** |
+| Notifications — SSE stream | 🚫 EXCLUIDO | Replaced by Socket.IO; path 404 (G13) |
+| Organizations CRUD + tree + formData | ✅ | |
+| Organizations — notifiedFor | ⚠️ PARCIAL | Input schema incompatible + falta `is_claimable` (G6) |
+| Incident categories CRUD + tree | ✅ | |
+| Geo-zones (reemplaza locations) | ✅ | T3.8 |
+| Map filters | ✅ | |
+| Operator location/dashboard | ✅ | T5.3 |
+| Socket.IO real-time | ✅ | T2.5 |
+| Mail outbox (Redis Streams + SMTP) | ✅ | T3.5 |
+| Storage proxy (`GET /storage/{path}`) | ❌ FALTA | G1 — NestJS almacena URLs directas, no object keys |
+| Feed rebuild recovery | ❌ FALTA | G15 — sin `@nestjs/schedule`, sin comando de recuperación |
 
-#### 🔴 Alta prioridad (bloqueantes de producción o integridad de datos)
+---
+
+### Gaps Detallados
+
+#### 🔴 P1 — Bloqueantes de producción (rompen flows existentes)
 
 | # | Gap | Detalle |
 |---|---|---|
-| G1 | **Sin endpoint de serving de imágenes** | GeoReporta tiene `GET /storage/{path}` (StorageProxyController) que traduce rutas S3 y sirve con `Cache-Control: immutable`. NestJS tiene servicios de upload pero **ningún endpoint para leer imágenes almacenadas**. Sin esto los avatares y comment images no son desplegables |
-| G2 | **Sin upload de imágenes en incidentes** | GeoReporta acepta `images[]` en `POST /incidents` via tabla polimórfica `images`. NestJS no implementa subida de imágenes en incidentes. `IncidentEntity` no tiene relación con imágenes |
-| G3 | **Hard delete en incidents y users** | GeoReporta usa `SoftDeletes` (Eloquent). NestJS `softDelete()` hace hard delete — `incidents.deleted_at` nunca fue añadida como columna (deuda documentada en T5.6 D4). Incidentes/usuarios borrados son irrecuperables |
-| G4 | **`incidents.claimed_at` ausente** | T5.1 añadió `claimed_by uuid` pero NO `claimed_at timestamp`. GeoReporta registra cuándo ocurrió el claim. Afecta reporting y dashboards |
-| G5 | **`incidents.resolution_date` ausente** | GeoReporta tiene columna dedicada (seteada por un `booted()` hook al pasar a `resolved`). NestJS deriva de `updated_at` — impreciso si el status cambia de nuevo después |
-| G6 | **`GET /organizations/notified-for` incompleto** | GeoReporta acepta `?location_id&category_id`, filtra con cobertura de categoría, y devuelve `is_claimable` por org. NestJS acepta `?lat&lng` (sin `category_id`), sin `is_claimable`. El formulario de creación de incidente muestra "Organización responsable" — la discrepancia puede asignar a una org diferente de la mostrada |
+| G3 | **Soft-delete en incidents ausente** | `incidents.deleted_at` nunca añadido (T5.6 D4 documentado como deuda). Hard delete destruye audit trail + status-history. Users: usa `isActive=false` (no hard delete — aceptable). Assignments: hard delete (ver G9) |
+| G6 | **`GET /organizations/notified-for` input incompatible** | GeoReporta: `?location_id&category_id` (IDs de form cascade). NestJS: `?lat&lng` (coordenadas GPS brutas). El frontend manda `location_id+category_id`, NestJS no los reconoce → 500/empty. Además falta flag `is_claimable` por org |
+| G9 | **`assignments.deleted_at` ausente** | GeoReporta usa SoftDeletes + partial UNIQUE index `WHERE deleted_at IS NULL`. NestJS hard-delete destruye historial de asignaciones; re-asignación tras desasignación puede violar UNIQUE constraint |
+| G10 | **`GET /notifications/unread-count` path + key mismatch** | GeoReporta: `/notifications/unread-count` → `{unread_count:N}`. NestJS: `/notifications/unread` → `{unread:N}`. Badge del frontend → 404 o stuck en 0 |
 
-#### 🟡 Media prioridad (deuda de schema o compatibilidad frontend)
+#### 🔴 P2 — Alta prioridad (datos incompletos / flows parciales)
 
 | # | Gap | Detalle |
 |---|---|---|
-| G7 | **Columns ausentes en `users`**: `email_verified_at`, `terms_accepted_at` (v`v0`), `terms_version`, `deleted_at` | GeoReporta tiene OTP verification (`verification_otp`, `verification_otp_expires_at`) — excluidos intencionalmente. Pero `terms_accepted_at`/`terms_version` son columnas de compliance legal. `deleted_at` → hard deletes actuales |
-| G8 | **`PATCH /assignments/:id` no permite cambiar rol** | GeoReporta `PUT /incidents/:id/assignments/:id` acepta campo `role`. NestJS solo acepta `operator_id` — no hay forma de cambiar el rol de una asignación existente |
-| G9 | **`assignments.deleted_at` ausente** | GeoReporta tiene partial UNIQUE index sobre asignaciones activas (excluye deleted). NestJS podría tener colisión de constraint al reasignar un operador previamente desasignado |
-| G10 | **`GET /notifications/unread-count` path + key mismatch** | GeoReporta: `GET /notifications/unread-count` → `{ unread_count: N }`. NestJS: `GET /notifications/unread` → `{ unread: N }`. Frontend necesita adaptar ambos (path y key) |
+| G2 | **Sin upload de imágenes en incidentes** | GeoReporta: `POST /incidents` acepta `images[]` multipart → tabla polimórfica `images`. NestJS: `CreateIncidentDto` sin campo images; sin `IncidentImageService` |
+| G4 | **`incidents.claimed_at` ausente** | T5.1 añadió `claimed_by` pero no `claimed_at`. GeoReporta lo escribe en `claim()`. Sin esto no se puede calcular duración de claim ni SLAs |
+| G5 | **`incidents.resolution_date` ausente** | GeoReporta auto-setea en `Incident::booted()` al pasar a `resolved`. NestJS usa `updated_at` (impreciso si el status cambia de nuevo). Afecta métricas de SLA y export CSV |
+| G7 | **Columnas faltantes en `users`** | `email_verified_at`, `verification_otp`, `verification_otp_expires_at` (requeridas por G11). `terms_accepted_at`, `terms_version` (compliance legal — GeoReporta los escribe en `redeem()`). `deleted_at` (GeoReporta SoftDeletes) |
+| G11 | **Email OTP verification ausente** | GeoReporta: `POST /email/verify-otp`, `POST /email/resend`, `GET /email/notice`. Modelo User implementa `generateVerificationOtp()` + `verifyOtp()`. Migration `2026_07_27_000005` añade cols OTP. NestJS: nada de esto existe — staff invitados nunca pueden verificar email |
 
-#### 🟢 Baja prioridad (diferencias de diseño, no funcionales)
+#### 🟡 P3 — Media prioridad
 
 | # | Gap | Detalle |
 |---|---|---|
-| G11 | **`GET /permissions/my` ausente** | GeoReporta lo tiene; NestJS expone permisos via `GET /auth/me`. No es un blocker funcional |
-| G12 | **Menus no son DB-backed** | GeoReporta tiene tabla `menus` + `menu_permission`. NestJS usa `menu-map.ts` hardcodeado — sin configuración runtime |
-| G13 | **Path renames** | `exportar→export`, `estado→status`, `estados→statuses`, `comments` nested vs flat |
+| G1 | **Sin endpoint de serving de imágenes** | GeoReporta: `GET /storage/{path}` (web.php, StorageProxyController) — stream S3/RustFS con `Cache-Control: immutable`. NestJS almacena URLs CDN directas en columnas — funciona para nuevos uploads. Gap real: migración de datos de GeoReporta (que tienen object keys, no URLs) |
+| G8/G16 | **Assignment role-change ausente** | GeoReporta `PUT /incidents/{i}/assignments/{a}` cambia `assignment_role`. NestJS `PATCH /assignments/:id` cambia `operatorId`. Son operaciones distintas; NestJS no tiene la primera |
+| G12 | **Export XLSX/PDF ausente** | GeoReporta `?format=csv\|xlsx\|pdf` via `ReportExporterFactory`. NestJS: CSV únicamente. Path también distinto: `exportar`→`export` |
+| G13 | **SSE path → 404** | Frontend usando `EventSource('/api/notifications/stream')` recibe 404. NestJS reemplazó con Socket.IO pero el path viejo no existe ni redirige |
+| G15 | **Sin `feed:rebuild` recovery command** | `@nestjs/schedule` no instalado; sin `@Cron()`. Después de un flush de Redis, el feed público queda vacío e irrecuperable sin reiniciar el proceso y esperar eventos frescos |
 
-### Tabla polimórfica `images` (GeoReporta)
+#### 🟢 P4 — Baja prioridad (diferencias de diseño / paths)
 
-GeoReporta creó en `2026_07_25_000001_create_images_table.php` una tabla `images(id, imageable_type, imageable_id, storage_path, original_name, mime_type, size, is_thumbnail, sort_order, caption, timestamps)` para avatares, comment images e incident images de forma unificada.
+| # | Gap | Detalle |
+|---|---|---|
+| G14 | `GET /menus/my` → `GET /menus` | Path rename; funcionalidad equivalente |
+| G17 | Invitation preview: token en path vs query param | GeoReporta: `/{token}/preview`. NestJS: `/preview?token=` |
+| G18 | Invitation accept: path distinto | GeoReporta: `POST /invitations/accept`. NestJS: `POST /auth/accept-invitation` |
+| G19 | UserAnonymizer (GDPR) ausente | NestJS: solo `isActive=false`. Sin borrado de PII (nombre, email, etc.) |
+| G20 | `GET /estados` → `GET /incidents/statuses` | Path cambió de top-level a nested |
+| G21 | `GET /permissions/my` sin endpoint dedicado | Cubierto por `GET /auth/me` |
+| G22 | Assignment URLs flat vs nested | GeoReporta: `/incidents/:id/assignments`. NestJS: `/assignments` (flat) |
+| G23 | `POST /register` ausente | Posiblemente intencional (invitation-only model) |
 
-NestJS tiene:
-- Avatares: columna `avatar_url` en `users` (string)
-- Comment images: tabla `comment_images` separada (T5.5, migration 0024)
-- Incident images: **no implementado**
+---
 
-### Recomendación de próximos pasos (Fase 6)
+### Columnas de BD pendientes (no en migraciones 0001-0024)
 
-Ordenados por impacto:
-1. **G1 + G2**: Serving de imágenes + upload en incidentes (requiere decisión de arquitectura: tabla polimórfica unificada o tabla `incident_images` separada al estilo T5.5)
-2. **G3**: Soft delete en incidents y users (migration + TypeORM `@DeleteDateColumn`)
-3. **G4 + G5**: `incidents.claimed_at` y `incidents.resolution_date` (migrations sencillas)
-4. **G6**: Completar `GET /organizations/notified-for` con `category_id` + `is_claimable`
-5. **G10**: Fix path/key de `notifications/unread-count` (trivial)
+| Columna | Tabla | Requerida por |
+|---|---|---|
+| `claimed_at` | incidents | G4 |
+| `resolution_date` | incidents | G5 |
+| `deleted_at` | incidents | G3 |
+| `email_verified_at` | users | G7/G11 |
+| `verification_otp` | users | G11 |
+| `verification_otp_expires_at` | users | G11 |
+| `terms_accepted_at` | users | G7 |
+| `terms_version` | users | G7 |
+| `deleted_at` | assignments | G9 |
 
-> **Fuente**: `GeoReporta/backend/routes/api.php`, `app/Http/Controllers/`, `database/migrations/`, `app/Models/`. Análisis realizado 2026-08-23 con agente Explore.
+---
+
+### Gaps de Infraestructura / Ops
+
+| Gap | Detalle |
+|---|---|
+| Sin scheduler | `@nestjs/schedule` no instalado; sin tareas cron |
+| Sin feed recovery | Redis flush → feed vacío, sin comando de rebuild desde Postgres |
+| Arquitectura de storage divergente | GeoReporta: object keys en DB → StorageProxy sirve. NestJS: URLs CDN directas → sin proxy. Migración de datos GeoReporta requeriría conversión de keys a URLs o añadir proxy |
+
+---
+
+### Backlog Fase 6 (ordenado por prioridad de bloqueo)
+
+| P | Item | Gaps |
+|---|---|---|
+| P1 | Fix `GET /notifications/unread` → `unread-count` + response key | G10 |
+| P1 | Fix `GET /organizations/notified-for`: input `location_id`+`category_id`, añadir `is_claimable` | G6 |
+| P1 | Soft-delete en incidents: migración `deleted_at` + filtro en queries | G3 |
+| P1 | Soft-delete en assignments: migración `deleted_at` + partial UNIQUE index | G9 |
+| P2 | Añadir `incidents.claimed_at`: migration + escribir en `claim()` | G4 |
+| P2 | Añadir `incidents.resolution_date`: migration + escribir en `updateStatus(resolved)` | G5 |
+| P2 | Assignment role-change: `PATCH /incidents/:id/assignments/:assignmentId` con `{role}` | G8/G16 |
+| P2 | Email OTP verification: migrations + UserEntity cols + endpoints `/email/verify-otp` `/email/resend` | G7/G11 |
+| P2 | `users.terms_accepted_at` + `terms_version`: migration + escribir en `acceptInvitation()` | G7 |
+| P3 | Incident image upload: `POST /incidents` multipart `images[]` + `IncidentImagesService` | G2 |
+| P3 | Export XLSX/PDF: `ReportExporterFactory` pattern con `fast-xlsx` o `pdfmake` | G12 |
+| P3 | SSE notifications: añadir `GET /notifications/stream` o documentar migración a Socket.IO | G13 |
+| P3 | Feed rebuild command: `POST /api/admin/feed/rebuild` o `@nestjs/schedule` cron | G15 |
+| P4 | Path aliases: `/menus/my`, `/invitations/accept`, `/estados`, `/incidents/exportar` | G14/G17/G18/G20 |
+| P4 | UserAnonymizer GDPR: borrado de PII en soft-delete | G19 |
+
+> **Fuente**: análisis exhaustivo de `GeoReporta/backend/` (routes, controllers, models, migrations, jobs, listeners, commands) y `backend/src/` (NestJS). Dos pasadas: route-level + deep domain-level. 2026-08-23.
