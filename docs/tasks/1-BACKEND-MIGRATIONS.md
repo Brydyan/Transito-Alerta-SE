@@ -1,4 +1,4 @@
-# 1: Migraciones de Módulos NestJS del Backend (Fases 1-4)
+# 1: Migraciones de Módulos NestJS del Backend (Fases 1-5, T5.6)
 
 ## Descripción General
 
@@ -22,13 +22,21 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
   - 77 suites unit + 15 E2E, 848 pruebas en verde (714 unit + 134 E2E)
   - ⚠️ (Anterior) El E2E tenía un flake intermitente — resuelto con T3.6 testing suite; T3.9 sessions + T3.6 invitations completos y verificados PASS
 
-- **Fase 4 (T4.1-T4.4)**: 🟡 En Progreso
+- **Fase 4 (T4.1-T4.4)**: ✅ 100% Completada (2026-08-22)
   - ✅ T4.1a: Harness E2E completo (15 suites, 134 tests, CI `integration` job activo)
   - ✅ T4.1a paso 2: 9 regresiones de Fases 1-2 en verde (`test/e2e/regressions.e2e-spec.ts`)
-  - ⏳ T4.1b: Diferido (no bloquea)
+  - ✅ T4.1b: E2E flows — 5 flujos completos (anónimo, CC2, asignación+streams, XSS, estado+caché). Archivado 2026-08-22
   - ✅ T4.2: Load testing — k6 scripts en `load-tests/k6/` (3 escenarios: auth, incidents, WebSocket). Archivado 2026-08-22
   - ✅ T4.3: Security hardening — `helmet@8.3.0`, fix `MoreThan` dedup, 4 tests E2E (138 total). Archivado 2026-08-21
   - ✅ T4.4: Documentación — Swagger (`/api/docs` en dev), runbook `docs/runbooks/deploy.md`. Archivado 2026-08-21
+
+- **Fase 5 (T5.1-T5.6)**: ⏳ Planificada — Sub-features de GeoReporta ausentes en Fases 1-4
+  - ⏳ T5.1: Incident Workflow — claim/release de incidentes, operadores disponibles, catálogo de estados
+  - ⏳ T5.2: Incident Analytics — stats agregadas, weekly-stats, feed ciudadano, export CSV
+  - ⏳ T5.3: Operator Tracking — GPS location tracking de operadores, dashboard de operador
+  - ⏳ T5.4: Map UI Support — filtros de mapa, form-data de usuarios
+  - ⏳ T5.5: Comment Images — subida/borrado de imágenes adjuntas en comentarios
+  - ⏳ T5.6: Admin Panel Backend + CRUD Gaps — roles CRUD, orgs tree/form-data, users admin, notifications moderación, CRUD incompleto detectado en auditoría 2026-08-23
 
 ## Estado Fase 3: ✅ COMPLETADA (2026-08-19)
 
@@ -597,3 +605,193 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 ```
 
 **Criterio de cierre de Fase 4**: todos los `[ ]` en esta sección marcados `[x]`, `pnpm test && pnpm run test:e2e` verde, `pnpm run typecheck && pnpm run lint` sin errores. Luego Claude QA corre `sdd-verify` sobre el conjunto.
+
+---
+
+## Estado Fase 5: ⏳ Planificada (2026-08-22)
+
+**Contexto**: Auditoría de migración GeoReporta → Transito-Alerta-SE (2026-08-22) reveló que los 17 dominios están migrados pero 13 sub-features dentro de esos dominios no tienen equivalente en el backend NestJS. Estas son características dentro de `Incidents`, `Users` y `Comments` que GeoReporta exponía como controllers separados pero que no aparecieron en el plan original de Fases 1-4 (el plan cubría dominios, no cada endpoint).
+
+**Eliminaciones intencionales** (NO forman parte de Fase 5):
+- Firebase/Google auth (`POST /auth/google`) → decisión D1: device UUID + invitation model
+- `POST /register` (open registration) → reemplazado por invitation-only onboarding
+- Email OTP verification → verificación ocurre en aceptación de invitación
+- SSE notifications stream → reemplazado por WebSocket + Redis Streams (T2.5)
+- `locations` domain (jerarquía admin Country→Province→City→Neighborhood + `/locations/catalog`) → reemplazado por geofencing + geo-zones. TASE no pregunta al usuario su ubicación administrativa; la zona se deriva automáticamente de las coordenadas GPS del incidente. Confirmado en auditoría 2026-08-23.
+
+**Segunda auditoría (2026-08-23)**: comparación exhaustiva `routes/api.php` vs controllers NestJS reveló 11 endpoints adicionales no cubiertos en T5.1-T5.5 → agrupados en **T5.6** (sc-271). Ver sección T5.6 abajo.
+
+### T5.1: Incident Workflow ⏳
+
+**Depende de**: T2.1 (Incidents), T3.1 (Roles), T3.9 (Sessions)  
+**Artefactos SDD**: `openspec/changes/t5.1-incident-workflow/`
+
+**Qué hace**:
+- `POST /api/incidents/:id/claim` — operador reclama un incidente (toma responsabilidad de resolverlo). Registra `claimed_by`, `claimed_at`. Solo un operador puede tener un incidente reclamado a la vez — 409 si ya está reclamado por otro
+- `POST /api/incidents/:id/release` — operador libera un incidente reclamado. Solo el mismo que lo reclamó puede liberarlo (o admin_sistema)
+- `GET /api/incidents/:id/available-operators` — lista operadores disponibles para asignar al incidente (filtrado por organización, sin incidentes activos reclamados). Usado por UI de asignación
+- `GET /api/estados` — catálogo de transiciones de estado válidas desde cada estado. Usado por UI para construir el select de transición
+
+**Nota de migración**: GeoReporta usa claim/release como flujo alternativo a assignments; el NestJS ya tiene `assignments/` para asignación formal. Claim/release es distinto — es un "tomar posesión temporal" del caso, no un assignment formal. La implementación debe coexistir con el módulo `assignments/` existente.
+
+**Criterios de Aceptación**:
+- [ ] `POST /claim` falla 409 si incidente ya está reclamado por otro operador
+- [ ] `POST /release` falla 403 si el que intenta liberar no es quien reclamó (y no es admin)
+- [ ] `GET /available-operators` filtra por `organization_id` (SubjectScope)
+- [ ] `GET /estados` retorna transiciones válidas desde cada estado (`pending → [in_progress]`, `in_progress → [resolved]`, `resolved → []`)
+- [ ] `pnpm test && pnpm run test:e2e` verde sin modificar suites existentes
+
+---
+
+### T5.2: Incident Analytics ⏳
+
+**Depende de**: T2.1 (Incidents), T3.1 (Roles), T3.2 (Organizations), T3.7 (IncidentCategories)  
+**Artefactos SDD**: `openspec/changes/t5.2-incident-analytics/`
+
+**Qué hace**:
+- `GET /api/incidents/stats` — stats agregadas: total por estado (`pending/in_progress/resolved`), por organización, por categoría, por zona. Respeta SubjectScope (operador ve solo su org). Con soporte de filtros opcionales: `zone_id`, `category_id`, `from`, `to`
+- `GET /api/incidents/weekly-stats` — trend semanal: agrupado por `DATE_TRUNC('week', created_at)`, últimas N semanas (default 8). Shape: `{ week: string, total: number, resolved: number }[]`
+- `GET /api/incidents/feed` — feed público paginado con cursor, ordenado por `created_at DESC`. Sin filtro de org (ciudadano anónimo puede ver). Campos expuestos limitados: `id, title, status, zone_id, created_at`. Throttle: 30 req/min por device_uuid
+- `GET /api/incidents/exportar` — export CSV de incidentes con filtros: `status`, `zone_id`, `from`, `to`, `org_id`. Respeta SubjectScope. Requiere permiso `EXPORT incidents`. Header `Content-Disposition: attachment; filename="incidentes-{date}.csv"`
+
+**Notas de migración**:
+- Las rutas específicas (`/stats`, `/weekly-stats`, `/feed`, `/exportar`) van **antes** de `GET /incidents/:id` en el router para evitar que `:id` capture la ruta — seguir el mismo patrón que ya hace el controller en GeoReporta con `whereNumber`
+- Export CSV usa `fast-csv` o stringify manual — no instalar librerías pesadas sin listarlo explícitamente en el task
+
+**Criterios de Aceptación**:
+- [ ] `GET /incidents/stats` retorna conteo correcto por estado; operador de Org A no ve stats de Org B
+- [ ] `GET /incidents/weekly-stats` retorna estructura `{week, total, resolved}[]` para últimas 8 semanas
+- [ ] `GET /incidents/feed` accesible con token anónimo (device_uuid); sin datos de organización expuestos
+- [ ] `GET /incidents/exportar` retorna CSV con header `Content-Disposition`, requiere `EXPORT incidents`
+- [ ] Rutas `/stats` y `/weekly-stats` no colisionan con `/:id` (test de routing)
+
+---
+
+### T5.3: Operator Tracking ⏳
+
+**Depende de**: T2.3 (Users), T3.1 (Roles), T3.2 (Organizations)  
+**Artefactos SDD**: `openspec/changes/t5.3-operator-tracking/`
+
+**Qué hace**:
+- `POST /api/operator/location` — operador reporta su posición GPS `{lat, lng, accuracy?}`. Almacenada en tabla nueva `operator_locations` (o columna en users — ver design). TTL implícito: localizaciones más viejas de 4h se consideran obsoletas en lecturas
+- `GET /api/operator/locations` — lista posiciones activas de operadores (filtrado por org). Usado por mapa de control para ver dónde están los operadores. Solo admin_organizacion / admin_sistema
+- `GET /api/operator/dashboard` — panel del operador autenticado: `{ assignedIncidents: Incident[], claimedIncidents: Incident[], stats: { pending, in_progress, resolved }, recentNotifications: Notification[] }`. Solo el propio operador puede ver su dashboard
+
+**Notas de migración**:
+- En GeoReporta, `operator_locations` es una tabla separada con índice GiST para proximidad. En NestJS, si no se necesita búsqueda espacial sobre ubicaciones de operadores, se puede simplificar a JSONB en `users.last_location` — decisión del SDD design.md
+- El dashboard es una aggregation query, no un módulo nuevo — vive en el módulo `users/` como un endpoint adicional
+
+**Criterios de Aceptación**:
+- [ ] `POST /operator/location` acepta `{lat, lng}`, persiste, responde 201 sin exponer datos de otros operadores
+- [ ] `GET /operator/locations` retorna solo operadores de la misma org; 403 para operador_organizacion sin permiso de vista global
+- [ ] `GET /operator/dashboard` retorna datos del operador autenticado; 403 si se intenta ver dashboard de otro
+- [ ] Localizaciones > 4h no aparecen en `GET /operator/locations`
+
+---
+
+### T5.4: Map UI Support ⏳
+
+**Depende de**: T2.1 (Incidents), T3.1 (Roles), T3.2 (Organizations), T3.7 (IncidentCategories), T3.8 (Locations)  
+**Artefactos SDD**: `openspec/changes/t5.4-map-ui-support/`
+
+**Qué hace**:
+- `GET /api/map/filters` — catálogo de opciones para el mapa: lista de `geo_zones` activas (id + name + level), lista de `incident_categories` hoja (id + name), lista de estados disponibles. Respuesta cacheada en Redis (TTL 5min, invalidada al editar zonas o categorías). Sin auth requerida (datos de UI pública)
+- `GET /api/users/form-data` — datos para formularios de gestión de usuarios (admin UI): `{ roles: Role[], organizations: Organization[] }`. Requiere permiso `READ users`. Evita N queries desde el frontend para poblar selects
+
+**Notas de migración**:
+- `map/filters` en GeoReporta devuelve también `organizations` — en NestJS el frontend puede llamar `GET /organizations` directamente; evaluar si incluirlo aquí o no (decisión design.md)
+- `users/form-data` ruta debe ir **antes** de `users/:id` en el router
+
+**Criterios de Aceptación**:
+- [ ] `GET /map/filters` accesible sin token; retorna `{zones, categories, statuses}`
+- [ ] `GET /map/filters` segunda llamada en < 5min usa caché Redis (verificable con `XMONITOR` o conteo de queries)
+- [ ] `GET /users/form-data` requiere `READ users`; retorna `{roles, organizations}`
+- [ ] Invalidación de caché de `map/filters` al crear/editar una geo_zone
+
+---
+
+### T5.5: Comment Images ⏳
+
+**Depende de**: T2.2 (Comments), T2.3 (Users — S3 avatar pattern)  
+**Artefactos SDD**: `openspec/changes/t5.5-comment-images/`
+
+**Qué hace**:
+- `POST /api/comments/:id/images` — sube imagen adjunta a un comentario. Multipart/form-data, campo `image`. Almacena en S3 (mismo bucket que avatares, prefix `comments/{comment_id}/`). Persiste URL en tabla nueva `comment_images`. Límite: 5MB, tipos aceptados: `image/jpeg, image/png, image/webp`
+- `DELETE /api/comments/:id/images/:imageId` — elimina imagen de S3 y fila de `comment_images`. Solo el autor del comentario o admin puede borrar
+
+**Nota**: GeoReporta tiene un `PROPOSAL-comment-image-upload.md` en su raíz que puede tener diseño previo — leerlo antes de hacer design.md. La implementación NestJS reutiliza `avatar-storage.service.ts` del módulo `users/` — extraerlo a un servicio compartido en `common/` si no ya existe.
+
+**Requiere migración nueva**: `0019_comment_images` — tabla `comment_images(id, comment_id FK CASCADE, url, size_bytes, mime_type, created_by_user_id FK SET NULL, created_at)`.
+
+**Criterios de Aceptación**:
+- [ ] `POST /comments/:id/images` sube a S3 prefix `comments/{id}/`, persiste URL, retorna 201 con `{id, url}`
+- [ ] Archivo > 5MB rechazado con 413 Payload Too Large
+- [ ] Tipo MIME inválido rechazado con 422
+- [ ] `DELETE /comments/:id/images/:imageId` por non-author retorna 403
+- [ ] `DELETE` exitoso elimina objeto S3 y fila DB (no deja objetos huérfanos)
+- [ ] Migración 0019 idempotente (`IF NOT EXISTS`)
+
+---
+
+## Orden de Ejecución Recomendado para Fase 5
+
+```
+T5.4 (Map UI Support, ~4h)    ← sin nuevas entidades, solo endpoints de aggregation
+T5.1 (Incident Workflow, ~6h) ← claim/release requiere campo nuevo en incidents
+T5.2 (Analytics, ~8h)        ← depende de incidents estable
+T5.3 (Operator Tracking, ~8h) ← tabla nueva operator_locations, PostGIS opcional
+T5.5 (Comment Images, ~6h)   ← requiere refactor de S3 service a common/
+```
+
+**Criterio de cierre de Fase 5**: todos los `[ ]` en esta sección marcados `[x]`, `pnpm test && pnpm run test:e2e` verde, Migración 0019 aplicada a Supabase, artefactos SDD `openspec/changes/t5.*/` verificados y archivados.
+
+---
+
+### T5.6: Admin Panel Backend + CRUD Gaps ⏳
+
+**Shortcut**: sc-271  
+**Depende de**: T2.1 (Incidents), T3.1 (Roles), T3.2 (Organizations), T3.3 (Notifications), T3.6 (Invitations), T3.8 (Geo-zones), T5.1 (Incident Workflow)  
+**Artefactos SDD**: `openspec/changes/t5.6-admin-panel-backend/`  
+**Origen**: Segunda auditoría `GeoReporta/backend/routes/api.php` vs NestJS (2026-08-23)
+
+**Qué hace — Admin Panel (Categoría A)**:
+- `GET/POST/PATCH/DELETE /api/roles` — CRUD completo de roles (solo index/assign existían)
+- `PUT /api/roles/:id/permissions` — sincroniza qué permisos tiene un rol (reemplaza set completo)
+- `GET /api/organizations/tree` — árbol jerárquico de organizaciones para UI de admin
+- `GET /api/organizations/form-data` — roles + geo-zones disponibles para el form de create/edit org
+- `GET /api/organizations/notified-for?lat&lng` — orgs notificadas para coordenadas de un incidente
+- `POST/GET/:id/PATCH/:id/DELETE/:id /api/users` — CRUD admin de usuarios (solo list + self-mgmt existían)
+- `POST /api/notifications/:id/approve` — aprueba notificación, transiciona estado del incidente
+- `POST /api/notifications/:id/reject` — rechaza con `reason`, revierte incidente a `in_progress`
+
+**Qué hace — CRUD Gaps (Categoría B)**:
+- `PATCH /api/incidents/:id` — editar title/description/category_id (sin tocar status/zone)
+- `DELETE /api/incidents/:id` — soft delete de incidente (requiere `DELETE incidents`)
+- `PATCH /api/assignments/:id` — actualizar asignación (cambiar operador)
+- `GET /api/comments/:id` — ver comentario individual
+- `PATCH /api/comments/:id` — editar contenido (solo propietario, XSS sanitizado)
+
+**Schema gaps detectados en segunda auditoría profunda (2026-08-23)**:
+- `closed` status ausente: NestJS solo tiene `pending/in_progress/resolved`. GeoReporta tiene 4 estados (+ `closed`). Migration 0020 añade al CHECK constraint. `closed` NO es transición manual — solo vía approve.
+- Decision columns en `incidents`: `approved_by`, `approved_at`, `rejected_by`, `rejected_at`, `rejection_reason` + 3 CHECK constraints XOR + partial index. Migration 0021.
+- `incident_pending_approval` tipo de notificación ausente del enum NestJS. Migration 0022.
+- `notes` en `status_history` ausente. Migration 0023.
+
+**Nota de migración — approve/reject es un flujo complejo**:
+`IncidentApprovalService` (análogo al GeoReporta) usa pessimistic locking (`SELECT FOR UPDATE`) para prevenir double-click, limpia siblings de notificaciones, y el reject determina el estado siguiente según si hay claimant activo o no.
+
+**Nota de migración — `DELETE incidents`**: soft delete (campo `deleted_at`) para preservar `status_history` + `assignments`. Migration `0024+` solo si `deleted_at` no existe en el schema actual (verificar 0001-0019 antes).
+
+**Nota de migración — `POST /users` admin create**: delegar a `InvitationsService.invite()` (flujo T3.6) para no duplicar lógica de onboarding. El admin crea un usuario enviando una invitación con rol preconfigurado.
+
+**Criterios de Aceptación**:
+- [ ] `PUT /roles/:id/permissions` reemplaza permisos en transacción atómica (no acumula)
+- [ ] `GET /organizations/tree` devuelve jerarquía con `children[]` anidados
+- [ ] `POST /notifications/:id/approve` transiciona estado del incidente; `reject` revierte
+- [ ] `PATCH /incidents/:id` acepta solo title/description/category_id; rechaza status/zone_id
+- [ ] `DELETE /incidents/:id` hace soft delete — el incidente no aparece en GET /incidents pero su historial persiste
+- [ ] `PATCH /comments/:id` sanitiza XSS igual que store; 403 si requester ≠ author
+- [ ] `pnpm test && pnpm run test:e2e` verde sin romper suites existentes
+- [ ] Migrations 0021-0023 solo se crean si los campos no existen ya
+
+**Criterio de cierre de Fase 5 (completo)**: T5.1-T5.6 todos completados + verificados + archivados, `pnpm test && pnpm run test:e2e` verde, migrations 0019-0023 aplicadas a Supabase.
