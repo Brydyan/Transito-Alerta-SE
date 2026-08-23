@@ -20,6 +20,7 @@ import { AuthenticatedRequest } from '../../common/interfaces/authenticated-requ
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserEntity } from '../../entities/user.entity';
 import { SessionResponseDto } from '../sessions/dto/session-response.dto';
+import { FormDataResponseDto } from './dto/form-data-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserOrganizationDto } from './dto/update-user-organization.dto';
 import { UploadedFile as AvatarFile } from './avatar-storage.service';
@@ -33,6 +34,14 @@ export class UsersController {
   @Get('me')
   me(@Req() req: AuthenticatedRequest): Promise<UserEntity> {
     return this.usersService.findById(req.user!.userId);
+  }
+
+  // T5.4 — must come BEFORE any `:id` route (defense in depth, even though
+  // no `@Get(':id')` exists today; protects against future route additions).
+  @Get('form-data')
+  @RequirePermission('READ', 'users')
+  getFormData(@Req() req: AuthenticatedRequest): Promise<FormDataResponseDto> {
+    return this.usersService.getFormData(req.user!);
   }
 
   @Patch('me')

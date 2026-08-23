@@ -1,15 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindManyOptions, Repository } from 'typeorm';
+import { FindManyOptions, In, Not, Repository } from 'typeorm';
 
 import { UserEntity } from '../../entities/user.entity';
 import { RoleEntity } from '../../entities/role.entity';
+import { OrganizationEntity } from '../../entities/organization.entity';
 import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
 import { assertCanManage, assertVisible } from '../../common/authz/assert-can-manage';
 import { AuthService } from '../auth/auth.service';
 import { SessionResponseDto, toSessionResponseDto } from '../sessions/dto/session-response.dto';
 import { SessionsRepository } from '../sessions/sessions.repository';
 import { AvatarStorageService, UploadedFile } from './avatar-storage.service';
+import { FormDataResponseDto } from './dto/form-data-response.dto';
+import { SYSTEM_ADMIN_ROLE_NAME, SYSTEM_ONLY_ROLES } from './role-exclusions.constants';
 
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
@@ -35,6 +38,8 @@ export class UsersService {
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
     private readonly avatarStorage: AvatarStorageService,
     @InjectRepository(RoleEntity) private readonly roleRepo: Repository<RoleEntity>,
+    @InjectRepository(OrganizationEntity)
+    private readonly orgRepo: Repository<OrganizationEntity>,
     private readonly authService: AuthService,
     private readonly sessionsRepository: SessionsRepository,
   ) {}
@@ -45,6 +50,38 @@ export class UsersService {
       throw new NotFoundException(`User ${id} not found`);
     }
     return user;
+  }
+
+  /**
+   * T5.4 — reference data for user-management forms.
+   * System admins see every role and every org. Everyone else gets the
+   * system-only roles filtered out and only their own organization.
+   */
+  async getFormData(currentUser: AuthContext): Promise<FormDataResponseDto> {
+    const isSystemAdmin = currentUser.roleName === SYSTEM_ADMIN_ROLE_NAME;
+
+    const roles = await this.roleRepo.find({
+      select: ['id', 'name'],
+      where: isSystemAdmin
+        ? {}
+        : { name: Not(In(SYSTEM_ONLY_ROLES as unknown as string[])) },
+      order: { name: 'ASC' },
+    });
+
+    const organizations = isSystemAdmin
+      ? await this.orgRepo.find({ select: ['id', 'name'], order: { name: 'ASC' } })
+      : currentUser.organizationId
+        ? await this.orgRepo.find({
+            select: ['id', 'name'],
+            where: { id: currentUser.organizationId },
+            order: { name: 'ASC' },
+          })
+        : [];
+
+    return {
+      roles: roles.map((r) => ({ id: r.id, name: r.name })),
+      organizations: organizations.map((o) => ({ id: o.id, name: o.name })),
+    };
   }
 
   async findOne(id: string): Promise<UserEntity | null> {
