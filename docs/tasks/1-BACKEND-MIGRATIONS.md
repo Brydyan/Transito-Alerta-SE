@@ -26,7 +26,7 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
   - ✅ T4.1a: Harness E2E completo (15 suites, 134 tests, CI `integration` job activo)
   - ✅ T4.1a paso 2: 9 regresiones de Fases 1-2 en verde (`test/e2e/regressions.e2e-spec.ts`)
   - ⏳ T4.1b: Diferido (no bloquea)
-  - ⏳ T4.2: Load testing — k6 scripts a crear en `load-tests/k6/`
+  - ✅ T4.2: Load testing — k6 scripts en `load-tests/k6/` (3 escenarios: auth, incidents, WebSocket). Archivado 2026-08-22
   - ✅ T4.3: Security hardening — `helmet@8.3.0`, fix `MoreThan` dedup, 4 tests E2E (138 total). Archivado 2026-08-21
   - ✅ T4.4: Documentación — Swagger (`/api/docs` en dev), runbook `docs/runbooks/deploy.md`. Archivado 2026-08-21
 
@@ -285,7 +285,7 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 - [x] Migraciones de BD 0001-0018 escritas y aplicadas a Supabase (0016-0018 el 2026-08-21)
 - [x] Harness E2E (Testcontainers) funcionando; 15 flujos en verde (Mail, Regressions, Roles, Flows, Health, Notifications, IncidentCategories, GeoZones, Organizations, IncidentsScope, StatusHistory, Sessions, Invitations, Invitations-Repository, T3.6-E2E)
 - [x] **Fase 3 backend 100% completada**: T3.1-T3.10 all green; T3.6 (Invitations) + T3.9 (Sessions) archived after full SDD cycle (proposal → spec → design → tasks → apply → verify → archive)
-- [ ] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas (Fase 4: T4.2)
+- [x] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas (Fase 4: T4.2)
 - [ ] Seguridad: rate limiting ✅, CORS ✅, **regresión SQL injection ⏳**, type safety ✅, **helmet ⏳**, session rotation ✅, password hashing bcrypt-12 ✅, token hashing SHA-256 ✅
 - [ ] Documentación: **Swagger/OpenAPI ⏳**, **runbook de despliegue ⏳**
 - [x] CI/CD: ESLint ✅, Typecheck ✅, Build ✅, 714 unit tests ✅, 134 E2E tests ✅
