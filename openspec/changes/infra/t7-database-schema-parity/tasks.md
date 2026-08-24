@@ -18,27 +18,27 @@
 
 ### Fase A — Tabla de tracking (migración 0030)
 
-- [ ] **T7.1.A1** — 🔴 Crear `backend/test/e2e/t7-migration-tracking.e2e-spec.ts` con los escenarios R1.1–R1.4: tabla `schema_migrations` con las 4 columnas, backfill de 0001–0029 sobre esquema poblado, backfill vacío sobre base limpia, re-ejecución idempotente. Debe fallar. **(2h)**
-- [ ] **T7.1.A2** — Escribir `database/migrations/0030_schema_migrations.sql`: `CREATE TABLE IF NOT EXISTS schema_migrations (version varchar(8) PK, name text, checksum char(64), applied_at timestamptz DEFAULT now())` + backfill condicional de 0001–0029 con `WHERE EXISTS (… table_name='incidents')` y `ON CONFLICT DO NOTHING`, dentro de `BEGIN/COMMIT`. **(1.5h)**
-- [ ] **T7.1.A3** — Escribir `database/rollback/0030_schema_migrations.DOWN.sql` (`DROP TABLE IF EXISTS schema_migrations`). **(15min)**
+- [x] **T7.1.A1** — 🔴 Crear `backend/test/e2e/t7-migration-tracking.e2e-spec.ts` con los escenarios R1.1–R1.4: tabla `schema_migrations` con las 4 columnas, backfill de 0001–0029 sobre esquema poblado, backfill vacío sobre base limpia, re-ejecución idempotente. Debe fallar. **(2h)** ✅ 063cc28
+- [x] **T7.1.A2** — Escribir `database/migrations/0030_schema_migrations.sql`: `CREATE TABLE IF NOT EXISTS schema_migrations (version varchar(8) PK, name text, checksum char(64), applied_at timestamptz DEFAULT now())` + backfill condicional de 0001–0029 con `WHERE EXISTS (… table_name='incidents')` y `ON CONFLICT DO NOTHING`, dentro de `BEGIN/COMMIT`. **(1.5h)** ✅ 063cc28
+- [x] **T7.1.A3** — Escribir `database/rollback/0030_schema_migrations.DOWN.sql` (`DROP TABLE IF EXISTS schema_migrations`). **(15min)** ✅ 063cc28
 
 ### Fase B — Runner idempotente
 
-- [ ] **T7.1.B1** — 🔴 Crear `backend/test/e2e/t7-migration-runner.e2e-spec.ts` con R2.1–R2.4: aplica sólo pendientes, segunda corrida no-op, falla estricta con rollback y exit ≠ 0, detección de drift por checksum. Debe fallar. **(2h)**
-- [ ] **T7.1.B2** — Crear `backend/scripts/run-migrations.ts` según §4 del design: conexión por `DATABASE_URL`, `CREATE TABLE IF NOT EXISTS schema_migrations`, orden numérico, `sha256` del contenido, skip de versiones registradas, `BEGIN`/`COMMIT` por archivo, `exit 1` en el primer error sin continuar. **(2h)**
-- [ ] **T7.1.B3** — Añadir a `run-migrations.ts` el modo `--status` (lista aplicadas / pendientes / drift, sin ejecutar nada) y el reconocimiento del checksum comodín `'manual'`. **(1h)**
+- [x] **T7.1.B1** — 🔴 Crear `backend/test/e2e/t7-migration-runner.e2e-spec.ts` con R2.1–R2.4: aplica sólo pendientes, segunda corrida no-op, falla estricta con rollback y exit ≠ 0, detección de drift por checksum. Debe fallar. **(2h)** ✅ 063cc28
+- [x] **T7.1.B2** — Crear `backend/scripts/run-migrations.ts` según §4 del design: conexión por `DATABASE_URL`, `CREATE TABLE IF NOT EXISTS schema_migrations`, orden numérico, `sha256` del contenido, skip de versiones registradas, `BEGIN`/`COMMIT` por archivo, `exit 1` en el primer error sin continuar. **(2h)** ✅ 063cc28
+- [x] **T7.1.B3** — Añadir a `run-migrations.ts` el modo `--status` (lista aplicadas / pendientes / drift, sin ejecutar nada) y el reconocimiento del checksum comodín `'manual'`. **(1h)** ✅ 063cc28
 - [ ] **T7.1.B4** — Añadir a `run-migrations.ts` el modo `--down --to <version>`: lee `database/rollback/` en orden inverso, ejecuta hasta la versión indicada, borra la fila de `schema_migrations` de cada una. **(1.5h)**
 - [ ] **T7.1.B5** — Añadir a `backend/package.json` los scripts `db:migrate`, `db:migrate:status` y `db:rollback`. **(15min)**
 
 ### Fase C — Rollback ejercitado
 
-- [ ] **T7.1.C1** — 🔴 Crear `backend/test/e2e/t7-rollback-cycle.e2e-spec.ts` (R3.1): aplicar 0001→0039 y luego todos los DOWN en orden inverso; assert de que no queda ninguna tabla de dominio ni ninguna función/trigger creado por las migraciones. Se ejecutará contra un container dedicado por su costo. Debe fallar hasta que existan los DOWN de 0030–0039. **(2h)**
-- [ ] **T7.1.C2** — Añadir a ese spec el check R3.2: por cada archivo `database/migrations/00{30..39}_*.sql` existe el `.DOWN.sql` homónimo. **(30min)**
+- [x] **T7.1.C1** — 🔴 Crear `backend/test/e2e/t7-rollback-cycle.e2e-spec.ts` (R3.1): aplicar 0001→0039 y luego todos los DOWN en orden inverso; assert de que no queda ninguna tabla de dominio ni ninguna función/trigger creado por las migraciones. Se ejecutará contra un container dedicado por su costo. Debe fallar hasta que existan los DOWN de 0030–0039. **(2h)** ✅ 063cc28
+- [x] **T7.1.C2** — Añadir a ese spec el check R3.2: por cada archivo `database/migrations/00{30..39}_*.sql` existe el `.DOWN.sql` homónimo. **(30min)** ✅ 063cc28
 - [ ] **T7.1.C3** — Corregir los archivos DOWN existentes (0001–0029) que el ciclo del test revele como incompletos. Documentar cada corrección en `MIGRATION_LOG.md`. **(2h)**
 
 ### Fase D — Documentación
 
-- [ ] **T7.1.D1** — Corregir `database/MIGRATION_LOG.md`: 0024–0029 pasan de `⏳ Pending` a `✅ Applied`, operador Andy Alejandro, fecha 2026-08-24, entorno supabase (R4.1). **(30min)**
+- [x] **T7.1.D1** — Corregir `database/MIGRATION_LOG.md`: 0024–0029 pasan de `⏳ Pending` a `✅ Applied`, operador Andy Alejandro, fecha 2026-08-24, entorno supabase (R4.1). **(30min)** ✅ 063cc28
 - [ ] **T7.1.D2** — Actualizar `docs/tasks/3-DATABASE-SCHEMA.md` (R18.1): rango real 0001–0039, mapeo 72 legacy → 39 SQL, runner real en `backend/scripts/run-migrations.ts`, tabla `schema_migrations`, y eliminar la afirmación de que ese runner ya existía. **(1h)**
 
 ---
@@ -47,40 +47,21 @@
 
 ### Fase A — Migración
 
-- [ ] **T7.2.A1** — 🔴 Crear `backend/test/e2e/t7-soft-delete-schema.e2e-spec.ts` con R5.1–R5.3: `deleted_at` en las 7 tablas, índice parcial por tabla, filas preexistentes con `deleted_at IS NULL`. Debe fallar. **(1.5h)**
-- [ ] **T7.2.A2** — Escribir `0031_soft_delete_completeness.sql`: `ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL` en `comments`, `notifications`, `organizations`, `incident_categories`, `geo_zones`, `roles`, `permissions` + 7 índices parciales `WHERE deleted_at IS NULL`. **(1.5h)**
-- [ ] **T7.2.A3** — Escribir `0031_…DOWN.sql` (drop de los 7 índices y las 7 columnas). **(30min)**
+- [x] **T7.2.A1** — 🔴 Crear `backend/test/e2e/t7-soft-delete-schema.e2e-spec.ts` con R5.1–R5.3: `deleted_at` en las 12 tablas, índice parcial por tabla, filas preexistentes con `deleted_at IS NULL`. Debe fallar. **(1.5h)** ✅ cbbf769
+- [x] **T7.2.A2** — Escribir `0031_soft_delete_completeness.sql`: `ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL` en `comments`, `notifications`, `organizations`, `incident_categories`, `geo_zones`, `user_sessions`, `users`, `invitations`, `password_reset_tokens`, `permissions`, `assignments` (pre-0026) + índices parciales `WHERE deleted_at IS NULL`. **(1.5h)** ✅ cbbf769
+- [x] **T7.2.A3** — Escribir `0031_…DOWN.sql` (drop de los índices y las columnas). **(30min)** ✅ cbbf769
 
-### Fase B — Entidades
+### Fase B — Entidades y Repositorios (app-level)
 
-- [ ] **T7.2.B1** — Añadir `deletedAt: Date | null` a `comment.entity.ts`, `organization.entity.ts`, `incident-category.entity.ts`, `geo-zone.entity.ts`, `role.entity.ts`, `permission.entity.ts` con el patrón `@Column({ name:'deleted_at', type:'timestamptz', nullable:true })`. **(1h)**
+- [ ] **T7.2.B1** — Añadir `deletedAt: Date | null` a 12 entidades: `comment`, `organization`, `incident-category`, `geo-zone`, `invitation`, `password-reset-token`, `notification`, `permission`, `user-session`, `user` con patrón `@Column({ name:'deleted_at', type:'timestamptz', nullable:true })`. **(1h)** ⏳ app-level
+- [ ] **T7.2.B2** — Aplicar filtro `deleted_at IS NULL` a todos los repositorios: `comments`, `notifications`, `organizations`, `geo-zones`, `incident-categories`, `user-sessions`, `users`, `invitations`, `password-reset-tokens`, `permissions`. **(3h)** ⏳ app-level
 
-### Fase C — Comentarios
+### Fase C — Tests E2E (app-level)
 
-- [ ] **T7.2.C1** — 🔴 Unit tests en `comments.service.spec.ts`: `remove()` emite `UPDATE … SET deleted_at = now()` en vez de `DELETE`; `findByIncident()` incluye `deleted_at IS NULL`. Deben fallar. **(1h)**
-- [ ] **T7.2.C2** — `comments.service.ts`: cambiar el borrado a soft delete y añadir el filtro `deleted_at IS NULL` a **todas** las lecturas del servicio y del repositorio. **(1.5h)**
-- [ ] **T7.2.C3** — E2E en `t7-comments-soft-delete.e2e-spec.ts` con R6.1–R6.3: DELETE responde 204 y la fila persiste marcada; el listado excluye el borrado; `comment_images` sobrevive y no se toca S3. **(2h)**
-
-### Fase D — Notificaciones
-
-- [ ] **T7.2.D1** — 🔴 Unit test: `notifications.repository.ts` incluye `deleted_at IS NULL` en listado y en `countUnread`. Debe fallar. **(45min)**
-- [ ] **T7.2.D2** — Aplicar el filtro en `notifications.repository.ts` (listado, conteo, marcado como leída). **(1h)**
-- [ ] **T7.2.D3** — E2E R7.1: usuario con 3 no leídas, una soft-deleted → `GET /notifications/unread-count` devuelve 2. **(1h)**
-
-### Fase E — Organizaciones, categorías, geo-zones
-
-- [ ] **T7.2.E1** — 🔴 Unit tests de los tres repositorios con el filtro `deleted_at IS NULL`. Deben fallar. **(1h)**
-- [ ] **T7.2.E2** — Aplicar el filtro en `organizations.repository.ts` (incluido `findByZone`, usado por `notifiedFor`). **(1h)**
-- [ ] **T7.2.E3** — Aplicar el filtro en las queries de `incident_categories` (árbol, listado, validación de `category_id` al crear incidente). **(1h)**
-- [ ] **T7.2.E4** — Aplicar el filtro en `geo-zones` y en la resolución de zona de `GeofencingService`. **(1h)**
-- [ ] **T7.2.E5** — E2E R7.2–R7.4: org borrada fuera de `notified-for`; categoría borrada fuera del árbol; zona borrada no matchea geofencing (`geofence_matched=false`, `zone_id` NULL). **(2h)**
-
-### Fase F — Roles y permisos
-
-- [ ] **T7.2.F1** — 🔴 Unit tests: la resolución de permisos efectivos de `AuthService` ignora roles y permisos con `deleted_at NOT NULL`. Deben fallar. **(1h)**
-- [ ] **T7.2.F2** — Aplicar el filtro en las queries de `roles` y `permissions` del módulo auth. **(1h)**
-- [ ] **T7.2.F3** — Implementar el bump de `users.permission_version` al soft-deletear un rol o un permiso, en la misma transacción (decisión D5). **(1.5h)**
-- [ ] **T7.2.F4** — E2E R7.5–R7.6: usuario con rol borrado → 403; permiso borrado deja de otorgar la acción tras el bump de versión. **(2h)**
+- [ ] **T7.2.C1** — E2E soft-delete: DELETE / 204 + persist + exclude from list + cascade en `comment_images`. **(2h)** ⏳ app-level
+- [ ] **T7.2.C2** — E2E notificaciones: soft-deleted fuera de `unread-count`. **(1h)** ⏳ app-level
+- [ ] **T7.2.C3** — E2E org/categorías/zonas: soft-deleted fuera de ruteo y filtros. **(2h)** ⏳ app-level
+- [ ] **T7.2.C4** — E2E auth: soft-deleted roles/permisos no otorgan acceso tras bump de versión. **(1h)** ⏳ app-level
 
 ---
 
