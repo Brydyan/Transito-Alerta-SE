@@ -4,6 +4,7 @@ import { IncidentsService } from './incidents.service';
 import { IncidentAnalyticsService } from './incident-analytics.service';
 import { IncidentFeedService } from './incident-feed.service';
 import { IncidentExportService } from './incident-export.service';
+import { FeedRecoveryService } from './feed-recovery.service';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 
@@ -30,6 +31,7 @@ describe('IncidentsController', () => {
       {} as IncidentAnalyticsService,
       {} as IncidentFeedService,
       {} as IncidentExportService,
+      {} as FeedRecoveryService,
     );
   });
 

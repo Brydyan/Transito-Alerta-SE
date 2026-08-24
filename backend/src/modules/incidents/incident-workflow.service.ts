@@ -90,8 +90,9 @@ export class IncidentWorkflowService {
     //    TypeORM's pg driver wraps UPDATE/DELETE RETURNING as [rows, count]
     //    (regression 7284831), so we route through the shared unwrap helper.
     const result = await this.dataSource.query(
+      // T6.3: also write claimed_at = NOW() when claiming
       `UPDATE incidents
-         SET claimed_by = $1, updated_at = now()
+         SET claimed_by = $1, claimed_at = NOW(), updated_at = now()
        WHERE id = $2 AND claimed_by IS NULL
        RETURNING id, title, status, priority, claimed_by, organization_id, updated_at`,
       [operator.id, incidentId],

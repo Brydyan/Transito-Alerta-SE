@@ -61,6 +61,6 @@ export class AssignmentsController {
     @Param('id') id: string,
     @Body() dto: UpdateAssignmentDto,
   ): Promise<AssignmentEntity> {
-    return this.assignmentsService.update(id, dto.operator_id);
+    return this.assignmentsService.update(id, dto);
   }
 }

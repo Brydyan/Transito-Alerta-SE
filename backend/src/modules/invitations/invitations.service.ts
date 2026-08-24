@@ -166,13 +166,16 @@ export class InvitationsService {
   }
 
   /**
-   * `POST /auth/accept-invitation {token, password}` (design D3). CAS-first
+   * `POST /auth/accept-invitation {token, password, terms_version?}` (design D3). CAS-first
    * (`redeemCas`), diagnose-second on 0 rows (`findDiagnosisByHash`) — the
    * SQL predicate is the single source of "who won", never a prior read.
    * Returns the new user's id; the caller (`AuthController`) mints the
    * session AFTER this transaction commits.
+   *
+   * T6.5.B — if `termsVersion` is present, writes `terms_accepted_at = NOW()`
+   * and `terms_version` to the user row inside the same transaction.
    */
-  async redeem(token: string, password: string): Promise<string> {
+  async redeem(token: string, password: string, termsVersion?: string): Promise<string> {
     const decoded = decodeTokenOrThrow(token);
     const hash = sha256Hex(decoded);
     const passwordHash = await this.passwordHasher.hash(password);
@@ -205,12 +208,20 @@ export class InvitationsService {
       const permissions = roleRows[0]?.permissions ?? [];
 
       try {
-        const insertedRows: Array<{ id: string }> = await manager.query(
-          `INSERT INTO users (email, password_hash, role_id, organization_id, permissions, is_active)
-           VALUES ($1, $2, $3, $4, $5::jsonb, true)
-           RETURNING id`,
-          [row.email, passwordHash, row.role_id, row.organization_id, JSON.stringify(permissions)],
-        );
+        // T6.5.B: include compliance fields if termsVersion is present
+        const insertedRows: Array<{ id: string }> = termsVersion
+          ? await manager.query(
+              `INSERT INTO users (email, password_hash, role_id, organization_id, permissions, is_active, terms_accepted_at, terms_version)
+               VALUES ($1, $2, $3, $4, $5::jsonb, true, NOW(), $6)
+               RETURNING id`,
+              [row.email, passwordHash, row.role_id, row.organization_id, JSON.stringify(permissions), termsVersion],
+            )
+          : await manager.query(
+              `INSERT INTO users (email, password_hash, role_id, organization_id, permissions, is_active)
+               VALUES ($1, $2, $3, $4, $5::jsonb, true)
+               RETURNING id`,
+              [row.email, passwordHash, row.role_id, row.organization_id, JSON.stringify(permissions)],
+            );
         return insertedRows[0].id;
       } catch (err: unknown) {
         if (this.isUniqueViolation(err)) {

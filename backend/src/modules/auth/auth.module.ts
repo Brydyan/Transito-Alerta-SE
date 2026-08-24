@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -11,6 +11,8 @@ import { MailModule } from '../mail/mail.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { EmailVerificationController } from './email-verification.controller';
+import { EmailVerificationService } from './email-verification.service';
 import { JwtStrategy } from './jwt.strategy';
 import { PasswordHasher } from './password-hasher';
 import { PasswordResetRepository } from './password-reset.repository';
@@ -50,11 +52,11 @@ import { PasswordResetService } from './password-reset.service';
       },
     }),
     SessionsModule,
-    InvitationsModule,
+    forwardRef(() => InvitationsModule),
     MailModule,
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, PasswordHasher, PasswordResetRepository, PasswordResetService],
+  controllers: [AuthController, EmailVerificationController],
+  providers: [AuthService, JwtStrategy, PasswordHasher, PasswordResetRepository, PasswordResetService, EmailVerificationService],
   // JwtModule is exported so the globally-registered RateLimiterGuard can
   // verify access tokens and key limits per authenticated user.
   exports: [AuthService, JwtModule],

@@ -2,15 +2,18 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Patch,
   Post,
   Param,
   Query,
   Req,
+  Res,
   BadRequestException,
   ParseIntPipe,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { NotificationsService } from './notifications.service';
 import { IncidentApprovalService } from './incident-approval.service';
@@ -57,13 +60,27 @@ export class NotificationsController {
 
   /**
    * GET /api/notifications/unread
-   * Contar notificaciones sin leer
+   * GET /api/notifications/unread-count
+   * Contar notificaciones sin leer (T6.1.A — dual route alias, key unread_count)
+   * Array syntax used because stacked @Get decorators overwrite each other in NestJS.
    */
-  @Get('unread')
+  @Get(['unread', 'unread-count'])
   async countUnread(@Req() req: AuthenticatedRequest) {
     const userId = req.user!.userId;
     const count = await this.notificationsService.countUnread(userId);
-    return { unread: count };
+    return { unread_count: count };
+  }
+
+  /**
+   * GET /api/notifications/stream — 410 tombstone (T6.7.B)
+   * SSE was replaced by Socket.IO realtime events.
+   */
+  @Get('stream')
+  @HttpCode(410)
+  sseDeprecated(@Res() res: Response) {
+    res.status(410).json({
+      message: 'This endpoint has been replaced by Socket.IO realtime events. See /api/docs for details.',
+    });
   }
 
   /**

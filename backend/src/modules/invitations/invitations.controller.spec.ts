@@ -1,6 +1,7 @@
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { InvitationsController } from './invitations.controller';
 import { InvitationsService } from './invitations.service';
+import { AuthService } from '../auth/auth.service';
 
 describe('InvitationsController (T3.6 design §6.2)', () => {
   let invitationsService: {
@@ -18,7 +19,10 @@ describe('InvitationsController (T3.6 design §6.2)', () => {
       previewInvitation: jest.fn(),
       deletePending: jest.fn(),
     };
-    controller = new InvitationsController(invitationsService as unknown as InvitationsService);
+    controller = new InvitationsController(
+      invitationsService as unknown as InvitationsService,
+      {} as AuthService,
+    );
   });
 
   function req(): AuthenticatedRequest {

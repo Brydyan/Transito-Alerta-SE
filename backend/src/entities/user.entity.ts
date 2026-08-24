@@ -88,6 +88,30 @@ export class UserEntity {
   @Column({ name: 'permission_version', type: 'integer', default: 1 })
   permissionVersion!: number;
 
+  /** T6.5 — timestamp when email was OTP-verified (migration 0028). */
+  @Column({ name: 'email_verified_at', type: 'timestamptz', nullable: true, default: null })
+  emailVerifiedAt!: Date | null;
+
+  /** T6.5 — SHA-256 hex of pending OTP (migration 0028). Plain 6-digit code is emailed; hash stored in DB. */
+  @Column({ name: 'verification_otp', type: 'varchar', length: 64, nullable: true, default: null })
+  verificationOtp!: string | null;
+
+  /** T6.5 — expiry for the pending OTP (migration 0028). TTL = 15 minutes. */
+  @Column({ name: 'verification_otp_expires_at', type: 'timestamptz', nullable: true, default: null })
+  verificationOtpExpiresAt!: Date | null;
+
+  /** T6.5 — timestamp when user accepted the terms of service (migration 0028). */
+  @Column({ name: 'terms_accepted_at', type: 'timestamptz', nullable: true, default: null })
+  termsAcceptedAt!: Date | null;
+
+  /** T6.5 — version string of the terms accepted (migration 0028). */
+  @Column({ name: 'terms_version', type: 'varchar', length: 20, nullable: true, default: null })
+  termsVersion!: string | null;
+
+  /** T6.8 — GDPR soft-delete timestamp (migration 0028). NULL = active. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

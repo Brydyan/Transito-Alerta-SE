@@ -19,20 +19,17 @@ import { ClaimReleaseResponseDto } from './dto/claim-release-response.dto';
 import { IncidentWorkflowService } from './incident-workflow.service';
 
 /**
- * T5.1 — operator claim/release + available-operators + status catalog.
- * Route ordering matters: `statuses` MUST appear before `:id` so the literal
- * segment is not captured as a UUID param. (T5.1 task 5.3 / design D5.)
+ * T5.1 — operator claim/release + available-operators.
+ * T6.8.A4: the `statuses` route was moved to IncidentsController.getStatuses()
+ * so it can return the richer `[{ id, label }]` catalog format. The old
+ * `{ statuses: string[] }` wrapper is removed here to avoid the two
+ * @Get('statuses') registrations under the same @Controller('incidents')
+ * base path from colliding (last-registered wins, which was the old one).
  */
 @Controller('incidents')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class IncidentWorkflowController {
   constructor(private readonly workflow: IncidentWorkflowService) {}
-
-  @Get('statuses')
-  // No @RequirePermission — any authenticated user can read the catalog.
-  getStatuses(): { statuses: string[] } {
-    return { statuses: this.workflow.getStatuses() };
-  }
 
   @Post(':id/claim')
   @HttpCode(HttpStatus.OK)

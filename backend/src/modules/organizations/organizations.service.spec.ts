@@ -1,13 +1,15 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { OrganizationRow, OrganizationsRepository } from './organizations.repository';
 import { OrganizationsService } from './organizations.service';
+import { GeofencingService } from '../geofencing/geofencing.service';
 
 function makeOrg(overrides: Partial<OrganizationRow> = {}): OrganizationRow {
   return {
     id: 'org-1',
     name: 'Santa Elena',
     zone_id: 'zone-1',
+    max_active_claims: 5,
     created_at: new Date('2026-01-01T00:00:00Z'),
     ...overrides,
   };
@@ -22,6 +24,7 @@ describe('OrganizationsService', () => {
     findAll: jest.Mock;
     findByZone: jest.Mock;
   };
+  let geofencing: { resolveZone: jest.Mock };
   let service: OrganizationsService;
 
   beforeEach(() => {
@@ -33,11 +36,12 @@ describe('OrganizationsService', () => {
       findAll: jest.fn(),
       findByZone: jest.fn(),
     };
+    geofencing = { resolveZone: jest.fn() };
     service = new OrganizationsService(
       repo as unknown as OrganizationsRepository,
       { find: jest.fn() } as never,
       { find: jest.fn() } as never,
-      { resolveZone: jest.fn() } as never,
+      geofencing as unknown as GeofencingService,
     );
   });
 
@@ -130,6 +134,56 @@ describe('OrganizationsService', () => {
     it('returns null when zoneId itself is null', async () => {
       await expect(service.findByZone(null)).resolves.toBeNull();
       expect(repo.findByZone).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---- T6.1.B — notifiedFor dual-input ----------------------------------------
+
+  describe('notifiedFor', () => {
+    const ZONE_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+
+    it('(a) location_id → resolves zone by ID and returns org with is_claimable', async () => {
+      const org = makeOrg({ zone_id: ZONE_UUID, max_active_claims: 5 });
+      repo.findByZone.mockResolvedValue(org);
+
+      const result = await service.notifiedFor({ location_id: ZONE_UUID });
+
+      expect(repo.findByZone).toHaveBeenCalledWith(ZONE_UUID);
+      expect(geofencing.resolveZone).not.toHaveBeenCalled();
+      expect(result).toEqual([{ ...org, is_claimable: true }]);
+    });
+
+    it('(b) lat+lng → geofencing path returns org with is_claimable', async () => {
+      const org = makeOrg({ zone_id: ZONE_UUID, max_active_claims: 3 });
+      geofencing.resolveZone.mockResolvedValue({ zone: { id: ZONE_UUID }, zone_id: ZONE_UUID });
+      repo.findByZone.mockResolvedValue(org);
+
+      const result = await service.notifiedFor({ lat: -2.2, lng: -80.5 });
+
+      expect(geofencing.resolveZone).toHaveBeenCalledWith({ lat: -2.2, lng: -80.5 });
+      expect(repo.findByZone).toHaveBeenCalledWith(ZONE_UUID);
+      expect(result).toEqual([{ ...org, is_claimable: true }]);
+    });
+
+    it('(c) no params → throws BadRequestException', async () => {
+      await expect(service.notifiedFor({})).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('(d) location_id not found → returns empty array', async () => {
+      repo.findByZone.mockResolvedValue(null);
+
+      const result = await service.notifiedFor({ location_id: ZONE_UUID });
+
+      expect(result).toEqual([]);
+    });
+
+    it('(e) max_active_claims = 0 → is_claimable = false', async () => {
+      const org = makeOrg({ max_active_claims: 0 });
+      repo.findByZone.mockResolvedValue(org);
+
+      const result = await service.notifiedFor({ location_id: ZONE_UUID });
+
+      expect(result[0].is_claimable).toBe(false);
     });
   });
 });

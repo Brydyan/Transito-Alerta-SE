@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { GeofencingModule } from '../geofencing/geofencing.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { OrganizationEntity } from '../../entities/organization.entity';
+import { IncidentImageEntity } from '../../entities/incident-image.entity';
 import { IncidentsController } from './incidents.controller';
 import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService } from './incidents.service';
@@ -12,6 +13,10 @@ import { IncidentWorkflowService } from './incident-workflow.service';
 import { IncidentAnalyticsService } from './incident-analytics.service';
 import { IncidentFeedService } from './incident-feed.service';
 import { IncidentExportService } from './incident-export.service';
+import { IncidentImagesController } from './incident-images.controller';
+import { IncidentImagesService } from './incident-images.service';
+import { IncidentImageStorageService } from './incident-image-storage.service';
+import { FeedRecoveryService } from './feed-recovery.service';
 
 /**
  * IncidentsModule (design DAG: `Incidents -> Users, IncidentCategories,
@@ -25,11 +30,14 @@ import { IncidentExportService } from './incident-export.service';
  * for the operator claim/release lifecycle. The workflow service needs the
  * OrganizationEntity repository (for max_active_claims), so it goes through
  * TypeOrmModule.forFeature.
+ *
+ * T6.6 — registers IncidentImagesController + IncidentImagesService +
+ * IncidentImageStorageService for image attachments to incidents.
  */
 @Module({
-  imports: [GeofencingModule, OrganizationsModule, TypeOrmModule.forFeature([OrganizationEntity])],
-  controllers: [IncidentWorkflowController, IncidentsController],
-  providers: [IncidentsRepository, IncidentsService, IncidentWorkflowService, IncidentAnalyticsService, IncidentFeedService, IncidentExportService],
+  imports: [GeofencingModule, OrganizationsModule, TypeOrmModule.forFeature([OrganizationEntity, IncidentImageEntity])],
+  controllers: [IncidentWorkflowController, IncidentsController, IncidentImagesController],
+  providers: [IncidentsRepository, IncidentsService, IncidentWorkflowService, IncidentAnalyticsService, IncidentFeedService, IncidentExportService, IncidentImagesService, IncidentImageStorageService, FeedRecoveryService],
   // IncidentsRepository is exported too (T3.2 D3) — Comments/Assignments
   // resolve the PARENT incident under the caller's scope before touching
   // their own rows, without importing the whole IncidentsService surface.

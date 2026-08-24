@@ -15,6 +15,10 @@ export class AssignmentEntity {
   @Column({ type: 'varchar', default: 'primary' })
   role!: string;
 
+  /** T6.2 — soft delete timestamp (migration 0026). NULL = active. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 }
