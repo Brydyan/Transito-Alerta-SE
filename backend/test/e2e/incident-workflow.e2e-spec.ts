@@ -155,7 +155,7 @@ describe('E2E incident workflow — claim/release/operators/statuses (T5.1)', ()
 
   // ---- status catalog ---------------------------------------------------
 
-  it('GET /api/incidents/statuses returns the 3 IncidentStatus values for any authenticated user', async () => {
+  it('GET /api/incidents/statuses returns the incident status values for any authenticated user', async () => {
     const anyUser: ProvisionedUser = await env.provisionUser(['READ incidents']);
 
     const response = await request(env.httpServer)
@@ -163,7 +163,12 @@ describe('E2E incident workflow — claim/release/operators/statuses (T5.1)', ()
       .set('Authorization', `Bearer ${anyUser.accessToken}`)
       .expect(200);
 
-    expect(response.body).toEqual({ statuses: ['pending', 'in_progress', 'resolved'] });
+    // T6.8.A4 — getStatuses() returns [{ id, label }] array (updated from original wrapper shape)
+    expect(Array.isArray(response.body)).toBe(true);
+    const ids = (response.body as Array<{ id: string }>).map((s) => s.id);
+    expect(ids).toContain('pending');
+    expect(ids).toContain('in_progress');
+    expect(ids).toContain('resolved');
   });
 
   it('GET /api/incidents/statuses without auth returns 401', async () => {

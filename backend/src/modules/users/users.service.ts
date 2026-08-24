@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindManyOptions, In, Not, Repository } from 'typeorm';
+import { FindManyOptions, In, IsNull, Not, Repository } from 'typeorm';
 
 import { UserEntity } from '../../entities/user.entity';
 import { RoleEntity } from '../../entities/role.entity';
@@ -47,7 +47,8 @@ export class UsersService {
   ) {}
 
   async findById(id: string): Promise<UserEntity> {
-    const user = await this.userRepo.findOne({ where: { id } });
+    // T6.8.B4: soft-deleted users are invisible (deletedAt IS NULL filter)
+    const user = await this.userRepo.findOne({ where: { id, deletedAt: IsNull() } });
     if (!user) {
       throw new NotFoundException(`User ${id} not found`);
     }
@@ -275,10 +276,27 @@ export class UsersService {
    * project is modeled as `is_active = false` for consistency with
    * the existing 0001 schema).
    */
+  /**
+   * T6.8.B2 — GDPR-compliant soft delete with PII wipe.
+   * Sets `deletedAt`, `isActive=false`, and overwrites all PII fields so the
+   * row cannot be used to identify the person. The `email` is replaced with a
+   * deterministic tombstone (`deleted+{id}@tase.invalid`) so the UNIQUE
+   * constraint still holds after deletion.
+   */
   async softDelete(id: string): Promise<void> {
     const target = await this.findById(id);
-    target.isActive = false;
-    await this.userRepo.save(target);
+    await this.userRepo.update(id, {
+      deletedAt: new Date(),
+      isActive: false,
+      firstName: 'Usuario eliminado',
+      lastName: null,
+      email: `deleted+${id}@tase.invalid`,
+      avatarUrl: null,
+      passwordHash: null,
+      deviceUuid: null,
+      verificationOtp: null,
+      verificationOtpExpiresAt: null,
+    });
     await this.authService.invalidatePermissionCache(target.id, target.deviceUuid);
   }
 }

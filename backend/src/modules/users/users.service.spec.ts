@@ -391,4 +391,47 @@ describe('UsersService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
+
+  // T6.8.B2 + T6.8.B4 — GDPR soft delete + filtered findById
+
+  describe('softDelete() (T6.8.B2)', () => {
+    it('calls update with PII wipe fields and deletedAt when user found', async () => {
+      const user = { id: 'u1', isActive: true, deviceUuid: 'dev-1' };
+      userRepo.findOne.mockResolvedValue(user);
+      userRepo.update.mockResolvedValue({ affected: 1 });
+      authService.invalidatePermissionCache.mockResolvedValue(undefined);
+
+      await service.softDelete('u1');
+
+      expect(userRepo.update).toHaveBeenCalledWith('u1', expect.objectContaining({
+        deletedAt: expect.any(Date),
+        isActive: false,
+        firstName: 'Usuario eliminado',
+        email: 'deleted+u1@tase.invalid',
+        passwordHash: null,
+        verificationOtp: null,
+      }));
+      expect(authService.invalidatePermissionCache).toHaveBeenCalledWith('u1', 'dev-1');
+    });
+
+    it('throws NotFoundException when user not found (soft-deleted or missing)', async () => {
+      userRepo.findOne.mockResolvedValue(null);
+      await expect(service.softDelete('missing')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('findById() — soft-delete filter (T6.8.B4)', () => {
+    it('includes deletedAt filter in the where clause (IsNull check)', async () => {
+      userRepo.findOne.mockResolvedValue({ id: 'u1' });
+      await service.findById('u1');
+      const whereArg = userRepo.findOne.mock.calls[0][0].where;
+      // deletedAt should be present in the where, TypeORM IsNull() returns FindOperator
+      expect(whereArg).toHaveProperty('deletedAt');
+    });
+
+    it('throws NotFoundException when findOne returns null (user deleted)', async () => {
+      userRepo.findOne.mockResolvedValue(null);
+      await expect(service.findById('deleted-user')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
 });

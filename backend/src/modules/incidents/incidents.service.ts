@@ -218,30 +218,29 @@ export class IncidentsService {
   }
 
   /**
-   * `DELETE /api/incidents/:id` — soft delete by writing a `deleted_at`
-   * row. The `incidents` table has no `deleted_at` column in the
-   * current schema; until the T5.6 schema migration lands, this is a
-   * no-op stub that returns 204 (the controller treats 204 as success
-   * and the e2e test asserts the row is still queryable). When the
-   * migration is added, replace with a TypeORM `softRemove` call.
+   * `DELETE /api/incidents/:id` — T6.2: real soft delete using `deleted_at`
+   * column (migration 0025). Sets `deleted_at = NOW()` so the row is
+   * invisible to all queries that filter `AND deleted_at IS NULL`.
+   * `comments`, `assignments`, and `status_history` rows survive (no CASCADE).
    */
   async softDelete(id: string): Promise<void> {
-    const incident = await this.incidentsRepository.findOne(id, {
-      kind: 'public',
-      organizationId: null,
-    } as never);
+    const incident = await this.incidentsRepository.findOne(id, { kind: 'global' } as SubjectScope);
     if (!incident) {
       throw new NotFoundException(`Incident ${id} not found`);
     }
-    // Hard delete for now — `incidents.deleted_at` lands in a follow-up
-    // migration. Cascades are not configured, so a hard delete would
-    // leave orphan `comments` / `assignments` / `status_history`. The
-    // safer no-op keeps the row but marks it as a soft-delete
-    // candidate for the next migration.
-    await this.incidentsRepository.update(id, {
-      title: incident.title,
-      description: incident.description,
-      categoryId: incident.category_id,
-    });
+    await this.incidentsRepository.softDelete(id);
+  }
+
+  /**
+   * T6.8.A4 — return the catalog of valid incident statuses.
+   * Exposed as GET /incidents/statuses and aliased at GET /estados.
+   */
+  getStatuses(): { id: IncidentStatus; label: string }[] {
+    return [
+      { id: 'pending', label: 'Pendiente' },
+      { id: 'in_progress', label: 'En progreso' },
+      { id: 'resolved', label: 'Resuelto' },
+      { id: 'closed', label: 'Cerrado' },
+    ];
   }
 }

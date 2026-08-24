@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { CoreModule } from './core/core.module';
 import { AppController } from './app.controller';
@@ -27,6 +28,7 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     CoreModule,
     AuthModule,
     GeofencingModule,

@@ -46,6 +46,17 @@ export class AuthController {
     private readonly passwordResetService: PasswordResetService,
   ) {}
 
+  /**
+   * T6.8.C1 — POST /auth/register tombstone (GeoReporta parity).
+   * Registration is invitation-only; return 410 Gone so API clients can
+   * surface a meaningful error rather than 404.
+   */
+  @Post('register')
+  @HttpCode(HttpStatus.GONE)
+  register(): { message: string } {
+    return { message: 'Registration is invitation-only. Contact an administrator.' };
+  }
+
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Req() req: Request): Promise<AuthTokens> {
@@ -76,7 +87,7 @@ export class AuthController {
   @Post('accept-invitation')
   @HttpCode(HttpStatus.CREATED)
   async acceptInvitation(@Body() dto: AcceptInvitationDto, @Req() req: Request): Promise<AuthTokens> {
-    const userId = await this.invitationsService.redeem(dto.token, dto.password);
+    const userId = await this.invitationsService.redeem(dto.token, dto.password, dto.terms_version);
     return this.authService.issueSessionForNewIdentity(userId, requestMeta(req));
   }
 

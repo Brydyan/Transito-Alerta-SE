@@ -6,7 +6,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseFloatPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -19,11 +18,13 @@ import { PermissionGuard } from '../../common/guards/permission.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { NotifiedForQueryDto } from './dto/notified-for-query.dto';
 import { OrganizationRow } from './organizations.repository';
 import {
   ListResult,
   OrganizationFormData,
   OrganizationTreeNode,
+  OrganizationWithClaimable,
   OrganizationsService,
 } from './organizations.service';
 
@@ -70,10 +71,9 @@ export class OrganizationsController {
 
   @Get('notified-for')
   getNotifiedFor(
-    @Query('lat', ParseFloatPipe) lat: number,
-    @Query('lng', ParseFloatPipe) lng: number,
-  ): Promise<OrganizationRow[]> {
-    return this.organizationsService.notifiedFor(lat, lng);
+    @Query() dto: NotifiedForQueryDto,
+  ): Promise<OrganizationWithClaimable[]> {
+    return this.organizationsService.notifiedFor(dto);
   }
 
   @Get(':id')

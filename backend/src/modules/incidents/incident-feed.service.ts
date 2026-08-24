@@ -82,6 +82,7 @@ export class IncidentFeedService {
       priority: string;
       updated_at: Date;
       created_at: Date;
+      resolution_date: Date | null;
       location_geojson: object | null;
       category_name: string | null;
       org_name: string | null;
@@ -90,7 +91,7 @@ export class IncidentFeedService {
       zone_name: string | null;
     }[]>(
       `SELECT i.id, i.category_id, i.organization_id, i.citizen_id, i.zone_id,
-              i.title, i.status, i.priority, i.updated_at, i.created_at,
+              i.title, i.status, i.priority, i.updated_at, i.created_at, i.resolution_date,
               ST_AsGeoJSON(i.location)::json AS location_geojson,
               ic.name AS category_name,
               o.name AS org_name,
@@ -101,7 +102,7 @@ export class IncidentFeedService {
        LEFT JOIN organizations o ON i.organization_id = o.id
        LEFT JOIN users u ON i.citizen_id = u.id
        LEFT JOIN geo_zones gz ON i.zone_id = gz.id
-       WHERE ${where}
+       WHERE ${where} AND i.deleted_at IS NULL
        ORDER BY i.updated_at DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params,
@@ -125,7 +126,7 @@ export class IncidentFeedService {
       title: r.title,
       status: r.status,
       priority: r.priority,
-      resolution_date: r.status === 'resolved' ? r.updated_at : null,
+      resolution_date: r.resolution_date ?? null,  // T6.3: use real column, not inline computation
       created_at: r.created_at,
       updated_at: r.updated_at,
       geom: r.location_geojson ?? null,
@@ -170,15 +171,19 @@ export class IncidentFeedService {
     params.push((page - 1) * perPage);
     const offsetIdx = params.length;
 
+    // T6.2: filter soft-deleted incidents in citizen feed fallback
+    conditions.push('i.deleted_at IS NULL');
+
     const rows = await this.dataSource.query<{
       id: string; category_id: string | null; organization_id: string | null;
       citizen_id: string; zone_id: string | null; title: string; status: string;
-      priority: string; updated_at: Date; created_at: Date;
+      priority: string; updated_at: Date; created_at: Date; resolution_date: Date | null;
       location_geojson: object | null; category_name: string | null; org_name: string | null;
       zone_name: string | null;
     }[]>(
+      // T6.3: select real resolution_date column
       `SELECT i.id, i.category_id, i.organization_id, i.citizen_id, i.zone_id,
-              i.title, i.status, i.priority, i.updated_at, i.created_at,
+              i.title, i.status, i.priority, i.updated_at, i.created_at, i.resolution_date,
               ST_AsGeoJSON(i.location)::json AS location_geojson,
               ic.name AS category_name, o.name AS org_name, gz.name AS zone_name
        FROM incidents i
@@ -207,7 +212,7 @@ export class IncidentFeedService {
       title: r.title,
       status: r.status,
       priority: r.priority,
-      resolution_date: r.status === 'resolved' ? r.updated_at : null,
+      resolution_date: r.resolution_date ?? null,  // T6.3: use real column
       created_at: r.created_at,
       updated_at: r.updated_at,
       geom: r.location_geojson ?? null,

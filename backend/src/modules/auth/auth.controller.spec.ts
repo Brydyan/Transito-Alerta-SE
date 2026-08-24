@@ -100,7 +100,8 @@ describe('AuthController', () => {
         makeReq(),
       );
 
-      expect(invitationsService.redeem).toHaveBeenCalledWith('tok', 'secret1234567');
+      // terms_version is undefined when not provided (T6.5 added optional third arg)
+      expect(invitationsService.redeem).toHaveBeenCalledWith('tok', 'secret1234567', undefined);
       expect(authService.issueSessionForNewIdentity).toHaveBeenCalledWith('user-1', {
         ip: '203.0.113.9',
         userAgent: 'jest-test-agent',

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -28,11 +29,13 @@ import { StatsQueryDto } from './dto/stats-query.dto';
 import { WeeklyStatsQueryDto } from './dto/weekly-stats-query.dto';
 import { FeedQueryDto } from './dto/feed-query.dto';
 import { ExportQueryDto } from './dto/export-query.dto';
+import { ExportFormat } from './incident-export.service';
 import { IncidentRow } from './incidents.repository';
 import { IncidentsService } from './incidents.service';
 import { IncidentAnalyticsService } from './incident-analytics.service';
 import { IncidentFeedService } from './incident-feed.service';
 import { IncidentExportService } from './incident-export.service';
+import { FeedRecoveryService } from './feed-recovery.service';
 
 /**
  * IncidentsController (R2) — calibration slice. Anonymous devices hold
@@ -51,6 +54,7 @@ export class IncidentsController {
     private readonly analyticsService: IncidentAnalyticsService,
     private readonly feedService: IncidentFeedService,
     private readonly exportService: IncidentExportService,
+    private readonly feedRecoveryService: FeedRecoveryService,
   ) {}
 
   @Post()
@@ -96,19 +100,15 @@ export class IncidentsController {
     return this.feedService.getCitizenFeed(query);
   }
 
-  @Get('export')
+  @Get(['export', 'exportar'])
   @RequirePermission('READ', 'dashboard')
   async exportCsv(
     @Query() query: ExportQueryDto,
+    @Query('format') format: ExportFormat = 'csv',
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ): Promise<void> {
     const user = req.user!;
-    const now = new Date();
-    const ts = now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
-    const filename = `incidencias-${ts}.csv`;
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
     const CAP = 5000;
     const total = await this.exportService.countFiltered(query, user);
@@ -118,8 +118,30 @@ export class IncidentsController {
       res.setHeader('X-Report-Exported', String(CAP));
     }
 
-    const stream = this.exportService.createCsvStream(query, user, CAP);
+    const { stream, contentType, filename } = await this.exportService.createExportStream(query, user, CAP, format);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     stream.pipe(res);
+  }
+
+  // ---- T6.8.A4: Status catalog — no auth required (public) ----------------
+
+  @Get('statuses')
+  getStatuses() {
+    return this.incidentsService.getStatuses();
+  }
+
+  // ---- T6.7.C3: Admin — manual feed rebuild --------------------------------
+
+  @Post('admin/feed/rebuild')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async rebuildFeed(@Req() req: AuthenticatedRequest): Promise<{ rebuilt: number }> {
+    // Admin-only: only admin_sistema role may trigger manual feed rebuild
+    if (req.user!.roleName !== 'admin_sistema') {
+      throw new ForbiddenException('Only admin_sistema may trigger feed rebuild');
+    }
+    const rebuilt = await this.feedRecoveryService.rebuildFeed();
+    return { rebuilt };
   }
 
   // ---- existing routes (wildcard :id must come after literal routes) -----

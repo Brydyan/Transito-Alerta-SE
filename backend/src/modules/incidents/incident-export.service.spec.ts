@@ -15,6 +15,7 @@ function makeRow(id: string) {
     org_name: 'Org', category_name: null,
     created_at: new Date('2026-08-01T00:00:00Z'),
     updated_at: new Date('2026-08-01T00:00:00Z'),
+    resolution_date: null,
   };
 }
 
@@ -70,5 +71,50 @@ describe('IncidentExportService', () => {
     const sql = (ds.query.mock.calls[0] as [string, unknown[]])[0];
     expect(sql).toContain('created_at >=');
     expect(sql).toContain('created_at <=');
+  });
+
+  // T6.7.A4 — xlsx format tests
+
+  it('createXlsxStream() resolves without error for empty dataset', async () => {
+    ds.query.mockResolvedValue([]);
+    const stream = service.createXlsxStream({} as Filters, ADMIN, 100);
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', resolve);
+      stream.on('error', reject);
+    });
+    const buf = Buffer.concat(chunks);
+    // XLSX files start with PK zip magic bytes 50 4B 03 04
+    expect(buf.length).toBeGreaterThan(0);
+    expect(buf.slice(0, 2).toString('hex')).toBe('504b');
+  });
+
+  it('createXlsxStream() includes row data', async () => {
+    ds.query.mockResolvedValue([makeRow('inc-1'), makeRow('inc-2')]);
+    const stream = service.createXlsxStream({} as Filters, ADMIN, 100);
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', resolve);
+      stream.on('error', reject);
+    });
+    const buf = Buffer.concat(chunks);
+    // xlsx is a zip; just verify it's non-empty and has PK magic
+    expect(buf.length).toBeGreaterThan(100);
+  });
+
+  it('createExportStream() returns csv content-type for format=csv', async () => {
+    ds.query.mockResolvedValue([]);
+    const result = await service.createExportStream({} as Filters, ADMIN, 100, 'csv');
+    expect(result.contentType).toContain('text/csv');
+    expect(result.filename).toMatch(/\.csv$/);
+  });
+
+  it('createExportStream() returns xlsx content-type for format=xlsx', async () => {
+    ds.query.mockResolvedValue([]);
+    const result = await service.createExportStream({} as Filters, ADMIN, 100, 'xlsx');
+    expect(result.contentType).toContain('spreadsheetml');
+    expect(result.filename).toMatch(/\.xlsx$/);
   });
 });

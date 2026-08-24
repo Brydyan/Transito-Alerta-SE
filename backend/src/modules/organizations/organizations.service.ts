@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -8,6 +8,11 @@ import { GeofencingService } from '../geofencing/geofencing.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { ListFilters, OrganizationRow, OrganizationsRepository } from './organizations.repository';
+import { NotifiedForQueryDto } from './dto/notified-for-query.dto';
+
+export interface OrganizationWithClaimable extends OrganizationRow {
+  is_claimable: boolean;
+}
 
 export interface ListResult {
   items: OrganizationRow[];
@@ -123,16 +128,30 @@ export class OrganizationsService {
   }
 
   /**
-   * T5.6 — which organizations should receive a notification for a
-   * point? Reuses GeofencingService.findZoneForPoint and returns the
-   * org tied to that zone (or `[]` if the point is outside every zone).
+   * T6.1.B — dual-input: GPS coordinates OR location_id (zone UUID).
+   * If location_id is provided → direct zone lookup by ID (no geofencing).
+   * If lat+lng are provided → existing geofencing path.
+   * Otherwise → BadRequestException (at least one group required).
+   * Returns is_claimable: org.max_active_claims > 0.
    */
-  async notifiedFor(lat: number, lng: number): Promise<OrganizationRow[]> {
-    const { zone } = await this.geofencingService.resolveZone({ lat, lng });
-    if (!zone) {
-      return [];
+  async notifiedFor(query: NotifiedForQueryDto): Promise<OrganizationWithClaimable[]> {
+    let zoneId: string | null = null;
+
+    if (query.location_id) {
+      // Grupo B: direct lookup by zone ID
+      zoneId = query.location_id;
+    } else if (query.lat !== undefined && query.lng !== undefined) {
+      // Grupo A: geofencing
+      const { zone } = await this.geofencingService.resolveZone({ lat: query.lat, lng: query.lng });
+      zoneId = zone?.id ?? null;
+    } else {
+      throw new BadRequestException('Provide lat+lng or location_id');
     }
-    const org = await this.repo.findByZone(zone.id);
-    return org ? [org] : [];
+
+    if (!zoneId) return [];
+    const org = await this.repo.findByZone(zoneId);
+    if (!org) return [];
+
+    return [{ ...org, is_claimable: org.max_active_claims > 0 }];
   }
 }

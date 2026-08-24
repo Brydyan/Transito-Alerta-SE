@@ -20,7 +20,7 @@ export interface AuthenticatedRequest extends Request {
 export class MenusController {
   constructor(private readonly menusService: MenusService) {}
 
-  @Get()
+  @Get(['', 'my'])
   getMenu(@Req() request: AuthenticatedRequest): Promise<MenuEntry[]> {
     return this.menusService.getMenuForUser(request.user.userId);
   }

@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { RoleEntity } from '../../entities/role.entity';
+import { AuthModule } from '../auth/auth.module';
 import { PasswordHasher } from '../auth/password-hasher';
 import { MailModule } from '../mail/mail.module';
 import { InvitationsController } from './invitations.controller';
@@ -25,6 +26,7 @@ import { InvitationsService } from './invitations.service';
   imports: [
     TypeOrmModule.forFeature([RoleEntity, OrganizationEntity]),
     MailModule,
+    forwardRef(() => AuthModule),
   ],
   controllers: [InvitationsController],
   providers: [InvitationsRepository, InvitationsService, PasswordHasher],

@@ -28,6 +28,9 @@ export interface IncidentRow {
   lng: number;
   created_at: Date;
   updated_at: Date;
+  deleted_at: Date | null;
+  claimed_at: Date | null;
+  resolution_date: Date | null;
 }
 
 export interface CreateIncidentInput {
@@ -45,10 +48,10 @@ export interface CreateIncidentInput {
 const SELECT_COLUMNS = `
   id, title, description, status, priority,
   citizen_id, assigned_to, zone_id, geofence_matched, organization_id,
-  category_id, claimed_by, approved_by, approved_at, rejected_by, rejected_at,
-  rejection_reason,
+  category_id, claimed_by, claimed_at, approved_by, approved_at, rejected_by, rejected_at,
+  rejection_reason, resolution_date,
   ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng,
-  created_at, updated_at
+  created_at, updated_at, deleted_at
 `;
 
 /**
@@ -107,8 +110,10 @@ export class IncidentsRepository {
     conditions.push(scopeSql.fragment);
     params.push(...scopeSql.params);
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    // T6.2: always filter out soft-deleted incidents
+    conditions.push('deleted_at IS NULL');
 
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     return this.dataSource.query(
       `SELECT ${SELECT_COLUMNS} FROM incidents ${where} ORDER BY created_at DESC LIMIT 1000`,
       params,
@@ -118,18 +123,24 @@ export class IncidentsRepository {
   async findOne(id: string, scope: SubjectScope): Promise<IncidentRow | null> {
     const scopeSql = scopeToSql(scope, { table: 'incidents', paramOffset: 2 });
     const rows: IncidentRow[] = await this.dataSource.query(
-      `SELECT ${SELECT_COLUMNS} FROM incidents WHERE id = $1 AND ${scopeSql.fragment}`,
+      // T6.2: filter out soft-deleted incidents
+      `SELECT ${SELECT_COLUMNS} FROM incidents WHERE id = $1 AND ${scopeSql.fragment} AND deleted_at IS NULL`,
       [id, ...scopeSql.params],
     );
     return rows[0] ?? null;
   }
 
   async updateStatus(id: string, status: IncidentStatus): Promise<IncidentRow | null> {
+    // T6.3: $3 is a boolean flag to avoid PostgreSQL "inconsistent types for $2" when
+    // using the same enum-bound parameter in both SET and a CASE comparison.
     const result = await this.dataSource.query(
-      `UPDATE incidents SET status = $2, updated_at = now()
+      `UPDATE incidents
+         SET status = $2,
+             updated_at = now(),
+             resolution_date = CASE WHEN $3 THEN NOW() ELSE NULL END
        WHERE id = $1
        RETURNING ${SELECT_COLUMNS}`,
-      [id, status],
+      [id, status, status === 'resolved'],
     );
     return unwrapReturningRows<IncidentRow>(result)[0] ?? null;
   }
@@ -159,6 +170,14 @@ export class IncidentsRepository {
       throw new Error(`Incident ${id} vanished mid-update`);
     }
     return row;
+  }
+
+  /** T6.2 — real soft delete: sets deleted_at = NOW() on the row. */
+  async softDelete(id: string): Promise<void> {
+    await this.dataSource.query(
+      `UPDATE incidents SET deleted_at = NOW() WHERE id = $1`,
+      [id],
+    );
   }
 }
 

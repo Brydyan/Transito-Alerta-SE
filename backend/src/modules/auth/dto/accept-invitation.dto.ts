@@ -1,4 +1,4 @@
-import { IsString, MinLength } from 'class-validator';
+import { IsOptional, IsString, MinLength } from 'class-validator';
 
 // T3.6 task 5.2 — password floor pinned at 12 (spec: "a length floor").
 // Kept as a literal, not read from AuthConfig, because class-validator
@@ -14,4 +14,9 @@ export class AcceptInvitationDto {
   @IsString()
   @MinLength(PASSWORD_MIN_LENGTH)
   password!: string;
+
+  /** T6.5 — optional: if present, writes termsAcceptedAt + termsVersion to the user row. */
+  @IsOptional()
+  @IsString()
+  terms_version?: string;
 }

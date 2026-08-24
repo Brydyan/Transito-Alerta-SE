@@ -65,6 +65,14 @@ export class IncidentEntity {
   @Column({ name: 'claimed_by', type: 'uuid', nullable: true })
   claimedBy!: string | null;
 
+  /** T6.3 — timestamp of the last claim action (migration 0027). Not cleared on release. */
+  @Column({ name: 'claimed_at', type: 'timestamptz', nullable: true, default: null })
+  claimedAt!: Date | null;
+
+  /** T6.3 — timestamp when incident entered 'resolved'; NULL if re-opened (migration 0027). */
+  @Column({ name: 'resolution_date', type: 'timestamptz', nullable: true, default: null })
+  resolutionDate!: Date | null;
+
   /**
    * T5.6 — admin approve/reject decision columns (migration 0021).
    * `approved_*` and `rejected_*` are written as a pair (CHECK pair constraint)
@@ -85,6 +93,10 @@ export class IncidentEntity {
 
   @Column({ name: 'rejection_reason', type: 'text', nullable: true })
   rejectionReason!: string | null;
+
+  /** T6.2 — soft delete timestamp (migration 0025). NULL = active. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

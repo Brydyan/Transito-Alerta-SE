@@ -129,7 +129,10 @@ describe('IncidentsRepository', () => {
       const result = await repository.updateStatus('inc-1', 'in_progress');
 
       const [, params] = dataSource.query.mock.calls[0];
-      expect(params).toEqual(['inc-1', 'in_progress']);
+      // T6.3: third param is a boolean flag (status === 'resolved') driving
+      // resolution_date — avoids PostgreSQL "inconsistent types for $2" from
+      // reusing the enum-bound status param inside a text CASE comparison.
+      expect(params).toEqual(['inc-1', 'in_progress', false]);
       expect(result).toEqual(row);
     });
 

@@ -30,13 +30,23 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
   - ✅ T4.3: Security hardening — `helmet@8.3.0`, fix `MoreThan` dedup, 4 tests E2E (138 total). Archivado 2026-08-21
   - ✅ T4.4: Documentación — Swagger (`/api/docs` en dev), runbook `docs/runbooks/deploy.md`. Archivado 2026-08-21
 
-- **Fase 5 (T5.1-T5.6)**: 🔄 En progreso — Sub-features de GeoReporta ausentes en Fases 1-4
+- **Fase 5 (T5.1-T5.6)**: ✅ 100% Completada (2026-08-23) — todas archivadas
   - ✅ T5.1: Incident Workflow — claim/release, operadores disponibles, catálogo de estados. Archivado 2026-08-23
-  - ⏳ T5.2: Incident Analytics — stats agregadas, weekly-stats, feed ciudadano, export CSV
-  - ⏳ T5.3: Operator Tracking — GPS location tracking de operadores, dashboard de operador
+  - ✅ T5.2: Incident Analytics — stats agregadas, weekly-stats, feed ciudadano, export CSV. Archivado 2026-08-23
+  - ✅ T5.3: Operator Tracking — GPS location tracking de operadores, dashboard de operador. Archivado 2026-08-23
   - ✅ T5.4: Map UI Support — filtros de mapa (GET /map/filters), form-data de usuarios. Archivado 2026-08-23
-  - ⏳ T5.5: Comment Images — subida/borrado de imágenes adjuntas en comentarios
+  - ✅ T5.5: Comment Images — subida/borrado de imágenes adjuntas en comentarios. Archivado 2026-08-23
   - ✅ T5.6: Admin Panel Backend + CRUD Gaps — roles CRUD, orgs tree/form-data, users admin, notifications approve/reject, CRUD completo incidents/comments/assignments. Archivado 2026-08-23
+
+- **Fase 6 (T6.1-T6.8)**: ⏳ Pendiente — cierre de gaps de paridad GeoReporta (23 gaps, ~78-82% → 100%)
+  - T6.1: Fix críticos de API (G10, G6) — path/response mismatches que rompen el frontend hoy
+  - T6.2: Soft Deletes (G3, G9) — incidents + assignments; integridad de datos + audit trail
+  - T6.3: Columnas de métricas (G4, G5) — `claimed_at`, `resolution_date`; requeridas por SLA/CSV export
+  - T6.4: Assignment role-change (G8/G16) — endpoint `PATCH /incidents/:id/assignments/:id` con `{role}`
+  - T6.5: Email OTP + columnas compliance (G7, G11) — verificación de email, `terms_accepted_at`
+  - T6.6: Incident image upload (G2) — `POST /incidents` multipart `images[]`
+  - T6.7: Export XLSX/PDF + Feed Recovery (G12, G15) — formatos adicionales + rebuild tras flush Redis
+  - T6.8: Path aliases + GDPR anonymizer (G14, G17, G18, G19, G20, G23) — mismatches P4 + PII
 
 ## Estado Fase 3: ✅ COMPLETADA (2026-08-19)
 
@@ -245,9 +255,9 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 
 ## Auditoría de Migración de Base de Datos
 
-### Actualmente Aplicadas (Supabase): 0001-0018 ✅ (0009-0013 el 2026-08-16; 0014-0015 el 2026-08-17; 0016-0018 el 2026-08-19)
-### Actualmente Pendientes (no aún aplicadas a Supabase): 0019-0023 (escritas, aplicadas en Testcontainers, pendientes Supabase)
-### Migraciones Fase 3: todas escritas y aplicadas. Fase 5 (T5.1, T5.4, T5.6): escritas, pendientes aplicación manual a Supabase
+### Actualmente Aplicadas (Supabase): 0001-0023 ✅ (0009-0013 el 2026-08-16; 0014-0015 el 2026-08-17; 0016-0018 el 2026-08-19; 0019-0023 el 2026-08-23)
+### Actualmente Pendientes (no aún aplicadas a Supabase): 0024 — `comment_images` (T5.5)
+### Migraciones Fase 5: 0019-0023 escritas y aplicadas a Supabase. 0024 escrita, pendiente aplicación manual a Supabase
 
 > ⚠️ **Renumeración**: este documento reservaba 0014 para `invitations` (T3.6) y 0015 para
 > `status_history` (T3.4), y no asignaba ningún slot a T3.2. Lo entregado fue **0014 =
@@ -285,19 +295,22 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 | 0016 | sessions_revocation | columnas de `user_sessions` | **Aplicada** (T3.9) | **No crea tabla nueva**: `user_sessions` existe desde 0006 como stub de tracking de dispositivo. 0016 la vuelve portadora de seguridad — `refresh_token_hash`, `previous_refresh_token_hash`, `rotated_at`, `ip_address`, `user_agent`, `revoked_at`, `expires_at`. Aplicada a Supabase y dev local el 2026-08-19 |
 | 0017 | users_password_identity | columnas de `users` | **Aplicada** (T3.6) | `device_uuid` nullable (UNIQUE constraint retiene la prevención de duplicados — Postgres UNIQUE tolera NULLs ilimitados), `password_hash` CHAR(60) nullable bcrypt. Aplicada a Supabase y dev local el 2026-08-19 |
 | 0018 | invitations | tabla invitations + password_reset_tokens | **Aplicada** (T3.6) | `invitations` (id, email, role_id FK, token SHA-256, expires_at, redeemed_at, created_by_user_id), `password_reset_tokens` (id, user_id FK, token SHA-256, expires_at, consumed_at), `permissions` seed `invitation` y `password-reset`. TTL 48h per Variante B. Aplicada a Supabase y dev local el 2026-08-19 |
-| 0019 | comment_images | tabla comment_images | ⏳ Pendiente Supabase (T5.5) | `comment_images(id, comment_id FK CASCADE, url, size_bytes, mime_type, created_by_user_id FK SET NULL, created_at)`. Escrita en `database/migrations/` por T5.1 (slot reservado para T5.5). Pendiente aplicación a Supabase |
-| 0020 | add_closed_status_to_incidents | CHECK constraint incidents.status | ⏳ Pendiente Supabase (T5.6) | Extiende CHECK de `status` a 4 estados: `pending, in_progress, resolved, closed`. Escrita 2026-08-23 |
-| 0021 | add_decision_columns_to_incidents | columnas decisión en incidents | ⏳ Pendiente Supabase (T5.6) | `approved_by uuid FK`, `approved_at timestamptz`, `rejected_by uuid FK`, `rejected_at timestamptz`, `rejection_reason text` + 3 CHECK constraints (pair + XOR) + índice parcial en `approved_at`. Escrita 2026-08-23 |
-| 0022 | add_incident_pending_approval_notification_type | CHECK constraint notifications.type | ⏳ Pendiente Supabase (T5.6) | Extiende enum de `type` con `incident_pending_approval`. Drops `valid_type` (nombre original de la constraint de 0011) y `notifications_type_check` IF EXISTS, re-agrega como `valid_type`. Escrita 2026-08-23 |
-| 0023 | add_notes_to_status_history | columna notes en status_history | ⏳ Pendiente Supabase (T5.6) | `notes TEXT nullable` en tabla `status_history`. Escrita 2026-08-23 |
+| 0019 | incident_claim | columnas claim/release en incidents + permissions (T5.1) | ✅ Aplicada 2026-08-23 | `incidents.claimed_by uuid FK SET NULL` + índice parcial; `organizations.max_active_claims int NOT NULL DEFAULT 5 CHECK (> 0)`; extiende CHECK de `permissions.action` con `CLAIM`/`RELEASE`; seeds dos permission rows; grants a `operador_organizacion`/`operador_sistema` via `roles.permissions` JSONB |
+| 0020 | add_closed_status_to_incidents | CHECK constraint incidents.status | ✅ Aplicada 2026-08-23 (T5.6) | Extiende CHECK de `status` a 4 estados: `pending, in_progress, resolved, closed`. `closed` solo vía flujo approve — no es transición manual |
+| 0021 | add_decision_columns_to_incidents | columnas decisión en incidents | ✅ Aplicada 2026-08-23 (T5.6) | `approved_by uuid FK`, `approved_at timestamptz`, `rejected_by uuid FK`, `rejected_at timestamptz`, `rejection_reason text` + 3 CHECK constraints (pair + XOR) + índice parcial en `approved_at` |
+| 0022 | add_incident_pending_approval_notification_type | CHECK constraint notifications.type | ✅ Aplicada 2026-08-23 (T5.6) | Extiende enum de `type` con `incident_pending_approval`. Drops `valid_type` + `notifications_type_check` IF EXISTS, re-agrega como `valid_type` |
+| 0023 | add_notes_to_status_history | columna notes en status_history | ✅ Aplicada 2026-08-23 (T5.6) | `notes TEXT nullable` en tabla `status_history` — usado por el flujo reject para registrar el motivo como fila de auditoría permanente |
+| 0024 | comment_images | tabla comment_images (T5.5) | ⏳ Pendiente Supabase | `comment_images(id, comment_id FK ON DELETE CASCADE, storage_key, url, mime_type, file_size CHECK > 0, created_at)`; index en `comment_id`; permission catalog rows `comment-images` (CREATE, DELETE); grants a operator + admin roles via `roles.permissions` JSONB. Slot 0020 estaba tomado por T5.6 — se usó 0024 |
 
 ## Criterios de Éxito
 
 - [x] 12/16 módulos NestJS creados, probados, desplegables (T1.1-T1.5, T2.0-T2.5, T3.1-T3.10 todos excepto T3.2b y T3.9b diferidos)
-- [x] 80 suites unit + 18 E2E, 897 pruebas (734 unit + 163 E2E), cobertura 70%+ por módulo (post T5.6)
-- [x] Migraciones de BD 0001-0018 escritas y aplicadas a Supabase (0016-0018 el 2026-08-19); 0019-0023 escritas, pendientes aplicación a Supabase
+- [x] 87 suites unit + 21 E2E, 970 pruebas (774 unit + 196 E2E) — post T5.5 (todos verde)
+- [x] Migraciones de BD 0001-0023 escritas y aplicadas a Supabase; 0024 escrita, pendiente aplicación a Supabase
 - [x] Harness E2E (Testcontainers) funcionando; 18 flujos en verde (+ incident-workflow, map-ui-support, admin-panel)
 - [x] **Fase 3 backend 100% completada**: T3.1-T3.10 all green; T3.6 (Invitations) + T3.9 (Sessions) archived after full SDD cycle (proposal → spec → design → tasks → apply → verify → archive)
+- [x] **Fase 5 backend 100% completada**: T5.1-T5.6 all green, archivadas 2026-08-23. 970 pruebas (774 unit + 196 e2e)
+- [ ] **Fase 6 backend completada**: T6.1-T6.8 completadas → paridad funcional ~100% con GeoReporta. Migraciones 0025-0029 aplicadas a Supabase
 - [x] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas (Fase 4: T4.2)
 - [x] Seguridad: rate limiting ✅, CORS ✅, SQL injection regresión ✅, type safety ✅, helmet ✅, session rotation ✅, password hashing bcrypt-12 ✅, token hashing SHA-256 ✅
 - [x] Documentación: Swagger/OpenAPI ✅, runbook de despliegue ✅
@@ -613,7 +626,7 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 
 ---
 
-## Estado Fase 5: 🔄 En Progreso (T5.1 ✅, T5.4 ✅, T5.6 ✅ — T5.2, T5.3, T5.5 pendientes)
+## Estado Fase 5: ✅ COMPLETADA (2026-08-23) — T5.1, T5.2, T5.3, T5.4, T5.5, T5.6 todas archivadas
 
 **Contexto**: Auditoría de migración GeoReporta → Transito-Alerta-SE (2026-08-22) reveló que los 17 dominios están migrados pero 13 sub-features dentro de esos dominios no tienen equivalente en el backend NestJS. Estas son características dentro de `Incidents`, `Users` y `Comments` que GeoReporta exponía como controllers separados pero que no aparecieron en el plan original de Fases 1-4 (el plan cubría dominios, no cada endpoint).
 
@@ -650,10 +663,10 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 
 ---
 
-### T5.2: Incident Analytics ⏳
+### T5.2: Incident Analytics ✅ (COMPLETADA — 2026-08-23)
 
 **Depende de**: T2.1 (Incidents), T3.1 (Roles), T3.2 (Organizations), T3.7 (IncidentCategories)  
-**Artefactos SDD**: `openspec/changes/t5.2-incident-analytics/`
+**Artefactos SDD**: `openspec/changes/archive/2026-08-23-t5.2-incident-analytics/` (archivado)
 
 **Qué hace**:
 - `GET /api/incidents/stats` — stats agregadas: total por estado (`pending/in_progress/resolved`), por organización, por categoría, por zona. Respeta SubjectScope (operador ve solo su org). Con soporte de filtros opcionales: `zone_id`, `category_id`, `from`, `to`
@@ -666,18 +679,20 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 - Export CSV usa `fast-csv` o stringify manual — no instalar librerías pesadas sin listarlo explícitamente en el task
 
 **Criterios de Aceptación**:
-- [ ] `GET /incidents/stats` retorna conteo correcto por estado; operador de Org A no ve stats de Org B
-- [ ] `GET /incidents/weekly-stats` retorna estructura `{week, total, resolved}[]` para últimas 8 semanas
-- [ ] `GET /incidents/feed` accesible con token anónimo (device_uuid); sin datos de organización expuestos
-- [ ] `GET /incidents/exportar` retorna CSV con header `Content-Disposition`, requiere `EXPORT incidents`
-- [ ] Rutas `/stats` y `/weekly-stats` no colisionan con `/:id` (test de routing)
+- [x] `GET /incidents/stats` retorna conteo correcto por estado; operador de Org A no ve stats de Org B
+- [x] `GET /incidents/weekly-stats` retorna estructura `{week, total, resolved}[]` para últimas 8 semanas
+- [x] `GET /incidents/feed` accesible con token anónimo (device_uuid); sin datos de organización expuestos
+- [x] `GET /incidents/exportar` retorna CSV con header `Content-Disposition`, requiere `EXPORT incidents`
+- [x] Rutas `/stats` y `/weekly-stats` no colisionan con `/:id` (test de routing)
+
+**Verify Verdict**: PASS WITH WARNINGS (0 CRITICAL / 2 WARNING — W1: permiso feed usa `READ incidents` vs `READ feed` en spec; W2: Redis path ciudadano no testeable en e2e, se prueba fallback Postgres)
 
 ---
 
-### T5.3: Operator Tracking ⏳
+### T5.3: Operator Tracking ✅ (COMPLETADA — 2026-08-23)
 
 **Depende de**: T2.3 (Users), T3.1 (Roles), T3.2 (Organizations)  
-**Artefactos SDD**: `openspec/changes/t5.3-operator-tracking/`
+**Artefactos SDD**: `openspec/changes/archive/2026-08-23-t5.3-operator-tracking/` (archivado)
 
 **Qué hace**:
 - `POST /api/operator/location` — operador reporta su posición GPS `{lat, lng, accuracy?}`. Almacenada en tabla nueva `operator_locations` (o columna en users — ver design). TTL implícito: localizaciones más viejas de 4h se consideran obsoletas en lecturas
@@ -689,10 +704,12 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 - El dashboard es una aggregation query, no un módulo nuevo — vive en el módulo `users/` como un endpoint adicional
 
 **Criterios de Aceptación**:
-- [ ] `POST /operator/location` acepta `{lat, lng}`, persiste, responde 201 sin exponer datos de otros operadores
-- [ ] `GET /operator/locations` retorna solo operadores de la misma org; 403 para operador_organizacion sin permiso de vista global
-- [ ] `GET /operator/dashboard` retorna datos del operador autenticado; 403 si se intenta ver dashboard de otro
-- [ ] Localizaciones > 4h no aparecen en `GET /operator/locations`
+- [x] `POST /operator/location` acepta `{lat, lng}`, persiste, responde 201 sin exponer datos de otros operadores
+- [x] `GET /operator/locations` retorna solo operadores de la misma org; 403 para operador_organizacion sin permiso de vista global
+- [x] `GET /operator/dashboard` retorna datos del operador autenticado; 403 si se intenta ver dashboard de otro
+- [x] Localizaciones > 4h no aparecen en `GET /operator/locations` (TTL via Redis 300s; tabla `operator_locations`)
+
+**Verify Verdict**: PASS WITH WARNINGS (0 CRITICAL / 3 WARNING — W1: dashboard pagination sin limit/offset; W2: TTL 300s vs spec 4h, decisión de diseño documentada; W3: sort assertion migración-resistente)
 
 ---
 
@@ -719,10 +736,10 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 
 ---
 
-### T5.5: Comment Images ⏳
+### T5.5: Comment Images ✅ (COMPLETADA — 2026-08-23)
 
 **Depende de**: T2.2 (Comments), T2.3 (Users — S3 avatar pattern)  
-**Artefactos SDD**: `openspec/changes/t5.5-comment-images/`
+**Artefactos SDD**: `openspec/changes/archive/2026-08-23-t5.5-comment-images/` (archivado)
 
 **Qué hace**:
 - `POST /api/comments/:id/images` — sube imagen adjunta a un comentario. Multipart/form-data, campo `image`. Almacena en S3 (mismo bucket que avatares, prefix `comments/{comment_id}/`). Persiste URL en tabla nueva `comment_images`. Límite: 5MB, tipos aceptados: `image/jpeg, image/png, image/webp`
@@ -733,26 +750,31 @@ T4.2  (k6 scripts, 4h)   ← independiente, puede hacerse en paralelo
 **Requiere migración nueva**: `0019_comment_images` — tabla `comment_images(id, comment_id FK CASCADE, url, size_bytes, mime_type, created_by_user_id FK SET NULL, created_at)`.
 
 **Criterios de Aceptación**:
-- [ ] `POST /comments/:id/images` sube a S3 prefix `comments/{id}/`, persiste URL, retorna 201 con `{id, url}`
-- [ ] Archivo > 5MB rechazado con 413 Payload Too Large
-- [ ] Tipo MIME inválido rechazado con 422
-- [ ] `DELETE /comments/:id/images/:imageId` por non-author retorna 403
-- [ ] `DELETE` exitoso elimina objeto S3 y fila DB (no deja objetos huérfanos)
-- [ ] Migración 0019 idempotente (`IF NOT EXISTS`)
+- [x] `POST /comments/:id/images` sube a S3 prefix `comments/{id}/`, persiste URL, retorna 201 con `{id, url}`
+- [x] Archivo > 5MB rechazado (Multer limit); hasta 5 archivos por request (maxCount)
+- [x] Tipo MIME inválido rechazado con 422 (service-side; Multer count > 5 → 400 de NestJS)
+- [x] `DELETE /comments/:id/images/:imageId` por non-author retorna 403
+- [x] `DELETE` exitoso: S3 fallo → log warning pero siempre elimina fila DB (diseño D3)
+- [x] Migración 0024 idempotente (`IF NOT EXISTS`). Nota: slot 0020 tomado por T5.6 → se usó 0024
+
+**Devaciones**: `@types/multer` no en proyecto → interfaz local `MulterFile` en `comment-image-storage.service.ts`.
+
+**Verify Verdict**: PASS WITH WARNINGS (0 CRITICAL / 1 WARNING — W1: Multer 400 vs spec 422 para exceso de archivos; false positive W2: SnakeCaseResponseInterceptor global maneja camelCase→snake_case)
 
 ---
 
-## Orden de Ejecución Recomendado para Fase 5
+## Orden de Ejecución Fase 5 (completado)
 
 ```
-T5.4 (Map UI Support, ~4h)    ← sin nuevas entidades, solo endpoints de aggregation
-T5.1 (Incident Workflow, ~6h) ← claim/release requiere campo nuevo en incidents
-T5.2 (Analytics, ~8h)        ← depende de incidents estable
-T5.3 (Operator Tracking, ~8h) ← tabla nueva operator_locations, PostGIS opcional
-T5.5 (Comment Images, ~6h)   ← requiere refactor de S3 service a common/
+✅ T5.4 (Map UI Support)     archivado 2026-08-23
+✅ T5.1 (Incident Workflow)  archivado 2026-08-23
+✅ T5.6 (Admin Panel)        archivado 2026-08-23
+✅ T5.2 (Analytics)          archivado 2026-08-23
+✅ T5.3 (Operator Tracking)  archivado 2026-08-23
+✅ T5.5 (Comment Images)     archivado 2026-08-23
 ```
 
-**Criterio de cierre de Fase 5**: todos los `[ ]` en esta sección marcados `[x]`, `pnpm test && pnpm run test:e2e` verde, Migración 0019 aplicada a Supabase, artefactos SDD `openspec/changes/t5.*/` verificados y archivados.
+**Criterio de cierre de Fase 5**: ✅ ALCANZADO — ver sección de auditoría GeoReporta abajo.
 
 ---
 
@@ -812,4 +834,385 @@ T5.5 (Comment Images, ~6h)   ← requiere refactor de S3 service a common/
 
 **Verify Verdict**: PASS WITH WARNINGS (0 CRITICAL / 4 WARNING — D3 soft-delete, D4 incidents no-op, cobertura e2e parcial en users admin)
 
-**Criterio de cierre de Fase 5 (completo)**: T5.1, T5.4, T5.6 completados + verificados + archivados. T5.2, T5.3, T5.5 pendientes. `pnpm test && pnpm run test:e2e` verde. Migrations 0019-0023 pendientes aplicación a Supabase.
+**Criterio de cierre de Fase 5 (completo)**: ✅ ALCANZADO — T5.1-T5.6 todas completadas, verificadas y archivadas (2026-08-23). `pnpm test && pnpm run test:e2e` verde (774 unit + 196 e2e). Migrations 0001-0023 aplicadas a Supabase. Migración 0024 pendiente aplicación.
+
+---
+
+## Auditoría de Migración GeoReporta → TASE (2026-08-23)
+
+Análisis exhaustivo: `GeoReporta/backend/` (routes, controllers, models, migrations, jobs, listeners, commands) vs `backend/` (NestJS). Dos pasadas — route-level y deep domain-level.
+
+**Veredicto global: ~78-82% paridad funcional.** Todos los dominios core están portados. Los gaps se agrupan en tres clusters: (a) infraestructura de imágenes, (b) integridad de datos (soft deletes + columnas faltantes), (c) mismatches de path que rompen frontend existente.
+
+---
+
+### Eliminaciones Intencionales (confirmadas)
+
+| Feature GeoReporta | Razón de exclusión |
+|---|---|
+| `POST /auth/google` (Firebase) | Replaced by device UUID + invitation model (D1) |
+| `POST /register` (open registration) | Invitation-only onboarding (posiblemente intencional) |
+| `GET /notifications/stream` (SSE) | Replaced by Socket.IO WebSocket + Redis Streams (T2.5) |
+| `apiResource /locations` (admin CRUD) | Replaced by `/geo-zones` (T3.8) |
+| `GET /locations/catalog` | TASE deriva zona de GPS — sin selección administrativa manual |
+
+---
+
+### Estado por Dominio
+
+| Dominio / Feature | Estado | Nota |
+|---|---|---|
+| Auth — login (device UUID + password) | ✅ | Path: `/login` → `/auth/login` |
+| Auth — refresh, logout, me, change-password | ✅ | |
+| Auth — password reset (request + confirm) | ✅ | |
+| Auth — Firebase/Google | 🚫 EXCLUIDO | |
+| Auth — auto-registro público | 🚫 EXCLUIDO | Invitation-only (T3.6) |
+| Email OTP verification | ❌ FALTA | G11 — flujo completo ausente |
+| Sessions (list, revoke) | ✅ | |
+| Invitations (create, list, delete) | ✅ | NestJS tiene más que GeoReporta |
+| Invitations — accept | ⚠️ PARCIAL | Path mismatch (G18); `terms_version` no grabado (G7) |
+| Invitations — preview | ⚠️ PARCIAL | Query param vs path param (G17) |
+| Users CRUD | ⚠️ PARCIAL | Faltan `terms_accepted_at`, `email_verified_at`, OTP cols (G7) |
+| UserAnonymizer (GDPR) | ❌ FALTA | G19 — solo `isActive=false`, sin borrado de PII |
+| Roles CRUD + syncPermissions | ✅ | |
+| Permissions catalog | ✅ | `GET /permissions` |
+| `GET /permissions/my` | ⚠️ PARCIAL | Expuesto en `GET /auth/me`; sin endpoint dedicado (G21) |
+| Menus | ⚠️ PARCIAL | Path: `/menus/my` → `/menus` (G14) |
+| Incidents CRUD | ⚠️ PARCIAL | Sin soft-delete (G3), `claimed_at` (G4), `resolution_date` (G5), image upload (G2) |
+| Incidents — claim/release | ⚠️ PARCIAL | Lógica portada; falta `claimed_at` (G4) |
+| Incidents — available-operators | ✅ | |
+| Incidents — status update | ⚠️ PARCIAL | `resolution_date` no seteada (G5); path `/estado` → `/status` (G20) |
+| Incidents — stats / weekly-stats | ✅ | |
+| Incidents — feed (Redis) | ✅ | Sin comando de rebuild post-flush (G15) |
+| Incidents — export CSV | ⚠️ PARCIAL | Path `exportar`→`export` (G12); sin XLSX/PDF (G12) |
+| Incidents — image upload | ❌ FALTA | G2 — `POST /incidents` no acepta `images[]` |
+| Comments CRUD | ✅ | URL flat vs shallow-nested (G22) |
+| Comment images | ✅ | T5.5 |
+| Assignments — create/list/delete | ⚠️ PARCIAL | Hard delete en vez de soft (G9); URL structure (G22) |
+| Assignments — cambiar rol | ❌ FALTA | G8/G16 — PATCH solo cambia operador, no rol |
+| Status history | ✅ | |
+| `GET /estados` (catálogo estados) | ⚠️ PARCIAL | Path top-level → nested `/incidents/statuses` (G20) |
+| Notifications — list, mark-read, mark-all-read | ✅ | |
+| Notifications — approve/reject | ✅ | |
+| Notifications — unread count | ⚠️ PARCIAL | Path + key mismatch (G10) — **badge del frontend roto** |
+| Notifications — SSE stream | 🚫 EXCLUIDO | Replaced by Socket.IO; path 404 (G13) |
+| Organizations CRUD + tree + formData | ✅ | |
+| Organizations — notifiedFor | ⚠️ PARCIAL | Input schema incompatible + falta `is_claimable` (G6) |
+| Incident categories CRUD + tree | ✅ | |
+| Geo-zones (reemplaza locations) | ✅ | T3.8 |
+| Map filters | ✅ | |
+| Operator location/dashboard | ✅ | T5.3 |
+| Socket.IO real-time | ✅ | T2.5 |
+| Mail outbox (Redis Streams + SMTP) | ✅ | T3.5 |
+| Storage proxy (`GET /storage/{path}`) | ❌ FALTA | G1 — NestJS almacena URLs directas, no object keys |
+| Feed rebuild recovery | ❌ FALTA | G15 — sin `@nestjs/schedule`, sin comando de recuperación |
+
+---
+
+### Gaps Detallados
+
+#### 🔴 P1 — Bloqueantes de producción (rompen flows existentes)
+
+| # | Gap | Detalle |
+|---|---|---|
+| G3 | **Soft-delete en incidents ausente** | `incidents.deleted_at` nunca añadido (T5.6 D4 documentado como deuda). Hard delete destruye audit trail + status-history. Users: usa `isActive=false` (no hard delete — aceptable). Assignments: hard delete (ver G9) |
+| G6 | **`GET /organizations/notified-for` input incompatible** | GeoReporta: `?location_id&category_id` (IDs de form cascade). NestJS: `?lat&lng` (coordenadas GPS brutas). El frontend manda `location_id+category_id`, NestJS no los reconoce → 500/empty. Además falta flag `is_claimable` por org |
+| G9 | **`assignments.deleted_at` ausente** | GeoReporta usa SoftDeletes + partial UNIQUE index `WHERE deleted_at IS NULL`. NestJS hard-delete destruye historial de asignaciones; re-asignación tras desasignación puede violar UNIQUE constraint |
+| G10 | **`GET /notifications/unread-count` path + key mismatch** | GeoReporta: `/notifications/unread-count` → `{unread_count:N}`. NestJS: `/notifications/unread` → `{unread:N}`. Badge del frontend → 404 o stuck en 0 |
+
+#### 🔴 P2 — Alta prioridad (datos incompletos / flows parciales)
+
+| # | Gap | Detalle |
+|---|---|---|
+| G2 | **Sin upload de imágenes en incidentes** | GeoReporta: `POST /incidents` acepta `images[]` multipart → tabla polimórfica `images`. NestJS: `CreateIncidentDto` sin campo images; sin `IncidentImageService` |
+| G4 | **`incidents.claimed_at` ausente** | T5.1 añadió `claimed_by` pero no `claimed_at`. GeoReporta lo escribe en `claim()`. Sin esto no se puede calcular duración de claim ni SLAs |
+| G5 | **`incidents.resolution_date` ausente** | GeoReporta auto-setea en `Incident::booted()` al pasar a `resolved`. NestJS usa `updated_at` (impreciso si el status cambia de nuevo). Afecta métricas de SLA y export CSV |
+| G7 | **Columnas faltantes en `users`** | `email_verified_at`, `verification_otp`, `verification_otp_expires_at` (requeridas por G11). `terms_accepted_at`, `terms_version` (compliance legal — GeoReporta los escribe en `redeem()`). `deleted_at` (GeoReporta SoftDeletes) |
+| G11 | **Email OTP verification ausente** | GeoReporta: `POST /email/verify-otp`, `POST /email/resend`, `GET /email/notice`. Modelo User implementa `generateVerificationOtp()` + `verifyOtp()`. Migration `2026_07_27_000005` añade cols OTP. NestJS: nada de esto existe — staff invitados nunca pueden verificar email |
+
+#### 🟡 P3 — Media prioridad
+
+| # | Gap | Detalle |
+|---|---|---|
+| G1 | **Sin endpoint de serving de imágenes** | GeoReporta: `GET /storage/{path}` (web.php, StorageProxyController) — stream S3/RustFS con `Cache-Control: immutable`. NestJS almacena URLs CDN directas en columnas — funciona para nuevos uploads. Gap real: migración de datos de GeoReporta (que tienen object keys, no URLs) |
+| G8/G16 | **Assignment role-change ausente** | GeoReporta `PUT /incidents/{i}/assignments/{a}` cambia `assignment_role`. NestJS `PATCH /assignments/:id` cambia `operatorId`. Son operaciones distintas; NestJS no tiene la primera |
+| G12 | **Export XLSX/PDF ausente** | GeoReporta `?format=csv\|xlsx\|pdf` via `ReportExporterFactory`. NestJS: CSV únicamente. Path también distinto: `exportar`→`export` |
+| G13 | **SSE path → 404** | Frontend usando `EventSource('/api/notifications/stream')` recibe 404. NestJS reemplazó con Socket.IO pero el path viejo no existe ni redirige |
+| G15 | **Sin `feed:rebuild` recovery command** | `@nestjs/schedule` no instalado; sin `@Cron()`. Después de un flush de Redis, el feed público queda vacío e irrecuperable sin reiniciar el proceso y esperar eventos frescos |
+
+#### 🟢 P4 — Baja prioridad (diferencias de diseño / paths)
+
+| # | Gap | Detalle |
+|---|---|---|
+| G14 | `GET /menus/my` → `GET /menus` | Path rename; funcionalidad equivalente |
+| G17 | Invitation preview: token en path vs query param | GeoReporta: `/{token}/preview`. NestJS: `/preview?token=` |
+| G18 | Invitation accept: path distinto | GeoReporta: `POST /invitations/accept`. NestJS: `POST /auth/accept-invitation` |
+| G19 | UserAnonymizer (GDPR) ausente | NestJS: solo `isActive=false`. Sin borrado de PII (nombre, email, etc.) |
+| G20 | `GET /estados` → `GET /incidents/statuses` | Path cambió de top-level a nested |
+| G21 | `GET /permissions/my` sin endpoint dedicado | Cubierto por `GET /auth/me` |
+| G22 | Assignment URLs flat vs nested | GeoReporta: `/incidents/:id/assignments`. NestJS: `/assignments` (flat) |
+| G23 | `POST /register` ausente | Posiblemente intencional (invitation-only model) |
+
+---
+
+### Columnas de BD pendientes (no en migraciones 0001-0024)
+
+| Columna | Tabla | Requerida por |
+|---|---|---|
+| `claimed_at` | incidents | G4 |
+| `resolution_date` | incidents | G5 |
+| `deleted_at` | incidents | G3 |
+| `email_verified_at` | users | G7/G11 |
+| `verification_otp` | users | G11 |
+| `verification_otp_expires_at` | users | G11 |
+| `terms_accepted_at` | users | G7 |
+| `terms_version` | users | G7 |
+| `deleted_at` | assignments | G9 |
+
+---
+
+### Gaps de Infraestructura / Ops
+
+| Gap | Detalle |
+|---|---|
+| Sin scheduler | `@nestjs/schedule` no instalado; sin tareas cron |
+| Sin feed recovery | Redis flush → feed vacío, sin comando de rebuild desde Postgres |
+| Arquitectura de storage divergente | GeoReporta: object keys en DB → StorageProxy sirve. NestJS: URLs CDN directas → sin proxy. Migración de datos GeoReporta requeriría conversión de keys a URLs o añadir proxy |
+
+---
+
+### Backlog Fase 6 (ordenado por prioridad de bloqueo)
+
+| P | Item | Gaps |
+|---|---|---|
+| P1 | Fix `GET /notifications/unread` → `unread-count` + response key | G10 |
+| P1 | Fix `GET /organizations/notified-for`: input `location_id`+`category_id`, añadir `is_claimable` | G6 |
+| P1 | Soft-delete en incidents: migración `deleted_at` + filtro en queries | G3 |
+| P1 | Soft-delete en assignments: migración `deleted_at` + partial UNIQUE index | G9 |
+| P2 | Añadir `incidents.claimed_at`: migration + escribir en `claim()` | G4 |
+| P2 | Añadir `incidents.resolution_date`: migration + escribir en `updateStatus(resolved)` | G5 |
+| P2 | Assignment role-change: `PATCH /incidents/:id/assignments/:assignmentId` con `{role}` | G8/G16 |
+| P2 | Email OTP verification: migrations + UserEntity cols + endpoints `/email/verify-otp` `/email/resend` | G7/G11 |
+| P2 | `users.terms_accepted_at` + `terms_version`: migration + escribir en `acceptInvitation()` | G7 |
+| P3 | Incident image upload: `POST /incidents` multipart `images[]` + `IncidentImagesService` | G2 |
+| P3 | Export XLSX/PDF: `ReportExporterFactory` pattern con `fast-xlsx` o `pdfmake` | G12 |
+| P3 | SSE notifications: añadir `GET /notifications/stream` o documentar migración a Socket.IO | G13 |
+| P3 | Feed rebuild command: `POST /api/admin/feed/rebuild` o `@nestjs/schedule` cron | G15 |
+| P4 | Path aliases: `/menus/my`, `/invitations/accept`, `/estados`, `/incidents/exportar` | G14/G17/G18/G20 |
+| P4 | UserAnonymizer GDPR: borrado de PII en soft-delete | G19 |
+
+> **Fuente**: análisis exhaustivo de `GeoReporta/backend/` (routes, controllers, models, migrations, jobs, listeners, commands) y `backend/src/` (NestJS). Dos pasadas: route-level + deep domain-level. 2026-08-23.
+
+---
+
+## Estado Fase 6: ⏳ Pendiente — Cierre de Paridad GeoReporta
+
+**Objetivo**: llevar la paridad funcional de ~78-82% → ~100%. Orden de ejecución: T6.1 → T6.2 → T6.3 → T6.4 → T6.5 (P1 primero, luego P2, luego P3/P4).
+
+**Migraciones previstas**: 0025 (`incidents_soft_delete`), 0026 (`assignments_soft_delete`), 0027 (`incidents_metrics_cols`), 0028 (`users_otp_compliance`), 0029 (`incident_images`).
+
+> ⚠️ Antes de escribir cualquier migración nueva, verificar el número en `database/MIGRATION_LOG.md` — los slots 0025+ están libres al 2026-08-23 pero podrían haber cambiado.
+
+---
+
+### T6.1: Fix Críticos de API ⏳
+
+**Prioridad**: P1 — rompen el frontend sin ningún cambio de código cliente  
+**Gaps**: G10, G6  
+**Depende de**: T3.3 (Notifications), T3.2 (Organizations)  
+**Sin migraciones nuevas** (solo cambios de endpoint/query/response)
+
+**Qué hace**:
+- **G10 — Unread count fix**: GeoReporta expone `GET /notifications/unread-count` → `{unread_count: N}`. NestJS tiene `GET /notifications/unread` → `{unread: N}`. Dos mismatches: path y response key. El badge del frontend → 404 o stuck en 0. Fix: añadir alias de ruta + corregir response key (o renombrar ambos con cuidado de tests existentes)
+- **G6 — Organizations notifiedFor fix**: GeoReporta recibe `?location_id&category_id` (IDs del cascading dropdown del formulario de creación de incidente). NestJS recibe `?lat&lng` (coordenadas GPS). El frontend manda `location_id+category_id` → NestJS no los reconoce → 500/empty. Además falta el flag `is_claimable` por org en la respuesta. Fix: aceptar ambas formas de input (lat/lng o location_id+category_id, resolviendo la zona vía geofencing) + añadir `is_claimable` al DTO de respuesta
+
+**Criterios de Aceptación**:
+- [ ] `GET /api/notifications/unread-count` devuelve `{unread_count: N}` (path y key correctos)
+- [ ] `GET /api/notifications/unread` sigue funcionando (backward compat o 301)
+- [ ] `GET /api/organizations/notified-for?location_id=X&category_id=Y` resuelve la zona y devuelve orgs con `is_claimable`
+- [ ] `GET /api/organizations/notified-for?lat=-2.2&lng=-80.5` sigue funcionando
+- [ ] `pnpm test && pnpm run test:e2e` verde sin romper suites existentes
+
+---
+
+### T6.2: Soft Deletes — Incidents + Assignments ⏳
+
+**Prioridad**: P1 — integridad de datos + historial de auditoría  
+**Gaps**: G3, G9  
+**Depende de**: T2.1 (Incidents), T2.4 (Assignments), T3.4 (StatusHistory)  
+**Migraciones**: 0025 (`incidents_soft_delete`), 0026 (`assignments_soft_delete`)
+
+**Qué hace**:
+- **G3 — Soft delete incidents**: añadir `incidents.deleted_at TIMESTAMPTZ NULL`. Hard delete actual destruye `status_history` (FK CASCADE) + `assignments` vinculados. El T5.6 documentó esto como deuda D4. Implementación: migración 0025 + añadir `WHERE deleted_at IS NULL` a todas las queries de incidents (service + repository) + el endpoint `DELETE /incidents/:id` escribe `deleted_at = NOW()` en vez de hard delete
+- **G9 — Soft delete assignments**: añadir `assignments.deleted_at TIMESTAMPTZ NULL` + partial UNIQUE index `WHERE deleted_at IS NULL` (GeoReporta lo tiene para impedir doble-asignación activa). Hard delete actual destruye historial de asignaciones; re-asignación tras desasignación puede violar UNIQUE constraint. Implementación: migración 0026 + `WHERE deleted_at IS NULL` en queries + endpoint `DELETE /assignments/:id` escribe `deleted_at = NOW()`
+
+**Nota de migración — backfill**: las filas existentes sin `deleted_at` son filas activas → `deleted_at IS NULL` = no eliminadas. No requiere backfill.
+
+**Criterios de Aceptación**:
+- [ ] `DELETE /api/incidents/:id` → 204 + fila con `deleted_at` seteado, no eliminada de DB
+- [ ] `GET /api/incidents/:id` de incidente eliminado → 404 (filtro `WHERE deleted_at IS NULL`)
+- [ ] `GET /api/incidents` no retorna incidentes eliminados
+- [ ] Status history + assignments del incidente eliminado siguen existiendo en DB (audit trail preservado)
+- [ ] `DELETE /api/assignments/:id` → 204 + soft delete
+- [ ] Re-asignar operador a incidente previamente desasignado no viola UNIQUE constraint
+- [ ] Migración 0025 y 0026 idempotentes (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`)
+- [ ] `pnpm test && pnpm run test:e2e` verde
+
+---
+
+### T6.3: Columnas de Métricas — `claimed_at`, `resolution_date` ⏳
+
+**Prioridad**: P2 — datos incompletos que rompen SLA y export CSV  
+**Gaps**: G4, G5  
+**Depende de**: T5.1 (Incident Workflow), T6.2 (soft deletes — aplicar 0025 antes de 0027)  
+**Migración**: 0027 (`incidents_metrics_cols`)
+
+**Qué hace**:
+- **G4 — `incidents.claimed_at`**: T5.1 añadió `claimed_by UUID FK` pero no `claimed_at TIMESTAMPTZ`. GeoReporta lo escribe al ejecutar `claim()`. Sin él no se puede calcular duración de claim ni SLAs de respuesta. Fix: migración 0027 añade la columna + `ClaimService.claim()` la setea al momento del claim + `release()` no la borra (historial del último claim)
+- **G5 — `incidents.resolution_date`**: GeoReporta auto-setea en `Incident::booted()` via observer al pasar a `resolved`. NestJS usa `updated_at` como proxy (impreciso: si el status vuelve a cambiar, se pierde la fecha de resolución). Fix: migración 0027 añade `resolution_date TIMESTAMPTZ NULL` + `StatusService.updateStatus()` lo setea cuando `new_status === 'resolved'`; si el incidente vuelve a `in_progress` (reject flow), `resolution_date` se borra
+
+**Criterios de Aceptación**:
+- [ ] `POST /api/incidents/:id/claim` setea `claimed_at = NOW()` en la fila
+- [ ] `POST /api/incidents/:id/release` no borra `claimed_at` (historial del último claim)
+- [ ] `PATCH /api/incidents/:id/status` con `{status: 'resolved'}` setea `resolution_date = NOW()`
+- [ ] `POST /api/notifications/:id/reject` (T5.6 reject flow) borra `resolution_date` al revertir a `in_progress`
+- [ ] Export CSV incluye `claimed_at` y `resolution_date` cuando existen
+- [ ] Migración 0027 idempotente
+- [ ] `pnpm test && pnpm run test:e2e` verde
+
+---
+
+### T6.4: Assignment Role-Change ⏳
+
+**Prioridad**: P2 — operación distinta de cambiar operador  
+**Gaps**: G8, G16  
+**Depende de**: T2.4 (Assignments), T3.1 (Roles)  
+**Sin migraciones nuevas** (schema existente tiene `assignment_role`)
+
+**Qué hace**:
+- GeoReporta: `PUT /incidents/{incidentId}/assignments/{assignmentId}` cambia `assignment_role` (ej. `primary` → `supervisor`)
+- NestJS: `PATCH /assignments/:id` solo cambia `operatorId` (quién está asignado). Son operaciones distintas
+- Fix: añadir al body de `PATCH /assignments/:id` el campo opcional `role` que actualiza `assignment_role`. Alternativamente, añadir endpoint nuevo `PATCH /incidents/:incidentId/assignments/:assignmentId` con shape `{role}` para seguir la convención GeoReporta (URLs nested)
+
+**Criterios de Aceptación**:
+- [ ] `PATCH /api/assignments/:id` acepta `{role: 'primary'|'supervisor'|...}` y actualiza `assignment_role`
+- [ ] `PATCH /api/assignments/:id` con solo `{operatorId}` sigue funcionando (no regresión)
+- [ ] 403 si requester no tiene `UPDATE assignments`
+- [ ] `pnpm test && pnpm run test:e2e` verde
+
+---
+
+### T6.5: Email OTP + Columnas Compliance ⏳
+
+**Prioridad**: P2 — verificación de email + datos legales (compliance)  
+**Gaps**: G7, G11  
+**Depende de**: T3.5 (Mail), T3.6 (Invitations), T3.9 (Sessions)  
+**Migración**: 0028 (`users_otp_compliance`)
+
+**Qué hace**:
+- **G7 — Columnas compliance en `users`**: migración 0028 añade `email_verified_at TIMESTAMPTZ NULL`, `verification_otp VARCHAR(6) NULL`, `verification_otp_expires_at TIMESTAMPTZ NULL`, `terms_accepted_at TIMESTAMPTZ NULL`, `terms_version VARCHAR(20) NULL`. El endpoint `POST /auth/accept-invitation` debe escribir `terms_accepted_at = NOW()` y `terms_version` del body si se envía
+- **G11 — Email OTP verification**: GeoReporta tiene `POST /email/verify-otp`, `POST /email/resend-verification`, `GET /email/notice`. Flujo: al crear usuario vía invitación, se genera un OTP de 6 dígitos, se guarda hasheado en `verification_otp` + `verification_otp_expires_at` (15min), se envía por email. El usuario visita un link o ingresa el OTP para verificar. Sin esto los operadores invitados nunca pueden verificar su email. Fix: nuevo módulo `email-verification/` con los 3 endpoints + integración con T3.5 mail outbox
+
+**Nota**: `deleted_at` en `users` (GeoReporta SoftDeletes) se puede diferir a T6.8 junto con UserAnonymizer — no bloquea este flujo.
+
+**Criterios de Aceptación**:
+- [ ] Migración 0028 añade las 5 columnas con `ADD COLUMN IF NOT EXISTS`
+- [ ] `POST /auth/accept-invitation` con `{terms_version: '1.0'}` escribe `terms_accepted_at` + `terms_version`
+- [ ] `POST /api/email/verify-otp {otp}` verifica contra hash, setea `email_verified_at`, borra OTP cols
+- [ ] OTP expirado (>15min) → 422
+- [ ] OTP incorrecto → 422 (no exponer si existe o no)
+- [ ] `POST /api/email/resend-verification` genera nuevo OTP + envía email (rate limit: 1/min por usuario)
+- [ ] `pnpm test && pnpm run test:e2e` verde
+
+---
+
+### T6.6: Incident Image Upload ⏳
+
+**Prioridad**: P3 — gap de feature (no rompe flows existentes)  
+**Gap**: G2  
+**Depende de**: T5.5 (Comment Images — reutilizar patrón de storage), T6.2 (soft-delete antes de añadir tabla dependiente)  
+**Migración**: 0029 (`incident_images`)
+
+**Qué hace**:
+- GeoReporta: `POST /incidents` acepta `images[]` multipart → tabla polimórfica `images (imageable_type, imageable_id)`. NestJS: `CreateIncidentDto` sin campo images
+- Fix: crear `IncidentImagesService` siguiendo el patrón de `CommentImagesService` (T5.5). Migración 0029: tabla `incident_images(id, incident_id FK ON DELETE CASCADE, storage_key, url, mime_type, file_size, created_at)` + permisos `incident-images` (CREATE, DELETE). El endpoint `POST /incidents` acepta multipart con campo `images[]` opcional (hasta 5, tipos imagen, 5MB max). Upload a S3 prefix `incidents/{incident_id}/`
+- También: `POST /api/incidents/:id/images` (upload adicional tras creación) + `DELETE /api/incidents/:id/images/:imageId`
+
+**Criterios de Aceptación**:
+- [ ] `POST /api/incidents` multipart con `images[]` crea incidente + sube imágenes → 201 `{id, ..., images: [{id,url}]}`
+- [ ] `POST /api/incidents/:id/images` sube imágenes adicionales a incidente existente
+- [ ] `DELETE /api/incidents/:id/images/:imageId` elimina imagen (S3 fallo → log warning, elimina fila DB)
+- [ ] Non-owner sin `CREATE incident-images` → 403
+- [ ] Archivo > 5MB → 400; MIME inválido → 422
+- [ ] Migración 0029 idempotente
+- [ ] `pnpm test && pnpm run test:e2e` verde
+
+---
+
+### T6.7: Export XLSX/PDF + Feed Recovery ⏳
+
+**Prioridad**: P3 — gaps de infraestructura / formatos adicionales  
+**Gaps**: G12, G13, G15  
+**Depende de**: T5.2 (Incident Analytics — export CSV base)  
+**Sin migraciones nuevas**
+
+**Qué hace**:
+- **G12 — Export XLSX/PDF**: GeoReporta `GET /incidents/exportar?format=csv|xlsx|pdf` via `ReportExporterFactory`. NestJS: CSV únicamente + path distinto (`export` vs `exportar`). Fix: añadir `format` query param al endpoint existente; implementar XLSX con `exceljs` (ligero, tree-shakeable); PDF con `pdfmake` o simplemente documentar como fuera de alcance + añadir alias de path `exportar` → `export`
+- **G13 — SSE path**: `EventSource('/api/notifications/stream')` → 404. Socket.IO es la implementación correcta pero el path viejo no existe ni redirige. Fix mínimo: añadir `GET /api/notifications/stream` que responde `410 Gone` con body `{"message":"Use Socket.IO realtime endpoint instead","docs":"/api/docs"}` — evita 404 silencioso en cliente
+- **G15 — Feed rebuild**: sin `@nestjs/schedule` instalado; sin `@Cron()`. Después de flush de Redis el feed público queda vacío e irrecuperable. Fix: instalar `@nestjs/schedule` + añadir `POST /api/admin/feed/rebuild` (requiere `ADMIN incidents`) que ejecuta el rebuild desde Postgres + opcional tarea cron nightly a las 3am
+
+**Criterios de Aceptación**:
+- [ ] `GET /api/incidents/export?format=xlsx` devuelve XLSX con `Content-Disposition: attachment; filename="incidentes-{date}.xlsx"`
+- [ ] `GET /api/incidents/exportar` (alias) redirige o responde igual que `export`
+- [ ] `GET /api/notifications/stream` → 410 Gone con body de migración
+- [ ] `POST /api/admin/feed/rebuild` repuebla el feed en Redis desde Postgres
+- [ ] `pnpm test && pnpm run test:e2e` verde
+
+---
+
+### T6.8: Path Aliases + GDPR Anonymizer ⏳
+
+**Prioridad**: P4 — diferencias de diseño / cumplimiento legal diferido  
+**Gaps**: G14, G17, G18, G19, G20, G23  
+**Depende de**: T6.5 (para `users.deleted_at` si se añade en 0028)  
+**Posible migración**: `users.deleted_at` si no fue añadida en T6.5
+
+**Qué hace**:
+- **G14** — Añadir `GET /api/menus/my` como alias de `GET /api/menus` (ruta que espera el frontend de GeoReporta)
+- **G17** — `GET /api/invitations/{token}/preview` como alias del actual `GET /api/invitations/preview?token=` (o vice-versa — elegir uno y aliasear el otro)
+- **G18** — `POST /api/invitations/accept` como alias de `POST /api/auth/accept-invitation`
+- **G20** — `GET /api/estados` como alias de `GET /api/incidents/statuses`
+- **G19 — UserAnonymizer GDPR**: NestJS solo desactiva (`isActive=false`). GeoReporta borra PII: nombre → `"Usuario eliminado"`, email → `deleted+{id}@tase.invalid`, avatar → null, device_uuid → null. Fix: en `UsersService.delete()` en vez de hard delete: soft-delete (`deleted_at = NOW()`) + anonimizar campos PII. Requiere `users.deleted_at` en schema (si no fue añadido en T6.5, añadir aquí)
+- **G23** — `POST /register` (open registration): decidir explícitamente si se añade o se documenta como eliminación intencional (invitation-only). Si se mantiene exclusión: añadir nota en Swagger + responder 410 Gone en esa ruta
+
+**Criterios de Aceptación**:
+- [ ] `GET /api/menus/my` retorna misma respuesta que `GET /api/menus`
+- [ ] `GET /api/invitations/{token}/preview` funciona (path param o query param — elegir + aliasear)
+- [ ] `POST /api/invitations/accept` funciona (alias de `auth/accept-invitation`)
+- [ ] `GET /api/estados` retorna catálogo de transiciones de estado
+- [ ] `DELETE /api/users/:id` anonimiza PII + setea `deleted_at`; usuario eliminado no puede autenticarse
+- [ ] `GET /api/users/:id` de usuario eliminado → 404
+- [ ] `POST /api/register` → 410 Gone con mensaje de invitation-only (o implementación si se decide añadir)
+- [ ] `pnpm test && pnpm run test:e2e` verde
+
+---
+
+## Orden de Ejecución Fase 6
+
+```
+T6.1 (Fix API críticos P1 — G10, G6)    ← sin dependencias, empezar aquí
+     ↓
+T6.2 (Soft Deletes P1 — G3, G9)         ← migs 0025, 0026
+     ↓
+T6.3 (Métricas P2 — G4, G5)             ← mig 0027; depende de T5.1 + T6.2
+     ↓
+T6.4 (Assignment role P2 — G8/G16)      ← sin migs; puede ir en paralelo con T6.3
+T6.5 (OTP + compliance P2 — G7, G11)   ← mig 0028; puede ir en paralelo con T6.3
+     ↓
+T6.6 (Incident images P3 — G2)          ← mig 0029; depende de T6.2
+T6.7 (Export/Feed P3 — G12, G13, G15)  ← sin migs nuevas; puede ir en paralelo con T6.6
+     ↓
+T6.8 (Aliases + GDPR P4 — G14-G23)     ← último; baja prioridad
+```
+
+**Criterio de cierre de Fase 6**: todos los `[ ]` marcados `[x]`, `pnpm test && pnpm run test:e2e` verde, migraciones 0025-0029 aplicadas a Supabase. Paridad funcional ≥95% con GeoReporta (los gaps de eliminaciones intencionales documentados en sección correspondiente).

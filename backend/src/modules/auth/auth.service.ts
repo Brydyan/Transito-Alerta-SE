@@ -521,10 +521,12 @@ export class AuthService {
     }
 
     const rows: AuthContextRow[] = await this.dataSource.query(
+      // T6.8.B3: exclude soft-deleted and inactive users so a deleted user
+      // cannot use a cached/unexpired JWT to authenticate.
       `SELECT u.permissions, u.organization_id, u.device_uuid, r.name AS role_name
          FROM users u
          LEFT JOIN roles r ON r.id = u.role_id
-        WHERE u.id = $1`,
+        WHERE u.id = $1 AND u.deleted_at IS NULL AND u.is_active = TRUE`,
       [userId],
     );
     const row = rows[0];

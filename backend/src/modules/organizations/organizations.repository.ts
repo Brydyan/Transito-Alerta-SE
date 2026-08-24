@@ -6,6 +6,7 @@ export interface OrganizationRow {
   id: string;
   name: string;
   zone_id: string | null;
+  max_active_claims: number;
   created_at: Date;
 }
 
@@ -30,7 +31,7 @@ export interface ListFilters {
 const DEFAULT_PAGE_SIZE = 15;
 const MAX_PAGE_SIZE = 100;
 
-const SELECT_COLUMNS = 'id, name, zone_id, created_at';
+const SELECT_COLUMNS = 'id, name, zone_id, max_active_claims, created_at';
 
 /**
  * OrganizationsRepository (T3.2 design D8) — mirrors GeoZonesRepository's
