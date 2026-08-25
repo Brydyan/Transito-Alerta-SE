@@ -454,6 +454,61 @@ Sin ese par de índices, re-aplicar 0038 duplica el árbol entero.
 hojas resolviendo el padre por nombre en un CTE. No se pinean uuids: se resuelve
 por nombre, que es la clave natural del catálogo.
 
+### D13 — T7.7 auditoría ejecutada: 4 FK sin cláusula, no 6; organization_id normalizado a RESTRICT
+
+**T7.7.A1 (auditoría previa, bloqueante) — resultado**: se revisaron
+`database/seeds/` (sólo `0003_seed_geo_zones.generated.sql` y el generador de
+geo_zones; no hay seed de `incidents` ni de `incident_categories` — 0038/0039
+siguen sin aplicar) y todos los fixtures de `backend/test/` que insertan
+`incidents.category_id` o `incident_categories`. **Ningún incidente de seed o
+fixture usa una categoría con hijos** (`incident-categories.e2e-spec.ts` TS-8
+usa una categoría hoja standalone; `t7-org-hierarchy-categories.e2e-spec.ts`
+no toca `incidents.category_id`). **T7.7.A2 no tuvo nada que corregir** — el
+hallazgo se documenta aquí en vez de silenciarse, tal como pide la tarea.
+
+**T7.7.C1 (inventario de FK) — resultado real, distinto de la estimación
+original de este documento**: un parseo programático de los 29+5 migraciones
+(`grep`/`awk` sobre cada cláusula `REFERENCES`, no sobre líneas sueltas —
+una FK puede partir `REFERENCES` y `ON DELETE` en líneas distintas) encuentra
+**4** FK sin cláusula `ON DELETE` explícita (NO ACTION implícito), no 6 como
+estimaba la §1.3 original:
+
+| Tabla.columna | Referencia | Hoy | Decisión final (0036) |
+|---|---|---|---|
+| `incidents.citizen_id` | `users(id)` | NO ACTION implícito, `NOT NULL` | `ON DELETE SET NULL` (mandado por R15.4) + columna pasa a `NULL`-able |
+| `incidents.assigned_to` | `users(id)` | NO ACTION implícito | `ON DELETE SET NULL` (ya nullable; coherente con `claimed_by`/`approved_by`/`rejected_by`, todos SET NULL) |
+| `comments.user_id` | `users(id)` | NO ACTION implícito, `NOT NULL` | `ON DELETE SET NULL` + columna pasa a `NULL`-able. **Se descarta CASCADE**: `comments.parent_id` ya es `ON DELETE CASCADE` (0033) — un `user_id` en CASCADE borraría el comentario del usuario y esa fila arrastraría en cascada a sus respuestas de profundidad 2, afectando el hilo de terceros que nunca deberían perder su conversación por el borrado físico de un participante |
+| `assignments.operator_id` | `users(id)` | NO ACTION implícito, `NOT NULL` | `ON DELETE CASCADE` (se mantiene `NOT NULL`). Una asignación sin operador no es un estado válido — a diferencia de un comentario, no hay contenido que preservar; el incidente vuelve a quedar disponible para asignar |
+
+Además, un FK que **sí tiene** cláusula explícita hoy pero contradice R15.3 se
+normaliza en la misma migración:
+
+| Tabla.columna | Hoy (0015) | Decisión final (0036) |
+|---|---|---|
+| `incidents.organization_id` | `ON DELETE SET NULL` | `ON DELETE RESTRICT` — R15.3 exige que borrar una organización con incidentes asociados sea rechazado, no que los incidentes queden huérfanos |
+
+**Las 2 inconsistencias documentadas en §1.3** (`roles(id)` y
+`incident_categories(id)` referenciadas con comportamientos distintos entre
+migraciones) se revisan y se **dejan como están, deliberadamente**:
+
+- `users.role_id` → `roles(id)` `ON DELETE SET NULL`: un usuario sobrevive a
+  que se borre su rol (pierde el vínculo, no la cuenta).
+- `invitations.role_id` → `roles(id)` `ON DELETE RESTRICT`: una invitación
+  pendiente sin rol válido es un estado sin sentido de negocio; se prefiere
+  bloquear el borrado del rol mientras haya invitaciones activas apuntándolo.
+- `incident_categories.parent_id` → `incident_categories(id)` `ON DELETE SET
+  NULL`: borrar una categoría promueve a sus hijas a raíz (ya cubierto por
+  `incident-categories.e2e-spec.ts` TS-7).
+- `incidents.category_id` → `incident_categories(id)` `ON DELETE RESTRICT`:
+  no se puede borrar una categoría referenciada por incidentes existentes
+  (ya cubierto por TS-8).
+
+No son la misma relación conceptual pese a compartir tabla destino — cada una
+tiene una razón de producto independiente y correcta. Normalizarlas a un
+único comportamiento sería forzar una uniformidad que la auditoría no
+respalda. Se documentan aquí para cerrar el hallazgo de la §1.3, sin cambios
+de esquema.
+
 ### D12 — Sembrar organizaciones exige acordar los datos reales
 
 `OrganizationSeeder` de legacy siembra GAD de Quito, Guayaquil, Cuenca, Ambato y

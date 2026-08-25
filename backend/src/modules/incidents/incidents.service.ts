@@ -16,6 +16,18 @@ import { IncidentRow, IncidentsRepository } from './incidents.repository';
 export const INCIDENTS_STREAM_KEY = 'incidents:events';
 const INCIDENTS_LIST_CACHE_TTL_MS = 30_000;
 
+/** T7.7 (0036) — `check_is_leaf_category()` raises with this Postgres code (23514, check_violation). */
+const PG_CHECK_VIOLATION = '23514';
+
+function isLeafCategoryViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === PG_CHECK_VIOLATION
+  );
+}
+
 // Re-exported so every existing importer of `ALL_ZONES_TAG` from this module
 // keeps compiling unchanged (T3.8 design D10). The constant itself now lives
 // in geofencing.service.ts, alongside the tag machinery (tagCacheKey /
@@ -218,12 +230,21 @@ export class IncidentsService {
     if (!incident) {
       throw new NotFoundException(`Incident ${id} not found`);
     }
-    return this.incidentsRepository.update(id, {
-      title: dto.title !== undefined ? dto.title : incident.title,
-      description: dto.description !== undefined ? dto.description : incident.description,
-      categoryId:
-        dto.categoryId !== undefined ? dto.categoryId : incident.category_id,
-    });
+    try {
+      return await this.incidentsRepository.update(id, {
+        title: dto.title !== undefined ? dto.title : incident.title,
+        description: dto.description !== undefined ? dto.description : incident.description,
+        categoryId:
+          dto.categoryId !== undefined ? dto.categoryId : incident.category_id,
+      });
+    } catch (error) {
+      // T7.7.B3 — check_is_leaf_category() (0036) rejects non-leaf
+      // categories with ERRCODE 23514; translate to a domain 400.
+      if (isLeafCategoryViolation(error)) {
+        throw new BadRequestException('INCIDENT_CATEGORY_NOT_LEAF: category must be a leaf category');
+      }
+      throw error;
+    }
   }
 
   /**

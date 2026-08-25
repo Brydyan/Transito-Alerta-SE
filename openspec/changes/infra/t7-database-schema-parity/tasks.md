@@ -140,21 +140,21 @@
 
 ### Fase A — Auditoría previa (bloqueante)
 
-- [ ] **T7.7.A1** — Auditar `database/seeds/` y todos los fixtures de `backend/test/` en busca de incidentes creados con `category_id` de una categoría padre. Listar los hallazgos antes de escribir la migración. **(1.5h)**
-- [ ] **T7.7.A2** — Corregir los seeds y fixtures que el paso anterior detecte, para que usen categorías hoja. **(1.5h)**
+- [x] **T7.7.A1** — Auditar `database/seeds/` y todos los fixtures de `backend/test/` en busca de incidentes creados con `category_id` de una categoría padre. Listar los hallazgos antes de escribir la migración. **(1.5h)** ✅ sin hallazgos — ver design.md D13
+- [x] **T7.7.A2** — Corregir los seeds y fixtures que el paso anterior detecte, para que usen categorías hoja. **(1.5h)** ✅ nada que corregir (A1 no encontró incidentes en categoría no-hoja)
 
 ### Fase B — Trigger de categoría hoja
 
-- [ ] **T7.7.B1** — 🔴 Crear `backend/test/e2e/t7-referential-integrity.e2e-spec.ts` con R14.1–R14.4. Debe fallar. **(1.5h)**
-- [ ] **T7.7.B2** — Escribir la primera mitad de `0036_referential_integrity.sql`: función `check_is_leaf_category()` con el filtro `deleted_at IS NULL` y `ERRCODE='check_violation'`, más el trigger `BEFORE INSERT OR UPDATE ON incidents`. **(1.5h)**
-- [ ] **T7.7.B3** — Traducir el error 23514 con mensaje `INCIDENT_CATEGORY_NOT_LEAF` a `BadRequestException` en la creación/actualización de incidentes (R14.3). **(1h)**
+- [x] **T7.7.B1** — 🔴 Crear `backend/test/e2e/t7-referential-integrity.e2e-spec.ts` con R14.1–R14.4. Debe fallar. **(1.5h)** ✅
+- [x] **T7.7.B2** — Escribir la primera mitad de `0036_referential_integrity.sql`: función `check_is_leaf_category()` con el filtro `deleted_at IS NULL` y `ERRCODE='check_violation'`, más el trigger `BEFORE INSERT OR UPDATE ON incidents`. **(1.5h)** ✅
+- [x] **T7.7.B3** — Traducir el error 23514 con mensaje `INCIDENT_CATEGORY_NOT_LEAF` a `BadRequestException` en la creación/actualización de incidentes (R14.3). **(1h)** ✅
 
 ### Fase C — Normalización de FK
 
-- [ ] **T7.7.C1** — Inventariar en `design.md` las 6 FK sin cláusula `ON DELETE` explícita y las 2 relaciones con comportamiento inconsistente entre migraciones (`roles`, `incident_categories`), y decidir el comportamiento final de cada una. **(1.5h)**
-- [ ] **T7.7.C2** — Escribir la segunda mitad de `0036_referential_integrity.sql`: `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT … ON DELETE …` para cada FK a normalizar. **(2h)**
-- [ ] **T7.7.C3** — Escribir `0036_…DOWN.sql` (drop del trigger y de la función; restauración de las FK a su definición previa). **(1h)**
-- [ ] **T7.7.C4** — E2E R15.1–R15.4: ninguna FK queda en `NO ACTION` sin justificación; cascada al borrar incidente; RESTRICT al borrar organización con incidentes; `citizen_id` a NULL al borrar usuario. **(2h)**
+- [x] **T7.7.C1** — Inventariar en `design.md` las 6 FK sin cláusula `ON DELETE` explícita y las 2 relaciones con comportamiento inconsistente entre migraciones (`roles`, `incident_categories`), y decidir el comportamiento final de cada una. **(1.5h)** ✅ ver design.md D13 — auditoría real encontró 4, no 6 (deviation documentada)
+- [x] **T7.7.C2** — Escribir la segunda mitad de `0036_referential_integrity.sql`: `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT … ON DELETE …` para cada FK a normalizar. **(2h)** ✅
+- [x] **T7.7.C3** — Escribir `0036_…DOWN.sql` (drop del trigger y de la función; restauración de las FK a su definición previa). **(1h)** ✅
+- [x] **T7.7.C4** — E2E R15.1–R15.4: ninguna FK queda en `NO ACTION` sin justificación; cascada al borrar incidente; RESTRICT al borrar organización con incidentes; `citizen_id` a NULL al borrar usuario. **(2h)** ✅
 
 ---
 
