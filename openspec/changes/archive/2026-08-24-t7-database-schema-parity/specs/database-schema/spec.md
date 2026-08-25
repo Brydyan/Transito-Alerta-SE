@@ -1,43 +1,13 @@
-# Spec: Database Schema Parity & Hardening
+# Spec: T7 — Database Schema Parity & Hardening
 
-**Domain**: database-schema
-**Source change**: t7-database-schema-parity (archived 2026-08-24)
+**Change**: t7-database-schema-parity
+**Capability**: database-schema
 **Version**: R1
 **Date**: 2026-08-24
 
 > Todos los escenarios se validan con Postgres + PostGIS real (Testcontainers),
 > nunca con mocks. Un escenario se considera cumplido sólo si existe un test que
 > pasa y prueba el comportamiento en runtime.
-
----
-
-## Compliance Status (as of archive, 2026-08-24)
-
-| Requirement Group | Status | Notes |
-|---|---|---|
-| R1-R4 (D7.1 tooling) | ✅ Compliant | Migration 0030 applied; runner `--down`/package.json scripts (T7.1.B4/B5) and DOWN-file audit (T7.1.C3) still open, non-blocking |
-| R5-R7 (D7.2 soft delete) | ✅ Compliant | Migration 0031 applied; app-level repository filters (T7.2.B/C) folded incrementally into T7.4/T7.5/T7.6 work |
-| R8 (D7.3 updated_at trigger) | ✅ Compliant | Migration 0032 applied (commit d7031ae); entity-level `update:false` pattern (T7.3.A5–A7) still open in tasks.md bookkeeping, non-blocking for the DB-level requirement |
-| R9 (D7.4 comment threading) | ✅ Compliant | Migration 0033 |
-| R10-R11 (D7.5 org hierarchy + routing) | ✅ Compliant | Migration 0034; **R10.4/R10.5 superseded** — see note below |
-| R12-R13 (D7.6 domain columns) | ✅ Compliant | Migration 0035 |
-| R14-R15 (D7.7 referential integrity) | ✅ Compliant | Migration 0036 |
-| R16 (D7.8 index parity) | ✅ Compliant | Migration 0037 (4 of 9 indexes newly created; 5 already existed under other names — see design.md D10) |
-| R17-R18 (transversal / docs) | ⚠️ Partial | Full-schema e2e (T7.Z1) and docs sync (T7.1.D2/R18.1) not yet executed |
-| R19-R20 (D7.9 category tree + notification perms) | ✅ Compliant | Migrations 0038, 0039 (Fase B only) |
-| R21 (D7.9 geography + seed orgs) | 🚧 Blocked | T7.9.C blocked on operator input (real Santa Elena organization list) |
-| R22 (D7.9 demo/volume data separation) | ⬜ Not started | T7.9.D not reached this cycle |
-
-**Note on R10.4/R10.5**: the scenarios below describing a *partial* UNIQUE index
-(`UNIQUE (zone_id) WHERE parent_id IS NULL`) are historical — implementation
-(migration 0034, T7.5.A2b) went further and **removed `uq_organizations_zone`
-entirely**, because the legacy notification model requires multiple
-organizations at different hierarchy levels to be notified for the same zone,
-not just a root + its own branches. See design.md D7 and D12. The scenarios
-that supersede R10.4/R10.5 are **R11.1** (verifies the index no longer exists)
-and **R11.2** (multiple organizations per zone are valid). R10.4/R10.5 text is
-preserved below for audit continuity and in the archived delta at
-`openspec/changes/archive/2026-08-24-t7-database-schema-parity/specs/database-schema/spec.md`.
 
 ---
 
@@ -328,20 +298,15 @@ Scenario R10.3 — Ciclo directo rechazado
   Given  una organización O
   When   se intenta setear parent_id = O sobre la propia O
   Then   la base rechaza el statement por violación de CHECK
-```
 
-**R10.4 / R10.5 — SUPERSEDED (see Compliance Status note above and design.md D7).**
-Preserved verbatim for audit trail:
-
-```
-Scenario R10.4 — Una sucursal comparte zona con su padre [SUPERSEDED]
+Scenario R10.4 — Una sucursal comparte zona con su padre
   Given  una organización raíz P en la zona Z
   When   se crea una sucursal H con parent_id = P y la misma zona Z
   Then   la inserción tiene éxito
   And    no viola uq_organizations_zone, que pasó a ser
          UNIQUE (zone_id) WHERE parent_id IS NULL
 
-Scenario R10.5 — Dos organizaciones raíz en la misma zona siguen prohibidas [SUPERSEDED]
+Scenario R10.5 — Dos organizaciones raíz en la misma zona siguen prohibidas
   Given  una organización raíz P en la zona Z
   When   se intenta crear otra organización con parent_id NULL en la zona Z
   Then   la base rechaza el statement por violación de unicidad
@@ -564,7 +529,7 @@ Scenario R19.2 — Todas las hojas son hoja de verdad
 Scenario R19.3 — Re-aplicar 0038 no duplica
   Given  una base con 0038 ya aplicada
   When   se vuelve a ejecutar el archivo 0038
-  Then   sigue habiendo exactamente 22 categorías
+  Then   sigue habiendo exactamente 23 categorías
 
 Scenario R19.4 — Dos raíces con el mismo nombre son rechazadas
   Given  el árbol sembrado
@@ -608,9 +573,6 @@ Scenario R20.3 — Re-aplicar 0039 no duplica filas del catálogo
 
 ### R21 — Datos geográficos y organizaciones semilla
 
-> **Status**: 🚧 Blocked on operator input (T7.9.C1). Not implemented as of
-> archive date. See archive-report.md for details.
-
 ```
 Scenario R21.1 — Las parroquias de Santa Elena quedan sembradas
   Given  una base con 0039 aplicada
@@ -642,8 +604,6 @@ Scenario R21.5 — Re-aplicar 0039 no duplica organizaciones ni zonas
 ```
 
 ### R22 — Separación entre datos de referencia y datos de demo
-
-> **Status**: ⬜ Not started (T7.9.D). Not implemented as of archive date.
 
 ```
 Scenario R22.1 — Ninguna migración inserta incidentes

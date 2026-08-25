@@ -2,8 +2,7 @@
 
 **Status**: T7.1–T7.9.B complete (4 apply batches, all Strict TDD, all green).
 T7.9.C/D blocked on operator input (real Santa Elena organization list) and
-not reached this cycle, respectively. See
-`openspec/changes/archive/2026-08-24-t7-database-schema-parity/archive-report.md`
+not reached this cycle, respectively. See `archive-report.md` in this folder
 for the full compliance breakdown and next steps.
 
 ---
