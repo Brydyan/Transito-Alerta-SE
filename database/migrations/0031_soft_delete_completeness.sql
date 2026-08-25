@@ -29,7 +29,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_active
 ALTER TABLE password_reset_tokens
   ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_tokens_active
-  ON password_reset_tokens (token) WHERE deleted_at IS NULL;
+  ON password_reset_tokens (token_hash) WHERE deleted_at IS NULL;
 
 -- notifications: puede haber muchas por usuario, pero las activas se filtran
 ALTER TABLE notifications
@@ -50,10 +50,12 @@ CREATE INDEX IF NOT EXISTS idx_incident_categories_active
   ON incident_categories (parent_id) WHERE deleted_at IS NULL;
 
 -- organizations: recurso crítico, but soft-deletable
+-- (parent_id no existe todavía en este punto de la cadena — lo agrega 0034
+-- T7.5; el índice se amplía ahí con idx_organizations_parent_id)
 ALTER TABLE organizations
   ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;
 CREATE INDEX IF NOT EXISTS idx_organizations_active
-  ON organizations (parent_id, zone_id) WHERE deleted_at IS NULL;
+  ON organizations (zone_id) WHERE deleted_at IS NULL;
 
 -- user_sessions: sesiones abiertas, la revocación usa revoked_at
 -- deleted_at es para lógica de limpieza antigua, pero nunca se usa

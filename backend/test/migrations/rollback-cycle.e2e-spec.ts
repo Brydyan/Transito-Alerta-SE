@@ -31,7 +31,7 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
 
       for (const m of migrations) {
         const downPath = rollbackPathFor(m);
-        expect(downPath).toBeTruthy(`Missing .DOWN.sql for ${m.version}_${m.name}`);
+        expect(downPath).toBeTruthy();
       }
     });
   });

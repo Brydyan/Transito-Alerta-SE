@@ -19,6 +19,14 @@ export class CommentEntity {
   @Column({ name: 'user_id', type: 'uuid' })
   userId!: string;
 
+  /** T7.4 (0033) — self-referencial, profundidad máxima 2 (design D6). */
+  @Column({ name: 'parent_id', type: 'uuid', nullable: true })
+  parentId!: string | null;
+
+  /** T7.4.A8 — soft delete, requerido por la cascada recursiva del hilo. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 }
