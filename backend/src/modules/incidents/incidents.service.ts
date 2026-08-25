@@ -67,6 +67,14 @@ export class IncidentsService {
    * overwhelmingly a citizen/anonymous device with no organization, so
    * "creator's org" would leave scoping inert for the flow that matters.
    * NULL when outside every zone, or the zone has no organization.
+   *
+   * T7.5.C4 — aligned with `notifiedFor()`'s `is_claimable` criterion: the
+   * "primary" org is the first of `findNotifiedFor(zoneId, null)`'s stable
+   * `(created_at, id)` order, not an arbitrary `findByZone` row (which
+   * stopped being deterministic once 0034 dropped `uq_organizations_zone`
+   * — several orgs can now share a zone). `categoryId` is unknown at
+   * creation time (incidents aren't categorized on create), so `null` is
+   * passed — matching only transversal orgs plus zone ancestry.
    */
   async create(dto: CreateIncidentDto, citizenId: string): Promise<IncidentRow> {
     const { zone_id: zoneId } = await this.geofencingService.resolveZone({
@@ -74,7 +82,8 @@ export class IncidentsService {
       lng: dto.lng,
     });
 
-    const org = await this.organizationsService.findByZone(zoneId);
+    const orgs = await this.organizationsService.findNotifiedFor(zoneId, null);
+    const org = orgs[0] ?? null;
 
     const row = await this.incidentsRepository.create({
       title: dto.title,

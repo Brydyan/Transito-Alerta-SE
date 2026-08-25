@@ -9,4 +9,9 @@ export class CreateOrganizationDto {
   @IsOptional()
   @IsUUID('4')
   zone_id?: string;
+
+  /** T7.5.A4 — institutional parent (design D8). Cycle-checked in the service. */
+  @IsOptional()
+  @IsUUID('4')
+  parent_id?: string;
 }

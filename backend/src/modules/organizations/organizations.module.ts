@@ -11,7 +11,7 @@ import { OrganizationsService } from './organizations.service';
 /**
  * OrganizationsModule (T3.2 design "Module Boundary") — imports nothing
  * from incidents, comments, assignments or realtime; only IncidentsModule
- * gains an import edge (for `findByZone` at create time, design D4).
+ * gains an import edge (for `findNotifiedFor` at create time, design D4/D7).
  *
  * T5.6 — additionally imports `GeofencingModule` (for `findZoneForPoint`
  * used by `notifiedFor`) and registers the geo-zones / organizations

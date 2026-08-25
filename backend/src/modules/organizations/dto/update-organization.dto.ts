@@ -15,4 +15,12 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsUUID('4')
   zone_id?: string | null;
+
+  /**
+   * T7.5.B3 — same `undefined`/`null` convention as `zone_id`. Indirect
+   * cycles (A→B→A) are rejected in `OrganizationsService.update`, not here.
+   */
+  @IsOptional()
+  @IsUUID('4')
+  parent_id?: string | null;
 }

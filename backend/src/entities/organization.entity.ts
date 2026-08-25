@@ -12,6 +12,14 @@ export class OrganizationEntity {
   @Column({ name: 'zone_id', type: 'uuid', nullable: true })
   zoneId!: string | null;
 
+  /** T7.5 (0034) — institutional hierarchy, orthogonal to `zoneId` (design D8). */
+  @Column({ name: 'parent_id', type: 'uuid', nullable: true })
+  parentId!: string | null;
+
+  /** T7.5 (0034) — routing category; NULL = transversal (design D7). */
+  @Column({ name: 'incident_category_id', type: 'uuid', nullable: true })
+  incidentCategoryId!: string | null;
+
   /**
    * T5.1 — max simultaneous in-progress claims an operator in this org can
    * hold. Default 5 (applied at row-create time by migration 0019).

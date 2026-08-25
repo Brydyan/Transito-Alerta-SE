@@ -79,15 +79,15 @@
 
 ## D7.4 — Comentarios anidados (migración 0033)
 
-- [ ] **T7.4.A1** — 🔴 Crear `backend/test/e2e/t7-comment-threading.e2e-spec.ts` con R9.1–R9.6. Debe fallar. **(2h)**
-- [ ] **T7.4.A2** — Escribir `0033_comments_threading.sql`: `parent_id uuid NULL REFERENCES comments(id) ON DELETE CASCADE`, `CHECK (parent_id IS DISTINCT FROM id)`, índice sobre `parent_id`. **(1h)**
-- [ ] **T7.4.A3** — Escribir `0033_…DOWN.sql`. **(15min)**
-- [ ] **T7.4.A4** — Añadir `parentId: string | null` a `comment.entity.ts`. **(30min)**
-- [ ] **T7.4.A5** — Añadir `parent_id?: string` con `@IsOptional() @IsUUID()` a `create-comment.dto.ts`. **(30min)**
-- [ ] **T7.4.A6** — 🔴 Unit tests en `comments.service.spec.ts`: rechaza `parent_id` de otro incidente (400), **acepta** responder a una respuesta (profundidad 2), rechaza responder a un comentario de profundidad 2 (400). Deben fallar. **(1h)**
-- [ ] **T7.4.A7** — `comments.service.ts`: validar pertenencia del padre al mismo incidente y **profundidad máxima 2** antes de insertar (regla de legacy: `MAX_COMMENT_DEPTH = 2`). Calcular la profundidad igual que el accessor de legacy: sin padre → 0, padre sin padre → 1, resto → 2. **(1.5h)**
-- [ ] **T7.4.A8** — `comments.service.ts`: cascada de soft delete con `WITH RECURSIVE` sobre `parent_id` — con profundidad 2 hay nietos, así que la sentencia de un solo nivel no alcanza (R9.8). **(1.5h)**
-- [ ] **T7.4.A9** — Incluir `parent_id` y la profundidad calculada en la respuesta del listado de comentarios (R9.7) y verificar que `SnakeCaseResponseInterceptor` los serializa correctamente. **(1.5h)**
+- [x] **T7.4.A1** — 🔴 Crear `backend/test/e2e/t7-comment-threading.e2e-spec.ts` con R9.1–R9.6. Debe fallar. **(2h)** ✅ (extendido a R9.1–R9.8, TestEnvironment full-stack en vez de MigrationHarness)
+- [x] **T7.4.A2** — Escribir `0033_comments_threading.sql`: `parent_id uuid NULL REFERENCES comments(id) ON DELETE CASCADE`, `CHECK (parent_id IS DISTINCT FROM id)`, índice sobre `parent_id`. **(1h)**
+- [x] **T7.4.A3** — Escribir `0033_…DOWN.sql`. **(15min)**
+- [x] **T7.4.A4** — Añadir `parentId: string | null` a `comment.entity.ts`. **(30min)** (+ `deletedAt`, requerido por T7.4.A8)
+- [x] **T7.4.A5** — Añadir `parent_id?: string` con `@IsOptional() @IsUUID()` a `create-comment.dto.ts`. **(30min)**
+- [x] **T7.4.A6** — 🔴 Unit tests en `comments.service.spec.ts`: rechaza `parent_id` de otro incidente (400), **acepta** responder a una respuesta (profundidad 2), rechaza responder a un comentario de profundidad 2 (400). Deben fallar. **(1h)**
+- [x] **T7.4.A7** — `comments.service.ts`: validar pertenencia del padre al mismo incidente y **profundidad máxima 2** antes de insertar (regla de legacy: `MAX_COMMENT_DEPTH = 2`). Calcular la profundidad igual que el accessor de legacy: sin padre → 0, padre sin padre → 1, resto → 2. **(1.5h)**
+- [x] **T7.4.A8** — `comments.service.ts`: cascada de soft delete con `WITH RECURSIVE` sobre `parent_id` — con profundidad 2 hay nietos, así que la sentencia de un solo nivel no alcanza (R9.8). **(1.5h)** (`delete()` pasa de hard delete a soft delete — adelanta parte de T7.2.B1/C1 sólo para `comments`)
+- [x] **T7.4.A9** — Incluir `parent_id` y la profundidad calculada en la respuesta del listado de comentarios (R9.7) y verificar que `SnakeCaseResponseInterceptor` los serializa correctamente. **(1.5h)**
 
 ---
 
@@ -95,18 +95,18 @@
 
 ### Fase A — Migración y entidad
 
-- [ ] **T7.5.A1** — 🔴 Crear `backend/test/e2e/t7-org-hierarchy-categories.e2e-spec.ts` con R10.1, R10.3, R11.1. Debe fallar. **(1.5h)**
-- [ ] **T7.5.A2** — Escribir `0034_organizations_hierarchy_categories.sql`: `organizations.parent_id uuid NULL REFERENCES organizations(id) ON DELETE SET NULL` + `CHECK (parent_id IS DISTINCT FROM id)` + índice; **`organizations.incident_category_id uuid NULL REFERENCES incident_categories(id) ON DELETE SET NULL`** (NO tabla pivot — ver D7) + índice `(zone_id, incident_category_id)`. **(1.5h)**
-- [ ] **T7.5.A2b** — En la misma 0034: **eliminar** `uq_organizations_zone`. El modelo de legacy tiene varias organizaciones a distintos niveles del árbol de ubicaciones, todas notificadas para el mismo incidente; un UNIQUE por zona es incompatible con eso (no alcanza con hacerlo parcial por `parent_id`). Cubre R11.1 y R11.2. **(1h)**
-- [ ] **T7.5.A3** — Escribir `0034_…DOWN.sql`. **(30min)**
-- [ ] **T7.5.A4** — Añadir `parentId` e `incidentCategoryId` a `organization.entity.ts`. No se crea entidad de pivot. **(45min)**
+- [x] **T7.5.A1** — 🔴 Crear `backend/test/e2e/t7-org-hierarchy-categories.e2e-spec.ts` con R10.1, R10.3, R11.1. Debe fallar. **(1.5h)** (extendido a R10.1–R10.3, R11.1–R11.10)
+- [x] **T7.5.A2** — Escribir `0034_organizations_hierarchy_categories.sql`: `organizations.parent_id uuid NULL REFERENCES organizations(id) ON DELETE SET NULL` + `CHECK (parent_id IS DISTINCT FROM id)` + índice; **`organizations.incident_category_id uuid NULL REFERENCES incident_categories(id) ON DELETE SET NULL`** (NO tabla pivot — ver D7) + índice `(zone_id, incident_category_id)`. **(1.5h)**
+- [x] **T7.5.A2b** — En la misma 0034: **eliminar** `uq_organizations_zone`. El modelo de legacy tiene varias organizaciones a distintos niveles del árbol de ubicaciones, todas notificadas para el mismo incidente; un UNIQUE por zona es incompatible con eso (no alcanza con hacerlo parcial por `parent_id`). Cubre R11.1 y R11.2. **(1h)** ⚠️ ver "Deviations" en apply-progress — R10.4/R10.5 del spec original describían una versión parcial, superseded por esta corrección
+- [x] **T7.5.A3** — Escribir `0034_…DOWN.sql`. **(30min)**
+- [x] **T7.5.A4** — Añadir `parentId` e `incidentCategoryId` a `organization.entity.ts`. No se crea entidad de pivot. **(45min)**
 
 ### Fase B — Jerarquía
 
-- [ ] **T7.5.B1** — 🔴 Unit tests de `organizations.service.spec.ts` → `tree()` devuelve estructura anidada por `parent_id`; detecta ciclo indirecto A→B→A al asignar padre. Deben fallar. **(1h)**
-- [ ] **T7.5.B2** — Reescribir `OrganizationsService.tree()` para construir el árbol desde `parent_id` (reemplaza la lista plana y su comentario de limitación T3.2). **(1.5h)**
-- [ ] **T7.5.B3** — Validar ciclos indirectos al setear `parent_id` desde el endpoint de actualización de organización → 400. **(1.5h)**
-- [ ] **T7.5.B4** — E2E R10.2: padre con dos hijas aparece anidado en `GET /organizations/tree`. **(1h)**
+- [x] **T7.5.B1** — 🔴 Unit tests de `organizations.service.spec.ts` → `tree()` devuelve estructura anidada por `parent_id`; detecta ciclo indirecto A→B→A al asignar padre. Deben fallar. **(1h)**
+- [x] **T7.5.B2** — Reescribir `OrganizationsService.tree()` para construir el árbol desde `parent_id` (reemplaza la lista plana y su comentario de limitación T3.2). **(1.5h)**
+- [x] **T7.5.B3** — Validar ciclos indirectos al setear `parent_id` desde el endpoint de actualización de organización → 400. **(1.5h)**
+- [x] **T7.5.B4** — E2E R10.2: padre con dos hijas aparece anidado en `GET /organizations/tree`. **(1h)**
 
 ### Fase C — Ruteo por ancestría de ubicación y categoría
 
@@ -115,12 +115,12 @@
 > devuelve como mucho una organización y calcula `is_claimable` como
 > `max_active_claims > 0` en vez de "es la que el auto-assign elegiría".
 
-- [ ] **T7.5.C1** — 🔴 Unit tests de `notifiedFor` cubriendo R11.3–R11.10: ancestría de ubicación, ancestría de categoría, org transversal (`incident_category_id IS NULL`), org de otra categoría excluida, `is_claimable` en exactamente una, array vacío, soft-deleted fuera, orden estable. Deben fallar. **(2h)**
-- [ ] **T7.5.C2** — `organizations.repository.ts`: implementar `findNotifiedFor(zoneId, categoryId)` con las dos CTE recursivas (`zone_chain` sobre `geo_zones.parent_id`, `cat_chain` sobre `incident_categories.parent_id`), el `OR incident_category_id IS NULL` y `ORDER BY created_at, id`. **(2.5h)**
-- [ ] **T7.5.C3** — `organizations.service.ts` → `notifiedFor`: usar el nuevo método; devolver **todas** las orgs notificadas; marcar `is_claimable` sólo en la primera del orden estable, que es la que el auto-assign elegiría. **(1.5h)**
-- [ ] **T7.5.C4** — Alinear el auto-assign de organización al crear incidente con el mismo criterio (`findForLocation` de legacy = primer elemento de `findNotifiedFor`), para que el badge "Principal" del formulario no mienta. **(2h)**
-- [ ] **T7.5.C5** — E2E R11.3–R11.10 contra Postgres real, con un árbol de zonas de 3 niveles y un árbol de categorías de 2. **(2.5h)**
-- [ ] **T7.5.C6** — Endpoint de administración para asignar la categoría de una organización, protegido con `UPDATE organizations` (sin filas nuevas en el catálogo de permisos, ver proposal). **(1.5h)**
+- [x] **T7.5.C1** — 🔴 Unit tests de `notifiedFor` cubriendo R11.3–R11.10: ancestría de ubicación, ancestría de categoría, org transversal (`incident_category_id IS NULL`), org de otra categoría excluida, `is_claimable` en exactamente una, array vacío, soft-deleted fuera, orden estable. Deben fallar. **(2h)**
+- [x] **T7.5.C2** — `organizations.repository.ts`: implementar `findNotifiedFor(zoneId, categoryId)` con las dos CTE recursivas (`zone_chain` sobre `geo_zones.parent_id`, `cat_chain` sobre `incident_categories.parent_id`), el `OR incident_category_id IS NULL` y `ORDER BY created_at, id`. **(2.5h)**
+- [x] **T7.5.C3** — `organizations.service.ts` → `notifiedFor`: usar el nuevo método; devolver **todas** las orgs notificadas; marcar `is_claimable` sólo en la primera del orden estable, que es la que el auto-assign elegiría. **(1.5h)**
+- [x] **T7.5.C4** — Alinear el auto-assign de organización al crear incidente con el mismo criterio (`findForLocation` de legacy = primer elemento de `findNotifiedFor`), para que el badge "Principal" del formulario no mienta. **(2h)** (`OrganizationsService.findByZone` eliminado, reemplazado por `findNotifiedFor`)
+- [x] **T7.5.C5** — E2E R11.3–R11.10 contra Postgres real, con un árbol de zonas de 3 niveles y un árbol de categorías de 2. **(2.5h)**
+- [x] **T7.5.C6** — Endpoint de administración para asignar la categoría de una organización, protegido con `UPDATE organizations` (sin filas nuevas en el catálogo de permisos, ver proposal). **(1.5h)** (`PATCH /organizations/:id/category`)
 
 ---
 
