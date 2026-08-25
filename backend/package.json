@@ -19,7 +19,10 @@
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:migrate": "ts-node scripts/run-migrations.ts",
+    "db:migrate:status": "ts-node scripts/run-migrations.ts --status",
+    "db:rollback": "ts-node scripts/run-migrations.ts --down"
   },
   "dependencies": {
     "@nestjs/cache-manager": "^2.2.2",

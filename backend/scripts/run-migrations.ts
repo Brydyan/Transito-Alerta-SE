@@ -4,7 +4,7 @@
  * T7.1 Fase B — CLI runner que valida migraciones aplicadas y detecta drift.
  *
  * Uso:
- *   npx ts-node scripts/run-migrations.ts [--status|--list|--version]
+ *   npx ts-node scripts/run-migrations.ts [--status|--list|--version|--down]
  *
  * Modos:
  *   (default) — Valida que schema_migrations exista y que todos los checksums
@@ -13,6 +13,7 @@
  *   --status   — Muestra tabla de estado (versión, nombre, status, timestamp)
  *   --list     — Lista todas las migraciones disponibles en disco
  *   --version  — Muestra versión del runner (1.0.0)
+ *   --down --to <version> — Revierte migraciones hasta <version> (inclusive)
  *
  * Validaciones:
  * - Requiere que schema_migrations tabla exista (0030 debe estar aplicada)
@@ -26,6 +27,8 @@
  */
 
 import { Client } from 'pg';
+import { existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
 import { listMigrations, checksumOf, type MigrationFile } from './lib/migration-files';
 
 async function main() {
@@ -44,7 +47,7 @@ async function main() {
       process.exit(0);
     }
 
-    // Connect to DB (required for --status y validación)
+    // Connect to DB (required for --status, --down y validación)
     const client = new Client({
       connectionString:
         process.env.DATABASE_URL ||
@@ -67,6 +70,16 @@ async function main() {
 
       if (flag === '--status') {
         await printStatus(client);
+        process.exit(0);
+      }
+
+      if (flag === '--down') {
+        const toVersion = args[1];
+        if (!toVersion || args[2] !== undefined || !args[1].match(/^\d{4}$/)) {
+          console.error('ERROR: Usage: --down <version> (e.g. --down 0035)');
+          process.exit(1);
+        }
+        await rolldownMigrations(client, toVersion);
         process.exit(0);
       }
 
@@ -191,6 +204,62 @@ async function checkTableExists(client: Client, tableName: string): Promise<bool
   );
 
   return result.rows[0]?.exists ?? false;
+}
+
+/**
+ * Revierte migraciones hasta la versión especificada (inclusive).
+ * Lee los archivos .DOWN.sql en orden inverso, ejecuta cada uno, y elimina la fila de schema_migrations.
+ */
+async function rolldownMigrations(client: Client, targetVersion: string): Promise<void> {
+  const migrations = listMigrations();
+  const appliedResult = await client.query<{ version: string }>(
+    'SELECT version FROM schema_migrations ORDER BY version DESC',
+  );
+  const applied = new Set(appliedResult.rows.map((r) => r.version));
+
+  // Filtrar migraciones aplicadas que están por encima del target (en orden inverso)
+  const toRollback = migrations
+    .filter((m) => applied.has(m.version) && m.version > targetVersion)
+    .reverse();
+
+  if (toRollback.length === 0) {
+    console.log(`✅ Already at or before version ${targetVersion}.`);
+    return;
+  }
+
+  console.log(`Rolling back ${toRollback.length} migration(s)...`);
+
+  for (const migration of toRollback) {
+    const downFile = resolve(
+      __dirname,
+      '..',
+      'database',
+      'rollback',
+      `${migration.version}_${migration.name}.DOWN.sql`,
+    );
+
+    if (!existsSync(downFile)) {
+      throw new Error(`Rollback file not found: ${downFile}`);
+    }
+
+    const sql = readFileSync(downFile, 'utf8');
+
+    console.log(`  Rolling back ${migration.version}_${migration.name}...`);
+
+    try {
+      await client.query('BEGIN');
+      await client.query(sql);
+      await client.query('DELETE FROM schema_migrations WHERE version = $1', [migration.version]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw new Error(
+        `Rollback failed for ${migration.version}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  console.log(`✅ Rolled back to ${targetVersion}.`);
 }
 
 main().catch((error) => {

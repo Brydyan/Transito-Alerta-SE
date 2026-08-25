@@ -37,8 +37,8 @@ for the full compliance breakdown and next steps.
 - [x] **T7.1.B1** — 🔴 Crear `backend/test/e2e/t7-migration-runner.e2e-spec.ts` con R2.1–R2.4: aplica sólo pendientes, segunda corrida no-op, falla estricta con rollback y exit ≠ 0, detección de drift por checksum. Debe fallar. **(2h)** ✅ 063cc28
 - [x] **T7.1.B2** — Crear `backend/scripts/run-migrations.ts` según §4 del design: conexión por `DATABASE_URL`, `CREATE TABLE IF NOT EXISTS schema_migrations`, orden numérico, `sha256` del contenido, skip de versiones registradas, `BEGIN`/`COMMIT` por archivo, `exit 1` en el primer error sin continuar. **(2h)** ✅ 063cc28
 - [x] **T7.1.B3** — Añadir a `run-migrations.ts` el modo `--status` (lista aplicadas / pendientes / drift, sin ejecutar nada) y el reconocimiento del checksum comodín `'manual'`. **(1h)** ✅ 063cc28
-- [ ] **T7.1.B4** — Añadir a `run-migrations.ts` el modo `--down --to <version>`: lee `database/rollback/` en orden inverso, ejecuta hasta la versión indicada, borra la fila de `schema_migrations` de cada una. **(1.5h)**
-- [ ] **T7.1.B5** — Añadir a `backend/package.json` los scripts `db:migrate`, `db:migrate:status` y `db:rollback`. **(15min)**
+- [x] **T7.1.B4** — Añadir a `run-migrations.ts` el modo `--down --to <version>`: lee `database/rollback/` en orden inverso, ejecuta hasta la versión indicada, borra la fila de `schema_migrations` de cada una. **(1.5h)** ✅ b152515
+- [x] **T7.1.B5** — Añadir a `backend/package.json` los scripts `db:migrate`, `db:migrate:status` y `db:rollback`. **(15min)** ✅ b152515
 
 ### Fase C — Rollback ejercitado
 
