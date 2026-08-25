@@ -667,6 +667,48 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
 
     expect(ctx.scope).toEqual({ kind: 'global' });
   });
+
+  // T7.2.C4 (R7.5) — a soft-deleted role must grant ZERO permissions even
+  // though `users.permissions` still holds the stale denormalized array;
+  // `role_deleted_at` comes back non-null from the LEFT JOIN and this
+  // method treats that exactly like "no role assigned" for both
+  // permissions and roleName (PermissionGuard's default-deny then 403s
+  // any @RequirePermission route).
+  it('a soft-deleted assigned role resolves to zero permissions and null roleName (R7.5)', async () => {
+    cache.get.mockResolvedValue(undefined);
+    dataSource.query.mockResolvedValue([
+      {
+        permissions: ['READ incidents', 'UPDATE incidents'],
+        organization_id: 'org-1',
+        device_uuid: 'device-abc',
+        role_name: 'operador_organizacion',
+        role_deleted_at: new Date('2026-08-25T00:00:00Z'),
+      },
+    ]);
+
+    const ctx = await service.getAuthContextByUserId('user-1');
+
+    expect(ctx.permissions).toEqual([]);
+    expect(ctx.roleName).toBeNull();
+  });
+
+  it('a live (non-deleted) assigned role is unaffected by the role_deleted_at column', async () => {
+    cache.get.mockResolvedValue(undefined);
+    dataSource.query.mockResolvedValue([
+      {
+        permissions: ['READ incidents'],
+        organization_id: 'org-1',
+        device_uuid: 'device-abc',
+        role_name: 'operador_organizacion',
+        role_deleted_at: null,
+      },
+    ]);
+
+    const ctx = await service.getAuthContextByUserId('user-1');
+
+    expect(ctx.permissions).toEqual(['READ incidents']);
+    expect(ctx.roleName).toBe('operador_organizacion');
+  });
 });
 
 describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserId)', () => {

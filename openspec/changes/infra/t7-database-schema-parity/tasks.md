@@ -63,15 +63,15 @@ for the full compliance breakdown and next steps.
 
 ### Fase B — Entidades y Repositorios (app-level)
 
-- [ ] **T7.2.B1** — Añadir `deletedAt: Date | null` a 12 entidades: `comment`, `organization`, `incident-category`, `geo-zone`, `invitation`, `password-reset-token`, `notification`, `permission`, `user-session`, `user` con patrón `@Column({ name:'deleted_at', type:'timestamptz', nullable:true })`. **(1h)** ⏳ app-level
-- [ ] **T7.2.B2** — Aplicar filtro `deleted_at IS NULL` a todos los repositorios: `comments`, `notifications`, `organizations`, `geo-zones`, `incident-categories`, `user-sessions`, `users`, `invitations`, `password-reset-tokens`, `permissions`. **(3h)** ⏳ app-level
+- [x] **T7.2.B1** — Añadir `deletedAt: Date | null` a las entidades restantes: `organization`, `incident-category`, `geo-zone`, `invitation`, `password-reset-token`, `notification`, `permission`, `user-session`, `role` (13 tablas totales; `comment`/`user`/`incident`/`assignment` ya lo tenían). **(1h)** ✅ post-archive
+- [x] **T7.2.B2** — Aplicar filtro `deleted_at IS NULL` a los repositorios/servicios: `comments` (ya existía), `notifications`, `organizations` (+ `delete()` convertido de hard DELETE a soft UPDATE), `geo-zones` (+ `deactivate()` ahora también estampa `deleted_at`), `incident-categories` (+ `delete()` convertido a soft), `invitations`, `permissions`, `roles.findAll`. `user-sessions`/`password-reset-tokens` reciben la columna por paridad de esquema pero se dejan sin wiring (comentario de la migración 0031: "nunca se usa"). **(3h)** ✅ post-archive
 
 ### Fase C — Tests E2E (app-level)
 
-- [ ] **T7.2.C1** — E2E soft-delete: DELETE / 204 + persist + exclude from list + cascade en `comment_images`. **(2h)** ⏳ app-level
-- [ ] **T7.2.C2** — E2E notificaciones: soft-deleted fuera de `unread-count`. **(1h)** ⏳ app-level
-- [ ] **T7.2.C3** — E2E org/categorías/zonas: soft-deleted fuera de ruteo y filtros. **(2h)** ⏳ app-level
-- [ ] **T7.2.C4** — E2E auth: soft-deleted roles/permisos no otorgan acceso tras bump de versión. **(1h)** ⏳ app-level
+- [x] **T7.2.C1** — E2E soft-delete genérico: DELETE → 204 + persiste (soft, no hard) + excluido del listado, para `organizations` e `incident-categories`; R6.3 cubre que `comment_images` sobrevive intacto (no cascada, no borrado S3). **(2h)** ✅ post-archive
+- [x] **T7.2.C2** — E2E notificaciones: soft-deleted fuera de `unread-count` (R7.1). **(1h)** ✅ post-archive
+- [x] **T7.2.C3** — E2E org/categorías/zonas: org soft-deleted fuera de `notified-for` (R7.2), categoría soft-deleted fuera del listado (R7.3), geo-zone soft-deleted (`deactivate` ahora estampa `deleted_at` además de `active=false`) excluida del geofencing (R7.4). **(2h)** ✅ post-archive
+- [x] **T7.2.C4** — E2E auth: rol soft-deleted bloquea 403 en endpoint protegido vía `AuthService.getAuthContextByUserId` + `RolesService.delete` (bump `permission_version` + invalidación de caché) (R7.5); permiso de catálogo soft-deleted revocado del rol vía nuevo `POST /roles/:id/recalculate-permissions` (R7.6). **(1h)** ✅ post-archive
 
 ---
 

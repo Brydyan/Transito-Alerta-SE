@@ -96,4 +96,16 @@ export class RolesController {
   ): Promise<RoleEntity> {
     return this.rolesService.syncPermissions(id, dto.permissions);
   }
+
+  /**
+   * T7.2.C4 (R7.6) — re-derives this role's effective permission set,
+   * dropping any string whose (resource, action) pair is soft-deleted in
+   * the `permissions` catalog, and propagates the result to every user
+   * currently holding the role.
+   */
+  @Post(':id/recalculate-permissions')
+  @RequirePermission('UPDATE')
+  recalculatePermissions(@Param('id', new ParseUUIDPipe()) id: string): Promise<RoleEntity> {
+    return this.rolesService.recalculateEffectivePermissions(id);
+  }
 }

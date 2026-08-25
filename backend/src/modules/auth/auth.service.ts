@@ -56,6 +56,8 @@ interface AuthContextRow {
   organization_id: string | null;
   device_uuid: string;
   role_name: string | null;
+  /** T7.2.C4 (R7.5) — non-null when the assigned role is soft-deleted. */
+  role_deleted_at?: Date | null;
 }
 
 export interface AuthTokens {
@@ -523,7 +525,12 @@ export class AuthService {
     const rows: AuthContextRow[] = await this.dataSource.query(
       // T6.8.B3: exclude soft-deleted and inactive users so a deleted user
       // cannot use a cached/unexpired JWT to authenticate.
-      `SELECT u.permissions, u.organization_id, u.device_uuid, r.name AS role_name
+      // T7.2.C4 (R7.5): also surface the assigned role's own `deleted_at` —
+      // `users.permissions` is a denormalized snapshot (RolesService.assignRole)
+      // that does NOT get cleared when the role itself is later soft-deleted,
+      // so `role_deleted_at` must be checked here to zero it out live.
+      `SELECT u.permissions, u.organization_id, u.device_uuid, r.name AS role_name,
+              r.deleted_at AS role_deleted_at
          FROM users u
          LEFT JOIN roles r ON r.id = u.role_id
         WHERE u.id = $1 AND u.deleted_at IS NULL AND u.is_active = TRUE`,
@@ -547,9 +554,16 @@ export class AuthService {
     }
 
     const isAnonymous = row.device_uuid === anonymousDeviceUuid;
-    const permissions = isAnonymous ? anonymousPermissions : (row.permissions ?? []);
+    // R7.5 — a soft-deleted assigned role grants nothing, regardless of
+    // what's still denormalized onto `users.permissions`.
+    const roleDeleted = row.role_deleted_at != null;
+    const permissions = isAnonymous
+      ? anonymousPermissions
+      : roleDeleted
+        ? []
+        : (row.permissions ?? []);
     const organizationId = isAnonymous ? null : row.organization_id;
-    const roleName = isAnonymous ? null : row.role_name;
+    const roleName = isAnonymous || roleDeleted ? null : row.role_name;
 
     await this.cache.set(
       key,
