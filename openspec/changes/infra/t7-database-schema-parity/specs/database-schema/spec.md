@@ -508,16 +508,18 @@ Scenario R16.3 — El plan del listado de incidentes usa índice
 ### R19 — Árbol de categorías de incidente
 
 **Background**: `incident_categories` existe desde 0012 y no tiene ni una fila.
-Legacy siembra 23 categorías en `IncidentCategorySeeder`.
+Legacy siembra 22 categorías en `IncidentCategorySeeder` (5 raíces + 17 hojas
+— ver design.md D14: la estimación original de este documento, 23/18, no
+coincidía con el conteo real del array `CATEGORY_TREE` del seeder).
 
 ```
 Scenario R19.1 — El árbol queda sembrado
   Given  una base con 0001 a 0038 aplicadas
   When   se cuentan las filas de incident_categories
-  Then   hay 23 categorías
+  Then   hay 22 categorías
   And    5 tienen parent_id NULL (Infraestructura Vial, Servicios Básicos,
          Seguridad Ciudadana, Medio Ambiente, Obras e Infraestructura)
-  And    18 tienen parent_id apuntando a una de esas 5
+  And    17 tienen parent_id apuntando a una de esas 5
 
 Scenario R19.2 — Todas las hojas son hoja de verdad
   Given  el árbol sembrado

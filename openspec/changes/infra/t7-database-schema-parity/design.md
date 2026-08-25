@@ -550,6 +550,72 @@ pasar a ser `UNIQUE (zone_id) WHERE parent_id IS NULL` — sólo una organizaci�
 *raíz* por zona. Ese cambio va en 0034 (D7.5), no en 0039, y está anotado como
 tarea explícita.
 
+> Nota (T7.9 apply): T7.5.A2b (0034) ya **eliminó por completo**
+> `uq_organizations_zone` en vez de hacerlo parcial (ver tasks.md T7.5.A2b) —
+> el modelo real necesita varias organizaciones notificadas por zona a
+> distintos niveles de la jerarquía, no sólo una raíz. Este párrafo de D12
+> describe la restricción tal como estaba antes de T7.5 y queda como
+> contexto histórico del bloqueo de T7.9.C1; no aplica al esquema actual.
+
+### D14 — T7.9 apply: conteo real del árbol de categorías (22, no 23) y alcance del guard de notificaciones
+
+**Árbol de categorías (T7.9.A)**: la §1.4 de este documento y el spec R19
+original estimaban 23 categorías (5 raíces + 18 hojas). Un conteo directo del
+array `CATEGORY_TREE` en
+`GeoReporta/backend/database/seeders/IncidentCategorySeeder.php` (verificado
+en dos copias independientes del repositorio legacy) da 5 raíces + **17**
+hojas = **22** categorías: 4 bajo Infraestructura Vial, 4 bajo Servicios
+Básicos, 3 bajo Seguridad Ciudadana, 3 bajo Medio Ambiente, 3 bajo Obras e
+Infraestructura. El spec (`specs/database-schema/spec.md` R19.1) se corrigió
+para reflejar 22/17 — se prioriza el código fuente legacy sobre la estimación
+de diseño, igual que hizo T7.7/T7.8 con sus propias auditorías (D13, D10).
+
+**Permisos de notificaciones (T7.9.B) — alcance del `@RequirePermission`**:
+`NotificationsController.approve`/`.reject` (T5.6) ya usan
+`@RequirePermission('UPDATE')` desde que se escribieron — el gap real (G23)
+no era código de autorización faltante, era **datos**: ningún rol tenía
+`'UPDATE notifications'` en su `roles.permissions` JSONB, así que esas dos
+rutas devolvían 403 para absolutamente cualquier usuario, incluido
+`admin_sistema`, hasta que 0039 concede el permiso. Confirmado con
+`grep -rn "UPDATE notifications" database/migrations/` antes de escribir
+0039: cero resultados.
+
+Decisión explícita (T7.9.B3): las rutas de notificaciones propias
+(`GET /notifications`, `GET /notifications/unread(-count)`,
+`PATCH /notifications/:id/read`, `PATCH /notifications/read-all`) **se
+quedan sólo con `JwtAuthGuard`**, sin `@RequirePermission`. Están acotadas
+por `req.user.userId` — cualquier usuario autenticado, del rol que sea,
+puede leer y marcar como leídas SUS PROPIAS notificaciones; exigir
+`'READ notifications'` de rol rompería ese flujo para `reporter`, que nunca
+tiene (ni debe tener) ese permiso genérico. Es el mismo patrón que
+`GET /users/me` no exige `'READ users'`. `approve`/`reject` sí son
+operaciones administrativas sobre notificaciones ajenas (aprobar/rechazar el
+incidente de otro usuario) y correctamente exigen el permiso de rol.
+
+La fila `(notifications, READ)` del catálogo se agrega por paridad con el
+`notifications:view` de legacy y quedó sin ningún `@RequirePermission('READ')`
+que la consuma hoy — es catálogo informacional (igual que otras filas del
+catálogo, design D3), reservada para una futura vista administrativa de
+notificaciones. No se crea ese endpoint en este batch.
+
+**Alcance de 0039 en este batch**: sólo Fase B (permisos de notificaciones).
+Fase A (0038, árbol de categorías) es un archivo separado. Fase C
+(geografía + organizaciones semilla) sigue bloqueada por T7.9.C1 (D12) y no
+se tocó `0039_organizations_permissions.sql` más allá de sus dos sentencias
+de Fase B — el archivo crecerá cuando llegue el input del operador.
+
+**Hallazgo colateral (no corregido en este batch)**: `0029_incident_images.sql`
+otorga `'incident-images:CREATE'` / `'incident-images:DELETE'` a
+`operador_organizacion`/`admin_organizacion` — formato `resource:ACTION`, no
+el canónico `"ACTION resource"` que `formatPermissionString`/`hasPermission`
+(`require-permission.decorator.ts`) realmente comparan. Esas dos cadenas
+nunca han hecho match con nada; si algún endpoint de `incident-images` ya usa
+`@RequirePermission('CREATE'|'DELETE')`, ambos roles reciben 403 hoy. Se
+documenta aquí porque T7.9.B lo hizo visible al auditar `roles.permissions`
+de `operador_organizacion` para R20.2; corregirlo es un cambio de esquema
+independiente (una migración 0040 que reemplace esas dos cadenas), fuera del
+alcance de D7.9.
+
 ---
 
 ## 3. Cambios de entidad (TypeORM)
