@@ -2,6 +2,9 @@
 
 BEGIN;
 
+DROP INDEX IF EXISTS idx_roles_active;
+ALTER TABLE roles DROP COLUMN IF EXISTS deleted_at;
+
 DROP INDEX IF EXISTS idx_permissions_active;
 ALTER TABLE permissions DROP COLUMN IF EXISTS deleted_at;
 

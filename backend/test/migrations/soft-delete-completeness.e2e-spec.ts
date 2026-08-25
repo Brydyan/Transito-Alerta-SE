@@ -23,7 +23,7 @@ describe('T7.2.A — soft delete: deleted_at column + partial indexes on 12 tabl
     });
   });
 
-  describe('T7.2.A2 — 12 tablas tienen deleted_at TIMESTAMPTZ NULL', () => {
+  describe('T7.2.A2 — 13 tablas tienen deleted_at TIMESTAMPTZ NULL', () => {
     const tables = [
       'comments',
       'assignments',
@@ -37,6 +37,7 @@ describe('T7.2.A — soft delete: deleted_at column + partial indexes on 12 tabl
       'users',
       'incidents',
       'permissions', // catálogo, puede borrarse lógicamente
+      'roles', // catálogo de roles del sistema
     ];
 
     beforeAll(async () => {

@@ -1,8 +1,10 @@
--- T7.2 Fase A — soft delete en 12 tablas
+-- T7.2 Fase A — soft delete completeness (13 tablas total)
 --
 -- Agrega `deleted_at TIMESTAMPTZ NULL` a todas las tablas de dominio que aún
 -- no la tenían. Soft delete ya existe en incidents (0025), assignments (0026),
--- users (0028) — esta migración completa el patrón en las 9 restantes.
+-- users (0028) — esta migración completa el patrón en las 10 restantes (roles,
+-- permissions, comments, invitations, password_reset_tokens, notifications,
+-- geo_zones, incident_categories, organizations, user_sessions).
 --
 -- Patrón: ADD COLUMN deleted_at, CREATE partial INDEX (WHERE deleted_at IS NULL)
 -- para list queries rápidas, y parciales UNIQUE donde aplica.
@@ -77,5 +79,11 @@ ALTER TABLE permissions
   ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;
 CREATE INDEX IF NOT EXISTS idx_permissions_active
   ON permissions (resource) WHERE deleted_at IS NULL;
+
+-- roles: catálogo de roles del sistema, puede borrarse lógicamente
+ALTER TABLE roles
+  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;
+CREATE INDEX IF NOT EXISTS idx_roles_active
+  ON roles (created_at) WHERE deleted_at IS NULL;
 
 COMMIT;
