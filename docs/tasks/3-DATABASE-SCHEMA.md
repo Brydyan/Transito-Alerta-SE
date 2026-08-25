@@ -1,15 +1,14 @@
 # 3: Esquema de Base de Datos y Auditoría de Migración
 
-> **Última actualización**: 2026-08-24 — refleja el estado real tras cerrar T6
-> (`t6-georepota-parity`). Antes de esta revisión el documento describía el
-> esquema en 0001–0016 y daba por existente un runner que nunca se escribió.
-> Ver la sección "Correcciones respecto de la versión anterior" al final.
+> **Última actualización**: 2026-08-24 — refleja el estado real tras cerrar T7
+> (`t7-database-schema-parity`). Las migraciones 0030–0039 son nuevas; 0001–0029
+> se aplicaron en T6. Runner en `backend/scripts/run-migrations.ts` existe y es operacional.
 
 ## Migración GeoReporta → Transito-Alerta-SE
 
 Las 72 migraciones Laravel de `GeoReporta/backend/database/migrations/` se
 auditaron contra nuestras migraciones SQL. El mapeo real medido es
-**72 migraciones legacy → 29 archivos SQL aplicados** (+10 planificados en T7 = 39).
+**72 migraciones legacy → 39 archivos SQL** (0001–0039, con T7 completada).
 
 La consolidación viene de que Laravel genera una migración por cambio incremental
 (muchas son `add_column` de una sola columna, y varias se cancelan entre sí:
@@ -21,8 +20,8 @@ una migración por unidad de trabajo del roadmap.
 
 ## Estado real de las migraciones (2026-08-24)
 
-Las 29 están **aplicadas y verificadas en Supabase**. Fuente de verdad por
-migración: `database/MIGRATION_LOG.md`.
+- **0001–0029**: ✅ aplicadas y verificadas en Supabase (T1–T6). Fuente de verdad: `database/MIGRATION_LOG.md`.
+- **0030–0039**: ✅ implementadas, committeadas, prontas para deployment (T7.1–T7.9.B). T7.9.C (orgs reales) bloqueada en espera de input del operador.
 
 | Rango | Fase | Contenido |
 |-------|------|-----------|
@@ -31,6 +30,10 @@ migración: `database/MIGRATION_LOG.md`.
 | 0020–0023 | T5.6 | Estado `closed`, columnas de decisión (approve/reject), tipo de notificación `incident_pending_approval`, `status_history.notes` |
 | 0024 | T5.5 | `comment_images` |
 | 0025–0029 | T6 | Soft delete de incidents y assignments, columnas de métricas (`claimed_at`, `resolution_date`), OTP + compliance en users, `incident_images` |
+| 0030–0032 | T7.1–T7.3 | Migration tooling (`schema_migrations` table), soft delete completeness (13 tablas: roles + 12 más), `updated_at` + triggers (15 tablas) |
+| 0033–0034 | T7.4–T7.5 | Comments threading (`parent_id`, depth-2 limit), org hierarchy + category-based routing (fix T6 defect) |
+| 0035–0037 | T7.6–T7.8 | Domain columns (`geo_zones.code`, `users.phone`), referential integrity (leaf-category trigger, FK normalization), index parity (9 missing indexes) |
+| 0038–0039 | T7.9.A–B | Reference data (22-category tree, notification permisos), T7.9.C/D bloqueada |
 
 **16 tablas de dominio**: `assignments`, `comment_images`, `comments`, `geo_zones`,
 `incident_categories`, `incident_images`, `incidents`, `invitations`,
@@ -39,9 +42,9 @@ migración: `database/MIGRATION_LOG.md`.
 
 ### Rollback
 
-`database/rollback/` tiene un archivo `.DOWN.sql` por cada migración (29/29).
-**Ninguno se ha ejecutado todavía** — no hay evidencia de que el rollback
-funcione. Ejercitarlo es tarea de T7 (D7.1 Fase C).
+`database/rollback/` tiene un archivo `.DOWN.sql` por cada migración (39/39).
+✅ Todos testeados y validados via `backend/test/migrations/rollback-cycle.e2e-spec.ts` (T7.1.C).
+El runner CLI soporta `--down --to <version>` y npm script `db:rollback` para disaster recovery.
 
 ---
 
@@ -68,28 +71,32 @@ Auditadas el 2026-08-24 comparando columna por columna ambos esquemas.
 | `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs` | infraestructura de Laravel, reemplazada por Redis / Redis Streams |
 | Triggers `log_incident_status`, `auto_assign_location`, `notify_on_status_change` | responsabilidad movida a la capa de aplicación: `IncidentStatusHistoryListener` (con `event_id` para idempotencia), `GeofencingService.resolveZone()` y `IncidentNotificationsListener` (que además emite por Socket.IO) |
 
-### Gaps abiertos → change `t7-database-schema-parity`
+### Gaps — estado post-T7 (2026-08-24)
 
-Lo que la auditoría encontró faltante y **todavía no está aplicado**:
+✅ **T7.1–T7.9.B completadas**:
 
-| Gap | Estado actual | Migración planificada |
-|-----|---------------|----------------------|
-| Tabla de tracking `schema_migrations` | no existe | 0030 |
-| `deleted_at` | sólo en 3 de 16 tablas (`incidents`, `assignments`, `users`); legacy lo tiene en 12 | 0031 |
-| `updated_at` | sólo en 3 de 16 tablas (`incidents`, `incident_categories`, `users`); legacy lo tiene en 16 | 0032 |
-| `comments.parent_id` | no existe — responder un comentario es imposible, pese a que `0005_comments.sql` menciona "comentarios anidados" | 0033 |
-| Jerarquía de organizaciones y ruteo por categoría | `organizations.parent_id` no existe y no hay pivot org↔categoría; `GET /organizations/notified-for?category_id=` acepta el parámetro y lo ignora | 0034 |
-| `geo_zones.code`, `users.phone` | no existen | 0035 |
-| Trigger `check_is_leaf_category` | no existe: un incidente puede apuntar a una categoría padre | 0036 |
-| Índices de paridad | faltan 9 respecto de legacy | 0037 |
-| Árbol de categorías de incidente | **0 filas sembradas**; legacy siembra 23 (5 padres + 18 hojas) | 0038 |
-| Organizaciones sembradas | **0 filas**; legacy siembra 5 GAD + 6 sucursales | 0039 |
-| Permisos de `notifications` | el catálogo no tiene filas para ese recurso | 0039 |
-| Nivel `parroquia` en `geo_zones` | el `CHECK` de 0013 lo admite, el seed no llega (4 filas: 1 provincia + 3 cantones) | 0039 |
-| Datos de demo y de volumen | ninguno; legacy tiene ~25 incidentes de Santa Elena y 1000 de carga | `database/seeds/` (fuera del pipeline de migraciones) |
+| Gap | Solución |
+|-----|----------|
+| Tabla de tracking `schema_migrations` | 0030: ✅ tabla creada + backfill de 0001–0029 |
+| `deleted_at` | 0031: ✅ agregada a 13 tablas (roles + 12 más) con índices parciales |
+| `updated_at` | 0032: ✅ agregada a 15 tablas con trigger `set_updated_at()` |
+| `comments.parent_id` | 0033: ✅ self-FK con depth-2 limit, cascada soft-delete, respuesta a comentarios operacional |
+| Jerarquía de organizaciones + ruteo por categoría | 0034: ✅ `parent_id` en orgs, `incident_category_id`, fix routing (ahora atraviesa zone + category ancestors) |
+| `geo_zones.code`, `users.phone` | 0035: ✅ columnas añadidas con validaciones |
+| Trigger `check_is_leaf_category` | 0036: ✅ trigger + FK normalization (4 FK ajustadas) |
+| Índices de paridad | 0037: ✅ 4 índices faltantes agregados; otros 5 cubiertos por migraciones/constraints previas |
+| Árbol de categorías | 0038: ✅ 22 categorías sembradas (5 roots + 17 leaves) con idempotencia |
+| Permisos de `notifications` | 0039: ✅ (READ, UPDATE) añadidos a catálogo + otorgados a 4 staff roles |
 
-Detalle completo, escenarios y desglose de tareas en
-`openspec/changes/infra/t7-database-schema-parity/`.
+🚧 **T7.9.C–D bloqueadas**:
+
+| Gap | Bloqueador | Migración |
+|-----|-----------|-----------|
+| Organizaciones reales (Santa Elena) | Input operador (Andy) — lista de GAD + sucursales | 0039 (partial) |
+| Nivel `parroquia` en geo_zones | Depende de C1 | 0039 (partial) |
+| Datos de demo/volumen | No crítico | `database/seeds/` |
+
+Detalles completos, arquitectura, y diseño en `openspec/changes/archive/2026-08-24-t7-database-schema-parity/`.
 
 ---
 
@@ -152,6 +159,15 @@ registrando la fila correspondiente en `database/MIGRATION_LOG.md`
 
 No hay automatismo: es una decisión explícita (CC3), no una carencia.
 
+### CLI runner — `backend/scripts/run-migrations.ts`
+
+✅ Operacional (T7.1.B). Soporta:
+- **Default (validación)**: `npm run db:migrate` — Valida checksums contra `schema_migrations` tabla
+- **Status**: `npm run db:migrate:status` — Lista migraciones aplicadas/pendientes
+- **Rollback**: `npm run db:rollback -- <version>` — Revierte hasta versión indicada (inclusive)
+
+Prerequisito: 0030 debe estar aplicada (crea `schema_migrations` table con tracking).
+
 ### Desarrollo local
 
 `docker compose up -d postgres` levanta `postgis/postgis:16-3.4` vacío:
@@ -163,9 +179,11 @@ for f in database/migrations/[0-9]*.sql; do
 done
 ```
 
+O usar el runner: `npm run db:migrate` (después de `npm install`).
+
 ### Tests y CI
 
-`backend/test/support/run-migrations.ts` aplica **todos** los
+`backend/test/support/migration-harness.ts` aplica **todos** los
 `database/migrations/[0-9]*.sql` en orden numérico contra un Postgres de
 Testcontainers vacío, en cada corrida de e2e. Usa el simple query protocol de
 `pg` (un `client.query(sql)` por archivo), que admite varias sentencias
