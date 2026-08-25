@@ -44,7 +44,7 @@ for the full compliance breakdown and next steps.
 
 - [x] **T7.1.C1** — 🔴 Crear `backend/test/e2e/t7-rollback-cycle.e2e-spec.ts` (R3.1): aplicar 0001→0039 y luego todos los DOWN en orden inverso; assert de que no queda ninguna tabla de dominio ni ninguna función/trigger creado por las migraciones. Se ejecutará contra un container dedicado por su costo. Debe fallar hasta que existan los DOWN de 0030–0039. **(2h)** ✅ 063cc28
 - [x] **T7.1.C2** — Añadir a ese spec el check R3.2: por cada archivo `database/migrations/00{30..39}_*.sql` existe el `.DOWN.sql` homónimo. **(30min)** ✅ 063cc28
-- [ ] **T7.1.C3** — Corregir los archivos DOWN existentes (0001–0029) que el ciclo del test revele como incompletos. Documentar cada corrección en `MIGRATION_LOG.md`. **(2h)**
+- [x] **T7.1.C3** — Corregir los archivos DOWN existentes (0001–0029) que el ciclo del test revele como incompletos. Documentar cada corrección en `MIGRATION_LOG.md`. **(2h)** ✅ 6890003
 
 ### Fase D — Documentación
 
