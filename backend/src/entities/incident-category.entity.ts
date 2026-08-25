@@ -30,4 +30,8 @@ export class IncidentCategoryEntity {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
+
+  /** T7.2 (0031) — soft delete. Excluded from list/tree reads. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
 }

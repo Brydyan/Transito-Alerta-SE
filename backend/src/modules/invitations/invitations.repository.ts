@@ -123,17 +123,18 @@ export class InvitationsRepository {
     return this.firstUpdatedRow<{ id: string }>(result) !== null;
   }
 
+  /** T7.2.B2 — soft-deleted invitations (schema parity) never appear as pending. */
   async findPendingByOrganization(organizationId: string | null): Promise<InvitationRow[]> {
     if (organizationId === null) {
       return this.dataSource.query(
         `SELECT ${INVITATION_ROW_COLUMNS} FROM invitations
-          WHERE accepted_at IS NULL AND expires_at > now()
+          WHERE accepted_at IS NULL AND expires_at > now() AND deleted_at IS NULL
           ORDER BY created_at DESC`,
       );
     }
     return this.dataSource.query(
       `SELECT ${INVITATION_ROW_COLUMNS} FROM invitations
-        WHERE accepted_at IS NULL AND expires_at > now() AND organization_id = $1
+        WHERE accepted_at IS NULL AND expires_at > now() AND deleted_at IS NULL AND organization_id = $1
         ORDER BY created_at DESC`,
       [organizationId],
     );

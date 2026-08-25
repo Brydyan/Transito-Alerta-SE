@@ -27,6 +27,10 @@ export class OrganizationEntity {
   @Column({ name: 'max_active_claims', type: 'int', default: 5 })
   maxActiveClaims!: number;
 
+  /** T7.2 (0031) — soft delete. Excluded from list/tree/findNotifiedFor reads. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 }

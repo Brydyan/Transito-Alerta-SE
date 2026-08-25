@@ -178,6 +178,16 @@ export class GeoZonesRepository {
    * Idempotent soft-delete (design D8): reports whether `active` actually
    * flipped so the service can skip a pointless cache purge. `null` = the
    * id does not exist (404).
+   *
+   * T7.2.B1 note — `geo_zones.deleted_at` (0031) is intentionally NOT
+   * touched here. `active` is a reversible TOGGLE (PATCH `{active: true}`
+   * re-activates a zone, spec-tested) — unlike the other 12 one-way
+   * soft-deletable tables, this table has an "undelete" path. Stamping
+   * `deleted_at` here (tried once, reverted) permanently excludes the zone
+   * from every `deleted_at IS NULL` read even after reactivation, since
+   * nothing ever clears it back to NULL. `deleted_at` stays schema-parity
+   * only for this table (column present, unused) — `active` remains the
+   * sole functional predicate everywhere in this repository/geofencing.
    */
   async deactivate(id: string): Promise<{ changed: boolean } | null> {
     const rows: { changed: boolean }[] = await this.dataSource.query(

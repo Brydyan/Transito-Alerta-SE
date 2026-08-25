@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { GeoZoneEntity } from '../../entities/geo-zone.entity';
@@ -146,7 +146,7 @@ export class OrganizationsService {
    * silently dropped.
    */
   async tree(): Promise<OrganizationTreeNode[]> {
-    const orgs = await this.orgRepo.find({ order: { name: 'ASC' } });
+    const orgs = await this.orgRepo.find({ where: { deletedAt: IsNull() }, order: { name: 'ASC' } });
     const nodes = new Map<string, OrganizationTreeNode>();
     for (const o of orgs) {
       nodes.set(o.id, { id: o.id, name: o.name, zoneId: o.zoneId, children: [] });

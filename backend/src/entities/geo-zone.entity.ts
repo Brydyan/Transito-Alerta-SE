@@ -48,6 +48,20 @@ export class GeoZoneEntity {
   @Column({ type: 'varchar', length: 32, nullable: true })
   code!: string | null;
 
+  /**
+   * T7.2 (0031) — column exists for schema parity with the other 12
+   * soft-deletable tables, but is intentionally NEVER written here.
+   * `active` is this table's own pre-existing, REVERSIBLE soft-delete
+   * toggle (design D8: `deactivate()`/PATCH `{active: true}` — geofencing
+   * and every list read gate on `active`, not `deleted_at`). Wiring
+   * `deleted_at` in lockstep with `active=false` was tried and reverted —
+   * nothing ever clears it back to NULL on reactivation, which would
+   * permanently exclude a "re-activated" zone from any `deleted_at IS
+   * NULL` read.
+   */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 }

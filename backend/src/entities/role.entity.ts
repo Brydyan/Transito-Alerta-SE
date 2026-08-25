@@ -25,6 +25,17 @@ export class RoleEntity {
   @Column({ type: 'jsonb', default: () => "'[]'" })
   permissions!: string[];
 
+  /**
+   * T7.2 (0031) — soft delete. Design D5: soft-deleting a role does NOT
+   * invalidate anything by itself — `RolesService.delete` bumps
+   * `permission_version` and invalidates the Redis cache for every
+   * affected user in the same operation, and `AuthService.getAuthContextByUserId`
+   * treats a soft-deleted assigned role as granting zero permissions
+   * (R7.5).
+   */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 }

@@ -85,13 +85,18 @@ export class OrganizationsRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * T7.2.B2/C1 — soft delete (never a hard DELETE, R7.2). Idempotent: an
+   * already-soft-deleted row still matches `WHERE id = $1` and re-stamps
+   * `deleted_at`, so a repeat call returns `true` / 204 rather than 404.
+   */
   async delete(id: string): Promise<boolean> {
-    const result = await this.dataSource.query(`DELETE FROM organizations WHERE id = $1`, [id]);
-    // TypeORM's PG driver returns rowCount for DELETE differently across
-    // statement types (see IncidentsRepository.unwrapReturningRows) — a
-    // plain DELETE with no RETURNING has no rows either way, so we check
-    // the affected row count via a RETURNING id instead for determinism.
-    return Array.isArray(result) ? true : (result?.rowCount ?? 0) > 0;
+    const result: unknown = await this.dataSource.query(
+      `UPDATE organizations SET deleted_at = now() WHERE id = $1 RETURNING id`,
+      [id],
+    );
+    const [rows] = result as [Array<{ id: string }>, number];
+    return rows.length > 0;
   }
 
   async findById(id: string): Promise<OrganizationRow | null> {
@@ -107,7 +112,8 @@ export class OrganizationsRepository {
     const page = Math.max(filters.page ?? 1, 1);
     const offset = (page - 1) * perPage;
 
-    const conditions: string[] = [];
+    // T7.2.B2/R7.2 — soft-deleted orgs never appear in the list.
+    const conditions: string[] = ['deleted_at IS NULL'];
     const params: unknown[] = [];
 
     if (filters.search) {
