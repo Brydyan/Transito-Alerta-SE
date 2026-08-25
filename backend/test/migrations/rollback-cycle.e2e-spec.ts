@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { MigrationHarness } from '../support/migration-harness';
 import { rollbackPathFor, listMigrations } from '../../scripts/lib/migration-files';
 
@@ -105,7 +106,6 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
       expect(downPath).toBeTruthy();
 
       // Leer el contenido del .DOWN.sql
-      const { readFileSync } = require('fs');
       const downContent = readFileSync(downPath!, 'utf8');
 
       // Debería tener IF EXISTS para evitar errores si se ejecuta 2 veces
@@ -123,7 +123,6 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
       const downPath = rollbackPathFor(migration);
       expect(downPath).toBeTruthy();
 
-      const { readFileSync } = require('fs');
       const downContent = readFileSync(downPath!, 'utf8');
 
       // Aquí 0030 sólo dropea schema_migrations, que está vacía o casi vacía
