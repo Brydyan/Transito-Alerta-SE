@@ -6,7 +6,7 @@ import { AuthContext } from '../../common/authz/subject-scope';
 import { FeedQueryDto } from './dto/feed-query.dto';
 import { FeedItemDto, FeedResponseDto } from './dto/stats-response.dto';
 
-const STAFF_ROLES = ['admin_sistema', 'admin_organizacion', 'operador_organizacion', 'operador_sistema'];
+const STAFF_ROLES = ['master', 'admin_org', 'operador_org', 'operador_sistema'];
 const CITIZEN_FEED_KEY = 'feed:incidents';
 const CITIZEN_MAX_PAGE = 50;
 const STAFF_BBOX_CAP = 500;
@@ -32,10 +32,10 @@ export class IncidentFeedService {
     const conditions: string[] = ['1=1'];
 
     // Org scope
-    if (user.roleName !== 'admin_sistema' && user.organizationId) {
+    if (user.roleName !== 'master' && user.organizationId) {
       params.push(user.organizationId);
       conditions.push(`i.organization_id = $${params.length}`);
-    } else if (user.roleName !== 'admin_sistema') {
+    } else if (user.roleName !== 'master') {
       conditions.push('1=0');
     }
 

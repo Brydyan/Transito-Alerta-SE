@@ -136,9 +136,9 @@ export class IncidentsController {
   @Post('admin/feed/rebuild')
   @HttpCode(HttpStatus.ACCEPTED)
   async rebuildFeed(@Req() req: AuthenticatedRequest): Promise<{ rebuilt: number }> {
-    // Admin-only: only admin_sistema role may trigger manual feed rebuild
-    if (req.user!.roleName !== 'admin_sistema') {
-      throw new ForbiddenException('Only admin_sistema may trigger feed rebuild');
+    // Admin-only: only master role may trigger manual feed rebuild
+    if (req.user!.roleName !== 'master') {
+      throw new ForbiddenException('Only master may trigger feed rebuild');
     }
     const rebuilt = await this.feedRecoveryService.rebuildFeed();
     return { rebuilt };

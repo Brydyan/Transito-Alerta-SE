@@ -8,7 +8,7 @@
 
 Las 72 migraciones Laravel de `GeoReporta/backend/database/migrations/` se
 auditaron contra nuestras migraciones SQL. El mapeo real medido es
-**72 migraciones legacy → 39 archivos SQL** (0001–0039, con T7 completada).
+**72 migraciones legacy → 40 archivos SQL** (0001–0040, con T7 completada).
 
 La consolidación viene de que Laravel genera una migración por cambio incremental
 (muchas son `add_column` de una sola columna, y varias se cancelan entre sí:
@@ -21,7 +21,7 @@ una migración por unidad de trabajo del roadmap.
 ## Estado real de las migraciones (2026-08-24)
 
 - **0001–0029**: ✅ aplicadas y verificadas en Supabase (T1–T6). Fuente de verdad: `database/MIGRATION_LOG.md`.
-- **0030–0039**: ✅ implementadas, committeadas, prontas para deployment (T7.1–T7.9.B). T7.9.C (orgs reales) bloqueada en espera de input del operador.
+- **0030–0040**: ✅ implementadas, committeadas, prontas para deployment (T7.1–T7.10). T7.9.C (orgs reales) bloqueada en espera de input del operador.
 
 | Rango | Fase | Contenido |
 |-------|------|-----------|
@@ -34,6 +34,7 @@ una migración por unidad de trabajo del roadmap.
 | 0033–0034 | T7.4–T7.5 | Comments threading (`parent_id`, depth-2 limit), org hierarchy + category-based routing (fix T6 defect) |
 | 0035–0037 | T7.6–T7.8 | Domain columns (`geo_zones.code`, `users.phone`), referential integrity (leaf-category trigger, FK normalization), index parity (9 missing indexes) |
 | 0038–0039 | T7.9.A–B | Reference data (22-category tree, notification permisos), T7.9.C/D bloqueada |
+| 0040 | T7.10 | Renombre de roles: `admin_sistema` → `master`, `admin_organizacion` → `admin_org`, `operador_organizacion` → `operador_org` |
 
 **16 tablas de dominio**: `assignments`, `comment_images`, `comments`, `geo_zones`,
 `incident_categories`, `incident_images`, `incidents`, `invitations`,
@@ -42,7 +43,7 @@ una migración por unidad de trabajo del roadmap.
 
 ### Rollback
 
-`database/rollback/` tiene un archivo `.DOWN.sql` por cada migración (39/39).
+`database/rollback/` tiene un archivo `.DOWN.sql` por cada migración (40/40).
 ✅ Todos testeados y validados via `backend/test/migrations/rollback-cycle.e2e-spec.ts` (T7.1.C).
 El runner CLI soporta `--down --to <version>` y npm script `db:rollback` para disaster recovery.
 
@@ -87,6 +88,7 @@ Auditadas el 2026-08-24 comparando columna por columna ambos esquemas.
 | Índices de paridad | 0037: ✅ 4 índices faltantes agregados; otros 5 cubiertos por migraciones/constraints previas |
 | Árbol de categorías | 0038: ✅ 22 categorías sembradas (5 roots + 17 leaves) con idempotencia |
 | Permisos de `notifications` | 0039: ✅ (READ, UPDATE) añadidos a catálogo + otorgados a 4 staff roles |
+| Renombre de roles (claridad) | 0040: ✅ `master`, `admin_org`, `operador_org` (names alineados con responsabilidades) |
 
 🚧 **T7.9.C–D bloqueadas**:
 

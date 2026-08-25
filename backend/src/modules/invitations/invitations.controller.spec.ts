@@ -31,7 +31,7 @@ describe('InvitationsController (T3.6 design §6.2)', () => {
         userId: 'actor-1',
         permissions: ['CREATE invitations'],
         organizationId: 'org-1',
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
         scope: { kind: 'org', organizationId: 'org-1' },
         sessionId: 'sid-1',
         isAnonymous: false,

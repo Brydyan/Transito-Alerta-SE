@@ -42,7 +42,7 @@ interface OperatorUser {
   role: string | null;
 }
 
-const SYSTEM_ADMIN_ROLE = 'admin_sistema';
+const SYSTEM_ADMIN_ROLE = 'master';
 const ALLOWED_STATUSES: ReadonlyArray<string> = ['pending', 'in_progress', 'resolved'];
 
 /**
@@ -157,7 +157,7 @@ export class IncidentWorkflowService {
          JOIN roles r ON r.id = u.role_id
         WHERE u.organization_id = $1
           AND u.is_active = true
-          AND r.name IN ('operador_organizacion', 'operador_sistema')
+          AND r.name IN ('operador_org', 'operador_sistema')
           AND ($2::uuid IS NULL OR u.id <> $2::uuid)
           AND COALESCE((
                 SELECT COUNT(*)

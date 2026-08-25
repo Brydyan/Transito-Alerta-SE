@@ -36,7 +36,7 @@ export class OperatorsController {
   ): Promise<{ status: string }> {
     const user = req.user!;
     const roleName = user.roleName ?? '';
-    const isSystemAdmin = roleName === 'admin_sistema';
+    const isSystemAdmin = roleName === 'master';
 
     if (!isSystemAdmin && !(OPERATOR_PING_ROLES as readonly string[]).includes(roleName)) {
       throw new ForbiddenException('Operator role required to ping location');
@@ -51,7 +51,7 @@ export class OperatorsController {
   async getLocations(@Req() req: AuthenticatedRequest) {
     const user = req.user!;
     const roleName = user.roleName ?? '';
-    const isSystemAdmin = roleName === 'admin_sistema';
+    const isSystemAdmin = roleName === 'master';
 
     if (!isSystemAdmin && !(OPERATOR_QUERY_ROLES as readonly string[]).includes(roleName)) {
       throw new ForbiddenException('Operator or admin role required to view locations');

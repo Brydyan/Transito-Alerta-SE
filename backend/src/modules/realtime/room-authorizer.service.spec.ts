@@ -8,7 +8,7 @@ function ctx(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'user-1',
     permissions: [],
     organizationId: 'org-A',
-    roleName: 'admin_organizacion',
+    roleName: 'admin_org',
     scope: { kind: 'org', organizationId: 'org-A' },
     sessionId: 'session-1',
     isAnonymous: false,

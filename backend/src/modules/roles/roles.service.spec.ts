@@ -12,7 +12,7 @@ function makeActor(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'admin-1',
     permissions: ['ASSIGN roles'],
     organizationId: null,
-    roleName: 'admin_sistema',
+    roleName: 'master',
     scope: { kind: 'global' },
     sessionId: 'session-admin-1',
     isAnonymous: false,
@@ -158,14 +158,14 @@ describe('RolesService', () => {
     describe('rank/visibility check (T3.2 D9/D10 — assertCanManage before assignment)', () => {
       it('rejects 403 INSUFFICIENT_ROLE_RANK when the target user currently outranks the actor equally', async () => {
         const actor = makeActor({
-          roleName: 'admin_organizacion',
+          roleName: 'admin_org',
           organizationId: 'org-A',
           scope: { kind: 'org', organizationId: 'org-A' },
         });
         // Destination role lookup, then the target's CURRENT role lookup.
         roleRepo.findOne
           .mockResolvedValueOnce({ id: 'role-new', name: 'reporter', permissions: [] })
-          .mockResolvedValueOnce({ id: 'role-sys', name: 'admin_sistema' });
+          .mockResolvedValueOnce({ id: 'role-sys', name: 'master' });
         userRepo.findOne.mockResolvedValue({
           id: 'target-1',
           organizationId: 'org-A',
@@ -182,13 +182,13 @@ describe('RolesService', () => {
 
       it('rejects 404 when the target user is not visible under the actor scope', async () => {
         const actor = makeActor({
-          roleName: 'admin_organizacion',
+          roleName: 'admin_org',
           organizationId: 'org-A',
           scope: { kind: 'org', organizationId: 'org-A' },
         });
         roleRepo.findOne
           .mockResolvedValueOnce({ id: 'role-new', name: 'reporter', permissions: [] })
-          .mockResolvedValueOnce({ id: 'role-op', name: 'operador_organizacion' });
+          .mockResolvedValueOnce({ id: 'role-op', name: 'operador_org' });
         userRepo.findOne.mockResolvedValue({
           id: 'target-1',
           organizationId: 'org-B',
@@ -206,7 +206,7 @@ describe('RolesService', () => {
       it('allows the assignment when the actor outranks a visible target', async () => {
         const actor = makeActor(); // admin_sistema, global
         roleRepo.findOne
-          .mockResolvedValueOnce({ id: 'role-new', name: 'operador_organizacion', permissions: ['READ incidents'] })
+          .mockResolvedValueOnce({ id: 'role-new', name: 'operador_org', permissions: ['READ incidents'] })
           .mockResolvedValueOnce({ id: 'role-old', name: 'reporter' });
         userRepo.findOne.mockResolvedValue({
           id: 'target-1',
@@ -225,13 +225,13 @@ describe('RolesService', () => {
     describe('granted-role rank check (security/assign-role-rank-gap — assertCanGrantRole after assignment)', () => {
       it('rejects 403 INSUFFICIENT_ROLE_RANK when an admin_organizacion grants admin_sistema to a role-less user in its own org (the escalation)', async () => {
         const actor = makeActor({
-          roleName: 'admin_organizacion',
+          roleName: 'admin_org',
           organizationId: 'org-A',
           scope: { kind: 'org', organizationId: 'org-A' },
         });
         roleRepo.findOne.mockResolvedValueOnce({
           id: 'role-new',
-          name: 'admin_sistema',
+          name: 'master',
           permissions: [],
         });
         userRepo.findOne.mockResolvedValue({
@@ -250,13 +250,13 @@ describe('RolesService', () => {
 
       it('rejects 403 when an admin_organizacion grants admin_organizacion (equal rank) to a role-less user in its own org', async () => {
         const actor = makeActor({
-          roleName: 'admin_organizacion',
+          roleName: 'admin_org',
           organizationId: 'org-A',
           scope: { kind: 'org', organizationId: 'org-A' },
         });
         roleRepo.findOne.mockResolvedValueOnce({
           id: 'role-new',
-          name: 'admin_organizacion',
+          name: 'admin_org',
           permissions: [],
         });
         userRepo.findOne.mockResolvedValue({
@@ -275,13 +275,13 @@ describe('RolesService', () => {
 
       it('allows an admin_organizacion to grant operador_organizacion to a role-less user in its own org', async () => {
         const actor = makeActor({
-          roleName: 'admin_organizacion',
+          roleName: 'admin_org',
           organizationId: 'org-A',
           scope: { kind: 'org', organizationId: 'org-A' },
         });
         roleRepo.findOne.mockResolvedValueOnce({
           id: 'role-new',
-          name: 'operador_organizacion',
+          name: 'operador_org',
           permissions: ['READ incidents'],
         });
         userRepo.findOne.mockResolvedValue({
@@ -298,10 +298,10 @@ describe('RolesService', () => {
       });
 
       it('rejects 403 when an admin_sistema grants admin_sistema (equal rank — no peer promotion)', async () => {
-        const actor = makeActor({ roleName: 'admin_sistema', scope: { kind: 'global' } });
+        const actor = makeActor({ roleName: 'master', scope: { kind: 'global' } });
         roleRepo.findOne.mockResolvedValueOnce({
           id: 'role-new',
-          name: 'admin_sistema',
+          name: 'master',
           permissions: [],
         });
         userRepo.findOne.mockResolvedValue({
@@ -319,10 +319,10 @@ describe('RolesService', () => {
       });
 
       it('allows an admin_sistema to grant admin_organizacion', async () => {
-        const actor = makeActor({ roleName: 'admin_sistema', scope: { kind: 'global' } });
+        const actor = makeActor({ roleName: 'master', scope: { kind: 'global' } });
         roleRepo.findOne.mockResolvedValueOnce({
           id: 'role-new',
-          name: 'admin_organizacion',
+          name: 'admin_org',
           permissions: [],
         });
         userRepo.findOne.mockResolvedValue({
@@ -342,7 +342,7 @@ describe('RolesService', () => {
         const actor = makeActor({ roleName: null, scope: { kind: 'global' } });
         roleRepo.findOne.mockResolvedValueOnce({
           id: 'role-new',
-          name: 'admin_sistema',
+          name: 'master',
           permissions: [],
         });
         userRepo.findOne.mockResolvedValue({

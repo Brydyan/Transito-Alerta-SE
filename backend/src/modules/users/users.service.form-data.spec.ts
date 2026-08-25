@@ -18,7 +18,7 @@ const SYSTEM_ADMIN_ACTOR: AuthContext = {
   userId: 'admin-1',
   permissions: ['READ users'],
   organizationId: null,
-  roleName: 'admin_sistema',
+  roleName: 'master',
   scope: GLOBAL_SCOPE,
   sessionId: 'sess-admin',
   isAnonymous: false,
@@ -28,7 +28,7 @@ const ORG_ADMIN_ACTOR: AuthContext = {
   userId: 'org-admin-1',
   permissions: ['READ users'],
   organizationId: 'org-A',
-  roleName: 'admin_organizacion',
+  roleName: 'admin_org',
   scope: ORG_A_SCOPE,
   sessionId: 'sess-org',
   isAnonymous: false,
@@ -75,8 +75,8 @@ describe('UsersService.getFormData (T5.4)', () => {
 
   it('system admin: returns all roles and all orgs, no exclusion filter applied', async () => {
     roleRepo.find.mockResolvedValueOnce([
-      { id: 'r1', name: 'admin_sistema' },
-      { id: 'r2', name: 'admin_organizacion' },
+      { id: 'r1', name: 'master' },
+      { id: 'r2', name: 'admin_org' },
       { id: 'r3', name: 'reporter' },
     ] as never);
     orgRepo.find.mockResolvedValueOnce([
@@ -99,14 +99,14 @@ describe('UsersService.getFormData (T5.4)', () => {
 
   it('org admin: system-only roles excluded, only own org returned', async () => {
     roleRepo.find.mockResolvedValueOnce([
-      { id: 'r2', name: 'admin_organizacion' },
+      { id: 'r2', name: 'admin_org' },
       { id: 'r3', name: 'reporter' },
     ] as never);
     orgRepo.find.mockResolvedValueOnce([{ id: 'org-A', name: 'Org A' }] as never);
 
     const res = await service.getFormData(ORG_ADMIN_ACTOR);
 
-    expect(res.roles.map((r) => r.name)).toEqual(['admin_organizacion', 'reporter']);
+    expect(res.roles.map((r) => r.name)).toEqual(['admin_org', 'reporter']);
     expect(res.organizations).toEqual([{ id: 'org-A', name: 'Org A' }]);
     // Role query MUST carry a where clause that filters by name.
     const roleArgs = roleRepo.find.mock.calls[0][0];

@@ -23,7 +23,7 @@ describe('StatusHistoryController', () => {
     const controller = new StatusHistoryController(service as unknown as StatusHistoryService);
 
     const scope: SubjectScope = { kind: 'org', organizationId: 'org-1' };
-    const req = { user: { userId: 'u1', permissions: [], organizationId: 'org-1', roleName: 'admin_organizacion', scope } } as unknown as AuthenticatedRequest;
+    const req = { user: { userId: 'u1', permissions: [], organizationId: 'org-1', roleName: 'admin_org', scope } } as unknown as AuthenticatedRequest;
 
     const result = await controller.list('incident-1', req);
 

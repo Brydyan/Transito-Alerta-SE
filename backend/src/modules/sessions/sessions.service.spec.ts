@@ -28,7 +28,7 @@ function makeActor(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'user-1',
     permissions: [],
     organizationId: 'org-A',
-    roleName: 'admin_organizacion',
+    roleName: 'admin_org',
     scope: { kind: 'org', organizationId: 'org-A' },
     sessionId: 'sid-current',
     isAnonymous: false,
@@ -79,7 +79,7 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-B',
-        roleName: 'operador_organizacion',
+        roleName: 'operador_org',
       });
 
       await expect(
@@ -91,12 +91,12 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-A',
-        roleName: 'admin_organizacion', // equal rank to the actor
+        roleName: 'admin_org', // equal rank to the actor
       });
       sessionsRepository.findActiveByUser.mockResolvedValue([]);
 
       await expect(
-        service.listForTarget(makeActor({ roleName: 'admin_organizacion' }), 'target-1'),
+        service.listForTarget(makeActor({ roleName: 'admin_org' }), 'target-1'),
       ).resolves.toEqual([]);
     });
 
@@ -150,7 +150,7 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-B',
-        roleName: 'operador_organizacion',
+        roleName: 'operador_org',
       });
 
       await expect(
@@ -165,7 +165,7 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-A',
-        roleName: 'admin_organizacion', // equal rank
+        roleName: 'admin_org', // equal rank
       });
 
       try {
@@ -187,7 +187,7 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-A',
-        roleName: 'operador_organizacion',
+        roleName: 'operador_org',
       });
       sessionsRepository.revoke.mockResolvedValue(
         makeSessionRow({ id: 'sid-2', expires_at: new Date(Date.now() + 10_000) }),

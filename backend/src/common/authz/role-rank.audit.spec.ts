@@ -8,7 +8,7 @@ describe('RoleRankAudit', () => {
   it('logs an error naming any role missing from ROLE_RANK', async () => {
     const roleRepo = {
       find: jest.fn().mockResolvedValue([
-        { name: 'admin_sistema' },
+        { name: 'master' },
         { name: 'a_future_role' },
       ]),
     };
@@ -23,7 +23,7 @@ describe('RoleRankAudit', () => {
 
   it('does not log when every seeded role is known', async () => {
     const roleRepo = {
-      find: jest.fn().mockResolvedValue([{ name: 'admin_sistema' }, { name: 'reporter' }]),
+      find: jest.fn().mockResolvedValue([{ name: 'master' }, { name: 'reporter' }]),
     };
     const audit = new RoleRankAudit(roleRepo as unknown as Repository<RoleEntity>);
     const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);

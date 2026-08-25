@@ -5,10 +5,10 @@
  * flexibility.
  */
 export const ROLE_RANK: Record<string, number> = {
-  admin_sistema: 1,
+  master: 1,
   operador_sistema: 2,
-  admin_organizacion: 3,
-  operador_organizacion: 4,
+  admin_org: 3,
+  operador_org: 4,
   reporter: 5,
 };
 

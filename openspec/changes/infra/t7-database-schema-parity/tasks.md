@@ -216,6 +216,16 @@ for the full compliance breakdown and next steps.
 
 ---
 
+## D7.10 — Renombre de roles (migración 0040)
+
+- [x] **T7.10.A1** — Crear `0040_rename_roles.sql`: `UPDATE roles SET name = 'master' WHERE name = 'admin_sistema'`, `UPDATE roles SET name = 'admin_org' WHERE name = 'admin_organizacion'`, `UPDATE roles SET name = 'operador_org' WHERE name = 'operador_organizacion'`. **(30min)** ✅ 918e428
+- [x] **T7.10.A2** — Crear `0040_rename_roles.DOWN.sql`: revertir los 3 UPDATE con nombres originales. **(15min)** ✅ 918e428
+- [x] **T7.10.A3** — Actualizar código backend: `resolve-subject-scope.ts`, `role-rank.ts`, `incident-analytics.service.ts`, `incident-workflow.service.ts`, `incident-feed.service.ts`, `incident-export.service.ts`, `incidents.controller.ts`, `operators.controller.ts`, y constants. **(1.5h)** ✅ 918e428
+- [x] **T7.10.A4** — Actualizar 846 tests (.spec.ts) con nombres nuevos. Bulk replace vía sed. **(45min)** ✅ 918e428
+- [x] **T7.10.A5** — Todos los tests green (846 unit). Supabase: ejecutar INSERT a `schema_migrations` + migración `.sql`. **(30min)** ✅ 9b891be
+
+---
+
 ## Cierre
 
 - [ ] **T7.Z1** — E2E transversal `t7-full-schema.e2e-spec.ts` con R17.1–R17.4: base vacía 0001→0039; base con 0001–0029 y datos + 0030→0039 sin pérdida; re-aplicación de 0030–0039 inocua; la app NestJS bootea con `synchronize:false` y `/api/health` responde 200. **(2h)**
@@ -238,9 +248,13 @@ for the full compliance breakdown and next steps.
 | D7.7 | 9 | 0036 | ~13h |
 | D7.8 | 5 | 0037 | ~6h |
 | D7.9 | 18 | 0038, 0039 | ~26h |
+| D7.10 | 5 | 0040 | ~3h |
 | Cierre | 4 | — | ~5h |
-| **Total** | **106** | **10** | **~136h** |
+| **Total** | **111** | **11** | **~139h** |
 
-> D7.9 tiene una tarea bloqueada (**T7.9.C1**) que depende de un input del
-> operador: la lista real de organizaciones del despliegue. Todo lo demás del
-> grupo puede avanzar sin ella; sólo T7.9.C4 queda esperando.
+**Estado actual**:
+- ✅ D7.1–D7.9.B: 100% completo (37 tareas)
+- 🔲 D7.9.C: Bloqueado (operador input: organizaciones reales Santa Elena)
+- 🔲 D7.9.D: Bloqueado (depende D7.9.C)
+- ✅ D7.10: 100% completo (5 tareas, 0040 renombre de roles)
+- 🔲 Cierre: 4 tareas pendientes (E2E transversal, doc, build, runbook operador)
