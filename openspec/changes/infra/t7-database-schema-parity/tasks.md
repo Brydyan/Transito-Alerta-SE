@@ -160,11 +160,11 @@
 
 ## D7.8 — Paridad de índices (migración 0037)
 
-- [ ] **T7.8.A1** — 🔴 Crear `backend/test/e2e/t7-index-parity.e2e-spec.ts` con R16.1–R16.3. Debe fallar. **(1.5h)**
-- [ ] **T7.8.A2** — Escribir `0037_index_parity.sql` con los 9 `CREATE INDEX IF NOT EXISTS`: `comments.user_id`, `comments.parent_id`, `assignments.incident_id`, `status_history.changed_by_user_id`, `incidents.priority`, `incidents.citizen_id`, `geo_zones.code`, `invitations.token_hash`, `password_reset_tokens.token_hash`. Sin `CONCURRENTLY` (las migraciones corren en transacción). **(1h)**
-- [ ] **T7.8.A3** — Escribir `0037_…DOWN.sql`. **(15min)**
-- [ ] **T7.8.A4** — Implementar el check R16.2 (sin índices duplicados por `(tabla, columnas)`) sobre `pg_indexes` y corregir los duplicados que aparezcan. **(1.5h)**
-- [ ] **T7.8.A5** — Implementar el check R16.3: poblar `incidents` con 1000+ filas y verificar por `EXPLAIN` que el listado filtrado por estado y organización no hace `Seq Scan`. **(1.5h)**
+- [x] **T7.8.A1** — 🔴 Crear `backend/test/e2e/t7-index-parity.e2e-spec.ts` con R16.1–R16.3. Debe fallar. **(1.5h)** ✅
+- [x] **T7.8.A2** — Escribir `0037_index_parity.sql` con los 9 `CREATE INDEX IF NOT EXISTS`: `comments.user_id`, `comments.parent_id`, `assignments.incident_id`, `status_history.changed_by_user_id`, `incidents.priority`, `incidents.citizen_id`, `geo_zones.code`, `invitations.token_hash`, `password_reset_tokens.token_hash`. Sin `CONCURRENTLY` (las migraciones corren en transacción). **(1h)** ✅ sólo 4 nuevos — ver design.md D10 (5 de 9 ya existían, deviation documentada)
+- [x] **T7.8.A3** — Escribir `0037_…DOWN.sql`. **(15min)** ✅
+- [x] **T7.8.A4** — Implementar el check R16.2 (sin índices duplicados por `(tabla, columnas)`) sobre `pg_indexes` y corregir los duplicados que aparezcan. **(1.5h)** ✅ auditoría reveló 5/9 preexistentes; 0037 evita crear duplicados
+- [x] **T7.8.A5** — Implementar el check R16.3: poblar `incidents` con 1000+ filas y verificar por `EXPLAIN` que el listado filtrado por estado y organización no hace `Seq Scan`. **(1.5h)** ✅ 1200 filas
 
 ---
 

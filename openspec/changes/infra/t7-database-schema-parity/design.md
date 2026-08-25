@@ -423,6 +423,27 @@ Todos con `CREATE INDEX IF NOT EXISTS`, sin `CONCURRENTLY`: las migraciones corr
 dentro de `BEGIN/COMMIT` y `CONCURRENTLY` no es válido en transacción. El volumen
 actual no lo justifica.
 
+**T7.8.A4 (auditoría de `pg_indexes`, ejecutada) — 5 de los 9 ya existían antes
+de 0037**, creados por migraciones anteriores de este mismo change o por
+constraints previos; crearlos de nuevo con otro nombre habría sido un
+duplicado real, no uno evitado por `IF NOT EXISTS` (esa cláusula sólo protege
+contra el mismo *nombre*, no contra la misma *definición* bajo un nombre
+distinto):
+
+| Columna de R16.1 | Índice que ya la cubre | Origen |
+|---|---|---|
+| `comments.parent_id` | `idx_comments_parent_id` | 0033 (T7.4) |
+| `assignments.incident_id` | `uq_assignments_incident` (UNIQUE) | 0007 |
+| `geo_zones.code` | `uq_geo_zones_code` (UNIQUE parcial) | 0035 (T7.6) |
+| `invitations.token_hash` | constraint `UNIQUE` de columna + `idx_invitations_token_hash` parcial | 0018 + 0031 |
+| `password_reset_tokens.token_hash` | constraint `UNIQUE` de columna + `idx_password_reset_tokens_user`-equivalente parcial | 0018 + 0031 |
+
+0037 crea únicamente los **4** que de verdad faltaban:
+`comments.user_id`, `status_history.changed_by_user_id`,
+`incidents.priority`, `incidents.citizen_id`. R16.1 exige que el índice
+*exista* al final de la cadena, no que lo cree 0037 — las 5 columnas
+restantes ya lo satisfacían.
+
 ### D11 — Dos clases de datos, dos destinos
 
 El error a evitar es meter data de demo en el pipeline de migraciones. La regla:
