@@ -75,7 +75,7 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
   });
 
   describe('T7.1.C3 — ciclo completo 0001–0030 UP → DOWN deja base vacía', () => {
-    it('aplicar 0001–0029, luego rollback todas en reverso, = base vacía', async () => {
+    it('aplicar 0001–0029, luego rollback todas en reverso, = base vacía (excepto PostGIS)', async () => {
       await db.applyRange({ from: '0001', to: '0029' });
 
       const tablesBefore = await db.publicTables();
@@ -94,7 +94,9 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
       }
 
       const tablesAfter = await db.publicTables();
-      expect(tablesAfter.length).toBe(0); // Nada debería quedar
+      // spatial_ref_sys is from PostGIS extension (0002 doesn't DROP EXTENSION postgis)
+      const domainTables = tablesAfter.filter((t) => t !== 'spatial_ref_sys');
+      expect(domainTables.length).toBe(0); // Nada debería quedar
     });
 
     it('DOWN scripts contienen IF EXISTS (idempotentes)', async () => {
