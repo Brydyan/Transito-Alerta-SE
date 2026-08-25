@@ -49,7 +49,7 @@ for the full compliance breakdown and next steps.
 ### Fase D — Documentación
 
 - [x] **T7.1.D1** — Corregir `database/MIGRATION_LOG.md`: 0024–0029 pasan de `⏳ Pending` a `✅ Applied`, operador Andy Alejandro, fecha 2026-08-24, entorno supabase (R4.1). **(30min)** ✅ 063cc28
-- [ ] **T7.1.D2** — Actualizar `docs/tasks/3-DATABASE-SCHEMA.md` (R18.1): rango real 0001–0039, mapeo 72 legacy → 39 SQL, runner real en `backend/scripts/run-migrations.ts`, tabla `schema_migrations`, y eliminar la afirmación de que ese runner ya existía. **(1h)**
+- [x] **T7.1.D2** — Actualizar `docs/tasks/3-DATABASE-SCHEMA.md` (R18.1): rango real 0001–0039, mapeo 72 legacy → 39 SQL, runner real en `backend/scripts/run-migrations.ts`, tabla `schema_migrations`, y eliminar la afirmación de que ese runner ya existía. **(1h)** ✅ 5d5f822
 
 ---
 
