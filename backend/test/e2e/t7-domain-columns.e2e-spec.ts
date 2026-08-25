@@ -113,7 +113,7 @@ describe('E2E T7.6 domain columns (0035)', () => {
     });
 
     it('R13.3: the GDPR soft delete wipes phone to NULL', async () => {
-      const admin = await env.provisionUser(['DELETE users'], { roleName: 'admin_sistema' });
+      const admin = await env.provisionUser(['DELETE users'], { roleName: 'master' });
       const target = await env.provisionUser([], { email: `target-${randomUUID()}@example.com` });
       await env.pg.query(`UPDATE users SET phone = $1 WHERE id = $2`, [
         '+593911111111',

@@ -73,10 +73,10 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1, T6.8.D2)', () => {
 
   it('T6.8.A5: GET /api/invitations/:token/preview returns same body as GET /api/invitations/preview?token=', async () => {
     const admin = await env.provisionUser(['CREATE invitations', 'READ invitations'], {
-      roleName: 'admin_sistema',
+      roleName: 'master',
     });
     const email = `preview-${randomUUID()}@example.com`;
-    const { token } = await createInvitation(admin.accessToken, email, 'operador_organizacion');
+    const { token } = await createInvitation(admin.accessToken, email, 'operador_org');
 
     const r1 = await request(env.httpServer)
       .get(`/api/invitations/preview?token=${encodeURIComponent(token)}`)
@@ -94,10 +94,10 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1, T6.8.D2)', () => {
 
   it('T6.8.A5: POST /api/invitations/accept redeems invitation same as POST /api/auth/accept-invitation', async () => {
     const admin = await env.provisionUser(['CREATE invitations', 'READ invitations'], {
-      roleName: 'admin_sistema',
+      roleName: 'master',
     });
     const email = `accept-${randomUUID()}@example.com`;
-    const { token } = await createInvitation(admin.accessToken, email, 'operador_organizacion');
+    const { token } = await createInvitation(admin.accessToken, email, 'operador_org');
 
     const res = await request(env.httpServer)
       .post('/api/invitations/accept')
@@ -140,7 +140,7 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1, T6.8.D2)', () => {
   // ---- T6.8.D1 — GDPR user soft delete + PII anonymizer --------------------
 
   it('T6.8.D1: DELETE /api/users/:id → 204 + deleted_at set + PII anonymized', async () => {
-    const admin = await env.provisionUser(['DELETE users', 'READ users'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['DELETE users', 'READ users'], { roleName: 'master' });
 
     // Target: a regular user
     const target = await env.provisionUser([], { email: `target-${randomUUID()}@example.com` });
@@ -169,7 +169,7 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1, T6.8.D2)', () => {
   });
 
   it('T6.8.D1: GET /api/users/:id after soft delete → 404', async () => {
-    const admin = await env.provisionUser(['DELETE users', 'READ users'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['DELETE users', 'READ users'], { roleName: 'master' });
     const target = await env.provisionUser([]);
     const auth = { Authorization: `Bearer ${admin.accessToken}` };
 
@@ -185,7 +185,7 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1, T6.8.D2)', () => {
   });
 
   it('T6.8.D1: login with original credentials after deletion → 401', async () => {
-    const admin = await env.provisionUser(['DELETE users'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['DELETE users'], { roleName: 'master' });
     const email = `gdpr-${randomUUID()}@example.com`;
     const password = 'Sup3rSecret!Pass01';
 

@@ -39,7 +39,7 @@ describe('E2E incident workflow — claim/release/operators/statuses (T5.1)', ()
   it('operator claims an unclaimed incident, then releases it', async () => {
     const operator = await env.provisionUser(['CREATE incidents', 'CLAIM incidents', 'RELEASE incidents'], {
       organizationId: orgA,
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
     });
     const auth = { Authorization: `Bearer ${operator.accessToken}` };
 
@@ -72,11 +72,11 @@ describe('E2E incident workflow — claim/release/operators/statuses (T5.1)', ()
   it('second operator claim on the same incident returns 409', async () => {
     const op1 = await env.provisionUser(['CREATE incidents', 'CLAIM incidents'], {
       organizationId: orgA,
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
     });
     const op2 = await env.provisionUser(['CLAIM incidents'], {
       organizationId: orgA,
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
     });
     const a1 = { Authorization: `Bearer ${op1.accessToken}` };
     const a2 = { Authorization: `Bearer ${op2.accessToken}` };
@@ -102,13 +102,13 @@ describe('E2E incident workflow — claim/release/operators/statuses (T5.1)', ()
   it('operator from a different org gets 403 on claim', async () => {
     const op = await env.provisionUser(['CREATE incidents', 'CLAIM incidents'], {
       organizationId: orgB,
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
     });
 
     // Create incident from a same-org creator and pin orgA on it.
     const creator = await env.provisionUser(['CREATE incidents'], {
       organizationId: orgA,
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
     });
     const created = await request(env.httpServer)
       .post('/api/incidents')
@@ -129,11 +129,11 @@ describe('E2E incident workflow — claim/release/operators/statuses (T5.1)', ()
   it('non-claimer gets 403 on release', async () => {
     const op1 = await env.provisionUser(['CREATE incidents', 'CLAIM incidents', 'RELEASE incidents'], {
       organizationId: orgA,
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
     });
     const op2 = await env.provisionUser(['RELEASE incidents'], {
       organizationId: orgA,
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
     });
     const a1 = { Authorization: `Bearer ${op1.accessToken}` };
     const a2 = { Authorization: `Bearer ${op2.accessToken}` };
@@ -180,11 +180,11 @@ describe('E2E incident workflow — claim/release/operators/statuses (T5.1)', ()
   it('available-operators returns operators under the cap in the same org', async () => {
     const op1 = await env.provisionUser(['CREATE incidents', 'READ incidents'], {
       organizationId: orgA,
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
     });
     const op2 = await env.provisionUser(['READ incidents'], {
       organizationId: orgA,
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
     });
 
     const created = await request(env.httpServer)
@@ -209,7 +209,7 @@ describe('E2E incident workflow — claim/release/operators/statuses (T5.1)', ()
   it('unauthenticated claim returns 401', async () => {
     const creator = await env.provisionUser(['CREATE incidents'], {
       organizationId: orgA,
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
     });
     const created = await request(env.httpServer)
       .post('/api/incidents')

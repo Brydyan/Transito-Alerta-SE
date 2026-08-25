@@ -56,7 +56,7 @@ describe('E2E T6 soft deletes + assignment update (T6.2.D1, T6.2.D2, T6.4.A5)', 
   it('T6.2.D1: DELETE /incidents/:id → 204 + DB row still has deleted_at set', async () => {
     const admin = await env.provisionUser(['CREATE incidents', 'DELETE incidents', 'READ incidents'], {
       organizationId: orgId,
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
     });
     const auth = { Authorization: `Bearer ${admin.accessToken}` };
 
@@ -86,7 +86,7 @@ describe('E2E T6 soft deletes + assignment update (T6.2.D1, T6.2.D2, T6.4.A5)', 
   it('T6.2.D1: GET /incidents/:id after soft delete → 404', async () => {
     const admin = await env.provisionUser(['CREATE incidents', 'DELETE incidents', 'READ incidents'], {
       organizationId: orgId,
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
     });
     const auth = { Authorization: `Bearer ${admin.accessToken}` };
 
@@ -112,9 +112,9 @@ describe('E2E T6 soft deletes + assignment update (T6.2.D1, T6.2.D2, T6.4.A5)', 
   it('T6.2.D1: status_history and assignment rows survive soft delete', async () => {
     const admin = await env.provisionUser(
       ['CREATE incidents', 'DELETE incidents', 'READ incidents', 'UPDATE incidents', 'ASSIGN assignments'],
-      { organizationId: orgId, roleName: 'admin_organizacion' },
+      { organizationId: orgId, roleName: 'admin_org' },
     );
-    const operator = await env.provisionUser([], { organizationId: orgId, roleName: 'operador_organizacion' });
+    const operator = await env.provisionUser([], { organizationId: orgId, roleName: 'operador_org' });
     const auth = { Authorization: `Bearer ${admin.accessToken}` };
 
     const created = await request(env.httpServer)
@@ -159,7 +159,7 @@ describe('E2E T6 soft deletes + assignment update (T6.2.D1, T6.2.D2, T6.4.A5)', 
   it('T6.2.D2: DELETE /assignments/:id → 204 + row still exists with deleted_at set', async () => {
     const admin = await env.provisionUser(['CREATE incidents', 'ASSIGN assignments'], {
       organizationId: orgId,
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
     });
     const operator = await env.provisionUser([], { organizationId: orgId });
     const auth = { Authorization: `Bearer ${admin.accessToken}` };
@@ -183,7 +183,7 @@ describe('E2E T6 soft deletes + assignment update (T6.2.D1, T6.2.D2, T6.4.A5)', 
   it('T6.2.D2: re-assign same (incident, operator) pair after soft delete → 201 (no UNIQUE violation)', async () => {
     const admin = await env.provisionUser(['CREATE incidents', 'ASSIGN assignments'], {
       organizationId: orgId,
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
     });
     const operator = await env.provisionUser([], { organizationId: orgId });
     const auth = { Authorization: `Bearer ${admin.accessToken}` };
@@ -210,7 +210,7 @@ describe('E2E T6 soft deletes + assignment update (T6.2.D1, T6.2.D2, T6.4.A5)', 
   it('T6.4.A5: PATCH /assignments/:id { role: "supervisor" } → 200 + role updated', async () => {
     const admin = await env.provisionUser(['CREATE incidents', 'ASSIGN assignments', 'UPDATE assignments'], {
       organizationId: orgId,
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
     });
     const operator = await env.provisionUser([], { organizationId: orgId });
     const auth = { Authorization: `Bearer ${admin.accessToken}` };
@@ -230,7 +230,7 @@ describe('E2E T6 soft deletes + assignment update (T6.2.D1, T6.2.D2, T6.4.A5)', 
   it('T6.4.A5: PATCH /assignments/:id { operator_id } → 200 (operator_id regression)', async () => {
     const admin = await env.provisionUser(['CREATE incidents', 'ASSIGN assignments', 'UPDATE assignments'], {
       organizationId: orgId,
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
     });
     const op1 = await env.provisionUser([], { organizationId: orgId });
     const op2 = await env.provisionUser([], { organizationId: orgId });
@@ -251,7 +251,7 @@ describe('E2E T6 soft deletes + assignment update (T6.2.D1, T6.2.D2, T6.4.A5)', 
   it('T6.4.A5: PATCH /assignments/:id without UPDATE permission → 403', async () => {
     const admin = await env.provisionUser(['CREATE incidents', 'ASSIGN assignments'], {
       organizationId: orgId,
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
     });
     const operator = await env.provisionUser([], { organizationId: orgId });
     const noPermUser = await env.provisionUser(['READ incidents'], { organizationId: orgId });

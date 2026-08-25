@@ -19,10 +19,10 @@ describe('E2E T7.9.B notification permissions (0039)', () => {
   let h: MigrationHarness;
 
   const STAFF_ROLES = [
-    'admin_sistema',
+    'master',
     'operador_sistema',
-    'admin_organizacion',
-    'operador_organizacion',
+    'admin_org',
+    'operador_org',
   ];
 
   beforeAll(async () => {

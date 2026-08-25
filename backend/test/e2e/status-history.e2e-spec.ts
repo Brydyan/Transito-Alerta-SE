@@ -276,7 +276,7 @@ describe('StatusHistory module e2e (T3.4)', () => {
 
     const orgAStaff = await env.provisionUser(['READ status-history'], {
       organizationId: orgAId,
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
     });
 
     await request(env.httpServer)
@@ -292,7 +292,7 @@ describe('StatusHistory module e2e (T3.4)', () => {
     const incidentId = await insertIncidentForOrg(orgAId);
     const orgAStaff = await env.provisionUser(
       ['UPDATE incidents', 'READ status-history'],
-      { organizationId: orgAId, roleName: 'admin_organizacion' },
+      { organizationId: orgAId, roleName: 'admin_org' },
     );
     const auth = authHeader(orgAStaff);
 
