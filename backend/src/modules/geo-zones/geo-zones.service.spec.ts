@@ -11,6 +11,7 @@ function makeZone(overrides: Partial<GeoZoneDetailRow> = {}): GeoZoneDetailRow {
     level: 'provincia',
     active: true,
     polygon: { type: 'MultiPolygon', coordinates: [] },
+    code: null,
     created_at: new Date('2026-01-01T00:00:00Z'),
     ...overrides,
   };

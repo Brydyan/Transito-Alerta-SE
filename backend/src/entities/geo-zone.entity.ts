@@ -40,6 +40,14 @@ export class GeoZoneEntity {
   @Column({ type: 'varchar', length: 20, default: 'zona' })
   level!: GeoZoneLevel;
 
+  /**
+   * T7.6 (0035) — administrative code, for external import/export and
+   * matching. `NULL` for zones without one; unique when present (partial
+   * UNIQUE index — see migration 0035, R12.1).
+   */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  code!: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 }

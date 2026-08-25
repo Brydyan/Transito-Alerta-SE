@@ -57,6 +57,7 @@ export class UsersController {
     return this.usersService.updateProfile(req.user!.userId, {
       firstName: dto.first_name,
       lastName: dto.last_name,
+      phone: dto.phone,
     });
   }
 

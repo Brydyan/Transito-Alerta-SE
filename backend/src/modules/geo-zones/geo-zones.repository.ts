@@ -19,6 +19,7 @@ export interface GeoZoneDetailRow {
   level: GeoZoneLevel;
   active: boolean;
   polygon: GeoJsonGeometry;
+  code: string | null;
   created_at: Date;
 }
 
@@ -55,6 +56,8 @@ export interface ListFilters {
   active?: boolean;
   /** default false */
   includeInactive?: boolean;
+  /** T7.6.A7 — exact match on `geo_zones.code`. */
+  code?: string;
   /** default 1 */
   page?: number;
   /** default 15, max 100 */
@@ -67,6 +70,7 @@ export interface CreateZoneInput {
   level: GeoZoneLevel;
   active: boolean;
   polygon: GeoJsonGeometry;
+  code: string | null;
 }
 
 export interface UpdateZonePatch {
@@ -77,6 +81,9 @@ export interface UpdateZonePatch {
   level: GeoZoneLevel | undefined;
   active: boolean | undefined;
   polygon: GeoJsonGeometry | undefined;
+  /** true if `code` was present in the request body (even if null) */
+  codeProvided: boolean;
+  code: string | null | undefined;
 }
 
 const DEFAULT_PAGE_SIZE = 15;
@@ -117,12 +124,19 @@ export class GeoZonesRepository {
 
   async create(input: CreateZoneInput): Promise<GeoZoneDetailRow> {
     const rows: GeoZoneDetailRow[] = await this.dataSource.query(
-      `INSERT INTO geo_zones (id, name, parent_id, level, active, polygon)
+      `INSERT INTO geo_zones (id, name, parent_id, level, active, polygon, code)
        VALUES (gen_random_uuid(), $1, $2, $3, $4,
-               ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($5::text), 4326)))
+               ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($5::text), 4326)), $6)
        RETURNING id, name, parent_id, level, active,
-                 ST_AsGeoJSON(polygon)::json AS polygon, created_at`,
-      [input.name, input.parentId, input.level, input.active, JSON.stringify(input.polygon)],
+                 ST_AsGeoJSON(polygon)::json AS polygon, code, created_at`,
+      [
+        input.name,
+        input.parentId,
+        input.level,
+        input.active,
+        JSON.stringify(input.polygon),
+        input.code,
+      ],
     );
     return rows[0];
   }
@@ -140,10 +154,11 @@ export class GeoZonesRepository {
          level     = COALESCE($5, level),
          active    = COALESCE($6::boolean, active),
          polygon   = CASE WHEN $7::text IS NULL THEN polygon
-                          ELSE ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($7::text), 4326)) END
+                          ELSE ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($7::text), 4326)) END,
+         code      = CASE WHEN $8::boolean THEN $9::varchar ELSE code END
        WHERE id = $1
        RETURNING id, name, parent_id, level, active,
-                 ST_AsGeoJSON(polygon)::json AS polygon, created_at`,
+                 ST_AsGeoJSON(polygon)::json AS polygon, code, created_at`,
       [
         id,
         patch.name,
@@ -152,6 +167,8 @@ export class GeoZonesRepository {
         patch.level,
         patch.active,
         patch.polygon === undefined ? undefined : JSON.stringify(patch.polygon),
+        patch.codeProvided,
+        patch.code,
       ],
     );
     return rows[0] ?? null;
@@ -176,7 +193,7 @@ export class GeoZonesRepository {
   async findById(id: string): Promise<GeoZoneDetailRow | null> {
     const rows: GeoZoneDetailRow[] = await this.dataSource.query(
       `SELECT id, name, parent_id, level, active,
-              ST_AsGeoJSON(polygon)::json AS polygon, created_at
+              ST_AsGeoJSON(polygon)::json AS polygon, code, created_at
          FROM geo_zones
         WHERE id = $1`,
       [id],
@@ -216,12 +233,17 @@ export class GeoZonesRepository {
       conditions.push(`level = $${params.length}`);
     }
 
+    if (filters.code !== undefined) {
+      params.push(filters.code);
+      conditions.push(`code = $${params.length}`);
+    }
+
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const itemsParams = [...params, perPage, offset];
     const items: GeoZoneDetailRow[] = await this.dataSource.query(
       `SELECT id, name, parent_id, level, active,
-              ST_AsGeoJSON(polygon)::json AS polygon, created_at
+              ST_AsGeoJSON(polygon)::json AS polygon, code, created_at
          FROM geo_zones
          ${whereClause}
         ORDER BY name ASC

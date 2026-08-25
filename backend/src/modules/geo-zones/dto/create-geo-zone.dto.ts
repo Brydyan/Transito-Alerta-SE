@@ -24,4 +24,10 @@ export class CreateGeoZoneDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  /** T7.6 (0035) — administrative code; unique when present. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  code?: string;
 }

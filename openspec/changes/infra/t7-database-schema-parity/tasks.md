@@ -126,13 +126,13 @@
 
 ## D7.6 — Columnas de dominio faltantes (migración 0035)
 
-- [ ] **T7.6.A1** — 🔴 Crear `backend/test/e2e/t7-domain-columns.e2e-spec.ts` con R12.1–R12.3 y R13.1–R13.3. Debe fallar. **(1.5h)**
-- [ ] **T7.6.A2** — Escribir `0035_domain_columns.sql`: `geo_zones.code varchar(32) NULL` + índice UNIQUE parcial `WHERE code IS NOT NULL`; `users.phone varchar(30) NULL`. **(1h)**
-- [ ] **T7.6.A3** — Escribir `0035_…DOWN.sql`. **(15min)**
-- [ ] **T7.6.A4** — Añadir `code` a `geo-zone.entity.ts` y `phone` a `user.entity.ts`. **(30min)**
-- [ ] **T7.6.A5** — Exponer `phone` en el DTO de perfil (`GET /users/me` y el update de perfil) con validación de formato. **(1h)**
-- [ ] **T7.6.A6** — Añadir `phone: null` al wipe GDPR de `UsersService.softDelete()` y actualizar su unit test. **(45min)**
-- [ ] **T7.6.A7** — Exponer `code` en las respuestas de geo-zones y permitir filtrar por él en el listado. **(1h)**
+- [x] **T7.6.A1** — 🔴 Crear `backend/test/e2e/t7-domain-columns.e2e-spec.ts` con R12.1–R12.3 y R13.1–R13.3. Debe fallar. **(1.5h)** ✅
+- [x] **T7.6.A2** — Escribir `0035_domain_columns.sql`: `geo_zones.code varchar(32) NULL` + índice UNIQUE parcial `WHERE code IS NOT NULL`; `users.phone varchar(30) NULL`. **(1h)** ✅
+- [x] **T7.6.A3** — Escribir `0035_…DOWN.sql`. **(15min)** ✅
+- [x] **T7.6.A4** — Añadir `code` a `geo-zone.entity.ts` y `phone` a `user.entity.ts`. **(30min)** ✅
+- [x] **T7.6.A5** — Exponer `phone` en el DTO de perfil (`GET /users/me` y el update de perfil) con validación de formato. **(1h)** ✅
+- [x] **T7.6.A6** — Añadir `phone: null` al wipe GDPR de `UsersService.softDelete()` y actualizar su unit test. **(45min)** ✅
+- [x] **T7.6.A7** — Exponer `code` en las respuestas de geo-zones y permitir filtrar por él en el listado. **(1h)** ✅
 
 ---
 

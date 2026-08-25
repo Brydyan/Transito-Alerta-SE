@@ -410,6 +410,7 @@ describe('UsersService', () => {
         email: 'deleted+u1@tase.invalid',
         passwordHash: null,
         verificationOtp: null,
+        phone: null,
       }));
       expect(authService.invalidatePermissionCache).toHaveBeenCalledWith('u1', 'dev-1');
     });

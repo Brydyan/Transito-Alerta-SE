@@ -22,6 +22,7 @@ export const MAX_PAGE_SIZE = 100;
 export interface UpdateProfileInput {
   firstName?: string;
   lastName?: string;
+  phone?: string;
 }
 
 /**
@@ -296,6 +297,7 @@ export class UsersService {
       deviceUuid: null,
       verificationOtp: null,
       verificationOtpExpiresAt: null,
+      phone: null,
     });
     await this.authService.invalidatePermissionCache(target.id, target.deviceUuid);
   }
