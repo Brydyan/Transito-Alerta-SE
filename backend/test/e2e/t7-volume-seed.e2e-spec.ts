@@ -52,7 +52,7 @@ describe('T7.9.D9 — database/seeds/volume-incidents.js (1000 incidentes, ciclo
     // Asegurar que el seeder de usuarios haya corrido primero — el de
     // volumen necesita ciudadanos / operadores para los FKs. La idempotencia
     // está cubierta por ON CONFLICT (email).
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const usersSeed = require(resolve(REPO_ROOT, 'database/seeds/users.js'));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await usersSeed.run((db as any).client, {
@@ -67,14 +67,14 @@ describe('T7.9.D9 — database/seeds/volume-incidents.js (1000 incidentes, ciclo
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function runVolumeSeed(): Promise<{ inserted: number; skipped: number }> {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require(VOLUME_SEED_PATH);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return mod.run((db as any).client, { force: true });
   }
 
   it('el seeder volume-incidents.js existe (T7.9.D9 test-first)', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     expect(require('fs').existsSync(VOLUME_SEED_PATH)).toBe(true);
   });
 

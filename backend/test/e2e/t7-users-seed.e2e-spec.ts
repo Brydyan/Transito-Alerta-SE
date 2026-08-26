@@ -44,13 +44,14 @@ describe('T7.9.D2 — database/seeds/users.js (R22.5, R22.6)', () => {
     // a fresh Node process.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (require as any).cache[USERS_SEED_PATH];
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require(USERS_SEED_PATH);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return mod.run((db as any).client, { force: true, seed: { password: 'TestP4ss!' } });
   }
 
   it('R22.5 — el seeder produce exactamente 6 usuarios con la distribución acordada', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     expect(require('fs').existsSync(USERS_SEED_PATH)).toBe(true);
 
     const result = await runUsersSeed();

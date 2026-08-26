@@ -88,10 +88,10 @@ describe('T7.9.D6 — `db:seed` es idempotente y reconstruye el feed (R22.3, R22
 
   // Requerir los generadores aquí (no a nivel de módulo) para que el archivo
   // se compile aunque aún no existan — T7.9.D1 ya fallaría por separado.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const requireSeed = (name: string): { run: (client: unknown, opts: unknown) => Promise<unknown> } => {
     const p = join(SEEDS_DIR, name);
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require(p);
   };
 
