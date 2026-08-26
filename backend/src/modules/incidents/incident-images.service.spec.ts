@@ -41,6 +41,7 @@ const makeSavedImage = (overrides: Partial<IncidentImageEntity> = {}): IncidentI
   mimeType: 'image/jpeg',
   fileSize: 1024,
   createdAt: new Date(),
+  updatedAt: new Date(),
   ...overrides,
 });
 

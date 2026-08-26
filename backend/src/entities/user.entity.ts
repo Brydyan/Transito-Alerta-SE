@@ -3,7 +3,6 @@ import {
   CreateDateColumn,
   Entity,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 
 /**
@@ -112,9 +111,13 @@ export class UserEntity {
   @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
   deletedAt!: Date | null;
 
+  /** T7.6 (0035) — present in legacy since `create_users_table`. Wiped by the GDPR soft delete. */
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  phone!: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @Column({ name: 'updated_at', update: false })
   updatedAt!: Date;
 }

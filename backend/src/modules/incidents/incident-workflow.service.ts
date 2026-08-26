@@ -42,7 +42,7 @@ interface OperatorUser {
   role: string | null;
 }
 
-const SYSTEM_ADMIN_ROLE = 'admin_sistema';
+const SYSTEM_ADMIN_ROLE = 'master';
 const ALLOWED_STATUSES: ReadonlyArray<string> = ['pending', 'in_progress', 'resolved'];
 
 /**
@@ -92,7 +92,7 @@ export class IncidentWorkflowService {
     const result = await this.dataSource.query(
       // T6.3: also write claimed_at = NOW() when claiming
       `UPDATE incidents
-         SET claimed_by = $1, claimed_at = NOW(), updated_at = now()
+         SET claimed_by = $1, claimed_at = NOW()
        WHERE id = $2 AND claimed_by IS NULL
        RETURNING id, title, status, priority, claimed_by, organization_id, updated_at`,
       [operator.id, incidentId],
@@ -122,7 +122,7 @@ export class IncidentWorkflowService {
 
     const result = await this.dataSource.query(
       `UPDATE incidents
-         SET claimed_by = NULL, updated_at = now()
+         SET claimed_by = NULL
        WHERE id = $1
        RETURNING id, title, status, priority, claimed_by, organization_id, updated_at`,
       [incidentId],
@@ -157,7 +157,7 @@ export class IncidentWorkflowService {
          JOIN roles r ON r.id = u.role_id
         WHERE u.organization_id = $1
           AND u.is_active = true
-          AND r.name IN ('operador_organizacion', 'operador_sistema')
+          AND r.name IN ('operador_org', 'operador_sistema')
           AND ($2::uuid IS NULL OR u.id <> $2::uuid)
           AND COALESCE((
                 SELECT COUNT(*)

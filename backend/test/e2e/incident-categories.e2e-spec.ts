@@ -163,8 +163,13 @@ describe('IncidentCategories e2e (T3.7)', () => {
     expect(response.body.message).toMatch(/circular/i);
   });
 
-  // TS-7: Delete Category with Children (SET NULL)
-  it('promotes children to roots when their parent is deleted (TS-7)', async () => {
+  // TS-7: Delete Category with Children — UPDATED by T7.2.C3 (R7.3).
+  // `delete()` is now a soft delete (`UPDATE ... SET deleted_at`), not a
+  // hard `DELETE`, so the FK's `ON DELETE SET NULL` never fires: the row
+  // never leaves the table, and a child's `parent_id` is therefore left
+  // untouched, still pointing at the (now soft-deleted, list-excluded)
+  // parent — no promotion to root happens anymore.
+  it('soft-deletes the parent without promoting children to roots (TS-7, updated for T7.2 soft delete)', async () => {
     const root = await createCategory({ name: 'Root' }).expect(201);
     const child = await createCategory({
       name: 'Child',
@@ -181,11 +186,22 @@ describe('IncidentCategories e2e (T3.7)', () => {
       .set(authHeader(reader))
       .expect(200);
 
-    expect(refreshed.body.parent_id).toBeNull();
+    // parent_id is unchanged — no ON DELETE SET NULL, since the row was
+    // never actually deleted.
+    expect(refreshed.body.parent_id).toBe(root.body.id);
+
+    const { rows } = await env.pg.query(
+      `SELECT deleted_at FROM incident_categories WHERE id = $1`,
+      [root.body.id],
+    );
+    expect(rows[0].deleted_at).not.toBeNull();
   });
 
-  // TS-8: Delete Category Referenced by Incident (RESTRICT -> 409)
-  it('blocks deleting a category referenced by an incident (409) (TS-8)', async () => {
+  // TS-8: Delete Category Referenced by Incident — UPDATED by T7.2.C3
+  // (R7.3). A soft delete never hits the PG foreign-key violation a real
+  // DELETE used to (the row stays put), so this now succeeds (204)
+  // instead of 409 — the incident's `category_id` reference stays valid.
+  it('soft-deletes a category referenced by an incident instead of blocking with 409 (TS-8, updated for T7.2 soft delete)', async () => {
     const category = await createCategory({ name: 'Referenced' }).expect(201);
 
     const login = await request(env.httpServer)
@@ -204,17 +220,23 @@ describe('IncidentCategories e2e (T3.7)', () => {
       incident.body.id,
     ]);
 
-    const response = await request(env.httpServer)
+    await request(env.httpServer)
       .delete(`/api/incident-categories/${category.body.id as string}`)
       .set(authHeader(admin))
-      .expect(409);
+      .expect(204);
 
-    expect(response.body.message).toMatch(/referenced/i);
-
+    // The row persists (soft delete) — still fetchable by id, and the
+    // incident's FK reference is untouched.
     await request(env.httpServer)
       .get(`/api/incident-categories/${category.body.id as string}`)
       .set(authHeader(reader))
       .expect(200);
+
+    const { rows } = await env.pg.query(
+      `SELECT category_id FROM incidents WHERE id = $1`,
+      [incident.body.id],
+    );
+    expect(rows[0].category_id).toBe(category.body.id);
   });
 
   // TS-9: 404 on Missing Category

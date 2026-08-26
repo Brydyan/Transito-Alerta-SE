@@ -64,7 +64,7 @@ describe('E2E map UI support — map filters + users form-data (T5.4)', () => {
   // ---- /api/users/form-data -------------------------------------------
 
   it('system admin sees all roles and all organizations, both lists sorted ASC by name', async () => {
-    const admin = await env.provisionUser(['READ users'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['READ users'], { roleName: 'master' });
 
     const response = await request(env.httpServer)
       .get('/api/users/form-data')
@@ -75,8 +75,8 @@ describe('E2E map UI support — map filters + users form-data (T5.4)', () => {
     const orgNames = (response.body.organizations as Array<{ name: string }>).map((o) => o.name);
 
     // Membership: every seeded role / every org the test inserted shows up.
-    expect(roleNames).toContain('admin_sistema');
-    expect(roleNames).toContain('operador_organizacion');
+    expect(roleNames).toContain('master');
+    expect(roleNames).toContain('operador_org');
     expect(roleNames).toContain('reporter');
     const orgIds = (response.body.organizations as Array<{ id: string }>).map((o) => o.id);
     expect(orgIds).toEqual(expect.arrayContaining([orgA, orgB]));
@@ -90,7 +90,7 @@ describe('E2E map UI support — map filters + users form-data (T5.4)', () => {
   it('org admin: system-only roles excluded, only own organization returned, sorted ASC', async () => {
     const opAdmin = await env.provisionUser(['READ users'], {
       organizationId: orgA,
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
     });
 
     const response = await request(env.httpServer)
@@ -99,9 +99,9 @@ describe('E2E map UI support — map filters + users form-data (T5.4)', () => {
       .expect(200);
 
     const roleNames = (response.body.roles as Array<{ name: string }>).map((r) => r.name);
-    expect(roleNames).not.toContain('admin_sistema');
+    expect(roleNames).not.toContain('master');
     expect(roleNames).not.toContain('operador_sistema');
-    expect(roleNames).toContain('operador_organizacion');
+    expect(roleNames).toContain('operador_org');
     expect(roleNames).toContain('reporter');
     const orgIds = (response.body.organizations as Array<{ id: string }>).map((o) => o.id);
     expect(orgIds).toEqual([orgA]);

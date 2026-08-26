@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 
 import { IncidentCategoryEntity } from '../../entities/incident-category.entity';
@@ -12,6 +12,7 @@ function makeCategory(overrides: Partial<IncidentCategoryEntity> = {}): Incident
     parentId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -140,36 +141,36 @@ describe('IncidentCategoriesService', () => {
     });
   });
 
+  // T7.2.C3 (R7.3) — soft delete, never a hard DELETE: `categoryRepo.save`
+  // is called with `deletedAt` stamped instead of `categoryRepo.delete`.
   describe('delete', () => {
-    it('deletes the category when it exists and nothing references it', async () => {
+    it('soft-deletes the category (sets deletedAt) when it exists', async () => {
       categoryRepo.findOne.mockResolvedValue(makeCategory());
-      categoryRepo.delete.mockResolvedValue(undefined);
+      categoryRepo.save.mockImplementation(async (x) => x);
 
       await service.delete('cat-1');
 
-      expect(categoryRepo.delete).toHaveBeenCalledWith('cat-1');
+      expect(categoryRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'cat-1', deletedAt: expect.any(Date) }),
+      );
+      expect(categoryRepo.delete).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when the category does not exist', async () => {
       categoryRepo.findOne.mockResolvedValue(null);
 
       await expect(service.delete('missing')).rejects.toBeInstanceOf(NotFoundException);
-      expect(categoryRepo.delete).not.toHaveBeenCalled();
+      expect(categoryRepo.save).not.toHaveBeenCalled();
     });
 
-    it('maps a PG foreign-key violation (23503) to ConflictException (409)', async () => {
-      categoryRepo.findOne.mockResolvedValue(makeCategory());
-      categoryRepo.delete.mockRejectedValue({ code: '23503' });
+    it('is idempotent — soft-deleting an already-deleted category re-stamps deletedAt without error', async () => {
+      categoryRepo.findOne.mockResolvedValue(makeCategory({ deletedAt: new Date('2020-01-01') }));
+      categoryRepo.save.mockImplementation(async (x) => x);
 
-      await expect(service.delete('cat-1')).rejects.toBeInstanceOf(ConflictException);
-    });
-
-    it('rethrows unrelated errors unchanged', async () => {
-      categoryRepo.findOne.mockResolvedValue(makeCategory());
-      const unrelated = new Error('boom');
-      categoryRepo.delete.mockRejectedValue(unrelated);
-
-      await expect(service.delete('cat-1')).rejects.toBe(unrelated);
+      await expect(service.delete('cat-1')).resolves.toBeUndefined();
+      expect(categoryRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ deletedAt: expect.any(Date) }),
+      );
     });
   });
 

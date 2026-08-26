@@ -30,19 +30,19 @@ describe('E2E admin panel + CRUD gaps (T5.6)', () => {
   // ---- Roles CRUD ------------------------------------------------------
 
   it('GET /api/roles returns the seeded roles', async () => {
-    const admin = await env.provisionUser(['READ roles'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['READ roles'], { roleName: 'master' });
     const res = await request(env.httpServer)
       .get('/api/roles')
       .set('Authorization', `Bearer ${admin.accessToken}`)
       .expect(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect((res.body as Array<{ name: string }>).map((r) => r.name)).toEqual(
-      expect.arrayContaining(['admin_sistema', 'operador_organizacion', 'reporter']),
+      expect.arrayContaining(['master', 'operador_org', 'reporter']),
     );
   });
 
   it('POST /api/roles creates a new role (admin_sistema only)', async () => {
-    const admin = await env.provisionUser(['CREATE roles'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['CREATE roles'], { roleName: 'master' });
     const res = await request(env.httpServer)
       .post('/api/roles')
       .set('Authorization', `Bearer ${admin.accessToken}`)
@@ -52,7 +52,7 @@ describe('E2E admin panel + CRUD gaps (T5.6)', () => {
   });
 
   it('PUT /api/roles/:id/permissions replaces the permission set', async () => {
-    const admin = await env.provisionUser(['UPDATE roles'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['UPDATE roles'], { roleName: 'master' });
     const reporterId = (await env.pg.query<{ id: string }>("SELECT id FROM roles WHERE name = 'reporter'")).rows[0].id;
     const res = await request(env.httpServer)
       .put(`/api/roles/${reporterId}/permissions`)
@@ -156,7 +156,7 @@ describe('E2E admin panel + CRUD gaps (T5.6)', () => {
   // ---- Notifications approve/reject -----------------------------------
 
   it('POST /api/notifications/:id/approve on a non-pending_approval notification returns 4xx', async () => {
-    const admin = await env.provisionUser(['UPDATE notifications'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['UPDATE notifications'], { roleName: 'master' });
     const fakeRes = await env.pg.query<{ id: string }>(
       `INSERT INTO notifications (user_id, type, message) VALUES (
          (SELECT id FROM users LIMIT 1), $1, 'fake'
@@ -171,7 +171,7 @@ describe('E2E admin panel + CRUD gaps (T5.6)', () => {
   });
 
   it('POST /api/notifications/:id/reject on a non-resolved incident returns 4xx', async () => {
-    const admin = await env.provisionUser(['UPDATE notifications', 'CREATE incidents'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['UPDATE notifications', 'CREATE incidents'], { roleName: 'master' });
     const incident = await request(env.httpServer)
       .post('/api/incidents')
       .set('Authorization', `Bearer ${admin.accessToken}`)
@@ -192,7 +192,7 @@ describe('E2E admin panel + CRUD gaps (T5.6)', () => {
   });
 
   it('POST /api/notifications/:id/approve happy path: incident -> closed, decision columns set', async () => {
-    const admin = await env.provisionUser(['UPDATE notifications', 'CREATE incidents'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['UPDATE notifications', 'CREATE incidents'], { roleName: 'master' });
     const incident = await request(env.httpServer)
       .post('/api/incidents')
       .set('Authorization', `Bearer ${admin.accessToken}`)

@@ -214,7 +214,7 @@ describe('SessionsRepository (T3.9 design §4)', () => {
   describe('findManageableTarget', () => {
     it('joins users LEFT JOIN roles and returns the mapped target', async () => {
       dataSource.query.mockResolvedValue([
-        { id: 'user-1', organization_id: 'org-1', role_name: 'operador_organizacion' },
+        { id: 'user-1', organization_id: 'org-1', role_name: 'operador_org' },
       ]);
 
       const result = await repository.findManageableTarget('user-1');
@@ -225,7 +225,7 @@ describe('SessionsRepository (T3.9 design §4)', () => {
       expect(result).toEqual({
         id: 'user-1',
         organizationId: 'org-1',
-        roleName: 'operador_organizacion',
+        roleName: 'operador_org',
       });
     });
 

@@ -14,15 +14,15 @@ export function resolveSubjectScope(
   userId?: string,
 ): SubjectScope {
   switch (roleName) {
-    case 'admin_sistema':
+    case 'master':
       return { kind: 'global' };
     case 'operador_sistema':
       return { kind: 'global' };
-    case 'admin_organizacion':
+    case 'admin_org':
       return organizationId === null
         ? { kind: 'deny', reason: 'staff_without_organization' }
         : { kind: 'org', organizationId };
-    case 'operador_organizacion':
+    case 'operador_org':
       return organizationId === null || userId === undefined
         ? { kind: 'deny', reason: 'staff_without_organization' }
         : { kind: 'org_assigned', organizationId, userId };

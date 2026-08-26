@@ -8,8 +8,19 @@
 BEGIN;
 
 -- 0. Abort loudly rather than silently no-op the role append (T3.2 precedent).
+--
+-- Se aceptan los dos nombres a propósito. La guarda pregunta "¿corrió 0015?",
+-- y 0040_rename_roles renombró después `admin_sistema` a `master`: en una base
+-- donde el rename ya pasó, el rol sigue existiendo, sólo que con otro nombre.
+-- Mirando únicamente el nombre viejo, este fichero se volvía imposible de
+-- re-aplicar sobre cualquier base ya migrada al día — abortaba en una
+-- precondición que en realidad SÍ se cumplía.
+--
+-- El paso 4 (más abajo) conserva a propósito sólo los nombres pre-rename: en
+-- una cadena limpia 0016 corre mucho antes que 0040, así que ésos son los
+-- nombres vigentes en ese momento.
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM roles WHERE name = 'admin_sistema') THEN
+  IF NOT EXISTS (SELECT 1 FROM roles WHERE name IN ('admin_sistema', 'master')) THEN
     RAISE EXCEPTION '0016 requires 0015 (staff roles) to have been applied first';
   END IF;
 END $$;

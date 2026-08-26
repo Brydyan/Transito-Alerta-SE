@@ -36,7 +36,7 @@ describe('E2E T6 incident metrics (T6.3.D1, T6.3.D2)', () => {
   it('T6.3.D1: POST /incidents/:id/claim → GET incident → claimed_at IS NOT NULL', async () => {
     const operator = await env.provisionUser(
       ['CREATE incidents', 'CLAIM incidents', 'READ incidents'],
-      { organizationId: orgId, roleName: 'operador_organizacion' },
+      { organizationId: orgId, roleName: 'operador_org' },
     );
     const auth = { Authorization: `Bearer ${operator.accessToken}` };
 

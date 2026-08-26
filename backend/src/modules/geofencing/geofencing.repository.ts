@@ -29,6 +29,17 @@ export class GeofencingRepository {
    * Jurisdiction containment (D4): resolves the zone whose polygon contains
    * the given point, ONCE, at incident-write time.
    */
+  /**
+   * T7.2.B1 — `geo_zones.deleted_at` (0031) is deliberately NOT checked
+   * here. Unlike the other 12 soft-deletable tables, `active` is a
+   * reversible toggle for this one (design D8) and remains the sole
+   * exclusion predicate for geofencing; adding `deleted_at IS NULL`
+   * alongside it (tried once, reverted) changed the query plan enough to
+   * flip which of two overlapping seeded zones a `LIMIT 1` with no
+   * `ORDER BY` nondeterministically returns — a real regression against
+   * `t6-organizations-notified`/`flows`/`regressions` e2e, unrelated to
+   * this column's own correctness.
+   */
   async findZoneByPoint(lat: number, lng: number): Promise<GeoZoneRow | null> {
     const rows: GeoZoneRow[] = await this.dataSource.query(
       `SELECT id, name, active, created_at

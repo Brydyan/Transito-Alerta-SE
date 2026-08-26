@@ -28,7 +28,7 @@ describe('E2E T6 export XLSX + feed rebuild (T6.7.A5, T6.7.C6)', () => {
 
   it('T6.7.A5: GET /incidents/export?format=xlsx → 200 + xlsx Content-Type + non-empty body', async () => {
     // Permission required: READ dashboard (based on controller @RequirePermission('READ', 'dashboard'))
-    const admin = await env.provisionUser(['READ dashboard'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['READ dashboard'], { roleName: 'master' });
 
     const res = await request(env.httpServer)
       .get('/api/incidents/export?format=xlsx')
@@ -43,7 +43,7 @@ describe('E2E T6 export XLSX + feed rebuild (T6.7.A5, T6.7.C6)', () => {
   });
 
   it('T6.7.A5: GET /incidents/exportar?format=csv → 200 + csv Content-Type', async () => {
-    const admin = await env.provisionUser(['READ dashboard'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['READ dashboard'], { roleName: 'master' });
 
     const res = await request(env.httpServer)
       .get('/api/incidents/exportar?format=csv')
@@ -54,7 +54,7 @@ describe('E2E T6 export XLSX + feed rebuild (T6.7.A5, T6.7.C6)', () => {
   });
 
   it('T6.7.A5: /incidents/exportar?format=csv produces same Content-Type as /incidents/export?format=csv', async () => {
-    const admin = await env.provisionUser(['READ dashboard'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['READ dashboard'], { roleName: 'master' });
     const auth = { Authorization: `Bearer ${admin.accessToken}` };
 
     const r1 = await request(env.httpServer).get('/api/incidents/export?format=csv').set(auth).expect(200);
@@ -66,7 +66,7 @@ describe('E2E T6 export XLSX + feed rebuild (T6.7.A5, T6.7.C6)', () => {
   // ---- T6.7.C6 — feed rebuild -----------------------------------------------
 
   it('T6.7.C6: POST /incidents/admin/feed/rebuild as admin_sistema → 202 + { rebuilt: number }', async () => {
-    const admin = await env.provisionUser(['CREATE incidents'], { roleName: 'admin_sistema' });
+    const admin = await env.provisionUser(['CREATE incidents'], { roleName: 'master' });
     const auth = { Authorization: `Bearer ${admin.accessToken}` };
 
     // Seed one incident so the rebuild has something to insert

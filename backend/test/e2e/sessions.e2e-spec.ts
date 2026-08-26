@@ -209,12 +209,12 @@ describe('Sessions e2e (T3.9)', () => {
     it('invisible target (different org) -> 404', async () => {
       const admin: ProvisionedUser = await env.provisionUser(['READ sessions', 'DELETE sessions'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const targetInOtherOrg = await env.provisionUser(['READ incidents'], {
         deviceUuid: `device-other-org-${randomUUID()}`,
         organizationId: orgBId,
-        roleName: 'operador_organizacion',
+        roleName: 'operador_org',
       });
 
       await request(env.httpServer)
@@ -226,12 +226,12 @@ describe('Sessions e2e (T3.9)', () => {
     it('visible-not-outranked (equal rank, same org) -> 403 INSUFFICIENT_ROLE_RANK', async () => {
       const actor = await env.provisionUser(['READ sessions', 'DELETE sessions'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const peer = await env.provisionUser(['READ incidents'], {
         deviceUuid: `device-peer-${randomUUID()}`,
         organizationId: orgAId,
-        roleName: 'admin_organizacion', // equal rank
+        roleName: 'admin_org', // equal rank
       });
 
       const response = await request(env.httpServer)
@@ -244,12 +244,12 @@ describe('Sessions e2e (T3.9)', () => {
     it('visible-and-outranked succeeds', async () => {
       const admin = await env.provisionUser(['READ sessions', 'DELETE sessions'], {
         organizationId: orgAId,
-        roleName: 'admin_sistema',
+        roleName: 'master',
       });
       const target = await env.provisionUser(['READ incidents'], {
         deviceUuid: `device-target-${randomUUID()}`,
         organizationId: orgAId,
-        roleName: 'operador_organizacion',
+        roleName: 'operador_org',
       });
 
       await request(env.httpServer)

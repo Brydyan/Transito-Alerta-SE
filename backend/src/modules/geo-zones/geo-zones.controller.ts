@@ -49,6 +49,7 @@ export class GeoZonesController {
     @Query('parent_id') parentId?: string,
     @Query('level') level?: GeoZoneLevel,
     @Query('include_inactive') includeInactive?: string,
+    @Query('code') code?: string,
     @Query('page') page?: string,
     @Query('per_page') perPage?: string,
   ): Promise<ListResult> {
@@ -57,6 +58,7 @@ export class GeoZonesController {
       parentId: parentId === 'null' ? null : parentId,
       level,
       includeInactive: includeInactive === 'true',
+      code,
       page: page ? parseInt(page, 10) : undefined,
       perPage: perPage ? parseInt(perPage, 10) : undefined,
     });

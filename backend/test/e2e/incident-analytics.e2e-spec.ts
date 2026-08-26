@@ -67,7 +67,7 @@ describe('E2E incident analytics (T5.2)', () => {
 
   it('stats: system admin sees total across both orgs', async () => {
     const citizen = await env.provisionUser([]);
-    const sysAdmin = await env.provisionUser(['READ dashboard'], { roleName: 'admin_sistema' });
+    const sysAdmin = await env.provisionUser(['READ dashboard'], { roleName: 'master' });
 
     await seedIncident(env, { citizenId: citizen.userId, organizationId: orgA });
     await seedIncident(env, { citizenId: citizen.userId, organizationId: orgB });
@@ -84,7 +84,7 @@ describe('E2E incident analytics (T5.2)', () => {
   it('stats: org admin sees only own org incidents', async () => {
     const citizen = await env.provisionUser([]);
     const orgAdmin = await env.provisionUser(['READ dashboard'], {
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
       organizationId: orgA,
     });
 
@@ -103,7 +103,7 @@ describe('E2E incident analytics (T5.2)', () => {
 
   it('stats: response has expected shape (by_status, by_priority, top_categories, trends)', async () => {
     const citizen = await env.provisionUser([]);
-    const sysAdmin = await env.provisionUser(['READ dashboard'], { roleName: 'admin_sistema' });
+    const sysAdmin = await env.provisionUser(['READ dashboard'], { roleName: 'master' });
 
     await seedIncident(env, { citizenId: citizen.userId, status: 'pending', priority: 'high' });
 
@@ -142,7 +142,7 @@ describe('E2E incident analytics (T5.2)', () => {
   });
 
   it('weekly-stats: default window → 10 days array', async () => {
-    const sysAdmin = await env.provisionUser(['READ dashboard'], { roleName: 'admin_sistema' });
+    const sysAdmin = await env.provisionUser(['READ dashboard'], { roleName: 'master' });
 
     const res = await request(env.httpServer)
       .get('/api/incidents/weekly-stats')
@@ -160,7 +160,7 @@ describe('E2E incident analytics (T5.2)', () => {
   });
 
   it('weekly-stats: fin < inicio → 422', async () => {
-    const sysAdmin = await env.provisionUser(['READ dashboard'], { roleName: 'admin_sistema' });
+    const sysAdmin = await env.provisionUser(['READ dashboard'], { roleName: 'master' });
 
     await request(env.httpServer)
       .get('/api/incidents/weekly-stats')
@@ -178,7 +178,7 @@ describe('E2E incident analytics (T5.2)', () => {
   it('feed: org operator sees org-scoped incidents', async () => {
     const citizen = await env.provisionUser([]);
     const operator = await env.provisionUser(['READ incidents'], {
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
       organizationId: orgA,
     });
 
@@ -233,7 +233,7 @@ describe('E2E incident analytics (T5.2)', () => {
 
   it('export: returns CSV with correct header and content-type', async () => {
     const citizen = await env.provisionUser([]);
-    const sysAdmin = await env.provisionUser(['READ dashboard'], { roleName: 'admin_sistema' });
+    const sysAdmin = await env.provisionUser(['READ dashboard'], { roleName: 'master' });
 
     await seedIncident(env, { citizenId: citizen.userId });
 

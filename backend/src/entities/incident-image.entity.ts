@@ -27,4 +27,7 @@ export class IncidentImageEntity {
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
+
+  @Column({ name: 'updated_at', type: 'timestamptz', update: false })
+  updatedAt!: Date;
 }

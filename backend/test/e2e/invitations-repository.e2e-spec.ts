@@ -84,7 +84,7 @@ describe('Invitations + Sessions — real-infra integration (T3.6)', () => {
   describe('InvitationsService.redeem — CAS integration (D3, real Postgres concurrency)', () => {
     it('two concurrent redeem() calls on one token: exactly one 201-equivalent wins, exactly one users row', async () => {
       const inviterId = await makeUser();
-      const role = await roleId('operador_organizacion');
+      const role = await roleId('operador_org');
       const email = `cas-race-${randomUUID()}@example.com`;
       const token = generateToken();
       const tokenHash = sha256Hex(token);
@@ -217,14 +217,14 @@ describe('Invitations + Sessions — real-infra integration (T3.6)', () => {
         [randomUUID(), '<script>alert(1)</script> Org'],
       );
       const organizationId = orgRows[0].id;
-      const role = await roleId('operador_organizacion');
+      const role = await roleId('operador_org');
       const email = `outbox-invite-${randomUUID()}@example.com`;
 
       const actor: AuthContext = {
         userId: inviterId,
         permissions: ['CREATE invitations'],
         organizationId: null,
-        roleName: 'admin_sistema',
+        roleName: 'master',
         scope: { kind: 'global' },
         sessionId: null,
         isAnonymous: false,

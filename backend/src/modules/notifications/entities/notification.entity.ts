@@ -56,6 +56,13 @@ export class Notification {
   @Column('timestamp', { nullable: true })
   processed_at: Date | null;
 
+  /** T7.2 (0031) — soft delete. Excluded from list/unread-count reads. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deleted_at: Date | null;
+
+  @Column({ name: 'updated_at', type: 'timestamptz', update: false })
+  updated_at: Date;
+
   @ManyToOne(() => UserEntity, { onDelete: 'CASCADE', eager: false })
   @JoinColumn({ name: 'user_id' })
   user: UserEntity;

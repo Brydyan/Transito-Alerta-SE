@@ -136,7 +136,6 @@ export class IncidentsRepository {
     const result = await this.dataSource.query(
       `UPDATE incidents
          SET status = $2,
-             updated_at = now(),
              resolution_date = CASE WHEN $3 THEN NOW() ELSE NULL END
        WHERE id = $1
        RETURNING ${SELECT_COLUMNS}`,
@@ -159,8 +158,7 @@ export class IncidentsRepository {
       `UPDATE incidents
          SET title = $2,
              description = $3,
-             category_id = $4,
-             updated_at = now()
+             category_id = $4
        WHERE id = $1
        RETURNING ${SELECT_COLUMNS}`,
       [id, values.title, values.description, values.categoryId],

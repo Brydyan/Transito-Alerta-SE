@@ -30,10 +30,10 @@ function makeOrgRepo(org: Partial<OrganizationEntity> | null) {
   } as unknown as Repository<OrganizationEntity>;
 }
 
-const OP_A = { id: 'op-a', organizationId: 'org-X', role: 'operador_organizacion' };
-const OP_B = { id: 'op-b', organizationId: 'org-X', role: 'operador_organizacion' };
-const ADMIN = { id: 'admin-1', organizationId: 'org-X', role: 'admin_sistema' };
-const OUTSIDER = { id: 'op-z', organizationId: 'org-Y', role: 'operador_organizacion' };
+const OP_A = { id: 'op-a', organizationId: 'org-X', role: 'operador_org' };
+const OP_B = { id: 'op-b', organizationId: 'org-X', role: 'operador_org' };
+const ADMIN = { id: 'admin-1', organizationId: 'org-X', role: 'master' };
+const OUTSIDER = { id: 'op-z', organizationId: 'org-Y', role: 'operador_org' };
 
 const INCIDENT = {
   id: 'inc-1',
@@ -124,6 +124,30 @@ describe('IncidentWorkflowService.claim', () => {
     expect(res.id).toBe('inc-1');
     expect(res.status).toBe('pending');
   });
+
+  it('does not manually write updated_at in the claim UPDATE (trigger handles it)', async () => {
+    const updated = { ...INCIDENT, claimed_by: OP_A.id };
+    const queryMock = jest.fn();
+    queryMock.mockResolvedValueOnce([INCIDENT]); // loadIncident
+    queryMock.mockResolvedValueOnce([{ count: '0' }]); // activeClaimCountFor
+    queryMock.mockResolvedValueOnce([updated]); // claim UPDATE
+
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: makeDataSource(queryMock) },
+      ],
+    }).compile();
+    const svc = module.get(IncidentWorkflowService);
+
+    await svc.claim('inc-1', OP_A);
+
+    const claimUpdateCall = queryMock.mock.calls[2]; // third call is the claim UPDATE
+    const sql = claimUpdateCall[0];
+    expect(sql).not.toContain('updated_at = ');
+    expect(sql).toContain('claimed_at = NOW()');
+  });
 });
 
 // ---------- release ---------------------------------------------------------
@@ -155,6 +179,30 @@ describe('IncidentWorkflowService.release', () => {
     const svc = await buildService([[claimed], [cleared]]);
     const res = await svc.release('inc-1', OP_A);
     expect(res.claimedBy).toBeNull();
+  });
+
+  it('does not manually write updated_at in the release UPDATE (trigger handles it)', async () => {
+    const claimed = { ...INCIDENT, claimed_by: OP_A.id };
+    const cleared = { ...claimed, claimed_by: null };
+    const queryMock = jest.fn();
+    queryMock.mockResolvedValueOnce([claimed]); // loadIncident
+    queryMock.mockResolvedValueOnce([cleared]); // release UPDATE
+
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: makeDataSource(queryMock) },
+      ],
+    }).compile();
+    const svc = module.get(IncidentWorkflowService);
+
+    await svc.release('inc-1', OP_A);
+
+    const releaseUpdateCall = queryMock.mock.calls[1]; // second call is the release UPDATE
+    const sql = releaseUpdateCall[0];
+    expect(sql).not.toContain('updated_at = ');
+    expect(sql).toContain('claimed_by = NULL');
   });
 });
 

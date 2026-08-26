@@ -78,7 +78,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('an admin_organizacion in Org A lists only Org A incidents (R8)', async () => {
       const orgAAdmin = await env.provisionUser(['CREATE incidents', 'READ incidents'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
 
       const created = await request(env.httpServer)
@@ -106,7 +106,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('cross-org GET /incidents/:id returns 404, never 403', async () => {
       const orgAAdmin = await env.provisionUser(['READ incidents'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const orgBIncidentId = await insertIncidentForOrg(orgBId);
 
@@ -119,7 +119,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('operador_organizacion sees only Org A incidents assigned to them', async () => {
       const orgAOperator = await env.provisionUser(['READ incidents'], {
         organizationId: orgAId,
-        roleName: 'operador_organizacion',
+        roleName: 'operador_org',
       });
       const assignedIncidentId = await insertIncidentForOrg(orgAId, 'Assigned to me');
       const unassignedIncidentId = await insertIncidentForOrg(orgAId, 'Not assigned');
@@ -140,7 +140,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     });
 
     it('an admin_organizacion with organization_id=NULL sees zero incidents, not all', async () => {
-      const orphanedAdmin = await env.provisionUser(['READ incidents'], { roleName: 'admin_organizacion' });
+      const orphanedAdmin = await env.provisionUser(['READ incidents'], { roleName: 'admin_org' });
       await insertIncidentForOrg(orgAId);
       await insertIncidentForOrg(orgBId);
       await insertIncidentForOrg(null);
@@ -184,7 +184,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
 
       const orgAAdmin = await env.provisionUser(['READ incidents'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const list = await request(env.httpServer)
         .get('/api/incidents')
@@ -217,7 +217,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('GET /comments/incident/:id on another org\'s incident returns 404 for an org-scoped caller, even holding READ', async () => {
       const orgAAdmin = await env.provisionUser(['READ comments'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const orgBIncidentId = await insertIncidentForOrg(orgBId);
 
@@ -230,7 +230,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('GET /assignments/incident/:id on another org\'s incident returns 404 for an org-scoped caller, even holding READ', async () => {
       const orgAAdmin = await env.provisionUser(['READ assignments'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const orgBIncidentId = await insertIncidentForOrg(orgBId);
 
@@ -249,10 +249,10 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('GET /users returns only same-org users for an org-scoped caller', async () => {
       const orgAAdmin = await env.provisionUser(['READ users'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
-      await env.provisionUser([], { organizationId: orgAId, roleName: 'operador_organizacion' });
-      await env.provisionUser([], { organizationId: orgBId, roleName: 'operador_organizacion' });
+      await env.provisionUser([], { organizationId: orgAId, roleName: 'operador_org' });
+      await env.provisionUser([], { organizationId: orgBId, roleName: 'operador_org' });
 
       const list = await request(env.httpServer)
         .get('/api/users')
@@ -275,11 +275,11 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('admin_organizacion calling PATCH /users/:id/organization on an admin_sistema in the same org is rejected 403 INSUFFICIENT_ROLE_RANK', async () => {
       const orgAAdmin = await env.provisionUser(['UPDATE users'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const sysAdminTarget = await env.provisionUser([], {
         organizationId: orgAId,
-        roleName: 'admin_sistema',
+        roleName: 'master',
       });
 
       const res = await request(env.httpServer)
@@ -293,11 +293,11 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('admin_organizacion calling PATCH /users/:id/organization on a user in another org is rejected 404', async () => {
       const orgAAdmin = await env.provisionUser(['UPDATE users'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const orgBUser = await env.provisionUser([], {
         organizationId: orgBId,
-        roleName: 'operador_organizacion',
+        roleName: 'operador_org',
       });
 
       await request(env.httpServer)
@@ -308,8 +308,8 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     });
 
     it('admin_sistema cannot move another admin_sistema (equal rank -> 403)', async () => {
-      const sysAdminActor = await env.provisionUser(['UPDATE users'], { roleName: 'admin_sistema' });
-      const sysAdminTarget = await env.provisionUser([], { roleName: 'admin_sistema' });
+      const sysAdminActor = await env.provisionUser(['UPDATE users'], { roleName: 'master' });
+      const sysAdminTarget = await env.provisionUser([], { roleName: 'master' });
 
       await request(env.httpServer)
         .patch(`/api/users/${sysAdminTarget.userId}/organization`)
@@ -321,11 +321,11 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('a permitted org admin can move an operator into their own organization', async () => {
       const orgAAdmin = await env.provisionUser(['UPDATE users'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const target = await env.provisionUser([], {
         organizationId: orgAId,
-        roleName: 'operador_organizacion',
+        roleName: 'operador_org',
       });
 
       const res = await request(env.httpServer)
@@ -346,11 +346,11 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('admin_organizacion calling POST /roles/:id/assign to grant admin_sistema is rejected 403 INSUFFICIENT_ROLE_RANK', async () => {
       const orgAAdmin = await env.provisionUser(['ASSIGN roles'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const roleLessTarget = await env.provisionUser([], { organizationId: orgAId });
       const { rows } = await env.pg.query<{ id: string }>(
-        `SELECT id FROM roles WHERE name = 'admin_sistema'`,
+        `SELECT id FROM roles WHERE name = 'master'`,
       );
       const adminSistemaRoleId = rows[0].id;
 
@@ -365,11 +365,11 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('admin_organizacion calling POST /roles/:id/assign to grant operador_organizacion (a lower rank) succeeds', async () => {
       const orgAAdmin = await env.provisionUser(['ASSIGN roles'], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
       const roleLessTarget = await env.provisionUser([], { organizationId: orgAId });
       const { rows } = await env.pg.query<{ id: string }>(
-        `SELECT id FROM roles WHERE name = 'operador_organizacion'`,
+        `SELECT id FROM roles WHERE name = 'operador_org'`,
       );
       const operadorOrgRoleId = rows[0].id;
 
@@ -466,7 +466,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('a socket authenticated as Org A staff calling join {room: "org:<B>"} receives {joined:false} and no broadcast reaches it', async () => {
       const orgAAdmin = await env.provisionUser([], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
 
       const socket = connect(orgAAdmin.accessToken);
@@ -498,7 +498,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     it('a socket authenticated as Org A staff CAN join its own org room', async () => {
       const orgAAdmin = await env.provisionUser([], {
         organizationId: orgAId,
-        roleName: 'admin_organizacion',
+        roleName: 'admin_org',
       });
 
       const socket = connect(orgAAdmin.accessToken);

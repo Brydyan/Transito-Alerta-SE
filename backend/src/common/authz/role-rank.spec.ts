@@ -2,16 +2,16 @@ import { rankOf, ROLE_RANK } from './role-rank';
 
 describe('ROLE_RANK', () => {
   it('orders the five roles from most to least privileged', () => {
-    expect(ROLE_RANK.admin_sistema).toBeLessThan(ROLE_RANK.operador_sistema);
-    expect(ROLE_RANK.operador_sistema).toBeLessThan(ROLE_RANK.admin_organizacion);
-    expect(ROLE_RANK.admin_organizacion).toBeLessThan(ROLE_RANK.operador_organizacion);
-    expect(ROLE_RANK.operador_organizacion).toBeLessThan(ROLE_RANK.reporter);
+    expect(ROLE_RANK.master).toBeLessThan(ROLE_RANK.operador_sistema);
+    expect(ROLE_RANK.operador_sistema).toBeLessThan(ROLE_RANK.admin_org);
+    expect(ROLE_RANK.admin_org).toBeLessThan(ROLE_RANK.operador_org);
+    expect(ROLE_RANK.operador_org).toBeLessThan(ROLE_RANK.reporter);
   });
 });
 
 describe('rankOf', () => {
   it('resolves a known role to its numeric rank', () => {
-    expect(rankOf('admin_sistema')).toBe(ROLE_RANK.admin_sistema);
+    expect(rankOf('master')).toBe(ROLE_RANK.master);
     expect(rankOf('reporter')).toBe(ROLE_RANK.reporter);
   });
 

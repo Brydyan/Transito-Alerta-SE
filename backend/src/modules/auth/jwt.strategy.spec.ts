@@ -23,7 +23,7 @@ const AUTHENTICATED_CTX = {
   userId: 'user-1',
   permissions: ['READ incidents'],
   organizationId: 'org-1',
-  roleName: 'admin_organizacion',
+  roleName: 'admin_org',
   scope: { kind: 'org' as const, organizationId: 'org-1' },
   sessionId: null,
   isAnonymous: false,

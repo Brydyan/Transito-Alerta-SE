@@ -55,6 +55,17 @@ export class UserSessionEntity {
   expiresAt!: Date | null;
 
   /**
+   * T7.2 (0031) — soft delete column. Migration comment is explicit this is
+   * for future cleanup tooling only; `revoked_at`/`expires_at` remain the
+   * sole live-session predicate (`ACTIVE_SESSION_SQL`) — never wired here.
+   */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
+  @Column({ name: 'updated_at', type: 'timestamptz', update: false })
+  updatedAt!: Date;
+
+  /**
    * Mirrors `ACTIVE_SESSION_SQL` exactly (design §4) — MUST be the same
    * predicate as `sessions/session-validity.ts`, never re-derived
    * independently, or the two would silently drift.

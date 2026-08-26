@@ -23,7 +23,7 @@ export class IncidentExportService {
   private buildWhere(query: ExportQueryDto, user: AuthContext, params: unknown[]): string {
     const conditions: string[] = ['1=1'];
 
-    if (user.roleName !== 'admin_sistema') {
+    if (user.roleName !== 'master') {
       if (user.organizationId) {
         params.push(user.organizationId);
         conditions.push(`i.organization_id = $${params.length}`);

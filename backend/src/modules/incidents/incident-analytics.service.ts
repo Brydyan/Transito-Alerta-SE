@@ -26,13 +26,13 @@ export class IncidentAnalyticsService {
   ) {}
 
   private buildOrgScope(user: AuthContext): string {
-    if (user.roleName === 'admin_sistema') return 'system';
+    if (user.roleName === 'master') return 'system';
     if (user.organizationId) return `org:${user.organizationId}`;
     return `user:${user.userId}`;
   }
 
   private buildOrgClause(user: AuthContext, alias: string, paramIdx: number): { clause: string; params: unknown[] } {
-    if (user.roleName === 'admin_sistema') return { clause: '', params: [] };
+    if (user.roleName === 'master') return { clause: '', params: [] };
     if (user.organizationId) {
       return { clause: `AND ${alias}.organization_id = $${paramIdx}`, params: [user.organizationId] };
     }
@@ -167,10 +167,10 @@ export class IncidentAnalyticsService {
     const prevStart = new Date(prevEnd.getTime() - durationMs);
 
     const params: unknown[] = [];
-    if (user.organizationId && user.roleName !== 'admin_sistema') {
+    if (user.organizationId && user.roleName !== 'master') {
       params.push(user.organizationId);
     }
-    const base = user.roleName === 'admin_sistema' ? 'WHERE 1=1' : `WHERE 1=1 ${orgClause}`;
+    const base = user.roleName === 'master' ? 'WHERE 1=1' : `WHERE 1=1 ${orgClause}`;
 
     params.push(currentStart.toISOString(), currentEnd.toISOString());
     const csIdx = params.length - 1;

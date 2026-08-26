@@ -5,12 +5,12 @@ describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', (
     it('renders the link, role and organization name, all escaped', () => {
       const html = renderMailTemplate('invitation', {
         link: 'http://localhost:3000/accept-invitation?token=abc123',
-        roleName: 'operador_organizacion',
+        roleName: 'operador_org',
         organizationName: 'Santa Elena Transito',
       });
 
       expect(html).toContain('http://localhost:3000/accept-invitation?token=abc123');
-      expect(html).toContain('operador_organizacion');
+      expect(html).toContain('operador_org');
       expect(html).toContain('Santa Elena Transito');
       expect(html).toMatch(/48 hours/);
     });

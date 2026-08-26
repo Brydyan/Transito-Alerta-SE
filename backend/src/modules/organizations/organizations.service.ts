@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { GeoZoneEntity } from '../../entities/geo-zone.entity';
@@ -23,6 +23,7 @@ export interface OrganizationTreeNode {
   id: string;
   name: string;
   zoneId: string | null;
+  children: OrganizationTreeNode[];
 }
 
 export interface OrganizationFormData {
@@ -32,11 +33,16 @@ export interface OrganizationFormData {
 
 /**
  * OrganizationsService (T3.2 design D8) — mirrors GeoZonesService's CRUD
- * shape. `findByZone` returns the single org or `null`, relying on the
- * partial UNIQUE index for determinism (migration 0015). Zone rooms are
- * not scoped resources, so this module takes no `scope` parameter itself
- * — its only consumer needing scope-awareness is `IncidentsService.create`
- * (org derivation on write, design D4), which calls `findByZone` only.
+ * shape. Zone rooms are not scoped resources, so this module takes no
+ * `scope` parameter itself.
+ *
+ * T7.5 (design D7 — behavioural fix): `uq_organizations_zone` is gone
+ * (migration 0034) — several orgs at different levels of the location
+ * tree can now share a `zone_id`, all eligible for notification.
+ * `findNotifiedFor` replaces `findByZone`: `IncidentsService.create`
+ * (org derivation on write, design D4) now takes `findNotifiedFor(...)[0]`
+ * as its "primary" org, same criterion `notifiedFor()` uses for
+ * `is_claimable` — so the two never disagree.
  */
 @Injectable()
 export class OrganizationsService {
@@ -50,15 +56,50 @@ export class OrganizationsService {
   ) {}
 
   create(dto: CreateOrganizationDto): Promise<OrganizationRow> {
-    return this.repo.create({ name: dto.name, zoneId: dto.zone_id ?? null });
+    return this.repo.create({ name: dto.name, zoneId: dto.zone_id ?? null, parentId: dto.parent_id ?? null });
   }
 
+  /**
+   * T7.5.B3 — a direct cycle (`parent_id = own id`) is rejected by the DB
+   * CHECK; an indirect cycle (A→B→A) is not expressible as a CHECK, so it's
+   * validated here by walking the candidate parent's ancestor chain before
+   * the write.
+   */
   async update(id: string, dto: UpdateOrganizationDto): Promise<OrganizationRow> {
+    if (dto.parent_id) {
+      await this.assertNoCycle(id, dto.parent_id);
+    }
+
     const updated = await this.repo.update(id, {
       name: dto.name,
       zoneIdProvided: dto.zone_id !== undefined,
       zoneId: dto.zone_id,
+      parentIdProvided: dto.parent_id !== undefined,
+      parentId: dto.parent_id,
     });
+    if (!updated) {
+      throw new NotFoundException('Organization not found');
+    }
+    return updated;
+  }
+
+  private async assertNoCycle(orgId: string, candidateParentId: string): Promise<void> {
+    let currentId: string | null = candidateParentId;
+    const visited = new Set<string>();
+    while (currentId) {
+      if (currentId === orgId) {
+        throw new BadRequestException('parent_id would create a cycle in the organization tree');
+      }
+      if (visited.has(currentId)) break; // pre-existing cycle elsewhere — not this call's problem
+      visited.add(currentId);
+      const current = await this.repo.findById(currentId);
+      currentId = current?.parent_id ?? null;
+    }
+  }
+
+  /** T7.5.C6 — admin-only routing category assignment. */
+  async assignCategory(id: string, incidentCategoryId: string | null): Promise<OrganizationRow> {
+    const updated = await this.repo.updateCategory(id, incidentCategoryId);
     if (!updated) {
       throw new NotFoundException('Organization not found');
     }
@@ -83,28 +124,45 @@ export class OrganizationsService {
   }
 
   /**
-   * `null` zoneId (incident outside every zone) is not a repository
-   * lookup — it always resolves to `null` (design D4: "outside every
-   * zone, or the zone has no org").
+   * T7.5.C — legacy `findForLocation()` / `findNotifiedFor()` unified: a
+   * `null` zoneId (incident outside every zone) short-circuits to `[]`
+   * without a query (design D4: "outside every zone, or the zone has no
+   * org"). `categoryId = null` still matches transversal orgs.
    */
-  findByZone(zoneId: string | null): Promise<OrganizationRow | null> {
+  findNotifiedFor(zoneId: string | null, categoryId: string | null): Promise<OrganizationRow[]> {
     if (zoneId === null) {
-      return Promise.resolve(null);
+      return Promise.resolve([]);
     }
-    return this.repo.findByZone(zoneId);
+    return this.repo.findNotifiedFor(zoneId, categoryId);
   }
 
   // ---- T5.6 extras: tree / formData / notifiedFor
 
   /**
-   * T5.6 — flat list of all organizations. The `organizations` table
-   * has no `parent_id` column (T3.2 decision; the geo-zones table is the
-   * actual admin hierarchy — see `1-BACKEND-MIGRATIONS.md`). Returned
-   * as a flat list; the frontend can build a tree view client-side.
+   * T7.5.B2 — nested tree built from `parent_id` (replaces the flat list
+   * T3.2/T5.6 shipped, and its "no hierarchy" limitation comment — see
+   * design D8). Orgs with a `parent_id` that isn't in the result set
+   * (e.g. pointing at a soft-deleted org) are treated as roots rather than
+   * silently dropped.
    */
   async tree(): Promise<OrganizationTreeNode[]> {
-    const orgs = await this.orgRepo.find({ order: { name: 'ASC' } });
-    return orgs.map((o) => ({ id: o.id, name: o.name, zoneId: o.zoneId }));
+    const orgs = await this.orgRepo.find({ where: { deletedAt: IsNull() }, order: { name: 'ASC' } });
+    const nodes = new Map<string, OrganizationTreeNode>();
+    for (const o of orgs) {
+      nodes.set(o.id, { id: o.id, name: o.name, zoneId: o.zoneId, children: [] });
+    }
+
+    const roots: OrganizationTreeNode[] = [];
+    for (const o of orgs) {
+      const node = nodes.get(o.id)!;
+      const parent = o.parentId ? nodes.get(o.parentId) : undefined;
+      if (parent) {
+        parent.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+    return roots;
   }
 
   /**
@@ -132,7 +190,13 @@ export class OrganizationsService {
    * If location_id is provided → direct zone lookup by ID (no geofencing).
    * If lat+lng are provided → existing geofencing path.
    * Otherwise → BadRequestException (at least one group required).
-   * Returns is_claimable: org.max_active_claims > 0.
+   *
+   * T7.5.C3 (design D7 — behavioural fix, not just a schema gap) —
+   * `notifiedFor` now resolves BOTH ancestries (location + category) via
+   * `findNotifiedFor`, returns every matching org (not "at most one"), and
+   * `is_claimable` is identity with the org the auto-assign would pick —
+   * the first in the stable `(created_at, id)` order — not
+   * `max_active_claims > 0`.
    */
   async notifiedFor(query: NotifiedForQueryDto): Promise<OrganizationWithClaimable[]> {
     let zoneId: string | null = null;
@@ -149,9 +213,8 @@ export class OrganizationsService {
     }
 
     if (!zoneId) return [];
-    const org = await this.repo.findByZone(zoneId);
-    if (!org) return [];
+    const orgs = await this.repo.findNotifiedFor(zoneId, query.category_id ?? null);
 
-    return [{ ...org, is_claimable: org.max_active_claims > 0 }];
+    return orgs.map((org, index) => ({ ...org, is_claimable: index === 0 }));
   }
 }

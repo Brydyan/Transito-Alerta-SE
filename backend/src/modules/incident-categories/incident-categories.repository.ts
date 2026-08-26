@@ -37,18 +37,19 @@ export class IncidentCategoriesRepository {
    * root category (`parent_id IS NULL`) plus their full subtrees when
    * `rootId` is null — a single recursive CTE query.
    */
+  /** T7.2.B2/C3 (R7.3) — soft-deleted categories are excluded at every level of the subtree. */
   async listFlat(rootId: string | null): Promise<CategoryRow[]> {
     if (rootId === null) {
       return this.dataSource.query(
         `WITH RECURSIVE subtree AS (
            SELECT id, name, parent_id, created_at, 0 AS depth
            FROM incident_categories
-           WHERE parent_id IS NULL
+           WHERE parent_id IS NULL AND deleted_at IS NULL
            UNION ALL
            SELECT c.id, c.name, c.parent_id, c.created_at, s.depth + 1
            FROM incident_categories c
            INNER JOIN subtree s ON c.parent_id = s.id
-           WHERE s.depth < ${MAX_DEPTH}
+           WHERE s.depth < ${MAX_DEPTH} AND c.deleted_at IS NULL
          )
          SELECT id, name, parent_id, created_at, depth FROM subtree`,
       );
@@ -58,12 +59,12 @@ export class IncidentCategoriesRepository {
       `WITH RECURSIVE subtree AS (
          SELECT id, name, parent_id, created_at, 0 AS depth
          FROM incident_categories
-         WHERE id = $1
+         WHERE id = $1 AND deleted_at IS NULL
          UNION ALL
          SELECT c.id, c.name, c.parent_id, c.created_at, s.depth + 1
          FROM incident_categories c
          INNER JOIN subtree s ON c.parent_id = s.id
-         WHERE s.depth < ${MAX_DEPTH}
+         WHERE s.depth < ${MAX_DEPTH} AND c.deleted_at IS NULL
        )
        SELECT id, name, parent_id, created_at, depth FROM subtree`,
       [rootId],

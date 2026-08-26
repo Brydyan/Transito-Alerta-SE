@@ -36,6 +36,13 @@ export class InvitationEntity {
   @Column({ name: 'invited_by_user_id', type: 'uuid', nullable: true })
   invitedByUserId!: string | null;
 
+  /** T7.2 (0031) — soft delete (schema parity; revocation still uses hard `deleteIfPending`). */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
+
+  @Column({ name: 'updated_at', type: 'timestamptz', update: false })
+  updatedAt!: Date;
 }

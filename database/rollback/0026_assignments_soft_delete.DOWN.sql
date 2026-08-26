@@ -9,7 +9,7 @@ ALTER TABLE assignments
 
 -- Restore original hard UNIQUE constraint
 ALTER TABLE assignments
-  ADD CONSTRAINT IF NOT EXISTS assignments_incident_id_operator_id_key
+  ADD CONSTRAINT assignments_incident_id_operator_id_key
     UNIQUE (incident_id, operator_id);
 
 COMMIT;

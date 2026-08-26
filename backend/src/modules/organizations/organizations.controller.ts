@@ -16,6 +16,7 @@ import {
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AssignCategoryDto } from './dto/assign-category.dto';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { NotifiedForQueryDto } from './dto/notified-for-query.dto';
@@ -95,6 +96,16 @@ export class OrganizationsController {
     @Body() dto: UpdateOrganizationDto,
   ): Promise<OrganizationRow> {
     return this.organizationsService.update(id, dto);
+  }
+
+  /** T7.5.C6 — admin-only routing category assignment (design D7). */
+  @Patch(':id/category')
+  @RequirePermission('UPDATE')
+  assignCategory(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignCategoryDto,
+  ): Promise<OrganizationRow> {
+    return this.organizationsService.assignCategory(id, dto.incident_category_id ?? null);
   }
 
   @Delete(':id')

@@ -3,7 +3,6 @@ import {
   CreateDateColumn,
   Entity,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 
 export type IncidentStatus = 'pending' | 'in_progress' | 'resolved' | 'closed';
@@ -101,6 +100,6 @@ export class IncidentEntity {
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @Column({ name: 'updated_at', type: 'timestamptz', update: false })
   updatedAt!: Date;
 }

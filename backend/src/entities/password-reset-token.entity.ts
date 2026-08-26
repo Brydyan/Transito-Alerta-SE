@@ -26,6 +26,13 @@ export class PasswordResetTokenEntity {
   @Column({ name: 'expires_at', type: 'timestamptz' })
   expiresAt!: Date;
 
+  /** T7.2 (0031) — soft delete (schema parity; not wired into any write path). */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
+
+  @Column({ name: 'updated_at', type: 'timestamptz', update: false })
+  updatedAt!: Date;
 }

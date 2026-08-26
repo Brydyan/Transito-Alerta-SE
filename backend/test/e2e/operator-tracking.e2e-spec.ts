@@ -36,7 +36,7 @@ describe('E2E operator tracking (T5.3)', () => {
 
   it('operator pings location → 200, Redis key exists with TTL ≈ 300', async () => {
     const operator = await env.provisionUser(['CREATE incidents'], {
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
       organizationId: orgId,
     });
 
@@ -65,7 +65,7 @@ describe('E2E operator tracking (T5.3)', () => {
 
   it('invalid lat (> 90) → 422', async () => {
     const operator = await env.provisionUser([], {
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
       organizationId: orgId,
     });
 
@@ -94,15 +94,15 @@ describe('E2E operator tracking (T5.3)', () => {
     ]);
 
     const operatorA = await env.provisionUser([], {
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
       organizationId: orgId,
     });
     const operatorB = await env.provisionUser([], {
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
       organizationId: orgB,
     });
     const orgAdmin = await env.provisionUser([], {
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
       organizationId: orgId,
     });
 
@@ -142,9 +142,9 @@ describe('E2E operator tracking (T5.3)', () => {
       `org-b-${orgB.slice(0, 8)}`,
     ]);
 
-    const sysAdmin = await env.provisionUser([], { roleName: 'admin_sistema' });
-    const opA = await env.provisionUser([], { roleName: 'operador_organizacion', organizationId: orgId });
-    const opB = await env.provisionUser([], { roleName: 'operador_organizacion', organizationId: orgB });
+    const sysAdmin = await env.provisionUser([], { roleName: 'master' });
+    const opA = await env.provisionUser([], { roleName: 'operador_org', organizationId: orgId });
+    const opB = await env.provisionUser([], { roleName: 'operador_org', organizationId: orgB });
 
     await env.redisStreams.hset(
       `operators:loc:${orgId}`,
@@ -181,7 +181,7 @@ describe('E2E operator tracking (T5.3)', () => {
 
   it('GET dashboard (operator with READ dashboard) → returns stats + incidents', async () => {
     const operator = await env.provisionUser(['READ dashboard'], {
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
       organizationId: orgId,
     });
 
@@ -204,7 +204,7 @@ describe('E2E operator tracking (T5.3)', () => {
 
   it('GET dashboard (non-operator role) → 403', async () => {
     const orgAdmin = await env.provisionUser(['READ dashboard'], {
-      roleName: 'admin_organizacion',
+      roleName: 'admin_org',
       organizationId: orgId,
     });
 
@@ -216,7 +216,7 @@ describe('E2E operator tracking (T5.3)', () => {
 
   it('GET dashboard (operator without READ dashboard) → 403', async () => {
     const operator = await env.provisionUser([], {
-      roleName: 'operador_organizacion',
+      roleName: 'operador_org',
       organizationId: orgId,
     });
 

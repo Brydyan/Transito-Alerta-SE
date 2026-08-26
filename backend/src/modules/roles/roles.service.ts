@@ -1,11 +1,13 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Not, Repository } from 'typeorm';
 
 import { RoleEntity } from '../../entities/role.entity';
 import { UserEntity } from '../../entities/user.entity';
+import { PermissionEntity } from '../../entities/permission.entity';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { assertCanGrantRole, assertCanManage } from '../../common/authz/assert-can-manage';
+import { formatPermissionString } from '../../common/decorators/require-permission.decorator';
 import { AuthService } from '../auth/auth.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -29,6 +31,8 @@ export class RolesService {
     private readonly roleRepo: Repository<RoleEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
+    @InjectRepository(PermissionEntity)
+    private readonly permissionRepo: Repository<PermissionEntity>,
     private readonly dataSource: DataSource,
     private readonly authService: AuthService,
   ) {}
@@ -97,8 +101,9 @@ export class RolesService {
 
   // ---- T5.6 CRUD: list / show / create / update / delete / syncPermissions
 
+  /** T7.2.B2 — soft-deleted roles are excluded from the admin listing. */
   async findAll(): Promise<RoleEntity[]> {
-    return this.roleRepo.find({ order: { name: 'ASC' } });
+    return this.roleRepo.find({ where: { deletedAt: IsNull() }, order: { name: 'ASC' } });
   }
 
   async findOne(id: string): Promise<RoleEntity> {
@@ -129,19 +134,73 @@ export class RolesService {
   }
 
   /**
-   * Refuses to delete a role that still has users assigned — same policy
-   * as GeoReporta. Prevents orphan users (`role_id` pointing at a
-   * vanished row).
+   * T7.2.C4 (R7.5, design D5) — soft delete, NOT a hard remove. A role can
+   * be soft-deleted even with users still assigned (that is the whole
+   * point: those users must lose access immediately, not be blocked as an
+   * orphan-prevention measure the way a hard delete would need to be).
+   * `AuthService.getAuthContextByUserId` independently zeroes out
+   * permissions for a soft-deleted role on every fresh (post-cache) read;
+   * this method's own job is to force that freshness NOW by bumping
+   * `permission_version` and invalidating the Redis cache for every
+   * affected user in the same operation (design D5's explicit-invalidation
+   * model — soft-deleting a row never invalidates anything by itself).
+   * Idempotent: soft-deleting an already-deleted role just re-stamps
+   * `deletedAt` and re-invalidates (204, no error).
    */
   async delete(id: string): Promise<void> {
     const role = await this.findOne(id);
-    const userCount = await this.userRepo.count({ where: { roleId: id } });
-    if (userCount > 0) {
-      throw new ConflictException(
-        `Role ${id} has ${userCount} user(s) assigned; remove them first`,
-      );
+    role.deletedAt = new Date();
+    await this.roleRepo.save(role);
+
+    const affectedUsers = await this.userRepo.find({ where: { roleId: id } });
+    await Promise.all(
+      affectedUsers.map(async (user) => {
+        user.permissionVersion = (user.permissionVersion ?? 1) + 1;
+        await this.userRepo.save(user);
+        await this.authService.invalidatePermissionCache(user.id, user.deviceUuid);
+      }),
+    );
+  }
+
+  /**
+   * T7.2.C4 (R7.6) — re-derives a role's effective permission set by
+   * dropping any permission string whose (resource, action) pair matches a
+   * SOFT-DELETED row in the `permissions` catalog. Strings with no
+   * corresponding catalog row at all are left untouched (design D3: the
+   * catalog is informational, not authoritative — PermissionGuard never
+   * queries it directly), so this only ever *revokes*, never invents.
+   * No-ops (skips the user fan-out entirely) when nothing was actually
+   * revoked.
+   */
+  async recalculateEffectivePermissions(id: string): Promise<RoleEntity> {
+    const role = await this.findOne(id);
+    const deletedPermissions = await this.permissionRepo.find({
+      where: { deletedAt: Not(IsNull()) },
+    });
+    const revoked = new Set(
+      deletedPermissions.map((p) => formatPermissionString(p.action, p.resource)),
+    );
+
+    const before = role.permissions ?? [];
+    const after = before.filter((p) => !revoked.has(p));
+    if (after.length === before.length) {
+      return role;
     }
-    await this.roleRepo.remove(role);
+
+    role.permissions = after;
+    const saved = await this.roleRepo.save(role);
+
+    const affectedUsers = await this.userRepo.find({ where: { roleId: id } });
+    await Promise.all(
+      affectedUsers.map(async (user) => {
+        user.permissions = after;
+        user.permissionVersion = (user.permissionVersion ?? 1) + 1;
+        await this.userRepo.save(user);
+        await this.authService.invalidatePermissionCache(user.id, user.deviceUuid);
+      }),
+    );
+
+    return saved;
   }
 
   /**

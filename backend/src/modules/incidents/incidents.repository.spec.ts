@@ -151,6 +151,48 @@ describe('IncidentsRepository', () => {
 
       await expect(repository.updateStatus('ghost', 'resolved')).resolves.toBeNull();
     });
+
+    it('does not manually write updated_at (trigger handles it)', async () => {
+      dataSource.query.mockResolvedValue([[{ id: 'inc-1' }], 1]);
+
+      await repository.updateStatus('inc-1', 'in_progress');
+
+      const [sql] = dataSource.query.mock.calls[0];
+      expect(sql).not.toContain('updated_at = ');
+    });
+  });
+
+  describe('update', () => {
+    it('does not manually write updated_at (trigger handles it)', async () => {
+      dataSource.query.mockResolvedValue([[{ id: 'inc-1' }], 1]);
+
+      await repository.update('inc-1', {
+        title: 'Updated title',
+        description: 'Updated description',
+        categoryId: 'cat-1',
+      });
+
+      const [sql] = dataSource.query.mock.calls[0];
+      expect(sql).not.toContain('updated_at = ');
+    });
+
+    it('updates title, description, and category_id', async () => {
+      const row = { id: 'inc-1', title: 'Updated', description: 'desc', category_id: 'cat-1' };
+      dataSource.query.mockResolvedValue([[row], 1]);
+
+      const result = await repository.update('inc-1', {
+        title: 'Updated',
+        description: 'desc',
+        categoryId: 'cat-1',
+      });
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('title = $2');
+      expect(sql).toContain('description = $3');
+      expect(sql).toContain('category_id = $4');
+      expect(params).toEqual(['inc-1', 'Updated', 'desc', 'cat-1']);
+      expect(result).toEqual(row);
+    });
   });
 });
 

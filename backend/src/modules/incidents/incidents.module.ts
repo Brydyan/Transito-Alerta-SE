@@ -22,9 +22,9 @@ import { FeedRecoveryService } from './feed-recovery.service';
  * IncidentsModule (design DAG: `Incidents -> Users, IncidentCategories,
  * Geofencing, Locations, Organizations`). Users/IncidentCategories/
  * Locations land in later phases; Geofencing is wired since T2.1.
- * OrganizationsModule (T3.2 design D4) is imported for
- * `OrganizationsService.findByZone` at create time — the only edge in the
- * module boundary graph; OrganizationsModule imports nothing back.
+ * OrganizationsModule (T3.2 design D4; T7.5 design D7) is imported for
+ * `OrganizationsService.findNotifiedFor` at create time — the only edge in
+ * the module boundary graph; OrganizationsModule imports nothing back.
  *
  * T5.1 — registers IncidentWorkflowController + IncidentWorkflowService
  * for the operator claim/release lifecycle. The workflow service needs the

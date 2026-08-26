@@ -31,4 +31,13 @@ export class UpdateGeoZoneDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  /**
+   * T7.6 (0035) — administrative code. `undefined` = leave unchanged, `null`
+   * = clear it. `@IsOptional()` skips validation for both.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  code?: string | null;
 }

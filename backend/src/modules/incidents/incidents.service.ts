@@ -16,6 +16,18 @@ import { IncidentRow, IncidentsRepository } from './incidents.repository';
 export const INCIDENTS_STREAM_KEY = 'incidents:events';
 const INCIDENTS_LIST_CACHE_TTL_MS = 30_000;
 
+/** T7.7 (0036) — `check_is_leaf_category()` raises with this Postgres code (23514, check_violation). */
+const PG_CHECK_VIOLATION = '23514';
+
+function isLeafCategoryViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === PG_CHECK_VIOLATION
+  );
+}
+
 // Re-exported so every existing importer of `ALL_ZONES_TAG` from this module
 // keeps compiling unchanged (T3.8 design D10). The constant itself now lives
 // in geofencing.service.ts, alongside the tag machinery (tagCacheKey /
@@ -67,6 +79,14 @@ export class IncidentsService {
    * overwhelmingly a citizen/anonymous device with no organization, so
    * "creator's org" would leave scoping inert for the flow that matters.
    * NULL when outside every zone, or the zone has no organization.
+   *
+   * T7.5.C4 — aligned with `notifiedFor()`'s `is_claimable` criterion: the
+   * "primary" org is the first of `findNotifiedFor(zoneId, null)`'s stable
+   * `(created_at, id)` order, not an arbitrary `findByZone` row (which
+   * stopped being deterministic once 0034 dropped `uq_organizations_zone`
+   * — several orgs can now share a zone). `categoryId` is unknown at
+   * creation time (incidents aren't categorized on create), so `null` is
+   * passed — matching only transversal orgs plus zone ancestry.
    */
   async create(dto: CreateIncidentDto, citizenId: string): Promise<IncidentRow> {
     const { zone_id: zoneId } = await this.geofencingService.resolveZone({
@@ -74,7 +94,8 @@ export class IncidentsService {
       lng: dto.lng,
     });
 
-    const org = await this.organizationsService.findByZone(zoneId);
+    const orgs = await this.organizationsService.findNotifiedFor(zoneId, null);
+    const org = orgs[0] ?? null;
 
     const row = await this.incidentsRepository.create({
       title: dto.title,
@@ -209,12 +230,21 @@ export class IncidentsService {
     if (!incident) {
       throw new NotFoundException(`Incident ${id} not found`);
     }
-    return this.incidentsRepository.update(id, {
-      title: dto.title !== undefined ? dto.title : incident.title,
-      description: dto.description !== undefined ? dto.description : incident.description,
-      categoryId:
-        dto.categoryId !== undefined ? dto.categoryId : incident.category_id,
-    });
+    try {
+      return await this.incidentsRepository.update(id, {
+        title: dto.title !== undefined ? dto.title : incident.title,
+        description: dto.description !== undefined ? dto.description : incident.description,
+        categoryId:
+          dto.categoryId !== undefined ? dto.categoryId : incident.category_id,
+      });
+    } catch (error) {
+      // T7.7.B3 — check_is_leaf_category() (0036) rejects non-leaf
+      // categories with ERRCODE 23514; translate to a domain 400.
+      if (isLeafCategoryViolation(error)) {
+        throw new BadRequestException('INCIDENT_CATEGORY_NOT_LEAF: category must be a leaf category');
+      }
+      throw error;
+    }
   }
 
   /**

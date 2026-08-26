@@ -5,7 +5,7 @@
  * into SQL `NOT IN (...)` clauses without re-allocating.
  */
 export const SYSTEM_ONLY_ROLES = [
-  'admin_sistema',
+  'master',
   'operador_sistema',
   'admin_legacy',
 ] as const;
@@ -13,4 +13,4 @@ export const SYSTEM_ONLY_ROLES = [
 export type SystemOnlyRole = (typeof SYSTEM_ONLY_ROLES)[number];
 
 /** Used by getFormData to decide whether to filter roles/orgs. */
-export const SYSTEM_ADMIN_ROLE_NAME = 'admin_sistema';
+export const SYSTEM_ADMIN_ROLE_NAME = 'master';

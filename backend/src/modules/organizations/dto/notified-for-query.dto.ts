@@ -6,8 +6,9 @@ import { Type } from 'class-transformer';
  * At least one group must be provided; validated in the service, not here
  * (class-validator has no cross-field "at least one" decorator).
  *
- * `category_id` is accepted for GeoReporta compatibility but is not yet
- * used to filter organizations — kept for future categorisation.
+ * `category_id` (T7.5.C3) now filters organizations by category ancestry —
+ * `null`/absent still matches transversal orgs (`incident_category_id IS
+ * NULL`), see `OrganizationsRepository.findNotifiedFor`.
  */
 export class NotifiedForQueryDto {
   /** Grupo A: coordenadas GPS directas */

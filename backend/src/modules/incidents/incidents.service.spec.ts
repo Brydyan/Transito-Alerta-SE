@@ -39,7 +39,7 @@ describe('IncidentsService', () => {
     updateStatus: jest.Mock;
   };
   let geofencing: { resolveZone: jest.Mock; purgeZoneCache: jest.Mock; tagCacheKey: jest.Mock };
-  let organizations: { findByZone: jest.Mock };
+  let organizations: { findNotifiedFor: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
   let redis: { xadd: jest.Mock };
   let cache: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
@@ -53,7 +53,7 @@ describe('IncidentsService', () => {
       updateStatus: jest.fn(),
     };
     geofencing = { resolveZone: jest.fn(), purgeZoneCache: jest.fn(), tagCacheKey: jest.fn() };
-    organizations = { findByZone: jest.fn() };
+    organizations = { findNotifiedFor: jest.fn() };
     eventEmitter = { emit: jest.fn() };
     redis = { xadd: jest.fn() };
     cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
@@ -68,9 +68,11 @@ describe('IncidentsService', () => {
   });
 
   describe('create', () => {
-    it('resolves a zone, derives organization_id from the zone (D4 — never the creator\'s own org), purges zone cache, and emits events', async () => {
+    it('resolves a zone, derives organization_id from findNotifiedFor()[0] (T7.5.C4 — never the creator\'s own org), purges zone cache, and emits events', async () => {
       geofencing.resolveZone.mockResolvedValue({ zone_id: 'zone-1', zone: { id: 'zone-1' } });
-      organizations.findByZone.mockResolvedValue({ id: 'org-A', name: 'Org A', zone_id: 'zone-1', created_at: new Date() });
+      organizations.findNotifiedFor.mockResolvedValue([
+        { id: 'org-A', name: 'Org A', zone_id: 'zone-1', created_at: new Date() },
+      ]);
       repo.create.mockResolvedValue(makeRow());
 
       const result = await service.create(
@@ -79,7 +81,7 @@ describe('IncidentsService', () => {
       );
 
       expect(geofencing.resolveZone).toHaveBeenCalledWith({ lat: -2.2, lng: -80.8 });
-      expect(organizations.findByZone).toHaveBeenCalledWith('zone-1');
+      expect(organizations.findNotifiedFor).toHaveBeenCalledWith('zone-1', null);
       expect(repo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           zoneId: 'zone-1',
@@ -103,6 +105,7 @@ describe('IncidentsService', () => {
 
     it('still accepts (does not throw) an incident outside all zones, persisting organization_id=null (R2/D4)', async () => {
       geofencing.resolveZone.mockResolvedValue({ zone_id: null, zone: null });
+      organizations.findNotifiedFor.mockResolvedValue([]);
       repo.create.mockResolvedValue(makeRow({ zone_id: null, geofence_matched: false, organization_id: null }));
 
       const result = await service.create(
@@ -110,7 +113,7 @@ describe('IncidentsService', () => {
         'user-1',
       );
 
-      expect(organizations.findByZone).toHaveBeenCalledWith(null);
+      expect(organizations.findNotifiedFor).toHaveBeenCalledWith(null, null);
       expect(repo.create).toHaveBeenCalledWith(
         expect.objectContaining({ zoneId: null, geofenceMatched: false, organizationId: null }),
       );
@@ -119,7 +122,7 @@ describe('IncidentsService', () => {
 
     it('persists organization_id=null when the zone has no organization', async () => {
       geofencing.resolveZone.mockResolvedValue({ zone_id: 'zone-9', zone: { id: 'zone-9' } });
-      organizations.findByZone.mockResolvedValue(null);
+      organizations.findNotifiedFor.mockResolvedValue([]);
       repo.create.mockResolvedValue(makeRow({ zone_id: 'zone-9', organization_id: null }));
 
       await service.create(
@@ -128,6 +131,24 @@ describe('IncidentsService', () => {
       );
 
       expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ organizationId: null }));
+    });
+
+    it('T7.5.C4 — picks the first org when findNotifiedFor returns several (auto-assign matches is_claimable)', async () => {
+      geofencing.resolveZone.mockResolvedValue({ zone_id: 'zone-1', zone: { id: 'zone-1' } });
+      organizations.findNotifiedFor.mockResolvedValue([
+        { id: 'org-primary', name: 'Primary', zone_id: 'zone-1', created_at: new Date('2026-01-01') },
+        { id: 'org-secondary', name: 'Secondary', zone_id: 'zone-1', created_at: new Date('2026-01-02') },
+      ]);
+      repo.create.mockResolvedValue(makeRow({ organization_id: 'org-primary' }));
+
+      await service.create(
+        { title: 'Pothole', lat: -2.2, lng: -80.8 } as unknown as Parameters<typeof service.create>[0],
+        'user-1',
+      );
+
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 'org-primary' }),
+      );
     });
   });
 

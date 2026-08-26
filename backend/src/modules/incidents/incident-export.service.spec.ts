@@ -3,7 +3,7 @@ import { IncidentExportService } from './incident-export.service';
 import { AuthContext } from '../../common/authz/subject-scope';
 
 const ADMIN: AuthContext = {
-  userId: 'a-1', roleName: 'admin_sistema', organizationId: null,
+  userId: 'a-1', roleName: 'master', organizationId: null,
   permissions: ['READ dashboard'], scope: { kind: 'global' }, sessionId: null, isAnonymous: false,
 };
 

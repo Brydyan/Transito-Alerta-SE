@@ -7,7 +7,7 @@ type MockCache = { get: jest.Mock; set: jest.Mock };
 
 const SYSTEM_ADMIN: AuthContext = {
   userId: 'admin-1',
-  roleName: 'admin_sistema',
+  roleName: 'master',
   organizationId: null,
   permissions: ['READ dashboard'],
   scope: { kind: 'global' },
@@ -17,7 +17,7 @@ const SYSTEM_ADMIN: AuthContext = {
 
 const ORG_ADMIN: AuthContext = {
   userId: 'org-admin-1',
-  roleName: 'admin_organizacion',
+  roleName: 'admin_org',
   organizationId: 'org-uuid-1',
   permissions: ['READ dashboard'],
   scope: { kind: 'org', organizationId: 'org-uuid-1' },

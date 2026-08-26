@@ -21,6 +21,13 @@ export class PermissionEntity {
   @Column({ type: 'varchar' })
   action!: PermissionAction;
 
+  /** T7.2 (0031) — soft delete. Excluded from the catalog listing. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
+
+  @Column({ name: 'updated_at', type: 'timestamptz', update: false })
+  updatedAt!: Date;
 }

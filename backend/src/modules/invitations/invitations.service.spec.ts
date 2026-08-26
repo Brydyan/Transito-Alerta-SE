@@ -11,7 +11,7 @@ function actor(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'actor-1',
     permissions: [],
     organizationId: 'org-1',
-    roleName: 'admin_organizacion',
+    roleName: 'admin_org',
     scope: { kind: 'org', organizationId: 'org-1' },
     sessionId: 'session-actor-1',
     isAnonymous: false,
@@ -67,7 +67,7 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
 
   describe('createInvitation', () => {
     it('409 EMAIL_ALREADY_CLAIMED pre-check happens before any token is generated', async () => {
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_organizacion' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
       organizationRepo.findOne.mockResolvedValue({ id: 'org-1', name: 'Santa Elena' });
       invitationsRepository.findByClaimedEmail.mockResolvedValue({ id: 'existing-user' });
 
@@ -88,7 +88,7 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
     });
 
     it('403 via assertCanInvite when the org is out of the actor scope', async () => {
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_organizacion' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
       organizationRepo.findOne.mockResolvedValue({ id: 'org-2', name: 'Other Org' });
 
       await expect(
@@ -101,7 +101,7 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
     });
 
     it('happy path: inserts the row and enqueues the invitation mail', async () => {
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_organizacion' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
       organizationRepo.findOne.mockResolvedValue({ id: 'org-1', name: 'Santa Elena' });
       invitationsRepository.findByClaimedEmail.mockResolvedValue(null);
       invitationsRepository.insertPending.mockResolvedValue({

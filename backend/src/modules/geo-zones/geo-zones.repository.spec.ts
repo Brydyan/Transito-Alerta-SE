@@ -111,6 +111,7 @@ describe('GeoZonesRepository', () => {
         level: 'provincia',
         active: true,
         polygon: { type: 'MultiPolygon', coordinates: [] },
+        code: null,
         created_at: new Date(),
       };
       dataSource.query.mockResolvedValue([returnedRow]);
@@ -121,6 +122,7 @@ describe('GeoZonesRepository', () => {
         level: 'provincia',
         active: true,
         polygon: { type: 'Polygon', coordinates: [] },
+        code: null,
       });
 
       const [sql, params] = dataSource.query.mock.calls[0];
@@ -133,6 +135,7 @@ describe('GeoZonesRepository', () => {
         'provincia',
         true,
         JSON.stringify({ type: 'Polygon', coordinates: [] }),
+        null,
       ]);
       expect(result).toEqual(returnedRow);
     });
@@ -149,11 +152,23 @@ describe('GeoZonesRepository', () => {
         level: undefined,
         active: undefined,
         polygon: undefined,
+        codeProvided: false,
+        code: undefined,
       });
 
       const [sql, params] = dataSource.query.mock.calls[0];
       expect(sql).toContain('WHEN $3::boolean THEN $4::uuid ELSE parent_id');
-      expect(params).toEqual(['zone-1', undefined, true, null, undefined, undefined, undefined]);
+      expect(params).toEqual([
+        'zone-1',
+        undefined,
+        true,
+        null,
+        undefined,
+        undefined,
+        undefined,
+        false,
+        undefined,
+      ]);
     });
 
     it('leaves parent_id untouched when parentIdProvided is false (field absent from the patch)', async () => {
@@ -166,10 +181,51 @@ describe('GeoZonesRepository', () => {
         level: undefined,
         active: undefined,
         polygon: undefined,
+        codeProvided: false,
+        code: undefined,
       });
 
       const [, params] = dataSource.query.mock.calls[0];
-      expect(params).toEqual(['zone-1', 'Renamed', false, undefined, undefined, undefined, undefined]);
+      expect(params).toEqual([
+        'zone-1',
+        'Renamed',
+        false,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        false,
+        undefined,
+      ]);
+    });
+
+    it('sets code when codeProvided is true, even to null (clear the code)', async () => {
+      dataSource.query.mockResolvedValue([{ id: 'zone-1' }]);
+
+      await repository.update('zone-1', {
+        name: undefined,
+        parentIdProvided: false,
+        parentId: undefined,
+        level: undefined,
+        active: undefined,
+        polygon: undefined,
+        codeProvided: true,
+        code: null,
+      });
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('WHEN $8::boolean THEN $9::varchar ELSE code');
+      expect(params).toEqual([
+        'zone-1',
+        undefined,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        true,
+        null,
+      ]);
     });
 
     it('returns null when no row matched the id', async () => {
@@ -182,6 +238,8 @@ describe('GeoZonesRepository', () => {
         level: undefined,
         active: undefined,
         polygon: undefined,
+        codeProvided: false,
+        code: undefined,
       });
 
       expect(result).toBeNull();
