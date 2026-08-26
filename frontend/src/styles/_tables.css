@@ -1,0 +1,76 @@
+@layer components {
+  /* =====================
+     Global Table Styles
+     ===================== */
+  
+  .custom-table {
+    @apply w-full border-separate border-spacing-0;
+  }
+  
+  .custom-table th {
+    @apply bg-bg-primary text-slate-800 border-b-2 border-border-subtle px-5 py-3.5 text-[0.8rem] font-semibold uppercase tracking-wide align-middle;
+  }
+  
+  .custom-table td {
+    @apply px-5 py-3.5 border-b border-border-subtle align-middle text-slate-800 text-[0.9rem] bg-bg-secondary;
+  }
+  
+  .custom-table tbody tr {
+    @apply transition-colors duration-150 ease-in-out;
+  }
+  
+  .custom-table.table-hover tbody tr:hover td {
+    @apply bg-slate-50;
+  }
+  
+  .custom-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  
+  /* Checkboxes */
+  .table-checkbox {
+    @apply w-[1.1em] h-[1.1em] rounded border-slate-300 cursor-pointer;
+  }
+  
+  .table-checkbox:checked {
+    @apply bg-brand-navy border-brand-navy;
+  }
+  
+  /* Filter pills */
+  .btn-filter {
+    @apply text-[0.85rem] font-medium text-slate-500 bg-transparent border border-transparent transition-all duration-200 px-3 py-1.5 rounded-md;
+  }
+  
+  .btn-filter:hover {
+    @apply bg-bg-primary text-slate-800;
+  }
+  
+  .btn-filter.active {
+    @apply bg-bg-primary border-slate-200 text-slate-800;
+  }
+  
+  /* Search */
+  .search-group {
+    @apply w-[250px];
+  }
+  
+  .search-group .form-control {
+    @apply text-[0.9rem];
+  }
+  
+  .search-group .form-control:focus {
+    @apply shadow-none border-border-subtle;
+  }
+  
+  /* Page size selector */
+  .page-size-select {
+    @apply w-[70px] text-[0.85rem] border-slate-200 rounded-lg py-[0.2rem] px-2;
+  }
+  
+  /* Evitar que el dropdown de acciones se corte en las tablas con pocos registros en tabletas y desktops */
+  @media (min-width: 768px) {
+    .table-responsive {
+      overflow: visible !important;
+    }
+  }
+}

@@ -1,0 +1,312 @@
+<div class="role-editor-container p-4">
+  <!-- Header de página -->
+  <div class="page-header mb-6 flex items-center justify-between flex-wrap gap-4">
+    <div class="flex items-center gap-4">
+      <button
+        class="btn btn-outline-secondary w-9 h-9 flex items-center justify-center rounded"
+        type="button"
+        (click)="goBack()"
+        title="Volver a roles"
+      >
+        <i class="bi bi-arrow-left"></i>
+      </button>
+      <div>
+        <h3 class="font-bold mb-1 text-slate-800 text-2xl">{{ role()?.nombre ?? '...' }}</h3>
+        <p class="text-slate-500 text-sm mb-0">Configurá los permisos asignados a este rol.</p>
+      </div>
+    </div>
+
+    <button
+      class="btn btn-primary flex items-center gap-2 font-medium px-4 py-2"
+      type="button"
+      [disabled]="isSaving() || !hasChanges() || isLoading()"
+      (click)="save()"
+    >
+      @if (isSaving()) {
+        <span class="spinner-border spinner-border-sm w-4 h-4 border-2" role="status" aria-hidden="true"></span>
+        <span>Guardando...</span>
+      } @else {
+        <i class="bi bi-floppy"></i>
+        <span>Guardar cambios</span>
+      }
+    </button>
+  </div>
+
+  <div class="card border-none shadow-sm rounded-lg overflow-hidden">
+    <!-- Header de la tarjeta: Filtros y Acciones -->
+    <div
+      class="card-header bg-bg-secondary border-b-0 pt-6 pb-4 px-6 flex justify-between items-center flex-wrap gap-4"
+    >
+      <!-- Input de búsqueda -->
+      <div class="flex items-center gap-2 flex-wrap grow max-w-lg">
+        <div class="relative grow flex items-center w-full">
+          <span class="absolute left-3 text-slate-500">
+            <i class="bi bi-search"></i>
+          </span>
+          <input
+            type="text"
+            class="form-control pl-9 pr-9"
+            placeholder="Buscar módulo, acción o descripción..."
+            [ngModel]="searchTerm()"
+            (ngModelChange)="onSearchChange($event)"
+          />
+          @if (searchTerm()) {
+            <button
+              class="absolute right-2 text-slate-500 hover:text-slate-800"
+              type="button"
+              (click)="onSearchChange('')"
+            >
+              <i class="bi bi-x text-lg"></i>
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Acciones de control -->
+      <div class="flex items-center gap-3 flex-wrap">
+        <span
+          class="badge bg-brand-navy/10 text-brand-navy border border-brand-navy/20 px-4 py-2 text-sm rounded-full"
+        >
+          {{ totalStats().assignedCount }} de {{ totalStats().total }} permisos
+        </span>
+
+        <div class="inline-flex rounded-md shadow-sm" role="group">
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-l-md hover:bg-slate-50 focus:z-10 focus:ring-2 focus:ring-brand-navy/20"
+            (click)="expandAll()"
+            title="Expandir módulos"
+          >
+            <i class="bi bi-arrows-expand mr-1"></i>Expandir
+          </button>
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-l-0 border-slate-200 rounded-r-md hover:bg-slate-50 focus:z-10 focus:ring-2 focus:ring-brand-navy/20"
+            (click)="collapseAll()"
+            title="Colapsar módulos"
+          >
+            <i class="bi bi-arrows-collapse mr-1"></i>Colapsar
+          </button>
+        </div>
+
+        <div class="inline-flex rounded-md shadow-sm" role="group">
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium text-brand-navy bg-white border border-brand-navy/30 rounded-l-md hover:bg-brand-navy/10 focus:z-10"
+            (click)="selectAllVisible()"
+          >
+            Marcar visibles
+          </button>
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-l-0 border-red-300 rounded-r-md hover:bg-red-50 focus:z-10"
+            (click)="deselectAllVisible()"
+          >
+            Desmarcar visibles
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cuerpo: Tabla -->
+    <div class="pt-2">
+      @if (isLoading()) {
+        <div class="flex justify-center items-center py-12">
+          <div class="spinner-border text-brand-navy w-8 h-8 border-2" role="status">
+            <span class="sr-only">Cargando permisos...</span>
+          </div>
+        </div>
+      } @else {
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse custom-table">
+            <thead>
+              <tr>
+                <th scope="col" class="text-center w-12 pl-4">#</th>
+                <th scope="col" class="w-72">
+                  Módulo / Recurso
+                </th>
+                <th
+                  scope="col"
+                  class="text-center w-36"
+                >
+                  Asignados
+                </th>
+                <th scope="col" class="pr-6">Acciones Permitidas</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (group of pagedGroups(); track group.recurso) {
+                <!-- Fila Principal del Módulo -->
+                <tr class="module-row" [class.bg-slate-50]="expandedGroups().has(group.recurso)">
+                  <!-- Botón expandir/colapsar -->
+                  <td
+                    class="text-center pl-4 cursor-pointer"
+                    (click)="toggleExpansion(group.recurso)"
+                  >
+                    <button
+                      type="button"
+                      class="text-slate-800 hover:text-brand-navy transition-colors"
+                      aria-label="Alternar expansión"
+                    >
+                      <i
+                        class="bi text-brand-navy text-base"
+                        [class.bi-chevron-down]="expandedGroups().has(group.recurso)"
+                        [class.bi-chevron-right]="!expandedGroups().has(group.recurso)"
+                      ></i>
+                    </button>
+                  </td>
+
+                  <!-- Checkbox del Módulo completo -->
+                  <td (click)="toggleExpansion(group.recurso)" class="cursor-pointer">
+                    <div class="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        class="form-check-input table-checkbox mt-0"
+                        [checked]="group.allSelected"
+                        [indeterminate]="group.indeterminate"
+                        (click)="$event.stopPropagation(); toggleGroup(group)"
+                      />
+                      <span class="font-semibold capitalize text-slate-800">
+                        {{ group.recurso }}
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Badge de conteo asignado -->
+                  <td
+                    class="text-center cursor-pointer"
+                    (click)="toggleExpansion(group.recurso)"
+                  >
+                    @if (group.allSelected) {
+                      <span class="badge bg-status-success text-white rounded-full px-3 py-1 text-xs">
+                        {{ group.assignedCount }} / {{ group.items.length }}
+                      </span>
+                    } @else if (group.assignedCount > 0) {
+                      <span class="badge bg-amber-500 text-white rounded-full px-3 py-1 text-xs">
+                        {{ group.assignedCount }} / {{ group.items.length }}
+                      </span>
+                    } @else {
+                      <span class="badge bg-slate-500 text-white rounded-full px-3 py-1 text-xs">
+                        0 / {{ group.items.length }}
+                      </span>
+                    }
+                  </td>
+
+                  <!-- Pills de acciones en fila -->
+                  <td class="pr-6">
+                    <div class="flex flex-wrap gap-2 items-center">
+                      @for (perm of group.items; track perm.permisoId) {
+                        <div
+                          class="permission-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer"
+                          [class.active-pill]="perm.assigned"
+                          role="button"
+                          tabindex="0"
+                          (click)="togglePermission(perm.permisoId)"
+                          (keydown.enter)="
+                            togglePermission(perm.permisoId); $event.preventDefault()
+                          "
+                          (keydown.space)="
+                            togglePermission(perm.permisoId); $event.preventDefault()
+                          "
+                          title="{{ perm.nombre }}: {{ perm.descripcion || '' }}"
+                        >
+                          <input
+                            type="checkbox"
+                            class="form-check-input table-checkbox m-0 w-3 h-3"
+                            [checked]="perm.assigned"
+                            (click)="$event.stopPropagation(); togglePermission(perm.permisoId)"
+                          />
+                          <span class="font-mono text-[0.7rem] font-medium uppercase">{{
+                            perm.accion
+                          }}</span>
+                        </div>
+                      }
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Fila expandida con descripción completa de cada permiso -->
+                @if (expandedGroups().has(group.recurso)) {
+                  <tr class="expanded-detail-row">
+                    <td colspan="4" class="p-4 pl-6 pr-6">
+                      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        @for (perm of group.items; track perm.permisoId) {
+                          <div
+                            class="card border p-3 h-full cursor-pointer transition-colors"
+                            [class.border-brand-navy]="perm.assigned"
+                            [class.bg-brand-navy/5]="perm.assigned"
+                            [class.bg-white]="!perm.assigned"
+                            role="button"
+                            tabindex="0"
+                            (click)="togglePermission(perm.permisoId)"
+                            (keydown.enter)="
+                              togglePermission(perm.permisoId); $event.preventDefault()
+                            "
+                            (keydown.space)="
+                              togglePermission(perm.permisoId); $event.preventDefault()
+                            "
+                          >
+                            <div class="flex gap-3 items-start">
+                              <input
+                                type="checkbox"
+                                class="form-check-input table-checkbox mt-1 shrink-0"
+                                [checked]="perm.assigned"
+                                (click)="
+                                  $event.stopPropagation(); togglePermission(perm.permisoId)
+                                "
+                              />
+                              <div>
+                                <div class="font-semibold text-sm text-slate-800">{{ perm.nombre }}</div>
+                                @if (perm.descripcion) {
+                                  <div class="text-slate-500 x-small mt-1">
+                                    {{ perm.descripcion }}
+                                  </div>
+                                }
+                                <span
+                                  class="inline-block bg-slate-100 text-slate-800 border border-slate-200 rounded px-2 py-0.5 font-mono x-small mt-2"
+                                >
+                                  {{ perm.accion }}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                }
+              }
+
+              @if (pagedGroups().length === 0) {
+                <tr>
+                  <td colspan="4" class="text-center py-12">
+                    <i class="bi bi-shield-x text-5xl block mb-3 text-slate-300"></i>
+                    <span class="text-slate-500 text-sm"
+                      >No se encontraron permisos coincidentes con la búsqueda.</span
+                    >
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
+    <!-- Footer / Paginación -->
+    @if (!isLoading() && groupedPermissions().length > 0) {
+      <div class="bg-bg-secondary border-t border-border-subtle px-6 py-4">
+        <app-pagination
+          [totalItems]="groupedPermissions().length"
+          [currentPage]="currentPage()"
+          [pageSize]="pageSize()"
+          [pageSizeOptions]="pageSizeOptions"
+          itemNameSingular="módulo"
+          itemNamePlural="módulos"
+          (pageChange)="onPageChange($event)"
+          (pageSizeChange)="onPageSizeChange($event)"
+        />
+      </div>
+    }
+  </div>
+</div>

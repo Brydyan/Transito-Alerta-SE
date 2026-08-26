@@ -1,0 +1,21 @@
+@reference "../../../../styles.css";
+
+.system-config-container {
+  .header-card {
+    @apply bg-gradient-to-br from-brand-navy/5 to-white/95 border border-brand-navy/15;
+  }
+
+  .custom-config-table {
+    thead th {
+      @apply text-[0.78rem] tracking-[0.5px] uppercase;
+    }
+
+    tbody td {
+      @apply py-4 border-b border-slate-100;
+    }
+  }
+}
+
+.spin {
+  @apply animate-spin;
+}

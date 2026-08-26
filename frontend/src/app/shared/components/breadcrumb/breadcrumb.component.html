@@ -1,0 +1,23 @@
+@if (breadcrumbService.breadcrumbs().length > 0) {
+  <nav aria-label="Navegación de migas de pan" class="pb-4">
+    <ol class="flex flex-wrap items-center gap-2 text-sm text-muted-text m-0 p-0 list-none">
+      <li class="flex items-center">
+        <a routerLink="/app/dashboard" aria-label="Inicio" class="text-muted-text hover:text-primary-color transition-colors">
+          <i class="bi bi-house-door text-base"></i>
+        </a>
+      </li>
+      @for (crumb of breadcrumbService.breadcrumbs(); track crumb.url; let isLast = $last) {
+        <li class="flex items-center text-muted-text/50 px-1">/</li>
+        @if (isLast) {
+          <li class="flex items-center text-dark-text" aria-current="page">
+            <span class="font-semibold">{{ crumb.label }}</span>
+          </li>
+        } @else {
+          <li class="flex items-center">
+            <a [routerLink]="crumb.url" class="text-muted-text hover:text-primary-color transition-colors no-underline">{{ crumb.label }}</a>
+          </li>
+        }
+      }
+    </ol>
+  </nav>
+}

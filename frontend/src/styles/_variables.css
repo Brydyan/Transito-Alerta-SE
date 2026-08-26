@@ -1,0 +1,43 @@
+/* 
+  Global CSS Variables
+  Define color palettes, typography, spacing, and other design tokens here.
+  Corporate Water Theme applied.
+*/
+
+@theme {
+  --color-brand-navy: #1E1E54;
+  --color-brand-navy-light: #2D2D93;
+  --color-brand-hivis: #CCFF00;
+  --color-brand-hivis-hover: #B2D800;
+  --color-brand-hivis-text: #111827;
+  
+  --color-bg-primary: #F8F9FA;
+  --color-bg-secondary: #FFFFFF;
+  --color-border-subtle: #E2E8F0;
+
+  --color-status-critical: #EF142B;
+  --color-status-pending: #FFC600;
+  --color-status-info: #08C3EB;
+  --color-status-success: #2B8A3E;
+
+  --font-sans: 'Barlow Condensed', sans-serif;
+}
+
+:root {
+  /* Legacy & Custom properties fallbacks mapped to new design system */
+  --primary-color: var(--color-brand-navy);
+  --secondary-color: var(--color-brand-navy-light);
+  --accent-color: var(--color-brand-hivis);
+  --info-color: var(--color-status-info);
+  --white: var(--color-bg-secondary);
+  --light-bg: var(--color-bg-primary);
+  --soft-blue-bg: #E0F2FE; /* Optional keeping for layout accents */
+  --dark-text: #334155;
+  --muted-text: #64748B;
+  --border-color: var(--color-border-subtle);
+  --input-focus-ring: rgba(30, 30, 84, 0.2);
+  --success: var(--color-status-success);
+  --warning: var(--color-status-pending);
+  --danger: var(--color-status-critical);
+  --font-family-base: var(--font-sans);
+}

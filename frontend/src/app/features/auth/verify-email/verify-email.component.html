@@ -1,0 +1,176 @@
+<!--
+  verify-email.component — OTP verification surface (story sc-117).
+
+  Refinement (NOT replacement) of the existing gr-* identity.
+  See DESIGN.md and PRODUCT.md for the durable system context.
+
+  Design contract (impeccable:new-work §5):
+
+  THESIS    — Esta pantalla no necesita convencer — necesita ejecutar.
+              La verificación OTP es una tarea puntual: el usuario llega
+              con un código en mano, lo tipea y se va a su destino. La
+              fricción es el enemigo; el input único con `letter-spacing`
+              es un espejismo de affordance. Refinamos el control del
+              código sin tocar la identidad del sistema `gr-*` ya en uso.
+
+  OWN-WORLD — Split-hero violeta a 150° (520px) + panel blanco a la
+              derecha (380px). Banners `gr-login__banner--info/success`.
+              Botón `gr-btn-primary` con gradiente 118° + glow violeta.
+              Celdas `gr-otp` reusan `--border-medium`, `--color-primary`,
+              `--priority-high-text` y los radios/alturas ya tipificados
+              en `gr-login__input`.
+
+  STORY     — Llegas con el código en mano. Escribís tu correo, después
+              tipeás los 6 dígitos — la primera celda recibe el foco si
+              venís del registro, las flechas saltan entre celdas, el
+              pegado llena las 6, backspace retrocede. Al completar las
+              6, foco al botón "Verificar". Si el backend rechaza,
+              las 6 celdas tiemblan brevemente en rojo, el banner de
+              error aparece, y después de 1.2s el estado se limpia.
+
+  FIRST VIEWPORT — Split hero a la izquierda con tres stats útiles
+              (6 dígitos / 15' expira / reenvío cada 60s), panel de form
+              a la derecha con título + subtítulo + banner info + input
+              email + label "Código de verificación (6 dígitos)" + 6
+              celdas OTP + botón Verificar + banner error + reenvío +
+<!--
+  verify-email.component — OTP verification surface (story sc-117).
+
+  Refinement (NOT replacement) of the existing gr-* identity.
+  See DESIGN.md and PRODUCT.md for the durable system context.
+
+  Design contract (impeccable:new-work §5):
+
+  THESIS    — Esta pantalla no necesita convencer — necesita ejecutar.
+              La verificación OTP es una tarea puntual: el usuario llega
+              con un código en mano, lo tipea y se va a su destino. La
+              fricción es el enemigo; el input único con `letter-spacing`
+              es un espejismo de affordance. Refinamos el control del
+              código sin tocar la identidad del sistema `gr-*` ya en uso.
+
+  OWN-WORLD — Split-hero violeta a 150° (520px) + panel blanco a la
+              derecha (380px). Banners `gr-login__banner--info/success`.
+              Botón `gr-btn-primary` con gradiente 118° + glow violeta.
+              Celdas `gr-otp` reusan `--border-medium`, `--color-primary`,
+              `--priority-high-text` y los radios/alturas ya tipificados
+              en `gr-login__input`.
+
+  STORY     — Llegas con el código en mano. Escribís tu correo, después
+              tipeás los 6 dígitos — la primera celda recibe el foco si
+              venís del registro, las flechas saltan entre celdas, el
+              pegado llena las 6, backspace retrocede. Al completar las
+              6, foco al botón "Verificar". Si el backend rechaza,
+              las 6 celdas tiemblan brevemente en rojo, el banner de
+              error aparece, y después de 1.2s el estado se limpia.
+
+  FIRST VIEWPORT — Split hero a la izquierda con tres stats útiles
+              (6 dígitos / 15' expira / reenvío cada 60s), panel de form
+              a la derecha con título + subtítulo + banner info + input
+              email + label "Código de verificación (6 dígitos)" + 6
+              celdas OTP + botón Verificar + banner error + reenvío +
+              link "Volver al inicio de sesión".
+
+  FORM      — Refinamos dentro del sistema `gr-*` ya en uso. Reemplazamos
+              el input OTP único por 6 celdas contiguas con la misma
+              forma, borde y focus ring que `gr-login__input`; mantenemos
+              split-hero, banners, countdown, link "Volver al inicio de sesión", endpoint y mensajes del backend.
+-->
+<section class="h-screen flex m-0 p-0 overflow-hidden">
+  <!-- Left Side: Full Bleed Image / Illustration -->
+  <div class="hidden lg:block lg:w-1/2 xl:w-7/12 p-0 m-0 h-screen bg-brand-navy">
+    <img
+      src="../../../../../public/images/portada-panel-izq.png"
+      class="w-full h-full object-cover block opacity-90 mix-blend-luminosity"
+      alt="Fondo de la CTE"
+    />
+  </div>
+
+  <!-- Right Side: Form Container -->
+  <div class="w-full lg:w-1/2 xl:w-5/12 flex flex-col justify-center px-4 md:px-12 bg-bg-secondary h-screen relative overflow-y-auto">
+    <div class="w-full mx-auto max-w-sm py-8">
+      <div class="mb-10 flex justify-center w-full">
+        <img
+          src="../../../../../public/images/logo.png"
+          class="max-w-[150px] h-auto mb-4"
+          alt="Logo"
+        />
+      </div>
+
+      <h2 class="text-2xl font-bold text-slate-800 mb-2">Verificá tu correo</h2>
+      <p class="text-slate-500 text-sm mb-6">Ingresá los 6 dígitos que enviamos a tu correo para activar tu cuenta.</p>
+
+      <div id="estado-inicial" class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded mb-6 flex items-start gap-3 text-sm" role="status">
+        <i class="bi bi-info-circle-fill mt-0.5"></i>
+        <span id="inicial-texto">Revisá tu bandeja de entrada e ingresá el código de 6 dígitos.</span>
+      </div>
+
+      <form id="form-otp" novalidate>
+        <div class="mb-4">
+          <label class="form-label" for="otp-email">Correo electrónico</label>
+          <input
+            type="email"
+            id="otp-email"
+            class="form-control"
+            placeholder="tu.correo@ejemplo.com"
+            autocomplete="email"
+            required
+          />
+        </div>
+
+        <div class="mb-6">
+          <span class="form-label mb-2 block" id="otp-label">Código de verificación (6 dígitos)</span>
+          <div class="gr-otp__cells flex gap-2 justify-between" role="group" aria-labelledby="otp-label">
+            <!-- NOTA: Se mantiene la clase gr-otp__cell para no romper verify-email.component.js -->
+            <input type="text" class="gr-otp__cell form-control text-center text-lg font-bold p-0 w-12 h-12 rounded-lg" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code" maxlength="1" aria-label="Dígito 1" />
+            <input type="text" class="gr-otp__cell form-control text-center text-lg font-bold p-0 w-12 h-12 rounded-lg" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Dígito 2" />
+            <input type="text" class="gr-otp__cell form-control text-center text-lg font-bold p-0 w-12 h-12 rounded-lg" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Dígito 3" />
+            <input type="text" class="gr-otp__cell form-control text-center text-lg font-bold p-0 w-12 h-12 rounded-lg" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Dígito 4" />
+            <input type="text" class="gr-otp__cell form-control text-center text-lg font-bold p-0 w-12 h-12 rounded-lg" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Dígito 5" />
+            <input type="text" class="gr-otp__cell form-control text-center text-lg font-bold p-0 w-12 h-12 rounded-lg" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="Dígito 6" />
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full py-2.5 disabled:opacity-70 disabled:cursor-not-allowed mb-4" id="btn-verificar">
+          <span id="btn-verificar-texto">Verificar código</span>
+          <span id="btn-verificar-loading" class="hidden flex items-center justify-center gap-2">
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            Verificando&hellip;
+          </span>
+        </button>
+      </form>
+
+      <div id="estado-exito" class="hidden bg-status-success/10 border border-status-success/30 text-status-success px-4 py-3 rounded mb-4 flex items-center gap-2 text-sm" role="alert">
+        <i class="bi bi-check-circle-fill"></i>
+        <span id="exito-texto">Tu correo fue verificado correctamente.</span>
+      </div>
+
+      <div id="estado-error" class="hidden bg-status-critical/10 border border-status-critical/30 text-status-critical px-4 py-3 rounded mb-4 flex items-center gap-2 text-sm" role="alert">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span id="error-texto">El código OTP es inválido o ha expirado.</span>
+      </div>
+
+      <div class="flex justify-between items-center mt-6 pt-4 border-t border-slate-200">
+        <span class="text-slate-500 text-sm">¿No recibiste el código?</span>
+        <button type="button" class="btn btn-link px-0 font-bold text-sm" id="btn-reenviar">
+          <span id="btn-texto">Reenviar código</span>
+          <span id="btn-loading" class="hidden flex items-center gap-1">
+            <span class="spinner-border spinner-border-sm border-2" role="status" aria-hidden="true"></span>
+            Enviando...
+          </span>
+          <span id="btn-countdown" class="hidden text-slate-500 font-normal"></span>
+        </button>
+      </div>
+
+      <div id="estado-reenvio" class="hidden bg-status-success/10 border border-status-success/30 text-status-success px-4 py-3 rounded mt-4 flex items-center gap-2 text-sm" role="status">
+        <i class="bi bi-check-circle-fill"></i>
+        <span id="reenvio-texto">Te hemos enviado un nuevo código de verificación.</span>
+      </div>
+
+      <div class="text-center mt-8">
+        <a href="#/login" class="text-slate-500 underline text-sm hover:text-brand-navy font-medium transition-colors inline-flex items-center gap-2">
+          <i class="bi bi-arrow-left"></i> Volver al inicio de sesión
+        </a>
+      </div>
+    </div>
+  </div>
+</section>

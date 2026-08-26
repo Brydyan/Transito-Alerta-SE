@@ -1,0 +1,29 @@
+@layer components {
+  /* =====================
+     Global Form Controls
+     ===================== */
+
+  .form-label {
+    @apply block text-slate-500 text-sm font-semibold mb-1;
+  }
+
+  .form-control,
+  .form-select,
+  .form-control-simple {
+    @apply w-full px-4 py-2 text-sm border border-border-subtle rounded-md bg-white text-slate-800 transition-colors duration-200 focus:outline-none focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 placeholder:text-slate-300;
+  }
+
+  .form-control[disabled],
+  .form-select[disabled],
+  .form-control-simple[disabled] {
+    @apply bg-slate-50 text-slate-500 cursor-not-allowed opacity-100;
+  }
+
+  .form-control-invalid {
+    @apply border-status-critical focus:border-status-critical focus:ring-status-critical/20;
+  }
+
+  .form-text {
+    @apply mt-1 text-xs text-slate-500;
+  }
+}

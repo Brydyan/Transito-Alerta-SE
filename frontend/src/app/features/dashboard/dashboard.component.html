@@ -1,0 +1,25 @@
+<div class="dashboard-container">
+  <!-- Mensaje de Bienvenida -->
+  @if (authService.currentUser(); as user) {
+    <div class="bg-bg-secondary border border-border-subtle rounded-lg mb-6 p-4">
+      <div class="flex items-center">
+        <div
+          class="avatar bg-brand-navy text-white rounded-full flex items-center justify-center mr-4 overflow-hidden w-12 h-12 text-xl shrink-0"
+        >
+          @if (user?.avatar) {
+            <img [src]="user?.avatar" [alt]="user?.name" class="w-full h-full object-cover" />
+          } @else {
+            {{ user?.name?.charAt(0)?.toUpperCase() }}
+          }
+        </div>
+        <div>
+          <h5 class="mb-1 text-lg font-medium">¡Bienvenido, {{ user?.name }}!</h5>
+          <p class="mb-0 text-slate-500 text-sm">
+            <i class="bi bi-shield-check mr-1"></i>
+            Rol: <strong>{{ user.roleName }}</strong> | Email: {{ user.email }}
+          </p>
+        </div>
+      </div>
+    </div>
+  }
+</div>

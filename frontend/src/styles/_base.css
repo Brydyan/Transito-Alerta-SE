@@ -1,0 +1,35 @@
+/* 
+  Base Styles
+  Unopinionated HTML element styles, resets, and typography defaults.
+*/
+
+@layer base {
+  html,
+  body {
+    @apply h-full m-0 p-0 font-sans bg-bg-primary text-slate-700 antialiased leading-relaxed;
+  }
+
+  h1 {
+    @apply font-sans font-bold text-4xl text-[#1A1A1A] leading-tight;
+  }
+
+  h2 {
+    @apply font-sans font-semibold text-2xl text-brand-navy;
+  }
+
+  h3 {
+    @apply font-sans font-medium text-lg text-slate-600;
+  }
+
+  h4, h5, h6 {
+    @apply font-sans font-semibold text-slate-800 tracking-tight;
+  }
+
+  a {
+    @apply text-brand-navy-light no-underline transition-all duration-200;
+  }
+
+  a:hover {
+    @apply text-brand-navy underline;
+  }
+}

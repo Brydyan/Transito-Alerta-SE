@@ -1,0 +1,42 @@
+@layer components {
+  /* ===================== 
+    Modal Styles 
+    ===================== */
+  .modal-backdrop-custom {
+    @apply fixed inset-0 bg-brand-navy/60 z-[1040] animate-[fadeIn_0.2s_ease];
+  }
+
+  .modal-custom {
+    @apply fixed inset-0 z-[1050] flex items-center justify-center p-4 pointer-events-none;
+  }
+
+  .modal-card {
+    @apply bg-bg-secondary rounded-2xl shadow-[0_20px_60px_rgba(30,30,84,0.18)] w-full max-w-[520px] pointer-events-auto animate-[slideUp_0.25s_ease];
+  }
+
+  .modal-card-sm {
+    @apply max-w-[420px];
+  }
+
+  .modal-card-header {
+    @apply px-6 py-5 border-b border-border-subtle flex items-center justify-between;
+  }
+
+  .modal-card-body {
+    @apply p-6;
+  }
+
+  .modal-card-footer {
+    @apply px-6 py-4 border-t border-border-subtle bg-slate-50 rounded-b-2xl flex justify-end gap-3;
+  }
+
+  .btn-close-modal {
+    @apply bg-transparent border-none text-slate-400 text-base cursor-pointer p-1 leading-none transition-colors duration-200 hover:text-brand-navy;
+  }
+
+  /* Form controls inside modal */
+  .modal-card-body .form-control,
+  .modal-card-body .form-select {
+    @apply border-border-subtle rounded-lg text-sm focus:border-brand-navy focus:ring focus:ring-brand-navy/20;
+  }
+}

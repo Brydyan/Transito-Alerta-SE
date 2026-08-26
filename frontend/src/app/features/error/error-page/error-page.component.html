@@ -1,0 +1,22 @@
+<div class="error-container">
+  <div class="error-card">
+    <div class="mascot-wrapper">
+      <img
+        src="/assets/images/error_mascot.jpg"
+        alt="Imagen representativa para 404"
+        class="mascot-img"
+      />
+    </div>
+
+    <h1 class="error-code">{{ errorCode }}</h1>
+    <h2 class="error-title">{{ errorTitle }}</h2>
+    <p class="error-desc">{{ errorDescription }}</p>
+
+    <button
+      routerLink="/app/dashboard"
+      class="btn btn-primary btn-lg rounded-pill px-4 fw-semibold"
+    >
+      Volver al Panel de Inicio
+    </button>
+  </div>
+</div>

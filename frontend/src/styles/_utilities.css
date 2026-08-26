@@ -1,0 +1,14 @@
+@layer utilities {
+  .hover-primary:hover {
+    @apply text-brand-navy;
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+  }
+
+  /* Polyfill for legacy Bootstrap JS classes */
+  .d-none {
+    display: none !important;
+  }
+}

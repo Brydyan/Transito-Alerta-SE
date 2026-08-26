@@ -1,0 +1,49 @@
+@layer components {
+  /* =====================
+    Badges and Avatars
+    ===================== */
+
+  /* User avatar circle */
+  .user-avatar {
+    @apply w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 bg-brand-navy text-white;
+  }
+
+  /* Role badges */
+  .badge {
+    @apply px-3 py-1.5 text-xs tracking-wide rounded-full font-medium inline-block font-sans;
+  }
+
+  .badge-rol-admin {
+    @apply bg-indigo-50 text-[#4C3DA8] font-semibold;
+  }
+
+  .badge-rol-operador,
+  .badge-rol-default {
+    @apply bg-slate-100 text-[#475569] font-medium;
+  }
+
+  /* Status Badges */
+  .badge-soft-success,
+  .badge-status-resolved {
+    @apply bg-[#2B8A3E]/10 text-[#2B8A3E] border border-[#2B8A3E]/20;
+  }
+
+  .badge-soft-warning,
+  .badge-status-pending {
+    @apply bg-[#FFC600]/10 text-[#B28A00] border border-[#FFC600]/30;
+  }
+
+  .badge-soft-danger,
+  .badge-status-critical {
+    @apply bg-[#EF142B]/10 text-[#EF142B] border border-[#EF142B]/20;
+  }
+
+  .badge-soft-info,
+  .badge-status-info {
+    @apply bg-[#08C3EB]/10 text-[#068CA8] border border-[#08C3EB]/20;
+  }
+
+  .badge-soft-secondary {
+    @apply bg-slate-100 text-slate-700 border border-slate-200;
+  }
+}

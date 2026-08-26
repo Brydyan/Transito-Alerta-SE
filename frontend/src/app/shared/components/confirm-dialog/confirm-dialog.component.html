@@ -1,0 +1,44 @@
+@if (config(); as dialog) {
+  <button
+    type="button"
+    class="modal-backdrop-custom border-none cursor-default"
+    (click)="onCancel()"
+    aria-label="Cerrar diálogo de confirmación"
+  ></button>
+
+  <div class="modal-custom" role="dialog" aria-modal="true">
+    <div class="modal-card modal-card-sm">
+      <div class="modal-card-header">
+        <h5 class="font-bold mb-0 text-lg flex items-center" [class.text-status-critical]="dialog.isDanger">
+          <i
+            class="bi mr-2 text-xl"
+            [ngClass]="dialog.isDanger ? 'bi-exclamation-triangle-fill' : 'bi-question-circle-fill'"
+          ></i>
+          {{ dialog.title || 'Confirmación' }}
+        </h5>
+        <button type="button" class="btn-close-modal" (click)="onCancel()" aria-label="Cerrar">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+
+      <div class="modal-card-body text-center py-8">
+        <p class="text-slate-500 mb-0">{{ dialog.message }}</p>
+      </div>
+
+      <div class="modal-card-footer">
+        <button type="button" class="btn btn-outline-secondary font-medium px-6" (click)="onCancel()">
+          {{ dialog.cancelText || 'Cancelar' }}
+        </button>
+        <button
+          type="button"
+          class="btn font-medium px-6"
+          [class.btn-danger]="dialog.isDanger"
+          [class.btn-primary]="!dialog.isDanger"
+          (click)="onConfirm()"
+        >
+          {{ dialog.confirmText || 'Aceptar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

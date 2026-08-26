@@ -1,0 +1,5 @@
+.breadcrumb {
+  font-size: 0.82rem;
+  --bs-breadcrumb-item-active-color: var(--dark-text);
+  --bs-breadcrumb-divider-color: var(--muted-text);
+}

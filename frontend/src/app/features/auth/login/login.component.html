@@ -1,0 +1,154 @@
+<section class="h-screen w-full flex overflow-hidden bg-bg-secondary" @fadeAnimation>
+  <!-- Left Side: Full Bleed Image / Illustration -->
+  <div class="hidden md:block md:w-1/2 lg:w-7/12 h-full bg-brand-navy relative">
+    <img
+      src="/images/portada-panel-izq.png"
+      alt="Imagen de portada en el panel izquierdo"
+      class="absolute inset-0 w-full h-full object-cover opacity-90 mix-blend-luminosity"
+    />
+  </div>
+
+  <!-- Right Side: Form Container -->
+  <div
+    class="w-full md:w-1/2 lg:w-5/12 flex flex-col justify-center px-6 md:px-12 h-full relative"
+    @slideUpAnimation
+  >
+    <div class="w-full mx-auto max-w-sm">
+      <!-- Opcional: Logo Corporativo para mantener la identidad del proyecto -->
+      <div class="mb-10 flex justify-center w-full">
+        <img src="/images/logo-cte.png" class="max-w-[250px] h-auto mb-4" alt="Logo" />
+      </div>
+
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" @staggerFormElements>
+        <!-- Mensaje de error general -->
+        @if (errorMessage()) {
+          <div
+            class="bg-red-100 border border-red-400 text-status-critical px-4 py-3 rounded relative mb-4 flex justify-between items-center"
+            role="alert"
+          >
+            <span>{{ errorMessage() }}</span>
+            <button
+              type="button"
+              class="text-status-critical hover:text-red-900 focus:outline-none"
+              (click)="errorMessage.set(null)"
+              aria-label="Close"
+            >
+              <svg
+                class="fill-current h-4 w-4"
+                role="button"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"
+                />
+              </svg>
+            </button>
+          </div>
+        }
+
+        <!-- Usuario input -->
+        <div class="mb-4">
+          <label class="form-label" for="email">Usuario</label>
+          <input
+            type="email"
+            id="email"
+            class="form-control"
+            formControlName="email"
+            placeholder="admin@correo.com"
+            [ngClass]="{ 'form-control-invalid': submitted() && f['email'].errors }"
+          />
+          @if (submitted() && f['email'].errors) {
+            <div class="text-status-critical text-xs mt-1">
+              @if (f['email'].errors['required']) {
+                <div>El usuario es requerido</div>
+              }
+              @if (f['email'].errors['email']) {
+                <div>Debe ser un correo válido</div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Password input -->
+        <div class="mb-6">
+          <label class="form-label" for="password">Contraseña</label>
+          <input
+            type="password"
+            id="password"
+            class="form-control"
+            formControlName="password"
+            placeholder="••••••••"
+            [ngClass]="{ 'form-control-invalid': submitted() && f['password'].errors }"
+          />
+          @if (submitted() && f['password'].errors) {
+            <div class="text-status-critical text-xs mt-1">
+              @if (f['password'].errors['required']) {
+                <div>La contraseña es requerida</div>
+              }
+              @if (f['password'].errors['minlength']) {
+                <div>Mínimo 6 caracteres</div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Contenedor de botones -->
+        <div class="mb-4">
+          <button
+            type="submit"
+            class="btn btn-primary w-full py-2.5 disabled:opacity-70 disabled:cursor-not-allowed"
+            [disabled]="loading()"
+          >
+            @if (!loading()) {
+              <span>Iniciar Sesión</span>
+            }
+            @if (loading()) {
+              <span class="flex items-center">
+                <svg
+                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-brand-hivis-text"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Cargando...
+              </span>
+            }
+          </button>
+        </div>
+
+        <!-- Forgot Password -->
+        <div class="text-left">
+          <a
+            routerLink="/auth/forgot-password"
+            class="text-slate-500 underline text-sm hover:text-brand-navy font-medium transition-colors"
+            >¿Olvidaste tu contraseña?</a
+          >
+        </div>
+      </form>
+
+      <!-- href de volver esquina superior derecha -->
+      <div class="absolute top-0 right-0 m-6">
+        <a
+          href="#!"
+          class="text-slate-500 underline text-sm hover:text-brand-navy font-medium transition-colors"
+          >Volver al inicio</a
+        >
+      </div>
+    </div>
+  </div>
+</section>

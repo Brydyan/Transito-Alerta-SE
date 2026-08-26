@@ -1,0 +1,118 @@
+<nav class="h-full flex flex-col bg-brand-navy">
+  <div class="sidebar-brand flex items-center gap-2 border-b border-white/10">
+    <img src="https://i.imgur.com/oHyMUhU.png" alt="AquaSync Olón Logo" class="brand-logo" />
+    <h5 class="font-bold mb-0 text-white link-text tracking-tight text-[1.05rem]">
+      CTE GeoReporta
+    </h5>
+  </div>
+
+  @if (layoutService.sidebarOpen()) {
+    <div class="sidebar-search px-4 py-3 border-b border-white/10">
+      <div class="flex items-center border border-white/10 rounded-md overflow-hidden bg-transparent focus-within:border-brand-hivis transition-colors">
+        <span class="px-3 text-slate-400">
+          <i class="bi bi-search"></i>
+        </span>
+        <input
+          #searchInput
+          type="text"
+          class="w-full bg-transparent border-none text-sm text-white focus:outline-none focus:ring-0 py-1.5 placeholder:text-slate-500"
+          placeholder="Buscar..."
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+          aria-label="Buscar en el menú"
+        />
+        @if (searchQuery()) {
+          <button
+            type="button"
+            class="px-3 text-slate-400 hover:text-white bg-transparent border-none cursor-pointer"
+            (click)="clearSearch()"
+            aria-label="Limpiar búsqueda"
+          >
+            <i class="bi bi-x-lg text-xs"></i>
+          </button>
+        }
+      </div>
+    </div>
+  } @else {
+    <div class="flex justify-center py-3">
+      <button
+        type="button"
+        class="sidebar-search-icon bg-transparent border-none cursor-pointer"
+        (click)="openSearchAndFocus()"
+        aria-label="Buscar en el menú"
+      >
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  }
+
+  <div class="sidebar-nav flex-grow overflow-y-auto overflow-x-hidden pt-3">
+    <ul class="flex flex-col m-0 p-0 list-none">
+      @for (item of filteredMenuItems(); track item.id) {
+        <li class="mb-1">
+          @if (item.children && item.children.length > 0) {
+            <button
+              type="button"
+              class="nav-link-custom flex justify-between items-center w-full border-none bg-transparent cursor-pointer"
+              (click)="toggleItem(item.id)"
+              [attr.aria-expanded]="effectiveExpandedItems()[item.id]"
+              [matTooltip]="!layoutService.sidebarOpen() ? item.name : ''"
+              matTooltipPosition="right"
+            >
+              <span class="text-inherit flex items-center">
+                @if (item.icon) {
+                  <span class="material-symbols-outlined mr-2 align-middle">{{ item.icon }}</span>
+                }
+                <span class="link-text">{{ item.name }}</span>
+              </span>
+              <i
+                class="bi bi-chevron-down align-middle font-bold text-xs"
+                [ngClass]="{ 'rotate-icon': effectiveExpandedItems()[item.id] }"
+              ></i>
+            </button>
+
+            @if (effectiveExpandedItems()[item.id]) {
+              <div>
+                <ul class="list-none m-0 pb-1 pl-4 text-sm font-normal">
+                  @for (child of item.children; track child.id) {
+                    <li>
+                      <a
+                        [routerLink]="child.route"
+                        routerLinkActive="active"
+                        class="nav-link-sub rounded-lg"
+                      >
+                        {{ child.name }}
+                      </a>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+          }
+
+          @if (!item.children || item.children.length === 0) {
+            <a
+              [routerLink]="item.route"
+              routerLinkActive="active"
+              class="nav-link-custom flex items-center text-inherit no-underline"
+              [matTooltip]="!layoutService.sidebarOpen() ? item.name : ''"
+              matTooltipPosition="right"
+            >
+              @if (item.icon) {
+                <span class="material-symbols-outlined mr-2 align-middle">{{ item.icon }}</span>
+              }
+              <span class="link-text" [class.pl-4]="!item.icon">{{ item.name }}</span>
+            </a>
+          }
+        </li>
+      }
+
+      @if (filteredMenuItems().length === 0 && searchQuery()) {
+        <li class="px-4 py-5 text-center text-slate-400 text-sm sidebar-empty-state">
+          <i class="bi bi-search block mb-2 text-xl opacity-40"></i>
+          Sin resultados
+        </li>
+      }
+    </ul>
+  </div>
+</nav>

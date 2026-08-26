@@ -1,0 +1,43 @@
+<div class="fixed top-0 right-0 p-6 z-[1090] flex flex-col gap-3">
+  @for (toast of toasts(); track toast.id) {
+    <div
+      class="custom-toast flex flex-col shadow-lg rounded-xl overflow-hidden bg-white w-80 max-w-full"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+      [class]="'toast-' + toast.type"
+    >
+      <div class="toast-content flex items-center p-4">
+        <div class="toast-icon-wrapper flex items-center justify-center mr-4">
+          <i class="bi text-xl" [ngClass]="getIconClass(toast.type)"></i>
+        </div>
+
+        <div class="toast-body-wrapper flex-grow">
+          @if (toast.title) {
+            <h6 class="toast-title font-bold text-sm mb-1 text-slate-800">{{ toast.title }}</h6>
+          }
+          <p class="toast-message mb-0 text-sm text-slate-500">{{ toast.message }}</p>
+        </div>
+
+        <button
+          type="button"
+          class="toast-close-btn ml-4 border-none bg-transparent self-start p-1 text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+          (click)="removeToast(toast.id)"
+          aria-label="Cerrar"
+        >
+          <i class="bi bi-x-lg text-sm"></i>
+        </button>
+      </div>
+
+      @if (toast.duration && toast.duration > 0) {
+        <div class="toast-progress-bar-container h-1 w-full bg-slate-100">
+          <div
+            class="toast-progress-bar h-full"
+            [class]="'progress-' + toast.type"
+            [style.animation-duration.ms]="toast.duration"
+          ></div>
+        </div>
+      }
+    </div>
+  }
+</div>

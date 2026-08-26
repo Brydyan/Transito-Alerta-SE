@@ -1,0 +1,183 @@
+<div class="user-form-container p-4">
+  <!-- Page Header -->
+  <div class="mb-4">
+    <h3 class="font-bold mb-1 text-slate-800 text-xl">Mi Perfil</h3>
+    <p class="text-slate-500 text-sm mb-0">Actualiza tu información personal y foto de perfil</p>
+  </div>
+
+  @if (isLoading()) {
+    <div class="flex justify-center py-12">
+      <div class="spinner-border text-brand-navy" role="status">
+        <span class="sr-only">Cargando...</span>
+      </div>
+    </div>
+  } @else {
+    <form [formGroup]="profileForm" (ngSubmit)="onSubmit()">
+      <div class="card shadow-sm border-none mb-4">
+        <div class="card-body">
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+            <!-- Left: Avatar -->
+            <div class="md:col-span-4 lg:col-span-3">
+              <h6 class="font-semibold text-slate-500 mb-4 text-xs uppercase tracking-wider">Foto de Perfil</h6>
+              <div class="flex flex-col items-center gap-4">
+                <div
+                  class="avatar-box"
+                  [class.opacity-50]="isUploadingAvatar()"
+                  [class.pointer-events-none]="isUploadingAvatar()"
+                  (click)="!isUploadingAvatar() && avatarInput.click()"
+                  role="button"
+                  [attr.tabindex]="isUploadingAvatar() ? -1 : 0"
+                  (keydown.enter)="!isUploadingAvatar() && avatarInput.click()"
+                  [attr.aria-label]="
+                    isUploadingAvatar() ? 'Procesando imagen...' : 'Seleccionar foto de perfil'
+                  "
+                >
+                  @if (isUploadingAvatar()) {
+                    <div class="spinner-border text-brand-navy w-6 h-6 border-2" role="status">
+                      <span class="sr-only">Procesando...</span>
+                    </div>
+                  } @else if (avatarPreview()) {
+                    <img [src]="avatarPreview()!" alt="Foto de perfil" class="w-full h-full object-cover rounded-full" />
+                    <div class="avatar-overlay">
+                      <i class="bi bi-camera text-xl"></i>
+                    </div>
+                  } @else {
+                    <i class="bi bi-person avatar-placeholder text-4xl text-slate-400"></i>
+                    <div class="avatar-overlay">
+                      <i class="bi bi-camera text-xl"></i>
+                    </div>
+                  }
+                </div>
+                <small class="text-slate-500 text-xs">
+                  {{ isUploadingAvatar() ? 'Procesando imagen...' : 'Click para cambiar foto' }}
+                </small>
+                <input
+                  #avatarInput
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  (change)="onAvatarSelect($event)"
+                  aria-label="Seleccionar archivo de imagen"
+                />
+                @if (roleName()) {
+                  <span class="badge bg-brand-navy/10 text-brand-navy rounded-full px-4 py-2 mt-2">
+                    <i class="bi bi-shield-check mr-2"></i>{{ roleName() }}
+                  </span>
+                }
+              </div>
+            </div>
+
+            <!-- Right: Fields -->
+            <div class="md:col-span-8 lg:col-span-9">
+              <h6 class="font-semibold text-slate-500 mb-4 text-xs uppercase tracking-wider">Información Personal</h6>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Nombres -->
+                <div>
+                  <label for="prof-nombres" class="form-label">
+                    Nombres <span class="text-status-critical">*</span>
+                  </label>
+                  <input
+                    id="prof-nombres"
+                    type="text"
+                    class="form-control"
+                    [class.form-control-invalid]="campoInvalido('nombres')"
+                    placeholder="Ej. Juan"
+                    formControlName="nombres"
+                  />
+                  @if (campoInvalido('nombres')) {
+                    <small class="text-status-critical text-xs mt-1 block">Los nombres son obligatorios.</small>
+                  }
+                </div>
+
+                <!-- Apellidos -->
+                <div>
+                  <label for="prof-apellidos" class="form-label">
+                    Apellidos <span class="text-status-critical">*</span>
+                  </label>
+                  <input
+                    id="prof-apellidos"
+                    type="text"
+                    class="form-control"
+                    [class.form-control-invalid]="campoInvalido('apellidos')"
+                    placeholder="Ej. Pérez"
+                    formControlName="apellidos"
+                  />
+                  @if (campoInvalido('apellidos')) {
+                    <small class="text-status-critical text-xs mt-1 block">Los apellidos son obligatorios.</small>
+                  }
+                </div>
+
+                <!-- Email -->
+                <div>
+                  <label for="prof-email" class="form-label">
+                    Correo electrónico <span class="text-status-critical">*</span>
+                  </label>
+                  <input
+                    id="prof-email"
+                    type="email"
+                    class="form-control"
+                    [class.form-control-invalid]="campoInvalido('email')"
+                    placeholder="usuario@jasrapo.com"
+                    formControlName="email"
+                  />
+                  @if (campoInvalido('email')) {
+                    @if (profileForm.get('email')?.errors?.['email']) {
+                      <small class="text-status-critical text-xs mt-1 block">Ingrese un correo electrónico válido.</small>
+                    } @else {
+                      <small class="text-status-critical text-xs mt-1 block">El correo electrónico es obligatorio.</small>
+                    }
+                  }
+                </div>
+
+                <!-- Teléfono -->
+                <div>
+                  <label for="prof-telefono" class="form-label">
+                    Teléfono <span class="text-status-critical">*</span>
+                  </label>
+                  <input
+                    id="prof-telefono"
+                    type="text"
+                    class="form-control"
+                    [class.form-control-invalid]="campoInvalido('telefono')"
+                    placeholder="Ej. +593991234567"
+                    formControlName="telefono"
+                  />
+                  @if (campoInvalido('telefono')) {
+                    @if (profileForm.get('telefono')?.errors?.['invalidPrefix']) {
+                      <small class="text-status-critical text-xs mt-1 block">El teléfono debe empezar con "+593" o "09".</small>
+                    } @else if (profileForm.get('telefono')?.errors?.['invalidLength']) {
+                      <small class="text-status-critical text-xs mt-1 block"
+                        >El teléfono debe tener entre 10 y 12 dígitos.</small
+                      >
+                    } @else if (profileForm.get('telefono')?.errors?.['invalidFormat']) {
+                      <small class="text-status-critical text-xs mt-1 block"
+                        >El teléfono solo puede contener números y el signo "+".</small
+                      >
+                    } @else {
+                      <small class="text-status-critical text-xs mt-1 block">El teléfono es obligatorio.</small>
+                    }
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="flex justify-end mt-6">
+        <button type="submit" class="btn btn-primary font-medium px-6" [disabled]="isSaving()">
+          @if (isSaving()) {
+            <span
+              class="spinner-border spinner-border-sm mr-2 w-4 h-4 border-2"
+              role="status"
+              aria-hidden="true"
+            ></span>
+          }
+          Guardar cambios
+        </button>
+      </div>
+    </form>
+  }
+</div>

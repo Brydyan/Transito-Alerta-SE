@@ -22,7 +22,7 @@
           "La estructura debe soportar la inyección de dependencias nativa para los servicios del sistema."
         ],
         "sdd": true,
-        "status": "pending"
+        "status": "done"
       },
       {
         "id": 2,
@@ -36,13 +36,13 @@
           "El linter debe fallar si existen variables o parámetros sin tipo definido."
         ],
         "sdd": true,
-        "status": "pending"
+        "status": "done"
       },
       {
         "id": 3,
         "name": "estilos_tailwind_css",
         "title": "Migración de Estilos: Bootstrap 5 a Tailwind CSS 3+",
-        "description": "Reemplazar las dependencias de Bootstrap 5 por Tailwind CSS 3+ para adoptar un enfoque utility-first, reducir el tamaño del bundle y habilitar dark mode nativo.",
+        "description": "Reemplazar las dependencias de Bootstrap 5 por Tailwind CSS 3+ (actualmente está con Tailwind css v4) para adoptar un enfoque utility-first, reducir el tamaño del bundle y habilitar dark mode nativo.",
         "acceptance": [
           "Las dependencias de Bootstrap deben ser removidas del package.json.",
           "El archivo tailwind.config.js debe estar configurado y procesar las rutas de los componentes Angular.",
@@ -54,18 +54,20 @@
       },
       {
         "id": 4,
-        "name": "estado_reactivo_rxjs",
-        "title": "Gestión de Estado: Plain JS Objects a RxJS Observables",
-        "description": "Implementar un flujo de datos unidireccional y reactivo utilizando RxJS Observables para manejar de forma asíncrona el estado de las alertas de tránsito.",
+        "name": "estado_reactivo_signals",
+        "title": "Gestión de Estado: Migración de RxJS Observables a Signals con Hidratación v20",
+        "description": "Refactorizar el flujo de datos asíncrono del estado de alertas de tránsito para utilizar Signals nativas de Angular, optimizando el rendimiento del ciclo de vida de hidratación (SSR/SSG) y eliminando suscripciones manuales.",
         "acceptance": [
-          "El estado global de las alertas debe exponerse exclusivamente como Observables o Signals.",
-          "Las mutaciones de estado deben realizarse mediante flujos unidireccionales (patrón Data Down, Actions Up).",
-          "Todos los componentes deben desuscribirse de los observables de manera segura (usando takeUntilDestroyed o el pipe async).",
-          "El manejo de reintentos y errores asíncronos debe gestionarse mediante operadores de RxJS."
+          "El estado global y reactivo de las alertas debe almacenarse y exponerse exclusivamente mediante Signals de solo lectura (Readonly Signals).",
+          "Los flujos asíncronos de la API (HttpClient) deben convertirse a Signals en la capa de servicios utilizando el operador interoperable 'toSignal'.",
+          "La manipulación de datos derivados (filtros, contadores de alertas) debe implementarse estrictamente con la función 'computed' para evitar ejecuciones innecesarias.",
+          "Eliminar por completo el uso de '.subscribe()' y el pipe '| async' en los componentes de este feature, garantizando una hidratación limpia y libre de parpadeos (flickering).",
+          "El manejo de efectos secundarios de red (reintentos con retry, catchError) debe aislarse en el stream de origen de RxJS antes de su conversión a Signal."
         ],
         "sdd": true,
         "status": "blocked"
       },
+
       {
         "id": 5,
         "name": "persistencia_offline_indexeddb",
@@ -78,7 +80,7 @@
           "Al recuperar la conexión, el sistema debe vaciar la cola de IndexedDB hacia el servidor de manera automática."
         ],
         "sdd": true,
-        "status": "blocked"
+        "status": "done"
       },
       {
         "id": 6,
@@ -92,7 +94,36 @@
           "El pipeline de CI/CD debe ejecutar la validación del build sin configuraciones manuales de scripts externos."
         ],
         "sdd": true,
-        "status": "blocked"
+        "status": "done"
+      },
+      {
+        "id": 7,
+        "name": "modulo_autenticacion_angular",
+        "title": "Módulo de Autenticación: Base Auth + Guards",
+        "description": "Implementar el módulo de autenticación (auth/) en Angular, basado en la arquitectura de GeoReporta pero adaptado a JWT y autenticación basada en device UUID contra el backend.",
+        "acceptance": [
+          "Debe existir un AuthService (inyectable globalmente) que consuma /api/auth/login, /api/auth/refresh, /api/auth/me y /api/auth/logout.",
+          "Debe implementarse un AuthGuard para proteger rutas privadas basado en la existencia de sesión activa.",
+          "Debe implementarse un RoleGuard/PermissionGuard análogo al de GeoReporta que verifique los claims (permisos) de req.user.",
+          "Debe implementarse un Interceptor HTTP para adjuntar el Bearer token (access_token) en cada petición y manejar la rotación (refresh_token) en caso de 401 Unauthorized."
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 8,
+        "name": "ui_autenticacion_angular",
+        "title": "UI de Autenticación y Enrutamiento Base",
+        "description": "Crear los componentes visuales de autenticación en /features/auth (como el LoginComponent) basándose en GeoReporta/auth/pages y configurar el enrutamiento principal (app.routes.ts) guiándose de app.router-example.ts. Se utilizarán mocks para el inicio de sesión temporalmente.",
+        "acceptance": [
+          "Debe existir un LoginComponent standalone en src/app/features/auth/login/.",
+          "El LoginComponent debe tener su plantilla HTML basada en GeoReporta pero adaptada a Tailwind CSS.",
+          "Debe configurarse app.routes.ts con la ruta 'login' (lazy loaded) y una redirección por defecto según el estado de la sesión.",
+          "El LoginComponent debe interactuar con AuthService enviando un device_uuid mockeado simulando un login real.",
+          "El enrutamiento debe estar protegido integrando los guards desarrollados en la feature 7."
+        ],
+        "sdd": true,
+        "status": "done"
       }
     ]
   ]

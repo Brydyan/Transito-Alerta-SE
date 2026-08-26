@@ -1,0 +1,14 @@
+@if (spinner()) {
+  <div class="overlay">
+    @if (customSpinner()) {
+      <ng-container *ngTemplateOutlet="customSpinner()!"></ng-container>
+    } @else {
+      <div class="lds-ellipsis">
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+      </div>
+    }
+  </div>
+}

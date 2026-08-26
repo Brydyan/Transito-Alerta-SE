@@ -1,1 +1,13 @@
-/* You can add global styles to this file, and also import other style files */
+/* Bootstrap ha sido eliminado completamente. Estilos base y componentes puramente en Tailwind v4 */
+
+@import 'tailwindcss';
+
+@import './styles/_variables.css';
+@import './styles/_base.css';
+@import './styles/_components.css';
+@import './styles/_utilities.css';
+@import './styles/_layout.css';
+@import './styles/_tables.css';
+@import './styles/_badges.css';
+@import './styles/_modals.css';
+@import './styles/_forms.css';

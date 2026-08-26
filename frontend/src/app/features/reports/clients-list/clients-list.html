@@ -1,0 +1,247 @@
+<div class="reports-container p-4">
+  <!-- Encabezado -->
+  <div class="page-header mb-6">
+    <h3 class="font-bold mb-1 text-slate-800 text-2xl">Listado de Clientes</h3>
+    <p class="text-slate-500 text-sm mb-0">
+      Consulte y exporte el padrón general de clientes registrados en PDF. Puede filtrar por estado
+      (activo/inactivo) y fecha de ingreso.
+    </p>
+  </div>
+
+  <!-- Filtros -->
+  <div class="card border-none shadow-sm rounded-lg mb-4">
+    <div class="card-header bg-bg-secondary border-b-0 pt-6 pb-4 px-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div>
+          <label class="form-label text-sm font-semibold mb-1" for="activo">Estado del cliente</label>
+          <select
+            id="activo"
+            class="form-control"
+            [ngModel]="activo()"
+            (ngModelChange)="activo.set($event)"
+          >
+            <option value="">Todos los estados</option>
+            <option value="true">Solo activos</option>
+            <option value="false">Solo inactivos</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label text-sm font-semibold mb-1" for="fechaDesde">Fecha desde</label>
+          <app-date-picker
+            [inputId]="'fechaDesde'"
+            [value]="fechaDesde()"
+            (valueChange)="fechaDesde.set($event)"
+          />
+        </div>
+        <div>
+          <label class="form-label text-sm font-semibold mb-1" for="fechaHasta">Fecha hasta</label>
+          <app-date-picker
+            [inputId]="'fechaHasta'"
+            [value]="fechaHasta()"
+            (valueChange)="fechaHasta.set($event)"
+          />
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <button
+            type="button"
+            class="btn btn-primary flex items-center gap-2 font-medium px-4"
+            (click)="generarPdf()"
+            [disabled]="isLoadingPdf() || rangoFechaInvalido()"
+          >
+            @if (isLoadingPdf()) {
+              <span
+                class="spinner-border spinner-border-sm w-4 h-4 border-2"
+                role="status"
+                aria-hidden="true"
+              ></span>
+            } @else {
+              <i class="bi bi-file-earmark-pdf"></i>
+            }
+            {{ isLoadingPdf() ? 'Generando...' : 'Generar PDF' }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-primary flex items-center gap-2 font-medium px-4"
+            (click)="abrirModalEmail()"
+            [disabled]="rangoFechaInvalido()"
+          >
+            <i class="bi bi-envelope"></i>
+            Enviar email
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-secondary flex items-center gap-2 font-medium px-4"
+            (click)="limpiar()"
+            [disabled]="isLoadingPdf()"
+          >
+            <i class="bi bi-x-circle"></i>
+            Limpiar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Presets rápidos de rango + validación cruzada -->
+  <div class="quick-range-bar mb-4 flex flex-wrap gap-2 items-center">
+    <span class="text-sm text-slate-500 mr-1">Rango rápido:</span>
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      (click)="aplicarPreset('currentYear')"
+    >
+      Este año
+    </button>
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      (click)="aplicarPreset('currentMonth')"
+    >
+      Este mes
+    </button>
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      (click)="aplicarPreset('lastMonth')"
+    >
+      Mes pasado
+    </button>
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      (click)="aplicarPreset('last3Months')"
+    >
+      Últimos 3 meses
+    </button>
+
+    @if (rangoFechaInvalido()) {
+      <span class="text-status-critical text-sm flex items-center gap-1 ml-auto">
+        <i class="bi bi-exclamation-circle"></i>
+        La fecha "desde" no puede ser mayor que la fecha "hasta".
+      </span>
+    }
+  </div>
+
+  <!-- Vista previa del PDF -->
+  <div class="card border-none shadow-sm rounded-lg mb-6">
+    <div
+      class="card-header bg-bg-secondary border-b-0 pt-6 pb-4 px-6 flex justify-between items-center"
+    >
+      <h5 class="font-bold text-base mb-0 text-slate-800">Vista previa del reporte</h5>
+      @if (pdfBlob()) {
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary flex items-center gap-1 font-medium"
+          (click)="descargarPdf()"
+        >
+          <i class="bi bi-download"></i>
+          Descargar PDF
+        </button>
+      }
+    </div>
+    <div class="card-body">
+      @if (pdfBlob(); as pdf) {
+        <app-pdf-previewer [src]="pdf" height="700px" />
+      } @else {
+        <div class="empty-state">
+          <div class="empty-state-icon">
+            <i class="bi bi-file-earmark-pdf"></i>
+          </div>
+          <p class="font-semibold mb-1 text-slate-800">Sin reporte generado</p>
+          <p class="text-slate-500 text-sm mb-0">
+            Ajuste los filtros y presione <strong>Generar PDF</strong> para previsualizar el
+            listado.
+          </p>
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Modal envío por email -->
+@if (isEmailModalOpen()) {
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 picker-modal"
+    tabindex="-1"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="email-modal-title"
+  >
+    <div class="bg-bg-secondary rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+      <div class="px-6 py-4 pb-2 border-b-0 flex justify-between items-start">
+        <div>
+          <h5 id="email-modal-title" class="font-bold text-lg text-slate-800">
+            Enviar listado de clientes por email
+          </h5>
+          <p class="text-slate-500 mb-0 text-sm">
+            El reporte se generará y enviará al destinatario indicado.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="text-slate-500 hover:text-slate-800 transition-colors"
+          aria-label="Cerrar"
+          (click)="cerrarModalEmail()"
+        >
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+      <div class="p-6 pt-4 grow">
+        <div class="mb-4">
+          <label class="form-label text-sm font-semibold mb-1" for="destinatario">Destinatario</label>
+          <input
+            id="destinatario"
+            type="email"
+            class="form-control"
+            placeholder="correo@ejemplo.com"
+            [ngModel]="destinatario()"
+            (ngModelChange)="destinatario.set($event)"
+          />
+          @if (destinatario() && esEmailInvalido()) {
+            <span class="text-status-critical x-small block mt-1">
+              Ingrese un correo electrónico válido.
+            </span>
+          }
+        </div>
+        <div class="mb-2">
+          <label class="form-label text-sm font-semibold mb-1" for="subject">Asunto</label>
+          <input
+            id="subject"
+            type="text"
+            class="form-control"
+            placeholder="Asunto opcional"
+            [ngModel]="subject()"
+            (ngModelChange)="subject.set($event)"
+          />
+        </div>
+      </div>
+      <div class="px-6 py-4 pb-6 flex justify-end gap-3 border-t-0">
+        <button
+          type="button"
+          class="btn bg-slate-100 hover:bg-slate-200 text-slate-800"
+          (click)="cerrarModalEmail()"
+          [disabled]="isSendingEmail()"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary flex items-center gap-2"
+          (click)="enviarEmail()"
+          [disabled]="isSendingEmail() || esEmailInvalido()"
+        >
+          @if (isSendingEmail()) {
+            <span
+              class="spinner-border spinner-border-sm w-4 h-4 border-2"
+              role="status"
+              aria-hidden="true"
+            ></span>
+          } @else {
+            <i class="bi bi-envelope"></i>
+          }
+          {{ isSendingEmail() ? 'Enviando...' : 'Enviar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

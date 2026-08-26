@@ -1,0 +1,57 @@
+<div class="date-picker" appClickOutside (appClickOutside)="close()">
+  <div class="date-picker-input-group">
+    <input
+      [id]="inputId()"
+      type="text"
+      class="form-control shadow-none date-picker-input"
+      [placeholder]="placeholder()"
+      [value]="value()"
+      [disabled]="disabled()"
+      readonly
+      (click)="toggle()"
+      (keydown.enter)="toggle()"
+      (keydown.space)="toggle(); $event.preventDefault()"
+    />
+    <span class="date-picker-icon">
+      <i class="bi bi-calendar3"></i>
+    </span>
+  </div>
+
+  @if (isOpen()) {
+    <div class="date-picker-popover" [class.open-upwards]="openUpwards()">
+      <div class="date-picker-header">
+        <button type="button" class="date-picker-nav" title="Mes anterior" (click)="prevMonth()">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <span class="date-picker-label">{{ viewLabel() }}</span>
+        <button type="button" class="date-picker-nav" title="Mes siguiente" (click)="nextMonth()">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+
+      <div class="date-picker-weekdays">
+        @for (dia of diasSemana; track $index) {
+          <span class="date-picker-weekday">{{ dia }}</span>
+        }
+      </div>
+
+      <div class="date-picker-grid">
+        @for (cell of celdas(); track $index) {
+          @if (cell) {
+            <button
+              type="button"
+              class="date-picker-day"
+              [class.is-selected]="isSelected(cell)"
+              [class.is-today]="isToday(cell) && !isSelected(cell)"
+              (click)="select(cell)"
+            >
+              {{ cell.getDate() }}
+            </button>
+          } @else {
+            <span class="date-picker-day date-picker-day-empty"></span>
+          }
+        }
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,346 @@
+<div class="user-form-container p-4">
+  <!-- Page Header -->
+  <div class="mb-6">
+    <h3 class="font-bold mb-1 text-slate-800 text-2xl">
+      {{ isEditing() ? 'Editar Usuario' : 'Crear Usuario' }}
+    </h3>
+    <p class="text-slate-500 text-sm mb-0">
+      {{
+        isEditing()
+          ? 'Modifique los datos del usuario seleccionado'
+          : 'Complete los campos para registrar un nuevo usuario'
+      }}
+    </p>
+  </div>
+
+  @if (isLoading()) {
+    <div class="flex justify-center py-12">
+      <div class="spinner-border text-brand-navy w-8 h-8 border-2" role="status">
+        <span class="sr-only">Cargando...</span>
+      </div>
+    </div>
+  } @else {
+    <form [formGroup]="userForm" (ngSubmit)="onSubmit()">
+      <div class="card border-none shadow-sm rounded-lg mb-6">
+        <div class="card-body p-6">
+          <!-- Section 1: Avatar + User Details -->
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">
+            <!-- Left: Avatar -->
+            <div class="md:col-span-4 lg:col-span-3">
+              <h6 class="font-semibold text-slate-500 mb-4 text-sm uppercase tracking-wider">
+                Avatar / Foto
+              </h6>
+              <div class="flex flex-col items-center gap-4">
+                <div
+                  class="avatar-box"
+                  [class.opacity-50]="isUploadingAvatar()"
+                  (click)="!isUploadingAvatar() && avatarInput.click()"
+                  role="button"
+                  [attr.tabindex]="isUploadingAvatar() ? -1 : 0"
+                  (keydown.enter)="!isUploadingAvatar() && avatarInput.click()"
+                  [attr.aria-label]="
+                    isUploadingAvatar() ? 'Subiendo foto...' : 'Seleccionar foto de perfil'
+                  "
+                >
+                  @if (isUploadingAvatar()) {
+                    <div class="spinner-border spinner-border-sm text-brand-navy" role="status">
+                      <span class="sr-only">Subiendo...</span>
+                    </div>
+                  } @else if (avatarPreview()) {
+                    <img [src]="avatarPreview()" alt="Vista previa del avatar" />
+                    <div class="avatar-overlay">
+                      <i class="bi bi-camera"></i>
+                    </div>
+                  } @else {
+                    <i class="bi bi-person avatar-placeholder"></i>
+                    <div class="avatar-overlay">
+                      <i class="bi bi-camera"></i>
+                    </div>
+                  }
+                </div>
+                <small class="text-slate-500">
+                  {{ isUploadingAvatar() ? 'Subiendo imagen...' : 'Click para cambiar foto' }}
+                </small>
+                <input
+                  #avatarInput
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  (change)="onAvatarSelect($event)"
+                  aria-label="Seleccionar archivo de imagen"
+                />
+              </div>
+            </div>
+
+            <!-- Right: User Details -->
+            <div class="md:col-span-8 lg:col-span-9">
+              <h6 class="font-semibold text-slate-500 mb-3 text-sm uppercase">
+                {{ isEditing() ? 'Detalles del Usuario' : 'Nuevo Usuario' }}
+              </h6>
+              <p class="text-slate-500 text-sm mb-4">
+                {{
+                  isEditing()
+                    ? 'Modifique los datos del usuario seleccionado'
+                    : 'Complete los campos para registrar un nuevo usuario'
+                }}
+              </p>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Nombres -->
+                <div>
+                  <label for="form-nombres" class="form-label">
+                    Nombres <span class="text-status-critical">*</span>
+                  </label>
+                  <input
+                    id="form-nombres"
+                    type="text"
+                    class="form-control"
+                    [class.border-status-critical]="campoInvalido('nombres')"
+                    placeholder="Ej. Juan"
+                    formControlName="nombres"
+                  />
+                  @if (campoInvalido('nombres')) {
+                    <small class="text-status-critical text-xs mt-1 block">Los nombres son obligatorios.</small>
+                  }
+                </div>
+
+                <!-- Apellidos -->
+                <div>
+                  <label for="form-apellidos" class="form-label">
+                    Apellidos <span class="text-status-critical">*</span>
+                  </label>
+                  <input
+                    id="form-apellidos"
+                    type="text"
+                    class="form-control"
+                    [class.border-status-critical]="campoInvalido('apellidos')"
+                    placeholder="Ej. Pérez"
+                    formControlName="apellidos"
+                  />
+                  @if (campoInvalido('apellidos')) {
+                    <small class="text-status-critical text-xs mt-1 block">Los apellidos son obligatorios.</small>
+                  }
+                </div>
+
+                <!-- Teléfono -->
+                <div>
+                  <label for="form-telefono" class="form-label">
+                    Teléfono <span class="text-status-critical">*</span>
+                  </label>
+                  <input
+                    id="form-telefono"
+                    type="text"
+                    class="form-control"
+                    [class.border-status-critical]="campoInvalido('telefono')"
+                    placeholder="Ej. +593991234567"
+                    formControlName="telefono"
+                  />
+                  @if (campoInvalido('telefono')) {
+                    @if (userForm.get('telefono')?.errors?.['invalidPrefix']) {
+                      <small class="text-status-critical text-xs mt-1 block">El teléfono debe empezar con "+593" o "09".</small>
+                    } @else if (userForm.get('telefono')?.errors?.['invalidLength']) {
+                      <small class="text-status-critical text-xs mt-1 block"
+                        >El teléfono debe tener entre 10 y 12 dígitos.</small
+                      >
+                    } @else if (userForm.get('telefono')?.errors?.['invalidFormat']) {
+                      <small class="text-status-critical text-xs mt-1 block"
+                        >El teléfono solo puede contener números y el signo "+".</small
+                      >
+                    } @else {
+                      <small class="text-status-critical text-xs mt-1 block">El teléfono es obligatorio.</small>
+                    }
+                  }
+                </div>
+
+                <!-- Correo -->
+                <div>
+                  <label for="form-email" class="form-label">
+                    Correo electrónico <span class="text-status-critical">*</span>
+                  </label>
+                  <input
+                    id="form-email"
+                    type="email"
+                    class="form-control"
+                    [class.border-status-critical]="campoInvalido('email')"
+                    placeholder="usuario@jasrapo.com"
+                    formControlName="email"
+                  />
+                  @if (campoInvalido('email')) {
+                    @if (userForm.get('email')?.errors?.['email']) {
+                      <small class="text-status-critical text-xs mt-1 block">Ingrese un correo electrónico válido.</small>
+                    } @else {
+                      <small class="text-status-critical text-xs mt-1 block">El correo electrónico es obligatorio.</small>
+                    }
+                  }
+                </div>
+
+                <!-- Rol -->
+                <div class="md:col-span-2">
+                  <label for="form-rolId" class="form-label">
+                    Rol
+                  </label>
+                  <select
+                    id="form-rolId"
+                    class="form-control"
+                    [class.border-status-critical]="campoInvalido('rolId')"
+                    formControlName="rolId"
+                  >
+                    <option [ngValue]="null" disabled>Seleccione un rol</option>
+                    @for (rol of roles(); track rol.rolId) {
+                      <option [ngValue]="rol.rolId">{{ rol.nombre }}</option>
+                    }
+                  </select>
+                  @if (campoInvalido('rolId')) {
+                    <small class="text-status-critical text-xs mt-1 block">El rol es obligatorio.</small>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+
+          @if (isAdminOrSuperadmin()) {
+            <hr class="border-t border-slate-200 my-6" />
+
+            <!-- Section 2: Permissions -->
+            <div>
+              <h6 class="font-semibold mb-4 flex items-center gap-2">
+                <i class="bi bi-geo-alt-fill text-brand-navy"></i>
+                Lista de permisos
+              </h6>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Left panel: Role permissions -->
+                <div>
+                  <div class="card border border-border-subtle rounded-lg h-full flex flex-col">
+                    <div class="card-header bg-white border-b border-border-subtle py-3 px-4 shrink-0">
+                      <span class="font-semibold text-sm">Permisos del rol</span>
+                    </div>
+                    <div class="card-body p-4 flex flex-col grow min-h-0">
+                      <input
+                        type="text"
+                        class="form-control form-control-sm mb-3 shrink-0"
+                        placeholder="Buscar permiso..."
+                        [value]="roleSearch()"
+                        (input)="roleSearch.set($any($event.target).value)"
+                        aria-label="Buscar permiso del rol"
+                      />
+                      <div class="max-h-[250px] overflow-y-auto grow pe-2">
+                        @if (rolePermissions().length === 0) {
+                          <p class="text-slate-500 text-sm text-center py-4 mb-0">
+                            Seleccione un rol para ver sus permisos
+                          </p>
+                        } @else {
+                          @for (perm of filteredRolePerms(); track perm.permisoId) {
+                            <div
+                              class="form-check flex items-center gap-3 py-2 border-b border-slate-100 last:border-0"
+                            >
+                              <input
+                                class="form-check-input shrink-0 mt-0"
+                                type="checkbox"
+                                [checked]="true"
+                                [disabled]="true"
+                                [id]="'role-perm-' + perm.permisoId"
+                              />
+                              <label
+                                class="form-check-label text-sm flex items-center gap-3 grow cursor-pointer"
+                                [for]="'role-perm-' + perm.permisoId"
+                              >
+                                <span>{{ perm.nombre }}</span>
+                                <span
+                                  class="badge bg-slate-100 text-slate-600 rounded-full text-[0.65rem] px-2 py-0.5 ml-auto"
+                                >
+                                  {{ perm.accion }}
+                                </span>
+                              </label>
+                            </div>
+                          } @empty {
+                            <p class="text-slate-500 text-sm text-center py-4 mb-0">
+                              No hay permisos que coincidan con la búsqueda
+                            </p>
+                          }
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right panel: Direct user permissions -->
+                <div>
+                  <div class="card border border-border-subtle rounded-lg h-full flex flex-col">
+                    <div class="card-header bg-white border-b border-border-subtle py-3 px-4 shrink-0">
+                      <span class="font-semibold text-sm">Permisos del usuario</span>
+                    </div>
+                    <div class="card-body p-4 flex flex-col grow min-h-0">
+                      <input
+                        type="text"
+                        class="form-control form-control-sm mb-3 shrink-0"
+                        placeholder="Buscar permiso..."
+                        [value]="userPermSearch()"
+                        (input)="userPermSearch.set($any($event.target).value)"
+                        aria-label="Buscar permiso del usuario"
+                      />
+                      <div class="max-h-[250px] overflow-y-auto grow pe-2">
+                        @for (perm of filteredAllPerms(); track perm.permisoId) {
+                          <div
+                            class="form-check flex items-center gap-3 py-2 border-b border-slate-100 last:border-0"
+                          >
+                            <input
+                              class="form-check-input shrink-0 mt-0"
+                              type="checkbox"
+                              [checked]="directPermissionIds().has(perm.permisoId)"
+                              (change)="toggleDirectPerm(perm.permisoId)"
+                              [id]="'user-perm-' + perm.permisoId"
+                            />
+                            <label
+                              class="form-check-label text-sm flex items-center gap-3 grow cursor-pointer"
+                              [for]="'user-perm-' + perm.permisoId"
+                            >
+                              <span>{{ perm.nombre }}</span>
+                              <span
+                                class="badge bg-brand-navy/10 text-brand-navy rounded-full text-[0.65rem] px-2 py-0.5 ml-auto"
+                              >
+                                {{ perm.accion }}
+                              </span>
+                            </label>
+                          </div>
+                        } @empty {
+                          <p class="text-slate-500 text-sm text-center py-4 mb-0">
+                            No hay permisos disponibles
+                          </p>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="flex justify-end items-center mt-4">
+        <div class="flex gap-3">
+          <button
+            type="button"
+            class="btn btn-outline-secondary font-medium px-6 py-2"
+            [disabled]="isSaving()"
+            (click)="goBack()"
+          >
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primary font-medium px-6 py-2 flex items-center gap-2" [disabled]="isSaving()">
+            @if (isSaving()) {
+              <span
+                class="spinner-border spinner-border-sm w-4 h-4 border-2"
+                role="status"
+                aria-hidden="true"
+              ></span>
+            }
+            {{ isEditing() ? 'Guardar Cambios' : 'Crear Usuario' }}
+          </button>
+        </div>
+      </div>
+    </form>
+  }
+</div>

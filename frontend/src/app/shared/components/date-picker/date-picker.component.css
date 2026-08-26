@@ -1,0 +1,140 @@
+/* DatePicker custom — estilizado con el tema Corporate Water de la app */
+
+.date-picker {
+  position: relative;
+  width: 100%;
+}
+
+/* Input que abre el calendario: toda el área es clickeable */
+.date-picker-input-group {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+}
+
+.date-picker-input {
+  padding-right: 2.5rem;
+  background-color: #fff;
+  cursor: pointer;
+}
+
+.date-picker-icon {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--primary-color);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+}
+
+/* Popover del calendario */
+.date-picker-popover {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 1070;
+  width: 280px;
+  padding: 0.85rem;
+  background-color: var(--white);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px -8px rgba(14, 39, 40, 0.18);
+
+  &.open-upwards {
+    top: auto;
+    bottom: calc(100% + 0.35rem);
+    box-shadow: 0 -12px 32px -8px rgba(14, 39, 40, 0.18);
+  }
+}
+
+/* Cabecera con navegación de mes */
+.date-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.date-picker-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--dark-text);
+}
+
+.date-picker-nav {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background-color: transparent;
+  color: var(--muted-text);
+  transition: all 0.15s ease;
+}
+
+.date-picker-nav:hover {
+  background-color: var(--soft-blue-bg);
+  color: var(--primary-color);
+}
+
+/* Cabecera de días de la semana (L M X J V S D) */
+.date-picker-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 0.25rem;
+}
+
+.date-picker-weekday {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted-text);
+  padding: 0.2rem 0;
+}
+
+/* Grid de días */
+.date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.date-picker-day {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background-color: transparent;
+  font-size: 0.82rem;
+  color: var(--dark-text);
+  transition: all 0.15s ease;
+}
+
+.date-picker-day:hover:not(.date-picker-day-empty) {
+  background-color: var(--soft-blue-bg);
+  color: var(--primary-color);
+}
+
+.date-picker-day-empty {
+  cursor: default;
+}
+
+/* Día seleccionado: primario de la app */
+.date-picker-day.is-selected {
+  background-color: var(--primary-color);
+  color: var(--white);
+  font-weight: 600;
+}
+
+/* Día actual: borde sutil turquesa */
+.date-picker-day.is-today {
+  border: 1px solid var(--secondary-color);
+}
