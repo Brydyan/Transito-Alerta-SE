@@ -574,8 +574,14 @@ Scenario R20.3 — Re-aplicar 0039 no duplica filas del catálogo
 ### R21 — Datos geográficos y organizaciones semilla
 
 ```
+Scenario R21.0 — El código de las 4 zonas preexistentes es poblado
+  Given  una base con provincia + 3 cantones de Santa Elena ya presentes
+  When   se aplica 0041_geography_organizations_seed.sql
+  Then   las 4 filas geo_zones reciben code (EC-24, EC-24-01, EC-24-02, EC-24-03)
+  And    esto ocurre antes de cualquier INSERT de parroquia
+
 Scenario R21.1 — Las parroquias de Santa Elena quedan sembradas
-  Given  una base con 0039 aplicada
+  Given  una base con 0041 aplicada
   When   se cuentan las geo_zones con level = 'parroquia'
   Then   hay al menos una por cada uno de los 3 cantones
   And    cada una tiene parent_id apuntando a su cantón
@@ -588,18 +594,21 @@ Scenario R21.2 — La jerarquía geográfica es consistente
 
 Scenario R21.3 — El polígono de cada parroquia cae dentro del de su cantón
   Given  las geo_zones sembradas
-  When   se evalúa ST_Within(parroquia.polygon, canton.polygon) para cada par
-  Then   el resultado es verdadero en todos los casos
+  When   se evalúan dos pruebas de validación:
+         (a) ST_Within(ST_PointOnSurface(parroquia.polygon), canton.polygon)
+         (b) ST_Area(ST_Intersection(parroquia, canton)) / ST_Area(parroquia) >= 0.75
+  Then   (a) retorna verdadero en todos los casos (verificación binaria de pos interior)
+  And    (b) retorna verdadero en todos los casos (ratio de sobreposición >= 75%, medido mín 0.8058 Anconcito)
 
 Scenario R21.4 — Las organizaciones semilla quedan cargadas
-  Given  una base con 0039 aplicada
+  Given  una base con 0041 aplicada
   When   se listan las organizaciones
-  Then   están las organizaciones acordadas con el operador
+  Then   están las organizaciones acordadas con el operador (CTE - Santa Elena)
   And    cada una tiene zone_id apuntando a una geo_zone existente
 
-Scenario R21.5 — Re-aplicar 0039 no duplica organizaciones ni zonas
-  Given  una base con 0039 ya aplicada
-  When   se vuelve a ejecutar el archivo 0039
+Scenario R21.5 — Re-aplicar 0041 no duplica organizaciones ni zonas
+  Given  una base con 0041 ya aplicada
+  When   se vuelve a ejecutar el archivo 0041
   Then   el conteo de organizations y de geo_zones no cambia
 ```
 

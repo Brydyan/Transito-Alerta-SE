@@ -42,7 +42,7 @@
 > Depende de: 0040 registrada en `schema_migrations` (prerequisito de D6/design.md).
 > Nada ≤ 0040 se edita. Migración nueva: `database/migrations/0041_geography_organizations_seed.sql`.
 
-- [ ] **T7.9.C1** — 🚧 **BLOQUEADA — operador**: INEC DPA queda
+- [x] **T7.9.C1** — 🚧 **BLOQUEADA — operador**: INEC DPA queda
       **descartado como fuente** — no tiene licencia alguna (metadata FGDC
       `nxparroquias.shp.xml` con `<accconst>`/`<useconst>` sin rellenar,
       placeholder de plantilla ESRI; "términos y condiciones" del geoportal
@@ -76,7 +76,7 @@
       al publicar el repo o al exponer los polígonos por una API pública —
       ninguna de las dos es hoy. Revisar antes de que lo sean. **(—)**
 
-- [ ] **T7.9.C2** — 🔴 Crear `backend/test/unit/generate-geo-zones-seed.spec.ts`:
+- [x] **T7.9.C2** — 🔴 Crear `backend/test/unit/generate-geo-zones-seed.spec.ts`:
       (a) `generate(legacyInput) === readFileSync('0003_seed_geo_zones.generated.sql')`
       byte-a-byte (guarda de estabilidad del checksum registrado de 0003);
       (b) el UUID de cada parroquia generada por `uuidV5(code, NS_GEO_ZONE)`
@@ -88,7 +88,7 @@
       parroquia no existe todavía). Depende del artefacto de T7.9.C1 para un
       fixture realista. **(1.5h)**
 
-- [ ] **T7.9.C3** — Extender `database/seeds/generate-geo-zones-seed.js` a
+- [x] **T7.9.C3** — Extender `database/seeds/generate-geo-zones-seed.js` a
       modo arity-driven (design.md D3): 1 argumento → ruta legacy sin
       cambios, salida byte-idéntica a la comprometida; 2 argumentos → modo
       parroquia, lee `santa-elena-parroquias.geojson`, valida que el código
@@ -101,7 +101,7 @@
       `-- municipality_code 24-01-54` (cruzable con el código DPA histórico
       240154). Pone en verde T7.9.C2. **(3h)**
 
-- [ ] **T7.9.C4** — 🔴 Crear `backend/test/e2e/t7-geography-orgs-seed.e2e-spec.ts`
+- [x] **T7.9.C4** — 🔴 Crear `backend/test/e2e/t7-geography-orgs-seed.e2e-spec.ts`
       con R21.0–R21.5 (spec.md): backfill de `code` precede a las parroquias
       (R21.0); ≥1 parroquia por cantón con `code`/`polygon`/`parent_id` no
       nulos (R21.1); jerarquía parroquia→cantón→provincia sin ciclos (R21.2);
@@ -121,7 +121,7 @@
       migraciones completa, nunca fixtures `ST_MakeEnvelope`). Debe fallar
       (0041 no existe todavía). **(2.5h)**
 
-- [ ] **T7.9.C5** — Escribir `database/migrations/0041_geography_organizations_seed.sql`
+- [x] **T7.9.C5** — Escribir `database/migrations/0041_geography_organizations_seed.sql`
       en el orden exacto de design.md D4 (es load-bearing): (1) backfill de
       `code` en las 4 `geo_zones` preexistentes emparejado por **UUID
       literal**, nunca por nombre (0013 ya enseñó que "Santa Elena
@@ -137,7 +137,7 @@
       `max_active_claims` 5, `created_at`/`updated_at` explícitos. Pone en
       verde T7.9.C4. **(2.5h)**
 
-- [ ] **T7.9.C6** — Escribir `database/rollback/0041_geography_organizations_seed.DOWN.sql`
+- [x] **T7.9.C6** — Escribir `database/rollback/0041_geography_organizations_seed.DOWN.sql`
       en orden inverso, una transacción, guarda ruidosa en vez de cascada
       silenciosa (design.md D6): `DO $$ ... RAISE EXCEPTION $$` si algún
       `users.organization_id` sigue referenciando la organización; luego
@@ -149,7 +149,7 @@
       `roles.permissions` (esos grants son de 0039, con su propio DOWN).
       **(1.5h)**
 
-- [ ] **T7.9.C7** — Verificar el ciclo completo contra Postgres real: 0041
+- [x] **T7.9.C7** — Verificar el ciclo completo contra Postgres real: 0041
       aplica limpio sobre 0040, re-aplicar es no-op (R21.5), el DOWN
       restaura el estado previo sin dejar residuos, y la suite completa de
       T7.9.C4 queda en verde.
@@ -160,6 +160,17 @@
       (la medición se hizo cargando 0003 + las parroquias en un contenedor
       aparte, no aplicando 0041). Si algún `parent_ok` da `false`, es una
       parroquia mal emparentada — no se toca el umbral. **(0.5h)**
+      **✅ VERIFICADO 2026-08-26**: `backend/test/e2e/t7-geography-orgs-seed.e2e-spec.ts`
+      contiene ambos describe blocks — T7.9.C4 (R21.0–R21.5, 6/6 verde) y
+      T7.9.C6/C7 (guard ruidoso del DOWN, ciclo UP→DOWN→UP, 4/4 verde) — los
+      10 casos pasan contra PostGIS real vía `MigrationHarness`. `parent_ok`
+      true y `overlap_ratio >= 0.75` re-confirmados dentro del ciclo real de
+      migraciones 0001–0041 (no en el contenedor aparte de la medición
+      original). Suites de regresión (`geo-zones`, `organizations`,
+      `t7-referential-integrity`, `t7-org-hierarchy-categories`,
+      `t6-organizations-notified`, `t7-soft-delete-app-level`,
+      `test/migrations/*`) re-corridas en verde tras añadir 0041 — ninguna
+      asume un conteo total de `geo_zones`/`organizations`.
 
 ---
 
@@ -169,7 +180,7 @@
 > La geografía y la organización llegan siempre por 0041, nunca por un
 > script de esta sección (R22.1) — ver design.md D12.
 
-- [ ] **T7.9.D1** — 🔴 Crear `backend/test/e2e/t7-seeding-pipeline.e2e-spec.ts`
+- [x] **T7.9.D1** — 🔴 Crear `backend/test/e2e/t7-seeding-pipeline.e2e-spec.ts`
       con las mitades estáticas de R22 que no requieren datos sembrados:
       R22.1 — ningún archivo de `database/migrations/` contiene
       `INSERT INTO incidents`; R22.2 — los generadores de incidentes de demo
@@ -177,7 +188,7 @@
       Debe fallar hasta que los generadores existan en la ruta correcta.
       **(1h)**
 
-- [ ] **T7.9.D2** — 🔴 Crear (en el mismo archivo o en
+- [x] **T7.9.D2** — 🔴 Crear (en el mismo archivo o en
       `backend/test/e2e/t7-users-seed.e2e-spec.ts`) R22.5–R22.6: sobre una
       base limpia con 0041 aplicada, ejecutar `database/seeds/users.js`
       produce exactamente 6 usuarios (1 `master`, 1 `operador_sistema`, 2
@@ -186,7 +197,7 @@
       email y el conteo permanece en 6. Debe fallar (`users.js` no existe).
       **(1.5h)**
 
-- [ ] **T7.9.D3** — Crear `database/seeds/lib/deps.js` (design.md D7): usar
+- [x] **T7.9.D3** — Crear `database/seeds/lib/deps.js` (design.md D7): usar
       `createRequire(path.resolve(__dirname,'../../../backend/package.json'))`
       para reexportar `pg.Client` y `bcrypt` desde `backend/node_modules`
       (no hay `package.json` raíz; `require()` resuelve desde el directorio
@@ -200,7 +211,7 @@
       `--force`; imprimir el host resuelto y salir con código 1 al abortar.
       **(1.5h)**
 
-- [ ] **T7.9.D4** — Implementar `database/seeds/users.js`: hashea
+- [x] **T7.9.D4** — Implementar `database/seeds/users.js`: hashea
       `SEED_PASSWORD` con `bcrypt` (vía `deps.js`) a `BCRYPT_COST` (default
       12, igual que `AuthConfig.bcryptCost`); setea `email`,
       `password_hash`, `is_active=true`, `deleted_at IS NULL`, y tanto
@@ -209,33 +220,33 @@
       `organization_id` por `name='CTE - Santa Elena'`; `ON CONFLICT (email)
       DO NOTHING`. Pone en verde T7.9.D2. **(2h)**
 
-- [ ] **T7.9.D5** — Crear `database/seeds/lib/rand.js`: `mulberry32(0x20260825)`
+- [x] **T7.9.D5** — Crear `database/seeds/lib/rand.js`: `mulberry32(0x20260825)`
       inline (design.md D8) — sin `Math.random`, sin `Date.now`, sin
       `gen_random_uuid()`; timestamps como offsets desde un `EPOCH`
       congelado; IDs de fila reutilizando `uuidV5('demo/incident/'+i, NS_SEED)`
       / `uuidV5('vol/incident/'+i, NS_SEED)` de T7.9.C3. **(1h)**
 
-- [ ] **T7.9.D6** — 🔴 Extender `t7-seeding-pipeline.e2e-spec.ts` con R22.3
+- [x] **T7.9.D6** — 🔴 Extender `t7-seeding-pipeline.e2e-spec.ts` con R22.3
       (ejecutar `db:seed` dos veces sobre datos de demo ya cargados no
       cambia el conteo de incidentes/usuarios/notificaciones) y R22.4 (tras
       `rebuild-feed.ts`, el feed de Redis devuelve los mismos incidentes
       activos que Postgres). Debe fallar (`demo-incidents.js` y
       `rebuild-feed.ts` no existen). **(1.5h)**
 
-- [ ] **T7.9.D7** — Implementar `database/seeds/demo-incidents.js`: ~25
+- [x] **T7.9.D7** — Implementar `database/seeds/demo-incidents.js`: ~25
       incidentes realistas repartidos en los 3 cantones de Santa Elena,
       PRNG determinista de T7.9.D5, idempotente por prefijo de título
       `[DEMO]` + chequeo de existencia (equivalente a
       `SantaElenaIncidentSeeder`). **(2.5h)**
 
-- [ ] **T7.9.D8** — Implementar `backend/scripts/rebuild-feed.ts`:
+- [x] **T7.9.D8** — Implementar `backend/scripts/rebuild-feed.ts`:
       `NestFactory.createApplicationContext(AppModule)` (no `create` — no
       abre puerto HTTP) → `app.get(FeedRecoveryService).rebuildFeed(limit)`
       (default `LIMIT 200`) → `await app.close()` (libera Redis/TypeORM para
       que el proceso salga con código 0). Ejecutar vía `ts-node`, igual que
       `db:migrate`. Pone en verde la mitad R22.4 de T7.9.D6. **(1.5h)**
 
-- [ ] **T7.9.D9** — 🔴 Crear `backend/test/e2e/t7-volume-seed.e2e-spec.ts`:
+- [x] **T7.9.D9** — 🔴 Crear `backend/test/e2e/t7-volume-seed.e2e-spec.ts`:
       1000 incidentes con ciclo de vida completo — `zone_id`/`organization_id`/
       `geofence_matched` resueltos por `ST_Contains` (parroquia → cantón →
       provincia); una fila de `status_history` por transición válida
@@ -248,7 +259,7 @@
       `closed` NO escribe fila en `status_history`** — ver nota de
       T7.9.D10. Debe fallar (`volume-incidents.js` no existe). **(2h)**
 
-- [ ] **T7.9.D10** — Implementar `database/seeds/volume-incidents.js`
+- [x] **T7.9.D10** — Implementar `database/seeds/volume-incidents.js`
       (design.md D9): lotes de 250, INSERT multi-fila. Escribe a mano todo
       lo que un `bulk INSERT` se salta al no pasar por los listeners de la
       app: `status_history` por transición (`event_id = vol/<i>/<n>`),
@@ -267,7 +278,7 @@
       auditoría real queda **fuera de alcance** de este change. Pone en
       verde T7.9.D9. **(3.5h)**
 
-- [ ] **T7.9.D11** — Añadir a `backend/package.json` (design.md D12,
+- [x] **T7.9.D11** — Añadir a `backend/package.json` (design.md D12,
       `cwd=backend/`): `db:seed` = `node ../database/seeds/users.js &&
       node ../database/seeds/demo-incidents.js && ts-node
       scripts/rebuild-feed.ts`; `db:seed:mass` = `npm run db:seed && node

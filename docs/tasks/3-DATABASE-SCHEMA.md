@@ -1,14 +1,14 @@
 # 3: Esquema de Base de Datos y Auditoría de Migración
 
-> **Última actualización**: 2026-08-24 — refleja el estado real tras cerrar T7
-> (`t7-database-schema-parity`). Las migraciones 0030–0039 son nuevas; 0001–0029
+> **Última actualización**: 2026-08-26 — refleja el estado real tras cerrar T7.9.C/D
+> (`t7-database-schema-parity`). Las migraciones 0030–0041 son nuevas; 0001–0029
 > se aplicaron en T6. Runner en `backend/scripts/run-migrations.ts` existe y es operacional.
 
 ## Migración GeoReporta → Transito-Alerta-SE
 
 Las 72 migraciones Laravel de `GeoReporta/backend/database/migrations/` se
 auditaron contra nuestras migraciones SQL. El mapeo real medido es
-**72 migraciones legacy → 40 archivos SQL** (0001–0040, con T7 completada).
+**72 migraciones legacy → 41 archivos SQL** (0001–0041, con T7.9.C/D completadas).
 
 La consolidación viene de que Laravel genera una migración por cambio incremental
 (muchas son `add_column` de una sola columna, y varias se cancelan entre sí:
@@ -21,7 +21,7 @@ una migración por unidad de trabajo del roadmap.
 ## Estado real de las migraciones (2026-08-24)
 
 - **0001–0029**: ✅ aplicadas y verificadas en Supabase (T1–T6). Fuente de verdad: `database/MIGRATION_LOG.md`.
-- **0030–0040**: ✅ implementadas, committeadas, prontas para deployment (T7.1–T7.10). T7.9.C (orgs reales) bloqueada en espera de input del operador.
+- **0030–0041**: ✅ implementadas, committeadas, prontas para deployment (T7.1–T7.10). T7.9.C/D completadas (geografía + organizaciones semilla + seeding pipeline).
 
 | Rango | Fase | Contenido |
 |-------|------|-----------|
@@ -33,8 +33,9 @@ una migración por unidad de trabajo del roadmap.
 | 0030–0032 | T7.1–T7.3 | Migration tooling (`schema_migrations` table), soft delete completeness (13 tablas: roles + 12 más), `updated_at` + triggers (15 tablas) |
 | 0033–0034 | T7.4–T7.5 | Comments threading (`parent_id`, depth-2 limit), org hierarchy + category-based routing (fix T6 defect) |
 | 0035–0037 | T7.6–T7.8 | Domain columns (`geo_zones.code`, `users.phone`), referential integrity (leaf-category trigger, FK normalization), index parity (9 missing indexes) |
-| 0038–0039 | T7.9.A–B | Reference data (22-category tree, notification permisos), T7.9.C/D bloqueada |
+| 0038–0039 | T7.9.A–B | Reference data (22-category tree, notification permisos) |
 | 0040 | T7.10 | Renombre de roles: `admin_sistema` → `master`, `admin_organizacion` → `admin_org`, `operador_organizacion` → `operador_org` |
+| 0041 | T7.9.C/D | Parroquias Santa Elena (11 filas OSM) + organización CTE - Santa Elena + backfill geo_zones.code; seeding pipeline (usuarios, demo/volumen, feed rebuild, npm scripts) |
 
 **16 tablas de dominio**: `assignments`, `comment_images`, `comments`, `geo_zones`,
 `incident_categories`, `incident_images`, `incidents`, `invitations`,
@@ -90,13 +91,17 @@ Auditadas el 2026-08-24 comparando columna por columna ambos esquemas.
 | Permisos de `notifications` | 0039: ✅ (READ, UPDATE) añadidos a catálogo + otorgados a 4 staff roles |
 | Renombre de roles (claridad) | 0040: ✅ `master`, `admin_org`, `operador_org` (names alineados con responsabilidades) |
 
-🚧 **T7.9.C–D bloqueadas**:
+✅ **T7.9.C–D completadas**:
 
-| Gap | Bloqueador | Migración |
-|-----|-----------|-----------|
-| Organizaciones reales (Santa Elena) | Input operador (Andy) — lista de GAD + sucursales | 0039 (partial) |
-| Nivel `parroquia` en geo_zones | Depende de C1 | 0039 (partial) |
-| Datos de demo/volumen | No crítico | `database/seeds/` |
+| Tarea | Descripción | Migración / Seeder |
+|------|-------------|-------------|
+| Geografía: parroquias Santa Elena | 11 parroquias desde OSM (ODbL 1.0), codigo EC-24-0[1-6]-[50-56], ST_Multi geometry | 0041 |
+| Organizaciones semilla | CTE - Santa Elena, zone_id→EC-24-01, parent_id NULL, idempotente ON CONFLICT | 0041 |
+| Backfill geo_zones.code | Rellena código en 4 zonas preexistentes (EC-24, EC-24-01/02/03) para que parroquias resuelvan parent_id | 0041 |
+| Usuarios demo | 6 usuarios con 3 roles + anónimo, password-secured | `database/seeds/users.js` |
+| Volumen de incidentes | 1000 incidentes [VOL] prefixed, escritura bulk + idempotente | `database/seeds/volume-incidents.js` |
+| Feed rebuild | NestFactory hook en-proceso, captura todas las entradas posteriores a seed | `src/main.ts` init |
+| Npm scripts | `db:migrate`, `db:seed`, `npm test:e2e` integrados + documentados | `backend/package.json` |
 
 Detalles completos, arquitectura, y diseño en `openspec/changes/archive/2026-08-24-t7-database-schema-parity/`.
 
