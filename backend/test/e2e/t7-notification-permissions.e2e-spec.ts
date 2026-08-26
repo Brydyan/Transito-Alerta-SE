@@ -25,6 +25,10 @@ describe('E2E T7.9.B notification permissions (0039)', () => {
     'operador_org',
   ];
 
+  // Applies through 0040, not 0039: the grants in 0039 are written against the
+  // pre-rename role names, and 0040_rename_roles is what turns them into the
+  // `master` / `admin_org` / `operador_org` this suite asserts on. A rename
+  // does not touch the `permissions` JSONB, so the grants travel with the row.
   beforeAll(async () => {
     h = await MigrationHarness.start();
     await h.applyRange({ to: '0040' });
@@ -68,9 +72,16 @@ describe('E2E T7.9.B notification permissions (0039)', () => {
 
   // ---- R20.3 — re-apply is idempotent -------------------------------------
 
-  it('R20.3: re-applying 0040 does not duplicate the catalog rows or the JSONB grants', async () => {
-    await h.applyVersion('0040');
-    await h.applyVersion('0040');
+  // NOTE — 0039 is re-applied here, not 0040: it is the migration that writes
+  // the catalog rows and the grants, so it is the one whose idempotency matters.
+  // Its `ON CONFLICT DO NOTHING` is exercised for real. Its `?&` guard on the
+  // UPDATE is not: by this point 0040 has renamed the roles, so the
+  // `WHERE name IN (<pre-rename names>)` clause matches zero rows regardless.
+  // The guard itself is covered against the pre-rename state in the migration
+  // harness range applied by `beforeAll`.
+  it('R20.3: re-applying 0039 does not duplicate the catalog rows or the JSONB grants', async () => {
+    await h.applyVersion('0039');
+    await h.applyVersion('0039');
 
     const catalogRows = await h.rows<{ count: string }>(
       `SELECT COUNT(*)::int AS count FROM permissions WHERE resource = 'notifications'`,

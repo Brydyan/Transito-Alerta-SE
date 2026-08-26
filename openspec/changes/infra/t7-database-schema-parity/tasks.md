@@ -196,8 +196,8 @@ for the full compliance breakdown and next steps.
 ⚠️ **Reordenado (2026-08-26)**: 0039 → rename roles, 0040 → permissions (was 0039 → permissions, 0040 → rename).
 Motivo: 0040 permissions references new role names (master, admin_org, etc.) created by 0039 rename.
 
-- [x] **T7.9.B1** — 🔴 e2e para R20.1–R20.3: filas `(notifications, READ)` y `(notifications, UPDATE)` en el catálogo, otorgadas a los 4 roles staff, sin duplicar al re-aplicar. Deben fallar. **(1h)** ✅ RED confirmado (`t7-notification-permissions.e2e-spec.ts`, 7/7 passing after 0039→0040 reorder)
-- [x] **T7.9.B2** — Añadir a 0040 las dos filas del catálogo y su concesión en el JSONB `roles.permissions` de los 4 roles staff, con el mismo patrón que 0019_incident_claim.sql (`permissions || jsonb_build_array(...)` + guarda `?&`). `PermissionAction` en `require-permission.decorator.ts` ya admite `READ`/`UPDATE` — sin cambios. **(1.5h)** ✅ implemented as 0040_organizations_permissions.sql
+- [x] **T7.9.B1** — 🔴 e2e para R20.1–R20.3: filas `(notifications, READ)` y `(notifications, UPDATE)` en el catálogo, otorgadas a los 4 roles staff, sin duplicar al re-aplicar. Deben fallar. **(1h)** ✅ RED confirmado (`t7-notification-permissions.e2e-spec.ts`, 7/7 passing; el suite aplica hasta 0040 porque los grants de 0039 usan los nombres de rol pre-rename)
+- [x] **T7.9.B2** — Añadir a 0039 las dos filas del catálogo y su concesión en el JSONB `roles.permissions` de los 4 roles staff, con el mismo patrón que 0019_incident_claim.sql (`permissions || jsonb_build_array(...)` + guarda `?&`). `PermissionAction` en `require-permission.decorator.ts` ya admite `READ`/`UPDATE` — sin cambios. **(1.5h)** ✅ implemented as 0039_organizations_permissions.sql
 - [x] **T7.9.B3** — Revisar si `NotificationsController` debe pasar a exigir el permiso o si sigue con `JwtAuthGuard` a secas. Registrar la decisión en `design.md`; no cambiar el guard sin decidirlo. **(1h)** ✅ decisión: sin cambios de guard — ver design.md D14 (approve/reject ya usaban `@RequirePermission('UPDATE')` desde T5.6; el gap era sólo de datos, no de código; rutas de notificaciones propias se quedan en `JwtAuthGuard` solo)
 
 ### Fase C — Geografía y organizaciones (parte de 0039)
@@ -224,8 +224,8 @@ Motivo: 0040 permissions references new role names (master, admin_org, etc.) cre
 ⚠️ **Reordenado como D7.9 fase previa (2026-08-26)**: ahora es 0039 (was 0040).
 Razón: 0040 permissions needs names created by 0039 rename. Moved in order.
 
-- [x] **T7.10.A1** — Crear `0039_rename_roles.sql`: `UPDATE roles SET name = 'master' WHERE name = 'admin_sistema'`, `UPDATE roles SET name = 'admin_org' WHERE name = 'admin_organizacion'`, `UPDATE roles SET name = 'operador_org' WHERE name = 'operador_organizacion'`. **(30min)** ✅ 918e428
-- [x] **T7.10.A2** — Crear `0039_rename_roles.DOWN.sql`: revertir los 3 UPDATE con nombres originales. **(15min)** ✅ 918e428
+- [x] **T7.10.A1** — Crear `0040_rename_roles.sql`: `UPDATE roles SET name = 'master' WHERE name = 'admin_sistema'`, `UPDATE roles SET name = 'admin_org' WHERE name = 'admin_organizacion'`, `UPDATE roles SET name = 'operador_org' WHERE name = 'operador_organizacion'`. **(30min)** ✅ 918e428
+- [x] **T7.10.A2** — Crear `0040_rename_roles.DOWN.sql`: revertir los 3 UPDATE con nombres originales. **(15min)** ✅ 918e428
 - [x] **T7.10.A3** — Actualizar código backend: `resolve-subject-scope.ts`, `role-rank.ts`, `incident-analytics.service.ts`, `incident-workflow.service.ts`, `incident-feed.service.ts`, `incident-export.service.ts`, `incidents.controller.ts`, `operators.controller.ts`, y constants. **(1.5h)** ✅ 918e428
 - [x] **T7.10.A4** — Actualizar 846 tests (.spec.ts) con nombres nuevos. Bulk replace vía sed. **(45min)** ✅ 918e428
 - [x] **T7.10.A5** — Todos los tests green (846 unit). Supabase: ejecutar INSERT a `schema_migrations` + migración `.sql`. **(30min)** ✅ 9b891be
