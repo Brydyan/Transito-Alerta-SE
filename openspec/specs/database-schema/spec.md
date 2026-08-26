@@ -4,6 +4,13 @@
 **Source change**: t7-database-schema-parity (archived 2026-08-24)
 **Version**: R1
 **Date**: 2026-08-24
+**Update**: 2026-08-26 — R21/R22 re-anchored from migration 0039 to
+migration `0041_geography_organizations_seed.sql` in the follow-up
+change `openspec/changes/infra/t7-geography-organizations-seed/`.
+The compliance table below has been updated to reflect the current
+state; the in-line scenario text still references 0039 for historical
+continuity (T7.9.Z2) — the **authoritative** R21 lives in
+`openspec/changes/infra/t7-geography-organizations-seed/specs/database-schema/spec.md`.
 
 > Todos los escenarios se validan con Postgres + PostGIS real (Testcontainers),
 > nunca con mocks. Un escenario se considera cumplido sólo si existe un test que
@@ -11,7 +18,7 @@
 
 ---
 
-## Compliance Status (as of archive, 2026-08-24)
+## Compliance Status (as of 2026-08-26, post-reanchor)
 
 | Requirement Group | Status | Notes |
 |---|---|---|
@@ -25,8 +32,8 @@
 | R16 (D7.8 index parity) | ✅ Compliant | Migration 0037 (4 of 9 indexes newly created; 5 already existed under other names — see design.md D10) |
 | R17-R18 (transversal / docs) | ⚠️ Partial | Full-schema e2e (T7.Z1) and docs sync (T7.1.D2/R18.1) not yet executed |
 | R19-R20 (D7.9 category tree + notification perms) | ✅ Compliant | Migrations 0038, 0039 (Fase B only) |
-| R21 (D7.9 geography + seed orgs) | 🚧 Blocked | T7.9.C blocked on operator input (real Santa Elena organization list) |
-| R22 (D7.9 demo/volume data separation) | ⬜ Not started | T7.9.D not reached this cycle |
+| R21 (D7.9 geography + seed orgs) | ✅ Compliant | **Re-anchored to migración 0041** — `openspec/changes/infra/t7-geography-organizations-seed/`. T7.9.C1 (operator input blocker) se resolvió cambiando la fuente a OpenStreetMap (`admin_level=8`, ODbL 1.0); ver `t7-geography-organizations-seed/design.md D0` y la spec canónica en `t7-geography-organizations-seed/specs/database-schema/spec.md` |
+| R22 (D7.9 demo/volume data separation) | ✅ Compliant | **Re-anchored to `database/seeds/` pipeline + migration 0041** (no DML de incidentes en migraciones). E2E: `t7-seeding-pipeline.e2e-spec.ts` + `t7-users-seed.e2e-spec.ts` + `t7-volume-seed.e2e-spec.ts`. Ver `t7-geography-organizations-seed/tasks.md` T7.9.D1–D11 y la spec canónica. |
 
 **Note on R10.4/R10.5**: the scenarios below describing a *partial* UNIQUE index
 (`UNIQUE (zone_id) WHERE parent_id IS NULL`) are historical — implementation
@@ -608,12 +615,26 @@ Scenario R20.3 — Re-aplicar 0039 no duplica filas del catálogo
 
 ### R21 — Datos geográficos y organizaciones semilla
 
-> **Status**: 🚧 Blocked on operator input (T7.9.C1). Not implemented as of
-> archive date. See archive-report.md for details.
+> **Status (2026-08-26)**: ✅ Compliant. **Re-anchored to migración
+> 0041** (T7.9.Z2). La fuente final es OpenStreetMap
+> (`admin_level=8`, ODbL 1.0), no INEC DPA — INEC fue rechazada por
+> falta de licencia. El blocker original de T7.9.C1 (operator input
+> sobre la lista de organizaciones) se resolvió cambiando el origen
+> de los datos; el único punto legal abierto es el alcance del
+> share-alike de ODbL 1.0 (juicio del operador, no bloqueo técnico).
+> Detalles completos y escenarios **autoritativos** en
+> `openspec/changes/infra/t7-geography-organizations-seed/specs/database-schema/spec.md`.
+>
+> Los escenarios abajo se conservan para continuidad histórica
+> con el cambio archivado — apuntan conceptualmente a la misma
+> garantía pero **la versión canónica es la del change
+> `t7-geography-organizations-seed`**. Donde dice "0039", léase
+> "0041_geography_organizations_seed.sql" (migración real, aplicada
+> en orden load-bearing por el operador en Supabase).
 
 ```
 Scenario R21.1 — Las parroquias de Santa Elena quedan sembradas
-  Given  una base con 0039 aplicada
+  Given  una base con 0041 aplicada (en lugar de 0039)
   When   se cuentan las geo_zones con level = 'parroquia'
   Then   hay al menos una por cada uno de los 3 cantones
   And    cada una tiene parent_id apuntando a su cantón
@@ -628,22 +649,38 @@ Scenario R21.3 — El polígono de cada parroquia cae dentro del de su cantón
   Given  las geo_zones sembradas
   When   se evalúa ST_Within(parroquia.polygon, canton.polygon) para cada par
   Then   el resultado es verdadero en todos los casos
+  And    en la implementación real, R21.3 usa ST_Within(ST_PointOnSurface(...))
+         + overlap_ratio >= 0.75 (ver t7-geography-organizations-seed/design.md D5)
+         porque las parroquias (OSM) y los cantones (Ecuador-geoJSON vía 0003)
+         vienen de fuentes distintas — la formulación estricta de ST_Within
+         falla en las 11 (cross-source es certeza, no riesgo)
 
 Scenario R21.4 — Las organizaciones semilla quedan cargadas
-  Given  una base con 0039 aplicada
+  Given  una base con 0041 aplicada (en lugar de 0039)
   When   se listan las organizaciones
-  Then   están las organizaciones acordadas con el operador
+  Then   existe 'CTE - Santa Elena' con zone_id → EC-24-01 y parent_id NULL
   And    cada una tiene zone_id apuntando a una geo_zone existente
 
-Scenario R21.5 — Re-aplicar 0039 no duplica organizaciones ni zonas
-  Given  una base con 0039 ya aplicada
-  When   se vuelve a ejecutar el archivo 0039
+Scenario R21.5 — Re-aplicar 0041 no duplica organizaciones ni zonas
+  Given  una base con 0041 ya aplicada
+  When   se vuelve a ejecutar el archivo 0041
   Then   el conteo de organizations y de geo_zones no cambia
 ```
 
 ### R22 — Separación entre datos de referencia y datos de demo
 
-> **Status**: ⬜ Not started (T7.9.D). Not implemented as of archive date.
+> **Status (2026-08-26)**: ✅ Compliant. Re-anchored a
+> `database/seeds/` + `t7-geography-organizations-seed`. La
+> geografía y la organización **nunca** llegan por un seed script
+> (R22.1, R22.2); siempre por la migración 0041. Los generadores
+> de demo/volumen son idempotentes y el feed de Redis se
+> reconcilia con Postgres al final del pipeline
+> (`rebuild-feed.ts`).
+>
+> Versión canónica y e2e (`t7-seeding-pipeline.e2e-spec.ts`,
+> `t7-users-seed.e2e-spec.ts`, `t7-volume-seed.e2e-spec.ts`) en
+> `openspec/changes/infra/t7-geography-organizations-seed/specs/database-schema/spec.md`.
+> Los escenarios abajo se conservan para continuidad histórica.
 
 ```
 Scenario R22.1 — Ninguna migración inserta incidentes

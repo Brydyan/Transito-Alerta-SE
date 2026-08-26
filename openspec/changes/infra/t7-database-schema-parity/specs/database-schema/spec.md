@@ -86,14 +86,14 @@ ejecutaron. No hay evidencia de que reviertan lo que dicen revertir.
 ```
 Scenario R3.1 — Ciclo completo up/down deja la base limpia
   Given  una base vacía
-  When   se aplican todas las migraciones 0001 a 0039 en orden numérico
-  And    luego se aplican todos los archivos DOWN en orden inverso (0039 a 0001)
+  When   se aplican todas las migraciones 0001 a 0041 en orden numérico
+  And    luego se aplican todos los archivos DOWN en orden inverso (0041 a 0001)
   Then   no queda ninguna tabla de dominio en el esquema public
   And    no queda ninguna función ni trigger creado por las migraciones
 
 Scenario R3.2 — Cada migración nueva tiene su DOWN
   Given  el directorio database/migrations
-  When   se listan los archivos 0030 a 0039
+  When   se listan los archivos 0030 a 0041
   Then   para cada uno existe el archivo homónimo .DOWN.sql en database/rollback
 ```
 
@@ -106,7 +106,7 @@ Scenario R4.1 — Filas 0024-0029 reflejan la aplicación real
   Then   esas 6 filas figuran como ✅ Applied con fecha 2026-08-24 y entorno supabase
 
 Scenario R4.2 — Cada migración nueva queda registrada
-  Given  las migraciones 0030 a 0039
+  Given  las migraciones 0030 a 0041
   When   se lee database/MIGRATION_LOG.md
   Then   existe una fila por cada versión, con descripción y estado
 ```
@@ -453,7 +453,7 @@ Scenario R14.4 — Una categoría hija soft-deleted no convierte al padre en no-
 
 ```
 Scenario R15.1 — Toda FK declara comportamiento explícito
-  Given  una base con 0001 a 0039 aplicadas
+  Given  una base con 0001 a 0041 aplicadas
   When   se listan las FK de las tablas de dominio en information_schema
   Then   ninguna queda con el NO ACTION por defecto sin justificación documentada
          en design.md
@@ -645,22 +645,22 @@ Scenario R22.4 — El feed de Redis se reconstruye tras sembrar
 ```
 Scenario R17.1 — Base vacía
   Given  un Postgres con PostGIS y sin ninguna tabla
-  When   se aplican 0001 a 0039 en orden numérico
+  When   se aplican 0001 a 0041 en orden numérico
   Then   todas terminan sin error
 
 Scenario R17.2 — Base con esquema actual
   Given  un Postgres con 0001 a 0029 ya aplicadas y datos de prueba
-  When   se aplican 0030 a 0039
+  When   se aplican 0030 a 0041
   Then   todas terminan sin error
   And    ninguna fila preexistente se pierde
 
 Scenario R17.3 — Re-aplicación completa es inocua
-  Given  un Postgres con 0001 a 0039 aplicadas
-  When   se vuelven a ejecutar los archivos 0030 a 0039
+  Given  un Postgres con 0001 a 0041 aplicadas
+  When   se vuelven a ejecutar los archivos 0030 a 0041
   Then   todos terminan sin error y sin cambios en el esquema
 
 Scenario R17.4 — La app bootea contra el esquema real
-  Given  un Postgres con 0001 a 0039 aplicadas
+  Given  un Postgres con 0001 a 0041 aplicadas
   When   se levanta la aplicación NestJS con synchronize:false
   Then   arranca sin errores de mapeo de entidades
   And    GET /api/health responde 200
@@ -672,7 +672,7 @@ Scenario R17.4 — La app bootea contra el esquema real
 Scenario R18.1 — El doc base refleja el estado real
   Given  el change aplicado
   When   se lee docs/tasks/3-DATABASE-SCHEMA.md
-  Then   el rango de migraciones documentado llega a 0039
+  Then   el rango de migraciones documentado llega a 0041
   And    el runner documentado apunta a backend/scripts/run-migrations.ts, que existe
-  And    el mapeo declarado es 72 migraciones legacy → 37 SQL
+  And    el mapeo declarado es 72 migraciones legacy → 41 SQL
 ```

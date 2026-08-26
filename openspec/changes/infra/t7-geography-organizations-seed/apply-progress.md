@@ -164,3 +164,82 @@ npm run db:seed:mass  # + 1000 incidentes de volumen
 Ambos son idempotentes — re-ejecutar no cambia ninguna fila. La guarda
 de host/production protege contra ejecución accidental en
 `*.supabase.co` u otro destino no local.
+
+---
+
+# Cierre Z1–Z5 (2026-08-26)
+
+Tras cerrar D7.9.C y D7.9.D, se ejecutó el bloque de cierre T7.9.Z1–Z5
+en el mismo día. Resumen:
+
+| Tarea | Acción | Estado |
+|-------|--------|--------|
+| **T7.9.Z1** | Fila 0041 verificada en `database/MIGRATION_LOG.md` (status `⏳ Pending`, entorno `supabase`) | ✅ |
+| **T7.9.Z2** | Re-anchor de R21/R22 en `t7-database-schema-parity/tasks.md` y `openspec/specs/database-schema/spec.md` (0039 → 0041) | ✅ |
+| **T7.9.Z3** | `docs/tasks/3-DATABASE-SCHEMA.md` ya documenta 0001–0041 — sin cambios | ✅ |
+| **T7.9.Z4** | Suite completa verde: `jest` 856/856, `jest:e2e` 399/399, lint 0 errors, typecheck/build limpios | ✅ |
+| **T7.9.Z5** | `docs/runbooks/apply-0041.md` creado con pre-flight, aplicación, 5 checkpoints, idempotencia, registro y rollback | ✅ |
+
+### Z4 — detalle de la suite completa
+
+```
+$ cd backend/
+
+$ ./node_modules/.bin/jest                        # unit + integration
+Test Suites: 93 passed, 93 total
+Tests:       856 passed, 856 total
+Time:        15.064 s
+
+$ ./node_modules/.bin/jest --config ./test/jest-e2e.json
+Test Suites: 45 passed, 45 total
+Tests:       399 passed, 399 total
+Time:        488.391 s
+
+$ npm run lint
+✖ 19 problems (0 errors, 19 warnings)        # 19 warnings pre-existentes (any en spec.ts ajenos)
+
+$ npm run typecheck
+(sin output)                                 # tsc --noEmit -p tsconfig.json limpio
+
+$ npm run build
+(sin output)                                 # nest build limpio
+```
+
+Los `ERROR [MailOutboxConsumer] FAILED: connect ECONNREFUSED 127.0.0.1:1025`
+que aparecen en stderr durante el e2e son esperados — son tests que
+deliberadamente prueban el camino de fallo de SMTP (sin servidor
+mailhog levantado en el test runner). El conteo `Tests: 399 passed`
+confirma que ningún test falló.
+
+### Z5 — checkpoint summary para el operador
+
+El runbook `docs/runbooks/apply-0041.md` lista los conteos esperados
+post-aplicación (medidos en `MigrationHarness` el 2026-08-26):
+
+| Query | Esperado |
+|-------|----------|
+| `count(*) FROM geo_zones` | 15 (4 + 11 parroquias) |
+| `count(*) FROM geo_zones WHERE level='parroquia'` | 11 (7 en EC-24-01, 1 en EC-24-02, 3 en EC-24-03) |
+| `count(*) FROM organizations WHERE name='CTE - Santa Elena'` | 1 (forma corta, `parent_id` NULL, `zone_id → EC-24-01`) |
+| `parent_ok = true` en las 11 | true en todos los pares parroquia→cantón |
+
+El operador actualiza `MIGRATION_LOG.md` a `✅ Applied` tras verificar
+esos conteos en Supabase y commit con mensaje
+`docs(log): mark 0041 geography_organizations_seed applied on supabase`.
+
+## Estado final del change
+
+- **23/23 tareas** completas (D7.9.C 7, D7.9.D 11, Cierre 5).
+- **856 unit + 399 e2e tests** verdes — incluyendo las 3 nuevas
+  suites de D7.9.D (16 tests) y las 2 de D7.9.C (10 tests).
+- **`tsc --noEmit`** limpio.
+- **`nest build`** limpio.
+- **Lint** 0 errors (19 warnings pre-existentes en archivos ajenos).
+- **Migración 0041** lista para el operador (runbook completo).
+- **Seeders** listos para `npm run db:seed` / `db:seed:mass` (locales
+  o staging; guardados contra prod).
+- **Re-anchor de docs** (T7.9.Z2) cierra la inconsistencia histórica
+  entre el change archivado y la implementación real.
+
+Listo para `sdd-verify` y, después, `sdd-archive` cuando el operador
+confirme la aplicación de 0041 en Supabase.

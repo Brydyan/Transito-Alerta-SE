@@ -296,36 +296,75 @@
 > Z2 no depende de T7.9.C1 y puede hacerse en paralelo con D7.9.D. Z1, Z4 y
 > Z5 requieren 0041 escrita (fin de D7.9.C).
 
-- [ ] **T7.9.Z1** — Añadir la fila `0041` a `database/MIGRATION_LOG.md`:
+- [x] **T7.9.Z1** — Añadir la fila `0041` a `database/MIGRATION_LOG.md`:
       nombre `geography_organizations_seed`, descripción (backfill de
       `code`, parroquias de Santa Elena, organización `CTE - Santa Elena`),
       estado `⏳ Pending` hasta que el operador la aplique manualmente en
-      Supabase, entorno `supabase`. **(30min)**
+      Supabase, entorno `supabase`. **(30min)** ✅ Fila ya presente en
+      `database/MIGRATION_LOG.md` (línea 101) con status `⏳ Pending` y
+      entorno `supabase` — descripción cubre los 3 componentes del
+      cambio (backfill, parroquias OSM, organización CTE - Santa Elena).
+      El operador actualiza a `✅ Applied` siguiendo `docs/runbooks/apply-0041.md`
+      tras pegar el SQL en el editor de Supabase.
 
-- [ ] **T7.9.Z2** — Re-anclar R21 en
+- [x] **T7.9.Z2** — Re-anclar R21 en
       `openspec/changes/infra/t7-database-schema-parity/tasks.md` (líneas
       T7.9.C1–C6, hoy referencian 0039) y en
       `openspec/specs/database-schema/spec.md` (si ancla R21 a 0039), para
       que apunten a la migración real `0041_geography_organizations_seed.sql`
       de este change. Puede hacerse ya — es un cambio de texto, no depende
-      de T7.9.C1. **(45min)**
+      de T7.9.C1. **(45min)** ✅ Header de `t7-database-schema-parity/tasks.md`
+      actualizado con la nota de re-anchor; T7.9.C1–C6 y T7.9.D1–D5
+      reescritos como `[x]` con puntero al change nuevo; fila del resumen
+      `D7.9 | 18 | 0038, 0039 (Fase A/B), **0041** (Fase C/D)` ajustada.
+      En `specs/database-schema/spec.md`: tabla de compliance con R21/R22
+      marcadas `✅ Compliant` (2026-08-26), R21 con status note y
+      escenarios que apuntan a "0041 aplicada" en lugar de 0039, R22
+      idéntica. La spec canónica sigue en
+      `t7-geography-organizations-seed/specs/database-schema/spec.md`.
 
-- [ ] **T7.9.Z3** — Revisar `docs/tasks/3-DATABASE-SCHEMA.md` (rango de
+- [x] **T7.9.Z3** — Revisar `docs/tasks/3-DATABASE-SCHEMA.md` (rango de
       migraciones documentado como 0001–0039/0040) y actualizarlo a
-      0001–0041 si sigue mencionando un rango cerrado. **(30min)**
+      0001–0041 si sigue mencionando un rango cerrado. **(30min)** ✅
+      `docs/tasks/3-DATABASE-SCHEMA.md` ya documenta el rango 0001–0041
+      (línea 11: "72 migraciones legacy → 41 archivos SQL (0001–0041, con
+      T7.9.C/D completadas)"), la tabla de fases llega hasta 0041
+      (línea 38) y la sección de gaps post-T7 incluye las 3 filas de
+      0041 (líneas 98–100). Sin cambios necesarios — el doc se mantuvo
+      sincronizado por la propia fase C/D.
 
-- [ ] **T7.9.Z4** — Correr la suite completa (`npm test && npm run
+- [x] **T7.9.Z4** — Correr la suite completa (`npm test && npm run
       test:e2e`), `npm run lint`, `npm run typecheck` y `npm run build`
       desde `backend/`. Cero errores. Bloqueada hasta que D7.9.C y D7.9.D
-      estén ambas completas. **(1h)**
+      estén ambas completas. **(1h)** ✅ Corrido el 2026-08-26 desde
+      `backend/`: `jest` (unit) **856/856** verde en 93 suites;
+      `jest --config ./test/jest-e2e.json` **399/399** verde en 45
+      suites (incluye los 3 nuevos del bloque D — 16 tests en
+      `t7-seeding-pipeline` + `t7-users-seed` + `t7-volume-seed`); `npm
+      run lint` **0 errors** (19 warnings pre-existentes de `any` en
+      spec.ts ajenos a este change); `npm run typecheck` **limpio**;
+      `npm run build` **limpio**. Los `ERROR [MailOutboxConsumer]`
+      en stderr durante los e2e son esperados — son tests que
+      deliberadamente prueban el camino de fallo de SMTP.
 
-- [ ] **T7.9.Z5** — Redactar el bloque de aplicación manual para el
+- [x] **T7.9.Z5** — Redactar el bloque de aplicación manual para el
       operador: pegar `0041_geography_organizations_seed.sql` en el editor
       SQL de Supabase tras confirmar que 0040 está registrada en
       `schema_migrations`, con el checkpoint a verificar (conteo de
       parroquias por cantón, existencia de la organización). Actualizar la
       fila 0041 de `MIGRATION_LOG.md` a `✅ Applied` una vez ejecutado.
-      **(45min)**
+      **(45min)** ✅ `docs/runbooks/apply-0041.md` creado. Cubre: (1)
+      pre-flight local (`t7-geography-orgs-seed.e2e-spec.ts` 10/10), (2)
+      pre-flight Supabase con query de 5 checks, (3) aplicación de la
+      migración, (4) **5 checkpoints post-aplicación** (backfill de
+      code, conteo de parroquias por cantón — esperado 7/1/3 = 11,
+      forma corta de la organización con `zone_code = 'EC-24-01'`,
+      pertenencia geométrica `parent_ok` en las 11), (5) idempotencia
+      con segundo run, (6) registro en `schema_migrations` con
+      `sha256sum` literal, (7) cierre en `MIGRATION_LOG.md` con commit
+      de `docs(log)`, (8) rollback con guarda ruidosa para los casos
+      donde `users.organization_id` aún referencia la org. Enlazado
+      desde `docs/runbooks/deploy.md` § paso 2.
 
 ---
 
@@ -333,15 +372,22 @@
 
 | Grupo | Tareas | Migración | Estimado | Bloqueo |
 |-------|--------|-----------|----------|---------|
-| D7.9.C | 7 | 0041 | ~14h | 🚧 C1 bloqueada (operador); C2–C7 dependen de C1 |
-| D7.9.D | 11 | — (seeds) | ~19.5h | Ninguno — ejecutable ahora |
-| Cierre | 5 | — | ~4.25h | Z1/Z4/Z5 dependen de D7.9.C; Z2/Z3 no |
-| **Total** | **23** | **1** | **~37.75h** | |
+| D7.9.C | 7 | 0041 | ~14h | ✅ 2026-08-26 — fuente OSM (ODbL 1.0) verificada y aplicada en 0041 |
+| D7.9.D | 11 | — (seeds) | ~19.5h | ✅ 2026-08-26 — 16/16 tests e2e verdes |
+| Cierre | 5 | — | ~4.25h | ✅ 2026-08-26 — Z1–Z5 completas; Z5 deja runbook + checkpoint SQL |
+| **Total** | **23** | **1** | **~37.75h** | **Todas verdes** (excepto la aplicación real de 0041 en Supabase, que es decisión del operador) |
 
-**Ejecutable hoy sin esperar al operador**: D7.9.D1–D11 (19.5h) +
-D7.9.Z2/Z3 (1.25h) = **~20.75h** de trabajo desbloqueado.
+**Estado al cierre (2026-08-26)**: 23/23 tareas del change
+`infra/t7-geography-organizations-seed` completas. Único paso externo
+pendiente: que el operador pegue `0041_geography_organizations_seed.sql`
+en el editor SQL de Supabase siguiendo
+[`docs/runbooks/apply-0041.md`](../../../docs/runbooks/apply-0041.md)
+y cambie la fila 0041 de `database/MIGRATION_LOG.md` a `✅ Applied`.
 
-**Bloqueado en T7.9.C1** (operador): D7.9.C2–C7 (~11.5h) + D7.9.Z1/Z4/Z5
-(~2.25h) = **~13.75h** que no pueden empezar hasta que se resuelva el
-criterio legal de ODbL 1.0 (share-alike) para el dataset OSM — la
-disponibilidad del dataset en sí ya está verificada (ver design.md D0).
+**Cambios laterales** (Z2): re-anchoring de R21/R22 en el change
+archivado `t7-database-schema-parity` y en
+`openspec/specs/database-schema/spec.md` para que apunten a la
+migración real 0041. Sin este re-anchor, los docs viejos seguían
+referenciando 0039 y el `npx jest t7-full-schema` habría asumido
+geografía sembrada por 0039 — incompatibilidad detectada y corregida
+en este pase.
