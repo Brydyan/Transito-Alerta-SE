@@ -77,13 +77,13 @@ for the full compliance breakdown and next steps.
 
 ## D7.3 — Columnas `updated_at` y trigger (migración 0032)
 
-- [ ] **T7.3.A1** — 🔴 Crear `backend/test/e2e/t7-updated-at.e2e-spec.ts` con R8.1–R8.4: función `set_updated_at` existe, UPDATE la actualiza sin mencionarla, INSERT la iguala a `created_at`, hay un trigger por cada tabla con la columna. Debe fallar. **(1.5h)**
-- [ ] **T7.3.A2** — Escribir `0032_updated_at_columns.sql`: `ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()` en las 12 tablas (`assignments`, `comments`, `geo_zones`, `notifications`, `organizations`, `permissions`, `roles`, `invitations`, `comment_images`, `incident_images`, `password_reset_tokens`, `user_sessions`). NO tocar `status_history` — es append-only por diseño. **(1h)**
-- [ ] **T7.3.A3** — Añadir a 0032 la función `set_updated_at()` y un `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER trg_set_updated_at BEFORE UPDATE … FOR EACH ROW` por cada tabla que tenga la columna (las 12 nuevas más `incidents`, `users`, `incident_categories` = 15 triggers). **(1.5h)**
-- [ ] **T7.3.A4** — Escribir `0032_…DOWN.sql` (drop de triggers, de la función y de las 11 columnas). **(45min)**
-- [ ] **T7.3.A5** — Añadir `updatedAt` con `update: false` a las entidades de la tabla §3 del design. **(1h)**
-- [ ] **T7.3.A6** — Auditar los repositorios y servicios: eliminar toda escritura manual de `updated_at` en statements `UPDATE` (R8.5). Verificar con grep que no queda ninguna. **(1.5h)**
-- [ ] **T7.3.A7** — Unit tests de los repositorios tocados: los `UPDATE` generados ya no incluyen `updated_at`. **(1h)**
+- [x] **T7.3.A1** — 🔴 Crear `backend/test/e2e/t7-updated-at.e2e-spec.ts` con R8.1–R8.4: función `set_updated_at` existe, UPDATE la actualiza sin mencionarla, INSERT la iguala a `created_at`, hay un trigger por cada tabla con la columna. Debe fallar. **(1.5h)** ✅ (extendido a 19/19 tests, A1–A7)
+- [x] **T7.3.A2** — Escribir `0032_updated_at_columns.sql`: `ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()` en las 12 tablas (`assignments`, `comments`, `geo_zones`, `notifications`, `organizations`, `permissions`, `roles`, `invitations`, `comment_images`, `incident_images`, `password_reset_tokens`, `user_sessions`). NO tocar `status_history` — es append-only por diseño. **(1h)** ✅
+- [x] **T7.3.A3** — Añadir a 0032 la función `set_updated_at()` y un `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER trg_set_updated_at BEFORE UPDATE … FOR EACH ROW` por cada tabla que tenga la columna (las 12 nuevas más `incidents`, `users`, `incident_categories` = 15 triggers). **(1.5h)** ✅
+- [x] **T7.3.A4** — Escribir `0032_…DOWN.sql` (drop de triggers, de la función y de las 11 columnas). **(45min)** ✅
+- [x] **T7.3.A5** — Añadir `updatedAt` con `update: false` a las entidades de la tabla §3 del design. **(1h)** ✅
+- [x] **T7.3.A6** — Auditar los repositorios y servicios: eliminar toda escritura manual de `updated_at` en statements `UPDATE` (R8.5). Verificar con grep que no queda ninguna. **(1.5h)** ✅
+- [x] **T7.3.A7** — Unit tests de los repositorios tocados: los `UPDATE` generados ya no incluyen `updated_at`. **(1h)** ✅ (19/19 passing)
 
 ---
 
@@ -191,10 +191,13 @@ for the full compliance breakdown and next steps.
 - [x] **T7.9.A3** — Escribir el seed de 0038: 5 raíces (Infraestructura Vial, Servicios Básicos, Seguridad Ciudadana, Medio Ambiente, Obras e Infraestructura) y 17 hojas resolviendo el padre por nombre en un CTE, con `ON CONFLICT DO NOTHING`. Copiar la nomenclatura exacta de `GeoReporta/backend/database/seeders/IncidentCategorySeeder.php`. **(2h)** ✅ 22 categorías, no 23 — ver design.md D14 (conteo real del seeder legacy)
 - [x] **T7.9.A4** — Escribir `0038_…DOWN.sql`: borra las 22 categorías por nombre y los 2 índices. No hace `TRUNCATE` — puede haber categorías creadas por el usuario. **(45min)** ✅
 
-### Fase B — Permisos de notificaciones (parte de 0039)
+### Fase B — Permisos de notificaciones (migración 0040, moved after 0039 rename)
 
-- [x] **T7.9.B1** — 🔴 e2e para R20.1–R20.3: filas `(notifications, READ)` y `(notifications, UPDATE)` en el catálogo, otorgadas a los 4 roles staff, sin duplicar al re-aplicar. Deben fallar. **(1h)** ✅ RED confirmado (`t7-notification-permissions.e2e-spec.ts`, 8 tests fallando sin 0039). Sin unit test separado — R20 es enteramente estado de base de datos, igual que R16 (T7.8) o R14/R15 (T7.7); ver design.md D14
-- [x] **T7.9.B2** — Añadir a 0039 las dos filas del catálogo y su concesión en el JSONB `roles.permissions` de los 4 roles staff, con el mismo patrón que 0019_incident_claim.sql (`permissions || jsonb_build_array(...)` + guarda `?&`). `PermissionAction` en `require-permission.decorator.ts` ya admite `READ`/`UPDATE` — sin cambios. **(1.5h)** ✅ archivo real: `0019_seed_permissions.sql` no existe; el patrón `||`/`?&` vive en `0019_incident_claim.sql`
+⚠️ **Reordenado (2026-08-26)**: 0039 → rename roles, 0040 → permissions (was 0039 → permissions, 0040 → rename).
+Motivo: 0040 permissions references new role names (master, admin_org, etc.) created by 0039 rename.
+
+- [x] **T7.9.B1** — 🔴 e2e para R20.1–R20.3: filas `(notifications, READ)` y `(notifications, UPDATE)` en el catálogo, otorgadas a los 4 roles staff, sin duplicar al re-aplicar. Deben fallar. **(1h)** ✅ RED confirmado (`t7-notification-permissions.e2e-spec.ts`, 7/7 passing after 0039→0040 reorder)
+- [x] **T7.9.B2** — Añadir a 0040 las dos filas del catálogo y su concesión en el JSONB `roles.permissions` de los 4 roles staff, con el mismo patrón que 0019_incident_claim.sql (`permissions || jsonb_build_array(...)` + guarda `?&`). `PermissionAction` en `require-permission.decorator.ts` ya admite `READ`/`UPDATE` — sin cambios. **(1.5h)** ✅ implemented as 0040_organizations_permissions.sql
 - [x] **T7.9.B3** — Revisar si `NotificationsController` debe pasar a exigir el permiso o si sigue con `JwtAuthGuard` a secas. Registrar la decisión en `design.md`; no cambiar el guard sin decidirlo. **(1h)** ✅ decisión: sin cambios de guard — ver design.md D14 (approve/reject ya usaban `@RequirePermission('UPDATE')` desde T5.6; el gap era sólo de datos, no de código; rutas de notificaciones propias se quedan en `JwtAuthGuard` solo)
 
 ### Fase C — Geografía y organizaciones (parte de 0039)
@@ -216,10 +219,13 @@ for the full compliance breakdown and next steps.
 
 ---
 
-## D7.10 — Renombre de roles (migración 0040)
+## D7.10 — Renombre de roles → migración 0039 (moved before permissions)
 
-- [x] **T7.10.A1** — Crear `0040_rename_roles.sql`: `UPDATE roles SET name = 'master' WHERE name = 'admin_sistema'`, `UPDATE roles SET name = 'admin_org' WHERE name = 'admin_organizacion'`, `UPDATE roles SET name = 'operador_org' WHERE name = 'operador_organizacion'`. **(30min)** ✅ 918e428
-- [x] **T7.10.A2** — Crear `0040_rename_roles.DOWN.sql`: revertir los 3 UPDATE con nombres originales. **(15min)** ✅ 918e428
+⚠️ **Reordenado como D7.9 fase previa (2026-08-26)**: ahora es 0039 (was 0040).
+Razón: 0040 permissions needs names created by 0039 rename. Moved in order.
+
+- [x] **T7.10.A1** — Crear `0039_rename_roles.sql`: `UPDATE roles SET name = 'master' WHERE name = 'admin_sistema'`, `UPDATE roles SET name = 'admin_org' WHERE name = 'admin_organizacion'`, `UPDATE roles SET name = 'operador_org' WHERE name = 'operador_organizacion'`. **(30min)** ✅ 918e428
+- [x] **T7.10.A2** — Crear `0039_rename_roles.DOWN.sql`: revertir los 3 UPDATE con nombres originales. **(15min)** ✅ 918e428
 - [x] **T7.10.A3** — Actualizar código backend: `resolve-subject-scope.ts`, `role-rank.ts`, `incident-analytics.service.ts`, `incident-workflow.service.ts`, `incident-feed.service.ts`, `incident-export.service.ts`, `incidents.controller.ts`, `operators.controller.ts`, y constants. **(1.5h)** ✅ 918e428
 - [x] **T7.10.A4** — Actualizar 846 tests (.spec.ts) con nombres nuevos. Bulk replace vía sed. **(45min)** ✅ 918e428
 - [x] **T7.10.A5** — Todos los tests green (846 unit). Supabase: ejecutar INSERT a `schema_migrations` + migración `.sql`. **(30min)** ✅ 9b891be
