@@ -1,24 +1,35 @@
 import { MigrationHarness } from '../support/migration-harness';
 
 /**
- * T7.2 Fase A — soft delete en 12 tablas.
+ * T7.2 Fase A — soft delete en 13 tablas (migración 0031).
  *
- * Strict TDD: todos fallan hasta que 0031 existe.
+ * `MigrationHarness` es *connection-scoped*: `applyRange` ejecuta los ficheros
+ * tal cual, sin consultar `schema_migrations`. Re-aplicar un rango sobre la
+ * misma conexión revienta (`constraint "fk_organizations_zone" ... already
+ * exists`) y deja la transacción abortada, arrastrando en cascada todo lo que
+ * venga después. Por eso la cadena de migraciones se aplica UNA sola vez aquí
+ * y ningún `describe` anidado vuelve a montar nada.
+ *
+ * Alcance: esta suite verifica la FORMA del esquema tras 0031 (columnas,
+ * índices parciales, estado inicial de los datos). El comportamiento de
+ * filtrado — que los repositorios efectivamente excluyan las filas con
+ * `deleted_at IS NOT NULL` — es Fase B/C y se cubre con la app real en
+ * `test/e2e/`, no aquí.
  */
-describe('T7.2.A — soft delete: deleted_at column + partial indexes on 12 tables', () => {
+describe('T7.2.A — soft delete: deleted_at column + partial indexes', () => {
   let db: MigrationHarness;
 
   beforeAll(async () => {
     db = await MigrationHarness.start();
-  });
+    await db.applyRange({ from: '0001', to: '0031' });
+  }, 240_000);
 
   afterAll(async () => {
-    await db.stop();
-  });
+    await db?.stop();
+  }, 120_000);
 
-  describe('T7.2.A1 — migración 0031 aplica sin error', () => {
-    it('aplica 0031 después de 0030', async () => {
-      await db.applyVersion('0030');
+  describe('T7.2.A1 — 0031 es re-aplicable', () => {
+    it('re-aplicar 0031 no lanza (todo el fichero es IF NOT EXISTS)', async () => {
       await expect(db.applyVersion('0031')).resolves.not.toThrow();
     });
   });
@@ -40,118 +51,89 @@ describe('T7.2.A — soft delete: deleted_at column + partial indexes on 12 tabl
       'roles', // catálogo de roles del sistema
     ];
 
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0030' });
-      await db.applyVersion('0031');
-    });
-
     for (const table of tables) {
-      it(`${table} tiene deleted_at TIMESTAMPTZ NULL`, async () => {
-        const exists = await db.columnExists(table, 'deleted_at');
-        expect(exists).toBe(true);
+      it(`${table} tiene deleted_at`, async () => {
+        expect(await db.columnExists(table, 'deleted_at')).toBe(true);
       });
     }
   });
 
   describe('T7.2.A3 — partial indexes WHERE deleted_at IS NULL en tablas clave', () => {
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0030' });
-      await db.applyVersion('0031');
+    const indexes = [
+      'idx_invitations_active',
+      'idx_password_reset_tokens_active',
+      'idx_users_email_active',
+      'idx_geo_zones_active',
+    ];
+
+    for (const index of indexes) {
+      it(`${index} existe`, async () => {
+        expect(await db.indexExists(index)).toBe(true);
+      });
+    }
+  });
+
+  describe('T7.2.A4 — 0031 no marca ninguna fila como borrada', () => {
+    it('ninguna fila de users queda con deleted_at no nulo', async () => {
+      const [row] = await db.rows<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM users WHERE deleted_at IS NOT NULL`,
+      );
+
+      expect(Number(row.count)).toBe(0);
     });
 
-    it('invitations: partial UNIQUE idx_invitations_active (token_hash, deleted_at IS NULL)', async () => {
-      // Legacy tiene partial unique en token_hash — aquí también debe existir
-      const idxExists = await db.indexExists('idx_invitations_active');
-      expect(idxExists).toBe(true);
-    });
+    it('users conserva sus filas preexistentes (el usuario anónimo de 0008)', async () => {
+      const [row] = await db.rows<{ count: string }>(`SELECT COUNT(*) AS count FROM users`);
 
-    it('password_reset_tokens: partial UNIQUE idx_password_reset_tokens_active', async () => {
-      const idxExists = await db.indexExists('idx_password_reset_tokens_active');
-      expect(idxExists).toBe(true);
-    });
-
-    it('users: partial UNIQUE idx_users_email_active (email, deleted_at IS NULL)', async () => {
-      const idxExists = await db.indexExists('idx_users_email_active');
-      expect(idxExists).toBe(true);
-    });
-
-    it('geo_zones: partial index idx_geo_zones_active', async () => {
-      const idxExists = await db.indexExists('idx_geo_zones_active');
-      expect(idxExists).toBe(true);
+      expect(Number(row.count)).toBeGreaterThan(0);
     });
   });
 
-  describe('T7.2.A4 — backfill deleted_at = NULL (ninguna fila borra todavía)', () => {
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0030' });
-      await db.applyVersion('0031');
+  describe('T7.2.A5 — incidents y assignments conservan su soft delete previo (0025)', () => {
+    // 0025 ya había añadido deleted_at a estas dos; 0031 no debe romperlas.
+    it('incidents.deleted_at sigue existiendo tras 0031', async () => {
+      expect(await db.columnExists('incidents', 'deleted_at')).toBe(true);
     });
 
-    it('todas las filas existentes quedan con deleted_at IS NULL', async () => {
-      const rows = await db.rows<{ count: number }>(
-        `SELECT COUNT(*) as count FROM users WHERE deleted_at IS NOT NULL`,
-      );
-
-      expect(rows[0].count).toBe(0); // Ninguna borra
-    });
-
-    it('soft delete de 0025–0026 (incidents + assignments) se preserva', async () => {
-      // Si 0025 ya borró logic, ese estado se mantiene
-      // (test de integridad: el backfill no interfiere)
-
-      const allUsers = await db.rows<{ count: number }>(
-        `SELECT COUNT(*) as count FROM users`,
-      );
-
-      const deletedUsers = await db.rows<{ count: number }>(
-        `SELECT COUNT(*) as count FROM users WHERE deleted_at IS NOT NULL`,
-      );
-
-      expect(deletedUsers[0].count).toBe(0); // backfill no borra nada
-      expect(allUsers[0].count).toBeGreaterThan(0); // pero la tabla tiene filas
+    it('assignments.deleted_at sigue existiendo tras 0031', async () => {
+      expect(await db.columnExists('assignments', 'deleted_at')).toBe(true);
     });
   });
 
-  describe('T7.2.A5 — soft delete de incidentes y asignaciones pre-existentes', () => {
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0030' });
-      await db.applyVersion('0031');
-    });
+  describe('T7.2.A6 — las FK hacia incidents sobreviven a 0031', () => {
+    for (const table of ['comments', 'assignments']) {
+      it(`${table}.incident_id sigue existiendo`, async () => {
+        expect(await db.columnExists(table, 'incident_id')).toBe(true);
+      });
+    }
 
-    it('SELECT * FROM incidents NO devuelve filas blandas', async () => {
-      // El query debe filtrar automáticamente (es responsabilidad del repo)
-      // Este test solo verifica que la columna existe; el filtro lo verifica
-      // el E2E con la app real.
+    // Estas dos FK son ON DELETE CASCADE desde su creación (0005 y 0007) y
+    // 0031 no las toca. No hay contradicción con el soft delete: el borrado
+    // lógico sólo escribe `deleted_at`, nunca emite un DELETE, así que la
+    // cascada no se dispara por esa vía. Queda como red de seguridad para un
+    // hard delete real — si alguien purga un incidente de verdad, no deja
+    // comentarios ni asignaciones huérfanos.
+    //
+    // (El test anterior afirmaba en un comentario que NO eran CASCADE; era
+    // falso, y no se detectaba porque sólo comprobaba que la columna
+    // existiera.)
+    it('comments y assignments cascadean ante un hard delete de incidents', async () => {
+      const rows = await db.rows<{ table_name: string; delete_rule: string }>(
+        `SELECT kcu.table_name, rc.delete_rule
+           FROM information_schema.referential_constraints rc
+           JOIN information_schema.key_column_usage kcu
+             ON kcu.constraint_name = rc.constraint_name
+           JOIN information_schema.constraint_column_usage ccu
+             ON ccu.constraint_name = rc.constraint_name
+          WHERE ccu.table_name = 'incidents'
+            AND kcu.table_name IN ('comments', 'assignments')
+            AND kcu.column_name = 'incident_id'`,
+      );
 
-      const exists = await db.columnExists('incidents', 'deleted_at');
-      expect(exists).toBe(true);
-    });
-
-    it('SELECT * FROM assignments WHERE deleted_at IS NULL devuelve solo activas', async () => {
-      // Post-0031: todos los queries deben filter `AND deleted_at IS NULL`
-
-      const exists = await db.columnExists('assignments', 'deleted_at');
-      expect(exists).toBe(true);
-    });
-  });
-
-  describe('T7.2.A6 — cascada de soft delete preserva integridad referencial', () => {
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0030' });
-      await db.applyVersion('0031');
-    });
-
-    it('comments.incident_id FK preserva referencia (no ON DELETE CASCADE)', async () => {
-      // Comentarios NO se borran si se borra el incidente
-      // Siguen existiendo (deleted_at = NULL) pero el incidente está borrarse
-
-      const exists = await db.columnExists('comments', 'incident_id');
-      expect(exists).toBe(true);
-    });
-
-    it('assignments.incident_id FK sigue existiendo, soft-deleted junto al incident', async () => {
-      const exists = await db.columnExists('assignments', 'incident_id');
-      expect(exists).toBe(true);
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(row.delete_rule).toBe('CASCADE');
+      }
     });
   });
 });
