@@ -43,15 +43,11 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
   });
 
   describe('T7.3.A3 — 15 triggers existen', () => {
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0032' });
-    });
-
     it('hay 15 triggers trg_set_updated_at (una por tabla)', async () => {
-      const rows = await db.rows<{ count: number }>(
+      const rows = await db.rows<{ count: string }>(
         `SELECT COUNT(*) as count FROM pg_trigger WHERE tgname = 'trg_set_updated_at'`,
       );
-      expect(rows[0].count).toBe(15); // 12 nuevas + incidents, users, incident_categories (pre-0032)
+      expect(parseInt(rows[0].count)).toBe(15); // 12 nuevas + incidents, users, incident_categories (pre-0032)
     });
 
     it('cada trigger es BEFORE UPDATE FOR EACH ROW', async () => {
@@ -65,10 +61,6 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
   });
 
   describe('T7.3.A4 — backfill updated_at = created_at para filas preexistentes', () => {
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0032' });
-    });
-
     it('todas las filas existentes tienen updated_at = created_at', async () => {
       // Verificar una tabla que tenga datos preexistentes
       const rows = await db.rows<{ have_mismatch: boolean }>(
@@ -82,25 +74,35 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
   });
 
   describe('T7.3.A5 — UPDATE sin mencionar updated_at la actualiza automáticamente', () => {
-    it('UPDATE comments SET message = ... avanza updated_at', async () => {
-      // Insertar comentario (requiere incident + user para FK)
-      const incRes = await db.rows<{ id: string }>(
-        `INSERT INTO incidents (id, zone_id, status, priority, location, description, created_at)
-           VALUES (gen_random_uuid(), (SELECT id FROM geo_zones LIMIT 1), 'open', 'high',
-                   ST_Point(0, 0), 'test', now())
-           RETURNING id`,
-      );
-      if (incRes.length === 0) return; // Skip si no hay zona
-
+    it('UPDATE comments SET content = ... avanza updated_at', async () => {
+      // Crear usuario (citizen_id)
       const usrRes = await db.rows<{ id: string }>(
-        `INSERT INTO users (id, email, role_id, created_at)
-           VALUES (gen_random_uuid(), 'test@example.com', (SELECT id FROM roles LIMIT 1), now())
+        `INSERT INTO users (id, role, created_at, updated_at)
+           VALUES (gen_random_uuid(), 'reporter', now(), now())
            RETURNING id`,
       );
-      if (usrRes.length === 0) return; // Skip si no hay rol
+      if (usrRes.length === 0) return;
 
+      // Crear zona
+      const zoneRes = await db.rows<{ id: string }>(
+        `INSERT INTO geo_zones (id, name, polygon, created_at, updated_at)
+           VALUES (gen_random_uuid(), 'test', ST_GeomFromText('MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)))', 4326), now(), now())
+           RETURNING id`,
+      );
+      if (zoneRes.length === 0) return;
+
+      // Crear incident
+      const incRes = await db.rows<{ id: string }>(
+        `INSERT INTO incidents (id, citizen_id, zone_id, status, priority, location, title, created_at, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, 'pending', 'medium', ST_Point(0, 0), 'Test', now(), now())
+           RETURNING id`,
+        [usrRes[0].id, zoneRes[0].id],
+      );
+      if (incRes.length === 0) return;
+
+      // Crear comentario
       const comRes = await db.rows<{ id: string; updated_at: string }>(
-        `INSERT INTO comments (id, incident_id, user_id, message, created_at, updated_at)
+        `INSERT INTO comments (id, incident_id, user_id, content, created_at, updated_at)
            VALUES (gen_random_uuid(), $1, $2, 'original', now(), now())
            RETURNING id, updated_at`,
         [incRes[0].id, usrRes[0].id],
@@ -110,12 +112,11 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
       const oldUpdatedAt = comRes[0].updated_at;
       const commentId = comRes[0].id;
 
-      // Esperar 50ms para diferencia visible
+      // Esperar 50ms
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // UPDATE sin mencionar updated_at
-      // Ejecutar UPDATE sin return
-      await db.rows(`UPDATE comments SET message = 'updated' WHERE id = $1`, [commentId]);
+      await db.rows(`UPDATE comments SET content = 'updated' WHERE id = $1`, [commentId]);
 
       // Verificar que avanzó
       const newRes = await db.rows<{ updated_at: string }>(
