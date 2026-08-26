@@ -12,20 +12,38 @@
  * .sql file) is what gets committed and pasted manually; the script itself
  * is a one-time generator, kept for reproducibility/audit.
  *
- * Usage:
+ * Arity-driven CLI (T7.9.C3, design.md D3):
+ *
  *   node database/seeds/generate-geo-zones-seed.js \
  *     <path-to-ecuador-locations-geom.json> \
  *     > database/seeds/0003_seed_geo_zones.generated.sql
  *
+ *   node database/seeds/generate-geo-zones-seed.js \
+ *     <path-to-ecuador-locations-geom.json> \
+ *     <path-to-santa-elena-parroquias.geojson> \
+ *     > database/seeds/0004_seed_parroquias.generated.sql
+ *
+ * 1 file argument -> legacy path, UNCHANGED, byte-identical to the
+ * committed 0003_seed_geo_zones.generated.sql (checksum guard, see
+ * backend/test/unit/generate-geo-zones-seed.spec.ts).
+ * 2 file arguments -> parroquia mode. The first path is still read (kept in
+ * the invocation for symmetry with the legacy command and as a sanity check
+ * that the hardcoded ZONE_IDS below still agree with the source it was
+ * originally derived from); the second path is the actual FeatureCollection
+ * emitted.
+ *
  * Geometry note: EC-24 and its cantons are MultiPolygon in the source data
  * (verified: EC-24 bounds lng[-81.008,-80.200] lat[-2.508,-1.669], 647
  * points) — the `geo_zones.polygon` column MUST be
- * `geometry(MultiPolygon, 4326)`, not `geometry(Polygon, 4326)`.
+ * `geometry(MultiPolygon, 4326)`, not `geometry(Polygon, 4326)`. Parroquia
+ * features from OSM are ST_Multi-wrapped defensively in generateParroquias
+ * regardless of their declared GeoJSON type (Polygon or MultiPolygon).
  */
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // Fixed, deterministic UUIDs (NOT randomly regenerated on each run) so the
 // seed is idempotent/reproducible and other tables/config
@@ -44,19 +62,50 @@ const ZONE_NAMES = {
   'EC-24-03': 'Salinas',
 };
 
-function main() {
-  const inputPath = process.argv[2];
-  if (!inputPath) {
-    // eslint-disable-next-line no-console
-    console.error(
-      'Usage: node generate-geo-zones-seed.js <path-to-ecuador-locations-geom.json>',
-    );
-    process.exit(1);
-  }
+// T7.9.C3 (design.md D1) — frozen namespace for RFC-4122 v5 UUIDs derived
+// from a parroquia's `code`. NEVER change this value: it would silently
+// re-derive every parroquia id on the next regeneration.
+const NS_GEO_ZONE = '3f2b1a90-7c6d-5e48-9b21-0a1d4e7c88f1';
 
-  const raw = fs.readFileSync(path.resolve(inputPath), 'utf8');
-  const data = JSON.parse(raw);
+/**
+ * RFC-4122 v5 UUID: sha1(namespaceBytes || nameBytes), first 16 bytes, with
+ * the version nibble forced to '5' and the variant nibble forced to the
+ * RFC-4122 variant (10xx). Uses only `node:crypto` — no `uuid` package
+ * (design.md D1 rejects it: a dependency in a deliberately dependency-free
+ * directory).
+ *
+ * Structurally distinct from the hand-picked v4-shaped literals in
+ * ZONE_IDS above (their third group always starts with '4'): a v5 UUID's
+ * third group always starts with '5'. Different version nibble means the
+ * two families can never collide — not merely "improbable", but impossible
+ * by construction.
+ */
+function uuidV5(name, namespace) {
+  const nsBytes = Buffer.from(String(namespace).replace(/-/g, ''), 'hex');
+  const nameBytes = Buffer.from(String(name), 'utf8');
+  const hash = crypto.createHash('sha1').update(Buffer.concat([nsBytes, nameBytes])).digest();
+  const bytes = Buffer.from(hash.subarray(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x50; // version 5
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC-4122 variant
+  const hex = bytes.toString('hex');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join('-');
+}
 
+/**
+ * Legacy path (T1.5, unchanged). Given the already-parsed
+ * ecuador-locations-geom.json data, emits the EC-24 + 3-canton INSERT
+ * statements. Pure function of `data` — no file I/O — so
+ * backend/test/unit/generate-geo-zones-seed.spec.ts can assert its output is
+ * byte-identical to the committed database/seeds/0003_seed_geo_zones.generated.sql
+ * without touching the filesystem inside the generator itself.
+ */
+function generate(data) {
   const keys = Object.keys(ZONE_IDS);
   const missing = keys.filter((k) => !data[k]);
   if (missing.length > 0) {
@@ -89,7 +138,123 @@ function main() {
     );
   }
 
-  process.stdout.write(lines.join('\n') + '\n');
+  return lines.join('\n') + '\n';
 }
 
-main();
+/**
+ * `EC-24-01-50` -> `EC-24-01` (the canton code implied by a parroquia code:
+ * the first 3 hyphen-separated segments).
+ */
+function cantonCodeOf(parroquiaCode) {
+  return parroquiaCode.split('-').slice(0, 3).join('-');
+}
+
+/**
+ * T7.9.C3 (design.md D3/D4). Given a parroquia FeatureCollection (properties:
+ * `code` EC-24-<canton>-<parish>, `dpa` 6-digit INEC code, `name`), emits one
+ * `INSERT ... SELECT ... FROM geo_zones p WHERE p.code = '<canton>'` per
+ * feature — the parent_id is resolved by the migration itself via subselect
+ * on the canton's `code`, never a hardcoded canton UUID (D4), so this output
+ * is meant to be embedded verbatim into database/migrations/0041_*.sql
+ * AFTER that migration's `code` backfill statements.
+ *
+ * Every geometry is wrapped in `ST_Multi(...)` regardless of its declared
+ * GeoJSON type — `geo_zones.polygon` is `geometry(MultiPolygon, 4326)` and a
+ * bare `Polygon` would otherwise fail `ST_GeomFromGeoJSON`'s type match.
+ */
+function generateParroquias(featureCollection) {
+  const features = [...featureCollection.features].sort((a, b) =>
+    String(a.properties.code).localeCompare(String(b.properties.code)),
+  );
+
+  const lines = [];
+  lines.push('-- Generated by database/seeds/generate-geo-zones-seed.js — DO NOT EDIT BY HAND.');
+  lines.push('-- Source: database/data/santa-elena-parroquias.geojson (OSM, ODbL 1.0 — see');
+  lines.push('-- database/data/README.md and database/data/NOTICE for attribution).');
+  lines.push('-- Embed into database/migrations/0041_geography_organizations_seed.sql (T7.9.C5),');
+  lines.push('-- AFTER the geo_zones.code backfill — parent_id below resolves by subselect on code.');
+  lines.push('');
+
+  for (const feature of features) {
+    const { code, dpa, name } = feature.properties;
+    const cantonCode = cantonCodeOf(code);
+    if (!ZONE_IDS[cantonCode]) {
+      throw new Error(`Unknown canton code '${cantonCode}' implied by parroquia code '${code}'`);
+    }
+
+    const id = uuidV5(code, NS_GEO_ZONE);
+    const safeName = String(name).replace(/'/g, "''");
+    const geojsonText = JSON.stringify(feature.geometry);
+    const municipalityCode = String(code).replace(/^EC-/, '');
+
+    lines.push(
+      'INSERT INTO geo_zones (id, name, level, code, parent_id, polygon, active, created_at, updated_at)',
+      'SELECT',
+      `  '${id}',`,
+      `  '${safeName}',`,
+      `  'parroquia',`,
+      `  '${code}',`,
+      `  p.id,`,
+      `  ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($geojson$${geojsonText}$geojson$), 4326)),`,
+      `  true,`,
+      `  now(),`,
+      `  now()`,
+      `FROM geo_zones p WHERE p.code = '${cantonCode}'`,
+      `ON CONFLICT (id) DO NOTHING;`,
+      `-- municipality_code ${municipalityCode} (DPA ${dpa})`,
+      '',
+    );
+  }
+
+  return lines.join('\n') + '\n';
+}
+
+function usage() {
+  // eslint-disable-next-line no-console
+  console.error(
+    'Usage:\n' +
+      '  node generate-geo-zones-seed.js <path-to-ecuador-locations-geom.json>\n' +
+      '  node generate-geo-zones-seed.js <path-to-ecuador-locations-geom.json> <path-to-parroquias.geojson>',
+  );
+}
+
+function main() {
+  const args = process.argv.slice(2);
+
+  if (args.length === 0) {
+    usage();
+    process.exit(1);
+  } else if (args.length === 1) {
+    const raw = fs.readFileSync(path.resolve(args[0]), 'utf8');
+    const data = JSON.parse(raw);
+    process.stdout.write(generate(data));
+  } else {
+    // args[0] (legacy source) is read for parity with the single-arg
+    // invocation and as a cross-check that ZONE_IDS' keys still exist in
+    // the source they were originally derived from — it does not otherwise
+    // influence the parroquia output.
+    const legacyRaw = fs.readFileSync(path.resolve(args[0]), 'utf8');
+    const legacyData = JSON.parse(legacyRaw);
+    const missing = Object.keys(ZONE_IDS).filter((k) => !legacyData[k]);
+    if (missing.length > 0) {
+      throw new Error(`Missing expected keys in legacy source GeoJSON: ${missing.join(', ')}`);
+    }
+
+    const parroquiasRaw = fs.readFileSync(path.resolve(args[1]), 'utf8');
+    const featureCollection = JSON.parse(parroquiasRaw);
+    process.stdout.write(generateParroquias(featureCollection));
+  }
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  generate,
+  generateParroquias,
+  uuidV5,
+  NS_GEO_ZONE,
+  ZONE_IDS,
+  ZONE_NAMES,
+};

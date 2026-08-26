@@ -22,7 +22,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "db:migrate": "ts-node scripts/run-migrations.ts",
     "db:migrate:status": "ts-node scripts/run-migrations.ts --status",
-    "db:rollback": "ts-node scripts/run-migrations.ts --down"
+    "db:rollback": "ts-node scripts/run-migrations.ts --down",
+    "db:seed": "node ../database/seeds/users.js && node ../database/seeds/demo-incidents.js && ts-node scripts/rebuild-feed.ts",
+    "db:seed:mass": "npm run db:seed && node ../database/seeds/volume-incidents.js && ts-node scripts/rebuild-feed.ts"
   },
   "dependencies": {
     "@nestjs/cache-manager": "^2.2.2",
@@ -91,6 +93,10 @@
       "ts"
     ],
     "rootDir": "src",
+    "roots": [
+      "<rootDir>",
+      "<rootDir>/../test/unit"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
