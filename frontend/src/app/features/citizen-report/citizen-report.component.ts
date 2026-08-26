@@ -4,41 +4,18 @@ import { CommonModule } from '@angular/common';
 import { OfflineSyncService } from '../../core/services/offline-sync.service';
 import { GeolocationService } from '../../core/services/geolocation.service';
 import { ConnectionService } from '../../core/services/connection.service';
-import { lastValueFrom } from 'rxjs';
+import { lastValueFrom, Observable } from 'rxjs';
 
 @Component({
   selector: 'app-citizen-report',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
-  template: `
-    <div class="p-4 max-w-md mx-auto">
-      <h2 class="text-xl font-bold mb-4">Reportar Incidente</h2>
-      
-      <div *ngIf="(isOnline$ | async) === false" class="bg-yellow-100 p-2 mb-4 rounded">
-        Modo Offline. El reporte se enviará cuando haya conexión.
-      </div>
-      <div *ngIf="isSyncing$ | async" class="bg-blue-100 p-2 mb-4 rounded">
-        Sincronizando reportes pendientes...
-      </div>
-
-      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
-        <input type="text" formControlName="title" placeholder="Título" class="border p-2 rounded" />
-        <textarea formControlName="description" placeholder="Descripción" class="border p-2 rounded"></textarea>
-        
-        <input type="file" accept="image/*" (change)="onPhotoSelected($event)" class="border p-2 rounded" />
-        <img *ngIf="photoPreview" [src]="photoPreview" class="w-full h-48 object-cover rounded" />
-
-        <button type="submit" [disabled]="!form.valid || !selectedPhoto" class="bg-blue-500 text-white p-2 rounded">
-          Enviar Reporte
-        </button>
-      </form>
-    </div>
-  `
+  templateUrl: './citizen-report.component.html'
 })
 export class CitizenReportComponent implements OnInit {
   form: FormGroup;
-  isOnline$ = this.connectionService.getConnectionStatus$();
-  isSyncing$ = this.offlineSyncService.getSyncInProgress$();
+  isOnline$: Observable<boolean>;
+  isSyncing$: Observable<boolean>;
   selectedPhoto: File | null = null;
   photoPreview: string | null = null;
 
@@ -53,6 +30,8 @@ export class CitizenReportComponent implements OnInit {
       description: ['', Validators.required],
       priority: ['medium'],
     });
+    this.isOnline$ = this.connectionService.getConnectionStatus$();
+    this.isSyncing$ = this.offlineSyncService.getSyncInProgress$();
   }
 
   ngOnInit() {

@@ -1,0 +1,22 @@
+<div class="p-4 max-w-md mx-auto">
+  <h2 class="text-xl font-bold mb-4">Reportar Incidente</h2>
+  
+  <div *ngIf="(isOnline$ | async) === false" class="bg-yellow-100 p-2 mb-4 rounded">
+    Modo Offline. El reporte se enviará cuando haya conexión.
+  </div>
+  <div *ngIf="isSyncing$ | async" class="bg-blue-100 p-2 mb-4 rounded">
+    Sincronizando reportes pendientes...
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+    <input type="text" formControlName="title" placeholder="Título" class="border p-2 rounded" />
+    <textarea formControlName="description" placeholder="Descripción" class="border p-2 rounded"></textarea>
+    
+    <input type="file" accept="image/*" (change)="onPhotoSelected($event)" class="border p-2 rounded" />
+    <img *ngIf="photoPreview" [src]="photoPreview" class="w-full h-48 object-cover rounded" />
+
+    <button type="submit" [disabled]="!form.valid || !selectedPhoto" class="bg-blue-500 text-white p-2 rounded">
+      Enviar Reporte
+    </button>
+  </form>
+</div>
