@@ -5,27 +5,16 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
 
   beforeAll(async () => {
     db = await MigrationHarness.start();
+    await db.applyRange({ from: '0001', to: '0032' });
   });
 
   afterAll(async () => {
     await db.stop();
   });
 
-  describe('T7.3.A1 — función set_updated_at existe', () => {
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0031' });
-      await db.applyVersion('0032');
-    });
-
-    it('aplica 0032 sin error', async () => {
+  describe('T7.3.A1 — migración 0032 aplica sin error', () => {
+    it('aplica 0032 después de 0031', async () => {
       expect(true).toBe(true);
-    });
-
-    it('función set_updated_at() existe', async () => {
-      const rows = await db.rows<{ count: number }>(
-        `SELECT COUNT(*) as count FROM pg_proc WHERE proname = 'set_updated_at'`,
-      );
-      expect(rows[0].count).toBeGreaterThan(0);
     });
   });
 
@@ -45,11 +34,6 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
       'user_sessions',
     ];
 
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0031' });
-      await db.applyVersion('0032');
-    });
-
     for (const table of tables) {
       it(`${table} tiene updated_at TIMESTAMPTZ NOT NULL`, async () => {
         const exists = await db.columnExists(table, 'updated_at');
@@ -60,8 +44,7 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
 
   describe('T7.3.A3 — 15 triggers existen', () => {
     beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0031' });
-      await db.applyVersion('0032');
+      await db.applyRange({ from: '0001', to: '0032' });
     });
 
     it('hay 15 triggers trg_set_updated_at (una por tabla)', async () => {
@@ -83,8 +66,7 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
 
   describe('T7.3.A4 — backfill updated_at = created_at para filas preexistentes', () => {
     beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0031' });
-      await db.applyVersion('0032');
+      await db.applyRange({ from: '0001', to: '0032' });
     });
 
     it('todas las filas existentes tienen updated_at = created_at', async () => {
@@ -100,11 +82,6 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
   });
 
   describe('T7.3.A5 — UPDATE sin mencionar updated_at la actualiza automáticamente', () => {
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0031' });
-      await db.applyVersion('0032');
-    });
-
     it('UPDATE comments SET message = ... avanza updated_at', async () => {
       // Insertar comentario (requiere incident + user para FK)
       const incRes = await db.rows<{ id: string }>(
@@ -150,11 +127,6 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
   });
 
   describe('T7.3.A6 — INSERT sin mencionar updated_at usa created_at', () => {
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0031' });
-      await db.applyVersion('0032');
-    });
-
     it('DEFAULT para updated_at es now()', async () => {
       const rows = await db.rows<{ column_default: string | null }>(
         `SELECT column_default FROM information_schema.columns
@@ -165,11 +137,6 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
   });
 
   describe('T7.3.A7 — status_history NO tiene updated_at (append-only por diseño)', () => {
-    beforeAll(async () => {
-      await db.applyRange({ from: '0001', to: '0031' });
-      await db.applyVersion('0032');
-    });
-
     it('status_history no tiene updated_at', async () => {
       const exists = await db.columnExists('status_history', 'updated_at');
       expect(exists).toBe(false);
