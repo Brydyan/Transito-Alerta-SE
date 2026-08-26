@@ -27,7 +27,7 @@ describe('E2E T7.9.B notification permissions (0039)', () => {
 
   beforeAll(async () => {
     h = await MigrationHarness.start();
-    await h.applyRange({ to: '0039' });
+    await h.applyRange({ to: '0040' });
   }, 120_000);
 
   afterAll(async () => {
@@ -68,9 +68,9 @@ describe('E2E T7.9.B notification permissions (0039)', () => {
 
   // ---- R20.3 — re-apply is idempotent -------------------------------------
 
-  it('R20.3: re-applying 0039 does not duplicate the catalog rows or the JSONB grants', async () => {
-    await h.applyVersion('0039');
-    await h.applyVersion('0039');
+  it('R20.3: re-applying 0040 does not duplicate the catalog rows or the JSONB grants', async () => {
+    await h.applyVersion('0040');
+    await h.applyVersion('0040');
 
     const catalogRows = await h.rows<{ count: string }>(
       `SELECT COUNT(*)::int AS count FROM permissions WHERE resource = 'notifications'`,

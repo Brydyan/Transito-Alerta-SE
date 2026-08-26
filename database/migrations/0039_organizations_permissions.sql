@@ -44,7 +44,7 @@ ON CONFLICT (resource, action) DO NOTHING;
 -- routes, which do not check this permission.
 UPDATE roles
    SET permissions = permissions || jsonb_build_array('READ notifications', 'UPDATE notifications')
- WHERE name IN ('admin_sistema', 'operador_sistema', 'admin_organizacion', 'operador_organizacion')
+ WHERE name IN ('master', 'operador_sistema', 'admin_org', 'operador_org')
    AND NOT (permissions ?& array['READ notifications', 'UPDATE notifications']);
 
 COMMIT;
