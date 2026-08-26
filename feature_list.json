@@ -124,6 +124,63 @@
         ],
         "sdd": true,
         "status": "done"
+      },
+      {
+        "id": 9,
+        "name": "core_models_and_http_wrapper",
+        "title": "Modelos Base y HTTP Wrapper (Angular Services T2)",
+        "description": "Crear las interfaces base (Incident, Comment, Auth) asegurando la compatibilidad de snake_case con el backend y un HttpService centralizado envolviendo HttpClient.",
+        "acceptance": [
+          "Deben existir los modelos de Incident, Comment y Auth en app/models fuertemente tipados.",
+          "Debe implementarse HttpService envolviendo HttpClient de Angular con soporte para GET, POST, PATCH y DELETE.",
+          "Las peticiones deben usar adecuadamente HttpParams cuando sea necesario para los query parameters."
+        ],
+        "references": [
+          "docs/tasks/T2_ANGULAR_SERVICES.md",
+          "src/app/models/incident.model.ts",
+          "src/app/models/comment.model.ts",
+          "src/app/models/auth.model.ts",
+          "src/app/core/services/http.service.ts"
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 10,
+        "name": "api_data_services",
+        "title": "Servicios de Entidades de API (Angular Services T2)",
+        "description": "Desarrollo de servicios Reactivos (RxJS) para interactuar con los endpoints de backend para Incidencias, Comentarios y Notificaciones.",
+        "acceptance": [
+          "IncidentService debe permitir obtener, crear, actualizar y eliminar incidencias manteniendo un estado local reactivo (BehaviorSubject o Signals).",
+          "CommentService debe implementar las peticiones a la API para gestión de comentarios ligados a una incidencia.",
+          "NotificationService debe permitir consultar notificaciones y marcarlas como leídas."
+        ],
+        "references": [
+          "docs/tasks/T2_ANGULAR_SERVICES.md",
+          "src/app/core/services/incident.service.ts",
+          "src/app/core/services/comment.service.ts",
+          "src/app/core/services/notification.service.ts"
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 11,
+        "name": "device_api_services",
+        "title": "Servicios Nativos de Dispositivo (Angular Services T2)",
+        "description": "Abstracción de las APIs del navegador (Geolocalización e Imágenes) en servicios Angular inyectables, completando lo avanzado en la PWA.",
+        "acceptance": [
+          "GeolocationService debe ofrecer observables para obtener ubicación actual y monitorear (watch) los cambios del GPS.",
+          "ImageCompressorService debe permitir reducir el tamaño de imágenes usando Canvas API, exportando a Blob WebP.",
+          "Ambos servicios deben contemplar el manejo de errores si los permisos son denegados o la API no está soportada."
+        ],
+        "references": [
+          "docs/tasks/T2_ANGULAR_SERVICES.md",
+          "src/app/core/services/geolocation.service.ts",
+          "src/app/core/services/image-compressor.service.ts"
+        ],
+        "sdd": true,
+        "status": "done"
       }
     ]
   ]
