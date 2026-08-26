@@ -12,6 +12,14 @@ export interface MailConfig {
   claimIdleMs: number;
   /** Delivery attempts before an entry moves to `mail:dead` (D12). */
   maxAttempts: number;
+  /**
+   * T3.6 design (Open Questions resolved) — base URL used to build
+   * invitation/`password-reset` links (`${appBaseUrl}/accept-invitation?token=...`).
+   * Reuses the existing `FRONTEND_BASE_URL` env var (already shipped in
+   * `.env.example` for exactly this purpose) rather than introducing a
+   * second, redundant `MAIL_APP_BASE_URL`.
+   */
+  appBaseUrl: string;
 }
 
 /**
@@ -36,5 +44,6 @@ export default registerAs(
     // faking timers around real Redis I/O.
     claimIdleMs: process.env.MAIL_CLAIM_IDLE_MS ? parseInt(process.env.MAIL_CLAIM_IDLE_MS, 10) : 30_000,
     maxAttempts: 3,
+    appBaseUrl: process.env.FRONTEND_BASE_URL ?? 'http://localhost:3000',
   }),
 );

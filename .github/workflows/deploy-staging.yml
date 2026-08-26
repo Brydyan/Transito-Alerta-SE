@@ -1,0 +1,87 @@
+name: Deploy — Staging
+
+on:
+  push:
+    branches: [develop]
+
+# Un deploy a la vez — no cancelar si hay uno en curso, esperar que termine.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to staging
+    runs-on: self-hosted
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # .env vive en el server (no en el repo). Se copia al workspace del runner
+      # para que compose.yaml y el backend lo lean.
+      - name: Load .env from persistent storage
+        run: cp /mnt/storage/projects/tase/.env .env
+
+      - name: Start infra (postgres + redis)
+        run: docker compose up -d postgres redis
+
+      - name: Wait for postgres
+        run: |
+          echo "Waiting for postgres..."
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres pg_isready -U postgres; then
+              echo "Postgres ready after ${i} attempts"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "ERROR: postgres did not become ready"
+          exit 1
+
+      # Aplica solo las migraciones nuevas desde el último deploy.
+      # El marcador persiste en /mnt/storage/projects/tase/last_migration
+      # y guarda el ID (prefijo numérico) de la última migración aplicada.
+      - name: Apply pending migrations
+        run: |
+          set -euo pipefail
+          MARKER=/mnt/storage/projects/tase/last_migration
+          LAST=$(cat "$MARKER" 2>/dev/null || echo "0000")
+          echo "Last applied migration: $LAST"
+          applied=0
+          for file in database/migrations/[0-9]*.sql; do
+            id=$(basename "$file" | cut -d_ -f1)
+            if [[ "$id" > "$LAST" ]]; then
+              echo "── Applying $(basename "$file")"
+              docker compose exec -T postgres psql \
+                -U postgres -d transito_alerta \
+                -v ON_ERROR_STOP=1 -q < "$file"
+              echo "$id" > "$MARKER"
+              applied=$((applied + 1))
+            fi
+          done
+          echo "${applied} migration(s) applied"
+
+      - name: Build and start backend
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker compose --profile staging build backend
+          docker compose --profile staging up -d backend
+
+      - name: Health check
+        run: |
+          set -a; source .env; set +a
+          PORT=${APP_PORT:-3004}
+          echo "Health check → http://localhost:${PORT}/api/health"
+          for i in $(seq 1 15); do
+            if curl -sf "http://localhost:${PORT}/api/health" > /dev/null; then
+              echo "Backend healthy"
+              exit 0
+            fi
+            echo "Attempt ${i}/15 — waiting 4s..."
+            sleep 4
+          done
+          echo "Health check failed — last 50 lines:"
+          docker compose logs backend --tail=50
+          exit 1

@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, MoreThan, Repository } from 'typeorm';
 import { Redis } from 'ioredis';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { UserEntity } from '../../entities/user.entity';
@@ -36,8 +36,8 @@ export class NotificationsService {
         user_id: user.id,
         type,
         ...(incidentId ? { incident_id: incidentId } : {}),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        created_at: (() => sixtySecondsAgo)() as any,
+        created_at: MoreThan(sixtySecondsAgo),
+        deleted_at: IsNull(),
       },
     });
 
@@ -98,8 +98,9 @@ export class NotificationsService {
     skip = 0,
     take = 20,
   ): Promise<{ data: Notification[]; total: number }> {
+    // T7.2.B2/R7.1 — soft-deleted notifications never appear in the list.
     const [data, total] = await this.notificationRepo.findAndCount({
-      where: { user_id: userId },
+      where: { user_id: userId, deleted_at: IsNull() },
       order: { created_at: 'DESC' },
       skip,
       take,
@@ -134,10 +135,13 @@ export class NotificationsService {
 
   /**
    * Contar no leídas
+   *
+   * T7.2.C2 (R7.1) — a soft-deleted notification must not count toward
+   * `unread_count`, even if it was never marked read.
    */
   async countUnread(userId: string): Promise<number> {
     return this.notificationRepo.count({
-      where: { user_id: userId, read: false },
+      where: { user_id: userId, read: false, deleted_at: IsNull() },
     });
   }
 

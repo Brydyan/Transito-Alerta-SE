@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -14,8 +9,6 @@ import { CategoryNode, IncidentCategoriesRepository } from './incident-categorie
 
 export const DEFAULT_PAGE_SIZE = 15;
 export const MAX_PAGE_SIZE = 100;
-
-const PG_FOREIGN_KEY_VIOLATION = '23503';
 
 export interface ListFilters {
   search?: string;
@@ -35,8 +28,12 @@ export interface ListResult {
  * flat CRUD (majority pattern: Comments/Users/Roles/Notifications), plus
  * IncidentCategoriesRepository only for the tree read and the ancestor-walk
  * cycle guard (D4). Cycle/parent-existence checks return a domain 400
- * (BadRequestException) per spec — 409 is reserved for the delete-time PG
- * foreign-key violation (D6), a different failure mode entirely.
+ * (BadRequestException) per spec.
+ *
+ * T7.2.C3 (R7.3): `delete()` is a soft delete — the old hard `DELETE` could
+ * hit a PG 23503 foreign-key violation when incidents still referenced the
+ * category (mapped to 409); an `UPDATE ... SET deleted_at` never removes
+ * the row, so that failure mode no longer exists.
  */
 @Injectable()
 export class IncidentCategoriesService {
@@ -68,19 +65,18 @@ export class IncidentCategoriesService {
     return this.categoryRepo.save(existing);
   }
 
+  /**
+   * T7.2.B2/C3 — soft delete (R7.3), never a hard DELETE. Since the row
+   * never actually leaves the table, this can no longer hit the PG
+   * foreign-key violation a real DELETE used to (a category referenced by
+   * existing incidents is simply left alone by the UPDATE, still
+   * resolvable via its `incident_category_id` FK) — idempotent by
+   * construction, re-soft-deleting just re-stamps `deletedAt`.
+   */
   async delete(id: string): Promise<void> {
-    await this.findById(id);
-
-    try {
-      await this.categoryRepo.delete(id);
-    } catch (error) {
-      if (isForeignKeyViolation(error)) {
-        throw new ConflictException(
-          'Cannot delete category: it is referenced by existing incidents',
-        );
-      }
-      throw error;
-    }
+    const category = await this.findById(id);
+    category.deletedAt = new Date();
+    await this.categoryRepo.save(category);
   }
 
   async findById(id: string): Promise<IncidentCategoryEntity> {
@@ -96,7 +92,11 @@ export class IncidentCategoriesService {
     const page = Math.max(filters.page ?? 1, 1);
     const skip = (page - 1) * perPage;
 
-    const qb = this.categoryRepo.createQueryBuilder('c').orderBy('c.name', 'ASC');
+    // T7.2.B2/R7.3 — soft-deleted categories never appear in the list.
+    const qb = this.categoryRepo
+      .createQueryBuilder('c')
+      .orderBy('c.name', 'ASC')
+      .andWhere('c.deleted_at IS NULL');
 
     if (filters.search) {
       qb.andWhere('c.name ILIKE :search', { search: `%${filters.search}%` });
@@ -141,13 +141,4 @@ export class IncidentCategoriesService {
       throw new BadRequestException('Circular reference detected');
     }
   }
-}
-
-function isForeignKeyViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: string }).code === PG_FOREIGN_KEY_VIOLATION
-  );
 }

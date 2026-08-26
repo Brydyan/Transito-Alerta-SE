@@ -68,6 +68,9 @@ docker-compose.override.yml
 *.sqlite
 *.sqlite3
 data/
+# ...pero `database/data/` son insumos cartográficos versionados (GeoJSON de
+# origen + su NOTICE de licencias), no datos locales de un contenedor.
+!database/data/
 
 # AWS S3 / Media (local dev)
 .s3/

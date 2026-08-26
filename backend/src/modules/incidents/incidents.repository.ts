@@ -3,6 +3,8 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 import { IncidentPriority, IncidentStatus } from '../../entities/incident.entity';
+import { SubjectScope } from '../../common/authz/subject-scope';
+import { scopeToSql } from '../../common/authz/scope-sql';
 
 export interface IncidentRow {
   id: string;
@@ -14,10 +16,21 @@ export interface IncidentRow {
   assigned_to: string | null;
   zone_id: string | null;
   geofence_matched: boolean;
+  organization_id: string | null;
+  category_id: string | null;
+  claimed_by: string | null;
+  approved_by: string | null;
+  approved_at: Date | null;
+  rejected_by: string | null;
+  rejected_at: Date | null;
+  rejection_reason: string | null;
   lat: number;
   lng: number;
   created_at: Date;
   updated_at: Date;
+  deleted_at: Date | null;
+  claimed_at: Date | null;
+  resolution_date: Date | null;
 }
 
 export interface CreateIncidentInput {
@@ -29,13 +42,16 @@ export interface CreateIncidentInput {
   citizenId: string;
   zoneId: string | null;
   geofenceMatched: boolean;
+  organizationId: string | null;
 }
 
 const SELECT_COLUMNS = `
   id, title, description, status, priority,
-  citizen_id, assigned_to, zone_id, geofence_matched,
+  citizen_id, assigned_to, zone_id, geofence_matched, organization_id,
+  category_id, claimed_by, claimed_at, approved_by, approved_at, rejected_by, rejected_at,
+  rejection_reason, resolution_date,
   ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng,
-  created_at, updated_at
+  created_at, updated_at, deleted_at
 `;
 
 /**
@@ -50,9 +66,9 @@ export class IncidentsRepository {
   async create(input: CreateIncidentInput): Promise<IncidentRow> {
     const rows: IncidentRow[] = await this.dataSource.query(
       `INSERT INTO incidents
-         (title, description, location, status, priority, citizen_id, zone_id, geofence_matched)
+         (title, description, location, status, priority, citizen_id, zone_id, geofence_matched, organization_id)
        VALUES
-         ($1, $2, ST_SetSRID(ST_Point($3, $4), 4326), 'pending', $5, $6, $7, $8)
+         ($1, $2, ST_SetSRID(ST_Point($3, $4), 4326), 'pending', $5, $6, $7, $8, $9)
        RETURNING ${SELECT_COLUMNS}`,
       [
         input.title,
@@ -63,12 +79,21 @@ export class IncidentsRepository {
         input.citizenId,
         input.zoneId,
         input.geofenceMatched,
+        input.organizationId,
       ],
     );
     return rows[0];
   }
 
-  async findAll(filters: { zoneId?: string; status?: IncidentStatus } = {}): Promise<IncidentRow[]> {
+  /**
+   * `scope` is a REQUIRED parameter (T3.2 design D3) — never optional,
+   * never defaulted. An unscoped call is a compile error, not a silent
+   * `global` leak.
+   */
+  async findAll(
+    filters: { zoneId?: string; status?: IncidentStatus },
+    scope: SubjectScope,
+  ): Promise<IncidentRow[]> {
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -81,30 +106,76 @@ export class IncidentsRepository {
       conditions.push(`status = $${params.length}`);
     }
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const scopeSql = scopeToSql(scope, { table: 'incidents', paramOffset: params.length + 1 });
+    conditions.push(scopeSql.fragment);
+    params.push(...scopeSql.params);
 
+    // T6.2: always filter out soft-deleted incidents
+    conditions.push('deleted_at IS NULL');
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     return this.dataSource.query(
       `SELECT ${SELECT_COLUMNS} FROM incidents ${where} ORDER BY created_at DESC LIMIT 1000`,
       params,
     );
   }
 
-  async findOne(id: string): Promise<IncidentRow | null> {
+  async findOne(id: string, scope: SubjectScope): Promise<IncidentRow | null> {
+    const scopeSql = scopeToSql(scope, { table: 'incidents', paramOffset: 2 });
     const rows: IncidentRow[] = await this.dataSource.query(
-      `SELECT ${SELECT_COLUMNS} FROM incidents WHERE id = $1`,
-      [id],
+      // T6.2: filter out soft-deleted incidents
+      `SELECT ${SELECT_COLUMNS} FROM incidents WHERE id = $1 AND ${scopeSql.fragment} AND deleted_at IS NULL`,
+      [id, ...scopeSql.params],
     );
     return rows[0] ?? null;
   }
 
   async updateStatus(id: string, status: IncidentStatus): Promise<IncidentRow | null> {
+    // T6.3: $3 is a boolean flag to avoid PostgreSQL "inconsistent types for $2" when
+    // using the same enum-bound parameter in both SET and a CASE comparison.
     const result = await this.dataSource.query(
-      `UPDATE incidents SET status = $2, updated_at = now()
+      `UPDATE incidents
+         SET status = $2,
+             resolution_date = CASE WHEN $3 THEN NOW() ELSE NULL END
        WHERE id = $1
        RETURNING ${SELECT_COLUMNS}`,
-      [id, status],
+      [id, status, status === 'resolved'],
     );
     return unwrapReturningRows<IncidentRow>(result)[0] ?? null;
+  }
+
+  /**
+   * T5.6 — partial update of mutable content fields. Each field is
+   * coalesced to its current value when null/undefined, so the caller
+   * can send any subset. `status`, `zone_id`, `organization_id` and
+   * `geofence_matched` are NEVER touched (D5).
+   */
+  async update(
+    id: string,
+    values: { title: string; description: string | null; categoryId: string | null },
+  ): Promise<IncidentRow> {
+    const result = await this.dataSource.query(
+      `UPDATE incidents
+         SET title = $2,
+             description = $3,
+             category_id = $4
+       WHERE id = $1
+       RETURNING ${SELECT_COLUMNS}`,
+      [id, values.title, values.description, values.categoryId],
+    );
+    const row = unwrapReturningRows<IncidentRow>(result)[0];
+    if (!row) {
+      throw new Error(`Incident ${id} vanished mid-update`);
+    }
+    return row;
+  }
+
+  /** T6.2 — real soft delete: sets deleted_at = NOW() on the row. */
+  async softDelete(id: string): Promise<void> {
+    await this.dataSource.query(
+      `UPDATE incidents SET deleted_at = NOW() WHERE id = $1`,
+      [id],
+    );
   }
 }
 

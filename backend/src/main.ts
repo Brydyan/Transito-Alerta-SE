@@ -1,6 +1,8 @@
 import * as Sentry from '@sentry/node';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { SnakeCaseResponseInterceptor } from './common/interceptors/snake-case-response.interceptor';
 import { RedisIoAdapter } from './modules/realtime/redis-io.adapter';
@@ -19,6 +21,10 @@ async function bootstrap(): Promise<void> {
   // Design D5 — socket.io Redis adapter for cross-instance room broadcast.
   app.useWebSocketAdapter(new RedisIoAdapter(app));
 
+  // T4.3a — HTTP security headers (X-Frame-Options, X-Content-Type-Options,
+  // Strict-Transport-Security, etc.) on every response, including CORS.
+  app.use(helmet());
+
   app.setGlobalPrefix('api');
   app.enableCors({
     origin: process.env.CORS_ORIGIN?.split(',') ?? true,
@@ -35,6 +41,20 @@ async function bootstrap(): Promise<void> {
   // Request DTOs are snake_case throughout; this makes responses match, so a
   // client never sends `incident_id` and receives `incidentId` back.
   app.useGlobalInterceptors(new SnakeCaseResponseInterceptor());
+
+  // T4.4a — Swagger UI at /api/docs. Active in `development` only:
+  //   - production: hide (attack surface + internal contract leak)
+  //   - test:       hide (e2e harness mirrors main.ts but does not need it)
+  if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Transito Alerta SE — API')
+      .setDescription('Backend NestJS — migración GeoReporta')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
   await app.listen(port);

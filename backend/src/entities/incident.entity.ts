@@ -3,10 +3,9 @@ import {
   CreateDateColumn,
   Entity,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 
-export type IncidentStatus = 'pending' | 'in_progress' | 'resolved';
+export type IncidentStatus = 'pending' | 'in_progress' | 'resolved' | 'closed';
 export type IncidentPriority = 'low' | 'medium' | 'high' | 'critical';
 
 /**
@@ -53,9 +52,54 @@ export class IncidentEntity {
   @Column({ name: 'category_id', type: 'uuid', nullable: true })
   categoryId!: string | null;
 
+  /**
+   * T3.2 — derived from the resolved zone at write time (design D4), never
+   * from the creator's own organization. NULL when outside every zone, or
+   * the zone has no organization (migration 0015).
+   */
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId!: string | null;
+
+  /** T5.1 — operator who currently holds the claim. NULL = unclaimed. */
+  @Column({ name: 'claimed_by', type: 'uuid', nullable: true })
+  claimedBy!: string | null;
+
+  /** T6.3 — timestamp of the last claim action (migration 0027). Not cleared on release. */
+  @Column({ name: 'claimed_at', type: 'timestamptz', nullable: true, default: null })
+  claimedAt!: Date | null;
+
+  /** T6.3 — timestamp when incident entered 'resolved'; NULL if re-opened (migration 0027). */
+  @Column({ name: 'resolution_date', type: 'timestamptz', nullable: true, default: null })
+  resolutionDate!: Date | null;
+
+  /**
+   * T5.6 — admin approve/reject decision columns (migration 0021).
+   * `approved_*` and `rejected_*` are written as a pair (CHECK pair constraint)
+   * and are mutually exclusive (XOR CHECK). `closed` status is the terminal
+   * state set when `approved_by` is populated.
+   */
+  @Column({ name: 'approved_by', type: 'uuid', nullable: true })
+  approvedBy!: string | null;
+
+  @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
+  approvedAt!: Date | null;
+
+  @Column({ name: 'rejected_by', type: 'uuid', nullable: true })
+  rejectedBy!: string | null;
+
+  @Column({ name: 'rejected_at', type: 'timestamptz', nullable: true })
+  rejectedAt!: Date | null;
+
+  @Column({ name: 'rejection_reason', type: 'text', nullable: true })
+  rejectionReason!: string | null;
+
+  /** T6.2 — soft delete timestamp (migration 0025). NULL = active. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @Column({ name: 'updated_at', type: 'timestamptz', update: false })
   updatedAt!: Date;
 }

@@ -249,7 +249,11 @@ describe('E2E regressions — one test per shipped defect (T4.1a step 2, Part A)
       .set(auth)
       .expect(200);
 
-    const listingKey = `incidents:list:${SANTA_ELENA_ZONE_ID}:pending`;
+    // T3.2 design ("Scope-blind list cache" risk mitigation): the list
+    // cache key now carries a scope discriminator so org A's cached array
+    // can never be served to org B. This operator holds no seeded role
+    // (role_id IS NULL, D2), so it resolves to `public` scope -> `:p`.
+    const listingKey = `incidents:list:${SANTA_ELENA_ZONE_ID}:pending:p`;
     expect(await env.redisCache.get(listingKey)).not.toBeNull();
 
     await request(env.httpServer)
@@ -338,6 +342,90 @@ describe('E2E regressions — one test per shipped defect (T4.1a step 2, Part A)
       errorSpy.mockRestore();
       consumerRedis.disconnect();
     }
+  });
+});
+
+// T4.3a / T4.3b — security headers (helmet) and input-injection tests
+// (SQL injection + XSS). Independent describe so it owns its own
+// TestEnvironment — the existing describe has its own container stack
+// and adding to it would couple lifecycles.
+describe('E2E security — input validation and HTTP headers (T4.3a/T4.3b)', () => {
+  let env: TestEnvironment;
+
+  beforeAll(async () => {
+    env = await TestEnvironment.start();
+  }, 120_000);
+
+  afterAll(async () => {
+    await env.stop();
+  }, 60_000);
+
+  beforeEach(async () => {
+    await env.reset();
+  });
+
+  // T4.3b Test 1 — SQL injection on a free-text title.
+  // CreateIncidentDto has @MinLength(1) but NO @MaxLength, so the title is
+  // stored as a literal string. What we care about is that the row never
+  // causes a 500 (no SQL execution, no crash) and that the table still
+  // exists after the request.
+  it('SQL injection attempt in incident title does not cause 500 or execute SQL (CC1)', async () => {
+    const operator = await env.provisionUser(['CREATE incidents', 'READ incidents']);
+    const maliciousTitle = "'; DROP TABLE incidents; --";
+
+    const response = await request(env.httpServer)
+      .post('/api/incidents')
+      .set('Authorization', `Bearer ${operator.accessToken}`)
+      .send({ title: maliciousTitle, lat: -2.2, lng: -80.5 });
+
+    expect(response.status).not.toBe(500);
+    expect([200, 201, 400]).toContain(response.status);
+
+    // La tabla incidents debe seguir existiendo (DROP no se ejecutó)
+    const check = await request(env.httpServer)
+      .get('/api/incidents')
+      .set('Authorization', `Bearer ${operator.accessToken}`)
+      .expect(200);
+
+    expect(Array.isArray(check.body)).toBe(true);
+  });
+
+  // T4.3b Test 2 — XSS payload round-trips as a literal string.
+  it('XSS payload in title returns 201 or 400, never causes script execution in API response (T4.3b)', async () => {
+    const operator = await env.provisionUser(['CREATE incidents', 'READ incidents']);
+    const xssTitle = '<script>alert("xss")</script>';
+
+    const created = await request(env.httpServer)
+      .post('/api/incidents')
+      .set('Authorization', `Bearer ${operator.accessToken}`)
+      .send({ title: xssTitle, lat: -2.2, lng: -80.5 });
+
+    expect([201, 400]).toContain(created.status);
+
+    if (created.status === 201) {
+      const incidents = await request(env.httpServer)
+        .get('/api/incidents')
+        .set('Authorization', `Bearer ${operator.accessToken}`)
+        .expect(200);
+
+      const found = (incidents.body as Array<{ id: string; title: string }>)
+        .find((i) => i.id === created.body.id);
+      // El string debe ser literal, no parseado/ejecutado
+      expect(found?.title).toBe(xssTitle);
+    }
+  });
+
+  // T4.3a — helmet headers must reach every response.
+  it('HTTP security headers (helmet) present on API responses (T4.3a)', async () => {
+    const operator = await env.provisionUser(['READ incidents']);
+
+    const response = await request(env.httpServer)
+      .get('/api/incidents')
+      .set('Authorization', `Bearer ${operator.accessToken}`)
+      .expect(200);
+
+    expect(response.headers['x-frame-options']).toBeDefined();
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
   });
 });
 

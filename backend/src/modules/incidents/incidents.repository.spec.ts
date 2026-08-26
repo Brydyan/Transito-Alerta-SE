@@ -1,5 +1,8 @@
 import { DataSource } from 'typeorm';
 import { IncidentsRepository , unwrapReturningRows} from './incidents.repository';
+import { SubjectScope } from '../../common/authz/subject-scope';
+
+const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
 
 describe('IncidentsRepository', () => {
   let dataSource: { query: jest.Mock };
@@ -23,6 +26,7 @@ describe('IncidentsRepository', () => {
         citizenId: 'user-1',
         zoneId: 'zone-1',
         geofenceMatched: true,
+        organizationId: 'org-1',
       });
 
       const [sql, params] = dataSource.query.mock.calls[0];
@@ -38,6 +42,7 @@ describe('IncidentsRepository', () => {
         'user-1',
         'zone-1',
         true,
+        'org-1',
       ]);
     });
 
@@ -54,6 +59,7 @@ describe('IncidentsRepository', () => {
         citizenId: 'user-1',
         zoneId: null,
         geofenceMatched: false,
+        organizationId: null,
       });
 
       expect(result).toEqual(row);
@@ -61,10 +67,10 @@ describe('IncidentsRepository', () => {
   });
 
   describe('findAll', () => {
-    it('filters by zoneId and status when provided', async () => {
+    it('filters by zoneId and status when provided (scope required, D3)', async () => {
       dataSource.query.mockResolvedValue([]);
 
-      await repository.findAll({ zoneId: 'zone-1', status: 'pending' });
+      await repository.findAll({ zoneId: 'zone-1', status: 'pending' }, GLOBAL_SCOPE);
 
       const [sql, params] = dataSource.query.mock.calls[0];
       expect(sql).toContain('zone_id = $1');
@@ -72,14 +78,24 @@ describe('IncidentsRepository', () => {
       expect(params).toEqual(['zone-1', 'pending']);
     });
 
-    it('has no WHERE clause when no filters are given', async () => {
+    it('has no WHERE beyond the scope fragment when no filters are given', async () => {
       dataSource.query.mockResolvedValue([]);
 
-      await repository.findAll();
+      await repository.findAll({}, GLOBAL_SCOPE);
 
       const [sql, params] = dataSource.query.mock.calls[0];
-      expect(sql).not.toContain('WHERE');
+      expect(sql).toContain('WHERE TRUE');
       expect(params).toEqual([]);
+    });
+
+    it('applies the scope fragment (org scope filters by organization_id)', async () => {
+      dataSource.query.mockResolvedValue([]);
+
+      await repository.findAll({}, { kind: 'org', organizationId: 'org-1' });
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('organization_id = $1');
+      expect(params).toEqual(['org-1']);
     });
   });
 
@@ -87,9 +103,19 @@ describe('IncidentsRepository', () => {
     it('returns null when no row matches', async () => {
       dataSource.query.mockResolvedValue([]);
 
-      const result = await repository.findOne('missing');
+      const result = await repository.findOne('missing', GLOBAL_SCOPE);
 
       expect(result).toBeNull();
+    });
+
+    it('applies the scope fragment alongside the id filter', async () => {
+      dataSource.query.mockResolvedValue([]);
+
+      await repository.findOne('inc-1', { kind: 'org', organizationId: 'org-1' });
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('WHERE id = $1 AND organization_id = $2');
+      expect(params).toEqual(['inc-1', 'org-1']);
     });
   });
 
@@ -103,7 +129,10 @@ describe('IncidentsRepository', () => {
       const result = await repository.updateStatus('inc-1', 'in_progress');
 
       const [, params] = dataSource.query.mock.calls[0];
-      expect(params).toEqual(['inc-1', 'in_progress']);
+      // T6.3: third param is a boolean flag (status === 'resolved') driving
+      // resolution_date — avoids PostgreSQL "inconsistent types for $2" from
+      // reusing the enum-bound status param inside a text CASE comparison.
+      expect(params).toEqual(['inc-1', 'in_progress', false]);
       expect(result).toEqual(row);
     });
 
@@ -121,6 +150,48 @@ describe('IncidentsRepository', () => {
       dataSource.query.mockResolvedValue([[], 0]);
 
       await expect(repository.updateStatus('ghost', 'resolved')).resolves.toBeNull();
+    });
+
+    it('does not manually write updated_at (trigger handles it)', async () => {
+      dataSource.query.mockResolvedValue([[{ id: 'inc-1' }], 1]);
+
+      await repository.updateStatus('inc-1', 'in_progress');
+
+      const [sql] = dataSource.query.mock.calls[0];
+      expect(sql).not.toContain('updated_at = ');
+    });
+  });
+
+  describe('update', () => {
+    it('does not manually write updated_at (trigger handles it)', async () => {
+      dataSource.query.mockResolvedValue([[{ id: 'inc-1' }], 1]);
+
+      await repository.update('inc-1', {
+        title: 'Updated title',
+        description: 'Updated description',
+        categoryId: 'cat-1',
+      });
+
+      const [sql] = dataSource.query.mock.calls[0];
+      expect(sql).not.toContain('updated_at = ');
+    });
+
+    it('updates title, description, and category_id', async () => {
+      const row = { id: 'inc-1', title: 'Updated', description: 'desc', category_id: 'cat-1' };
+      dataSource.query.mockResolvedValue([[row], 1]);
+
+      const result = await repository.update('inc-1', {
+        title: 'Updated',
+        description: 'desc',
+        categoryId: 'cat-1',
+      });
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('title = $2');
+      expect(sql).toContain('description = $3');
+      expect(sql).toContain('category_id = $4');
+      expect(params).toEqual(['inc-1', 'Updated', 'desc', 'cat-1']);
+      expect(result).toEqual(row);
     });
   });
 });

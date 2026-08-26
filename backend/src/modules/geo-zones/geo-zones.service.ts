@@ -54,6 +54,7 @@ export class GeoZonesService {
       level,
       active: dto.active ?? true,
       polygon: dto.polygon,
+      code: dto.code ?? null,
     });
 
     // Create purges too (D8): a new active polygon may overlap an
@@ -82,6 +83,8 @@ export class GeoZonesService {
       level: dto.level,
       active: dto.active,
       polygon: dto.polygon,
+      codeProvided: dto.code !== undefined,
+      code: dto.code,
     });
 
     if (!updated) {

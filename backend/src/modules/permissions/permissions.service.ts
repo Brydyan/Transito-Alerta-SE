@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 
 import { PermissionEntity } from '../../entities/permission.entity';
 
@@ -19,7 +19,8 @@ export class PermissionsService {
     private readonly permissionRepo: Repository<PermissionEntity>,
   ) {}
 
+  /** T7.2.B2 — soft-deleted catalog rows are excluded from the listing. */
   findAll(): Promise<PermissionEntity[]> {
-    return this.permissionRepo.find();
+    return this.permissionRepo.find({ where: { deletedAt: IsNull() } });
   }
 }

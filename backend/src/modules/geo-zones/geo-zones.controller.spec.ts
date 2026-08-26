@@ -50,17 +50,28 @@ describe('GeoZonesController', () => {
   it('GET / delegates to service.list() with parsed query params and returns {items, total}', async () => {
     service.list.mockResolvedValue({ items: [], total: 0 });
 
-    const result = await controller.list('Guayas', undefined, undefined, 'true', '2', '5');
+    const result = await controller.list('Guayas', undefined, undefined, 'true', undefined, '2', '5');
 
     expect(service.list).toHaveBeenCalledWith({
       search: 'Guayas',
       parentId: undefined,
       level: undefined,
       includeInactive: true,
+      code: undefined,
       page: 2,
       perPage: 5,
     });
     expect(result).toEqual({ items: [], total: 0 });
+  });
+
+  it('GET / forwards the `code` query param for exact-match filtering (T7.6.A7)', async () => {
+    service.list.mockResolvedValue({ items: [makeZone({ code: 'SE-01' })], total: 1 });
+
+    await controller.list(undefined, undefined, undefined, undefined, 'SE-01');
+
+    expect(service.list).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'SE-01' }),
+    );
   });
 
   it('GET / passes parentId=null when the query string literal is "null" (roots only)', async () => {

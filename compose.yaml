@@ -1,0 +1,84 @@
+# compose.yaml — infraestructura + backend staging
+#
+# Local dev (solo infra — backend corre con pnpm run start:dev):
+#   docker compose up -d
+#
+# Staging (todas las capas):
+#   docker compose --profile staging up -d --build
+
+services:
+
+  # ── Base de datos (PostGIS 16 — igual que Supabase producción) ────────────────
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: tase-postgres
+    restart: unless-stopped
+    ports:
+      - '${DB_PORT:-5437}:5432'
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-transito_alerta}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-transito_alerta}']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── Redis (Streams DB 0 + Cache DB 1) ────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: tase-redis
+    restart: unless-stopped
+    ports:
+      - '${REDIS_PORT:-6381}:6379'
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy noeviction
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── Backend NestJS (solo perfil staging) ─────────────────────────────────────
+  backend:
+    profiles: [staging]
+    build:
+      context: backend
+      dockerfile: Dockerfile
+      target: production
+    image: tase-backend:${IMAGE_TAG:-latest}
+    container_name: tase-backend
+    restart: unless-stopped
+    ports:
+      - '${APP_PORT:-3004}:3001'
+    env_file: .env
+    environment:
+      # Estas dos variables usan el nombre del servicio Docker (red interna).
+      # Sobreescriben cualquier valor en .env para que el backend no intente
+      # conectar a Supabase/externo desde dentro del contenedor.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-transito_alerta}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3001/api/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  postgres-data:
+  redis-data:
