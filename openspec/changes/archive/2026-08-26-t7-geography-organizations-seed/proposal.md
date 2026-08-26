@@ -109,12 +109,16 @@ Critical path: C.1 → C.2–C.6. D can start immediately.
 
 ## Success Criteria
 
-- [ ] R21.1–R21.5 pass against a database migrated through 0041 (real polygons, valid hierarchy, containment, org present, re-apply is a no-op).
-- [ ] R22.1–R22.4 pass (no `INSERT INTO incidents` in `database/migrations/`, generators under `database/seeds/`, demo seed idempotent, Redis feed consistent with Postgres).
-- [ ] `npm run db:seed` from clean → 6 users + ~25 demo incidents + non-empty feed; second run changes zero rows.
-- [ ] `npm run db:seed:mass` produces 1000 incidents with lifecycle rows and completes within an agreed time budget.
-- [ ] `database/data/README.md` records the Overpass query/source, extraction date, ODbL 1.0 license + attribution/share-alike determination, and reproduction command.
+- [x] R21.1–R21.5 pass against a database migrated through 0041 (real polygons, valid hierarchy, containment, org present, re-apply is a no-op).
+- [x] R22.1–R22.4 pass (no `INSERT INTO incidents` in `database/migrations/`, generators under `database/seeds/`, demo seed idempotent, Redis feed consistent with Postgres).
+- [x] `npm run db:seed` from clean → 6 users + ~25 demo incidents + non-empty feed; second run changes zero rows.
+- [x] `npm run db:seed:mass` produces 1000 incidents with lifecycle rows and completes within an agreed time budget.
+- [x] `database/data/README.md` records the Overpass query/source, extraction date, ODbL 1.0 license + attribution/share-alike determination, and reproduction command.
 
 ## Next Phase
 
 `sdd-spec` (drill R21/R22 into scenarios + acceptance criteria, re-anchor R21 to 0041, decide the ST_Within tolerance clause) and `sdd-design` (generator/UUID derivation, seeder architecture, feed-rebuild bootstrap) — can run in parallel.
+
+---
+
+**Archived 2026-08-26** — change fully implemented, verified (PASS WITH WARNINGS, 0 CRITICAL), and closed. See `archive-report.md` in this folder for the full closure record.

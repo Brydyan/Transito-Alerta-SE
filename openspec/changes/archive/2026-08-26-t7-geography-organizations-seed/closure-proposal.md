@@ -45,7 +45,7 @@ Close T7.9 (Database Schema Parity) with documentation updates, pre-deployment v
 ### Operator Handoff (Z5)
 - SQL snippet: contents of `0041_geography_organizations_seed.sql` ready for copy-paste
 - Prerequisites: `0040_rename_roles.sql` must be registered in `schema_migrations` (if not already, `npm run db:migrate` on Supabase first)
-- Verification checklist: 
+- Verification checklist:
   - `SELECT COUNT(*) FROM geo_zones WHERE level='parroquia' AND code LIKE 'EC-24-%'` = 11
   - `SELECT COUNT(*) FROM organizations WHERE name='CTE - Santa Elena'` = 1
   - Re-apply: `SELECT COUNT(*) FROM geo_zones` unchanged after re-running 0041
@@ -95,13 +95,17 @@ Total: **~4.25h** (non-blocking; Z1/Z2/Z3 runnable in parallel)
 
 ## Success Criteria
 
-- [ ] `database/MIGRATION_LOG.md` row 0041 exists with complete description and idempotence note
-- [ ] R21.0–R21.5 scenarios in all spec files reference 0041, not 0039
-- [ ] `docs/tasks/3-DATABASE-SCHEMA.md` documents 0001–0041 range and summarizes T7.9.C/D closure
-- [ ] CI full run: lint 0 errors, typecheck 0 errors, build success, unit tests green, e2e tests green, migration suites green
-- [ ] Z5 operator manual is copy-paste-ready and includes verification checklist
-- [ ] No CRITICAL findings in final sdd-verify
+- [x] `database/MIGRATION_LOG.md` row 0041 exists with complete description and idempotence note
+- [x] R21.0–R21.5 scenarios in all spec files reference 0041, not 0039
+- [x] `docs/tasks/3-DATABASE-SCHEMA.md` documents 0001–0041 range and summarizes T7.9.C/D closure
+- [x] CI full run: lint 0 errors, typecheck 0 errors, build success, unit tests green, e2e tests green, migration suites green
+- [x] Z5 operator manual is copy-paste-ready and includes verification checklist
+- [x] No CRITICAL findings in final sdd-verify
 
 ## Next Phase
 
 Deployment (manual operator step, out of SDD scope). Post-deployment: address status_history audit gap (T8, separate initiative).
+
+---
+
+**Archived 2026-08-26** — Z1–Z5 completed. See `archive-report.md` in this folder for the full closure record.
