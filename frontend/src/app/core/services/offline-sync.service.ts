@@ -4,6 +4,7 @@ import { switchMap } from 'rxjs/operators';
 import { IndexedDbService } from '../db/indexed-db.service';
 import { IncidentService } from './incident.service';
 import { ConnectionService } from './connection.service';
+import { ImageCompressorService } from './image-compressor.service';
 
 export interface SyncResult {
   synced: number;
@@ -22,6 +23,7 @@ export class OfflineSyncService {
     private indexedDb: IndexedDbService,
     private incidentService: IncidentService,
     private connectionService: ConnectionService,
+    private imageCompressor: ImageCompressorService,
   ) {
     this.initOfflineSync();
   }
@@ -54,8 +56,8 @@ export class OfflineSyncService {
         const createdIncident = await lastValueFrom(this.incidentService.createIncident({
           title: incident.title,
           description: incident.description,
-          latitude: incident.latitude,
-          longitude: incident.longitude,
+          lat: incident.latitude,
+          lng: incident.longitude,
           priority: incident.priority,
         }));
 
@@ -130,21 +132,6 @@ export class OfflineSyncService {
   }
 
   private async compressPhoto(file: File): Promise<Blob> {
-    return new Promise(resolve => {
-      const reader = new FileReader();
-      reader.onload = (e: any) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx?.drawImage(img, 0, 0);
-          canvas.toBlob(blob => resolve(blob!), 'image/webp', 0.7);
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
+    return this.imageCompressor.compressImage(file, 0.7);
   }
 }

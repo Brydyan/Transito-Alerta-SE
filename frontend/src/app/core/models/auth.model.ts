@@ -39,10 +39,20 @@ export interface RefreshTokenResponse {
 export interface User {
   id: string;
   email: string;
-  name: string | null;
-  roleId: number | null;
+  name?: string | null;
+  roleId?: number | null;
   roleName?: string | null;
   avatar?: Avatar | null;
+  
+  // Agregado por T2 (soportar nueva API)
+  role?: 'citizen' | 'operator' | 'admin';
+  device_uuid?: string;
+  created_at?: Date;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  user?: User;
 }
 
 export interface AuthState {
