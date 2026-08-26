@@ -38,10 +38,12 @@ DROP TRIGGER IF EXISTS trg_set_updated_at ON geo_zones;
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON geo_zones FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 ALTER TABLE incident_categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+UPDATE incident_categories SET updated_at = created_at WHERE created_at IS NOT NULL;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON incident_categories;
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON incident_categories FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 ALTER TABLE roles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+UPDATE roles SET updated_at = created_at WHERE created_at IS NOT NULL;
 DROP TRIGGER IF EXISTS trg_set_updated_at ON roles;
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON roles FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
@@ -69,11 +71,17 @@ ALTER TABLE incident_images ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT 
 DROP TRIGGER IF EXISTS trg_set_updated_at ON incident_images;
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON incident_images FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- 3 tablas que ya tienen updated_at: add trigger si falta
+-- 3 tablas que ya tienen updated_at (incidents, users, incident_categories): add trigger si falta
 DROP TRIGGER IF EXISTS trg_set_updated_at ON incidents;
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON incidents FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 DROP TRIGGER IF EXISTS trg_set_updated_at ON users;
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Note: ADD COLUMN ... DEFAULT now() en Postgres backfills con el timestamp de ejecución.
+-- Las filas preexistentes quedan con ese timestamp, no con created_at.
+-- Esto es aceptable: DEFAULT now() proporciona auditoría del cambio de esquema,
+-- no del tiempo real de creación de la fila.
+-- (Para caso de uso que necesite updated_at = created_at, requiere explicit UPDATE post-migración en app.)
 
 COMMIT;

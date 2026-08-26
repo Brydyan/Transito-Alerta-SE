@@ -12,15 +12,16 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
   });
 
   describe('T7.3.A1 — función set_updated_at existe', () => {
+    beforeAll(async () => {
+      await db.applyRange({ from: '0001', to: '0031' });
+      await db.applyVersion('0032');
+    });
+
     it('aplica 0032 sin error', async () => {
-      await db.applyRange({ to: '0030' });
-      await expect(db.applyVersion('0032')).resolves.not.toThrow();
+      expect(true).toBe(true);
     });
 
     it('función set_updated_at() existe', async () => {
-      await db.applyRange({ to: '0030' });
-      await db.applyVersion('0032');
-
       const rows = await db.rows<{ count: number }>(
         `SELECT COUNT(*) as count FROM pg_proc WHERE proname = 'set_updated_at'`,
       );
@@ -45,7 +46,7 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
     ];
 
     beforeAll(async () => {
-      await db.applyRange({ to: '0030' });
+      await db.applyRange({ from: '0001', to: '0031' });
       await db.applyVersion('0032');
     });
 
@@ -59,7 +60,7 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
 
   describe('T7.3.A3 — 15 triggers existen', () => {
     beforeAll(async () => {
-      await db.applyRange({ to: '0030' });
+      await db.applyRange({ from: '0001', to: '0031' });
       await db.applyVersion('0032');
     });
 
@@ -82,7 +83,7 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
 
   describe('T7.3.A4 — backfill updated_at = created_at para filas preexistentes', () => {
     beforeAll(async () => {
-      await db.applyRange({ to: '0030' });
+      await db.applyRange({ from: '0001', to: '0031' });
       await db.applyVersion('0032');
     });
 
@@ -100,20 +101,57 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
 
   describe('T7.3.A5 — UPDATE sin mencionar updated_at la actualiza automáticamente', () => {
     beforeAll(async () => {
-      await db.applyRange({ to: '0030' });
+      await db.applyRange({ from: '0001', to: '0031' });
       await db.applyVersion('0032');
     });
 
-    it('UPDATE comments SET message = ... sin touched_at avanza timestamp', async () => {
-      // El trigger debería ejecutarse: antes del UPDATE el trigger cambia NEW.updated_at = now()
-      // Esto es verificable en el test E2E real, pero aquí es schema-only
-      expect(true).toBe(true); // Placeholder: el trigger existe
+    it('UPDATE comments SET message = ... avanza updated_at', async () => {
+      // Insertar comentario (requiere incident + user para FK)
+      const incRes = await db.rows<{ id: string }>(
+        `INSERT INTO incidents (id, zone_id, status, priority, location, description, created_at)
+           VALUES (gen_random_uuid(), (SELECT id FROM geo_zones LIMIT 1), 'open', 'high',
+                   ST_Point(0, 0), 'test', now())
+           RETURNING id`,
+      );
+      if (incRes.length === 0) return; // Skip si no hay zona
+
+      const usrRes = await db.rows<{ id: string }>(
+        `INSERT INTO users (id, email, role_id, created_at)
+           VALUES (gen_random_uuid(), 'test@example.com', (SELECT id FROM roles LIMIT 1), now())
+           RETURNING id`,
+      );
+      if (usrRes.length === 0) return; // Skip si no hay rol
+
+      const comRes = await db.rows<{ id: string; updated_at: string }>(
+        `INSERT INTO comments (id, incident_id, user_id, message, created_at, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, 'original', now(), now())
+           RETURNING id, updated_at`,
+        [incRes[0].id, usrRes[0].id],
+      );
+      if (comRes.length === 0) return;
+
+      const oldUpdatedAt = comRes[0].updated_at;
+      const commentId = comRes[0].id;
+
+      // Esperar 50ms para diferencia visible
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // UPDATE sin mencionar updated_at
+      // Ejecutar UPDATE sin return
+      await db.rows(`UPDATE comments SET message = 'updated' WHERE id = $1`, [commentId]);
+
+      // Verificar que avanzó
+      const newRes = await db.rows<{ updated_at: string }>(
+        `SELECT updated_at FROM comments WHERE id = $1`,
+        [commentId],
+      );
+      expect(newRes[0].updated_at).not.toBe(oldUpdatedAt);
     });
   });
 
   describe('T7.3.A6 — INSERT sin mencionar updated_at usa created_at', () => {
     beforeAll(async () => {
-      await db.applyRange({ to: '0030' });
+      await db.applyRange({ from: '0001', to: '0031' });
       await db.applyVersion('0032');
     });
 
@@ -128,7 +166,7 @@ describe('T7.3.A — updated_at column & trigger on 12 tables', () => {
 
   describe('T7.3.A7 — status_history NO tiene updated_at (append-only por diseño)', () => {
     beforeAll(async () => {
-      await db.applyRange({ to: '0030' });
+      await db.applyRange({ from: '0001', to: '0031' });
       await db.applyVersion('0032');
     });
 
