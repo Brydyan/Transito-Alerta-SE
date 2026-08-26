@@ -137,3 +137,7 @@ Manual structure (Z5 document):
 - **Deployment**: Operator executes Z5 (manual application + verification)
 - **Monitoring**: Track 0041 status in MIGRATION_LOG.md; alert on any post-deployment issues
 - **Future work (T8)**: Address status_history audit gap (closed state never recorded), design organizations hierarchy expansion (currently only CTE - Santa Elena), consider automating deployment via CI/CD (out of scope for manual-first T7)
+
+---
+
+**Note (Z5 actual implementation)**: the operator manual was delivered as `docs/runbooks/apply-0041.md` (cross-linked from `docs/runbooks/deploy.md` § paso 2) rather than at the path `database/OPERATOR-MANUAL-0041.md` originally sketched here — functionally equivalent, better-placed alongside other runbooks, and references the migration file rather than inlining its SQL body (avoids drift between the manual and the migration file).
