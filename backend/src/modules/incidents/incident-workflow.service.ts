@@ -92,7 +92,7 @@ export class IncidentWorkflowService {
     const result = await this.dataSource.query(
       // T6.3: also write claimed_at = NOW() when claiming
       `UPDATE incidents
-         SET claimed_by = $1, claimed_at = NOW(), updated_at = now()
+         SET claimed_by = $1, claimed_at = NOW()
        WHERE id = $2 AND claimed_by IS NULL
        RETURNING id, title, status, priority, claimed_by, organization_id, updated_at`,
       [operator.id, incidentId],
@@ -122,7 +122,7 @@ export class IncidentWorkflowService {
 
     const result = await this.dataSource.query(
       `UPDATE incidents
-         SET claimed_by = NULL, updated_at = now()
+         SET claimed_by = NULL
        WHERE id = $1
        RETURNING id, title, status, priority, claimed_by, organization_id, updated_at`,
       [incidentId],

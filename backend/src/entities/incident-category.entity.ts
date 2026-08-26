@@ -3,7 +3,6 @@ import {
   CreateDateColumn,
   Entity,
   PrimaryGeneratedColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 
 /**
@@ -28,7 +27,7 @@ export class IncidentCategoryEntity {
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @Column({ name: 'updated_at', type: 'timestamptz', update: false })
   updatedAt!: Date;
 
   /** T7.2 (0031) — soft delete. Excluded from list/tree reads. */
