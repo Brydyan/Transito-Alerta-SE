@@ -85,3 +85,12 @@ jobs:
           echo "Health check failed — last 50 lines:"
           docker compose logs backend --tail=50
           exit 1
+
+      # T8 — Cutover rehearsal NO corre en cada push a develop. Se dispara
+      # manualmente desde la UI de GitHub Actions vía el workflow
+      # `rehearsal-staging.yml` cuando estás a punto de hacer el cutover
+      # real (sea a staging final o a producción). Razón: el rehearsal
+      # pega contra Supabase staging con checks pesados (R26.4 corre
+      # test:e2e:cutover completo, ~5 min) y no tiene sentido en cada
+      # push de feature. Ver `docs/runbooks/cutover.md` §"Rehearsal"
+      # para cuándo invocarlo.
