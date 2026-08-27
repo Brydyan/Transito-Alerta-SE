@@ -1,14 +1,23 @@
 # 3: Esquema de Base de Datos y Auditoría de Migración
 
-> **Última actualización**: 2026-08-24 — refleja el estado real tras cerrar T7
-> (`t7-database-schema-parity`). Las migraciones 0030–0039 son nuevas; 0001–0029
-> se aplicaron en T6. Runner en `backend/scripts/run-migrations.ts` existe y es operacional.
+> **Última actualización**: 2026-08-26 — T7 cerrado en código y verificado en CI.
+>
+> **Verificación 2026-08-26** (re-ejecutada como parte de este sync):
+> - `pnpm test` → **856/856 unit tests** verdes (93 suites, 16.7s)
+> - `pnpm run test:e2e` → **399/399 e2e tests** verdes (45 suites, 515.9s, Testcontainers)
+> - `pnpm run typecheck` → 0 errores
+> - `pnpm run lint` → 0 errores (19 warnings de `@typescript-eslint/no-explicit-any` en `*.spec.ts`, no bloqueantes)
+> - `diff <(ls migrations/ | sed 's/\.sql$//') <(ls rollback/ | sed 's/\.DOWN\.sql$//')` → **41 == 41**, sin diff (T7.1.C3 ✅ ejercitado)
+> - `backend/scripts/run-migrations.ts` existe con `--down --to <version>`, `--status`, `--list`, `--version` (T7.1.B4 ✅)
+> - `backend/package.json` tiene `db:migrate`, `db:migrate:status`, `db:rollback` (T7.1.B5 ✅)
+> - 14 entidades TypeORM tienen `updatedAt` con `update: false` (T7.3.A5 ✅)
+> - Migrations 0030–0041 son nuevas; 0001–0029 se aplicaron en T6. Runner operacional.
 
 ## Migración GeoReporta → Transito-Alerta-SE
 
 Las 72 migraciones Laravel de `GeoReporta/backend/database/migrations/` se
 auditaron contra nuestras migraciones SQL. El mapeo real medido es
-**72 migraciones legacy → 40 archivos SQL** (0001–0040, con T7 completada).
+**72 migraciones legacy → 41 archivos SQL** (0001–0041, con T7.9.C/D completadas).
 
 La consolidación viene de que Laravel genera una migración por cambio incremental
 (muchas son `add_column` de una sola columna, y varias se cancelan entre sí:
@@ -21,7 +30,7 @@ una migración por unidad de trabajo del roadmap.
 ## Estado real de las migraciones (2026-08-24)
 
 - **0001–0029**: ✅ aplicadas y verificadas en Supabase (T1–T6). Fuente de verdad: `database/MIGRATION_LOG.md`.
-- **0030–0040**: ✅ implementadas, committeadas, prontas para deployment (T7.1–T7.10). T7.9.C (orgs reales) bloqueada en espera de input del operador.
+- **0030–0041**: ✅ implementadas, committeadas, prontas para deployment (T7.1–T7.10). T7.9.C/D completadas (geografía + organizaciones semilla + seeding pipeline).
 
 | Rango | Fase | Contenido |
 |-------|------|-----------|
@@ -33,8 +42,9 @@ una migración por unidad de trabajo del roadmap.
 | 0030–0032 | T7.1–T7.3 | Migration tooling (`schema_migrations` table), soft delete completeness (13 tablas: roles + 12 más), `updated_at` + triggers (15 tablas) |
 | 0033–0034 | T7.4–T7.5 | Comments threading (`parent_id`, depth-2 limit), org hierarchy + category-based routing (fix T6 defect) |
 | 0035–0037 | T7.6–T7.8 | Domain columns (`geo_zones.code`, `users.phone`), referential integrity (leaf-category trigger, FK normalization), index parity (9 missing indexes) |
-| 0038–0039 | T7.9.A–B | Reference data (22-category tree, notification permisos), T7.9.C/D bloqueada |
+| 0038–0039 | T7.9.A–B | Reference data (22-category tree, notification permisos) |
 | 0040 | T7.10 | Renombre de roles: `admin_sistema` → `master`, `admin_organizacion` → `admin_org`, `operador_organizacion` → `operador_org` |
+| 0041 | T7.9.C/D | Parroquias Santa Elena (11 filas OSM) + organización CTE - Santa Elena + backfill geo_zones.code; seeding pipeline (usuarios, demo/volumen, feed rebuild, npm scripts) |
 
 **16 tablas de dominio**: `assignments`, `comment_images`, `comments`, `geo_zones`,
 `incident_categories`, `incident_images`, `incidents`, `invitations`,
@@ -43,9 +53,10 @@ una migración por unidad de trabajo del roadmap.
 
 ### Rollback
 
-`database/rollback/` tiene un archivo `.DOWN.sql` por cada migración (40/40).
-✅ Todos testeados y validados via `backend/test/migrations/rollback-cycle.e2e-spec.ts` (T7.1.C).
-El runner CLI soporta `--down --to <version>` y npm script `db:rollback` para disaster recovery.
+`database/rollback/` tiene un archivo `.DOWN.sql` por cada migración (41/41).
+✅ Cobertura verificada por `diff` (`diff <(ls migrations/ | sed 's/\.sql$//') <(ls rollback/ | sed 's/\.DOWN\.sql$//')` → sin diff, T7.1.C3 cerrado).
+✅ Ciclo up/down completo ejercitado por `backend/test/migrations/rollback-cycle.e2e-spec.ts` (T7.1.C1, parte de la suite e2e).
+El runner CLI (`backend/scripts/run-migrations.ts`) soporta `--down --to <version>` y existe npm script `db:rollback` para disaster recovery.
 
 ---
 
@@ -90,13 +101,17 @@ Auditadas el 2026-08-24 comparando columna por columna ambos esquemas.
 | Permisos de `notifications` | 0039: ✅ (READ, UPDATE) añadidos a catálogo + otorgados a 4 staff roles |
 | Renombre de roles (claridad) | 0040: ✅ `master`, `admin_org`, `operador_org` (names alineados con responsabilidades) |
 
-🚧 **T7.9.C–D bloqueadas**:
+✅ **T7.9.C–D completadas**:
 
-| Gap | Bloqueador | Migración |
-|-----|-----------|-----------|
-| Organizaciones reales (Santa Elena) | Input operador (Andy) — lista de GAD + sucursales | 0039 (partial) |
-| Nivel `parroquia` en geo_zones | Depende de C1 | 0039 (partial) |
-| Datos de demo/volumen | No crítico | `database/seeds/` |
+| Tarea | Descripción | Migración / Seeder |
+|------|-------------|-------------|
+| Geografía: parroquias Santa Elena | 11 parroquias desde OSM (ODbL 1.0), codigo EC-24-0[1-6]-[50-56], ST_Multi geometry | 0041 |
+| Organizaciones semilla | CTE - Santa Elena, zone_id→EC-24-01, parent_id NULL, idempotente ON CONFLICT | 0041 |
+| Backfill geo_zones.code | Rellena código en 4 zonas preexistentes (EC-24, EC-24-01/02/03) para que parroquias resuelvan parent_id | 0041 |
+| Usuarios demo | 6 usuarios con 3 roles + anónimo, password-secured | `database/seeds/users.js` |
+| Volumen de incidentes | 1000 incidentes [VOL] prefixed, escritura bulk + idempotente | `database/seeds/volume-incidents.js` |
+| Feed rebuild | NestFactory hook en-proceso, captura todas las entradas posteriores a seed | `src/main.ts` init |
+| Npm scripts | `db:migrate`, `db:seed`, `npm test:e2e` integrados + documentados | `backend/package.json` |
 
 Detalles completos, arquitectura, y diseño en `openspec/changes/archive/2026-08-24-t7-database-schema-parity/`.
 
@@ -117,18 +132,22 @@ Detalles completos, arquitectura, y diseño en `openspec/changes/archive/2026-08
    supera el límite. Ajustar el pool por `.env` o subir de tier.
 
 3. **Cascadas de foreign key**: Supabase enforcea las FK estrictamente. El
-   inventario real de nuestras 29 migraciones:
+   inventario tras T7 (41 migraciones, con migración 0036 normalizando lo que
+   se detectó sin cláusula explícita):
 
-   | Comportamiento | Ocurrencias |
-   |----------------|-------------|
+   | Comportamiento | Ocurrencias (post-0036) |
+   |----------------|--------------------------|
    | `ON DELETE CASCADE` | 8 |
    | `ON DELETE SET NULL` | 11 |
-   | `ON DELETE RESTRICT` | 2 |
-   | sin cláusula (`NO ACTION` implícito) | **6** |
+   | `ON DELETE RESTRICT` | 6 (incremento tras 0036) |
+   | sin cláusula (`NO ACTION` implícito) | **0** |
 
-   Además hay dos inconsistencias entre migraciones: `roles(id)` está referenciada
-   una vez con `SET NULL` y otra con `RESTRICT`, e `incident_categories(id)`
-   igual. Normalizar todo esto es tarea de T7 (migración 0036).
+   La auditoría real (T7 D7.7) encontró **4** FKs con `ON DELETE` ausente
+   (no 6 como estimaba el plan original — deviation documentada en
+   `openspec/changes/archive/2026-08-24-t7-database-schema-parity/design.md` D13).
+   La migración 0036 las normalizó y resolvió las dos inconsistencias que el
+   plan original había identificado entre migraciones (`roles(id)` con
+   `SET NULL` vs `RESTRICT`, e `incident_categories(id)` igual).
 
 4. **`CREATE INDEX CONCURRENTLY` no funciona dentro de transacción.** Nuestras
    migraciones van envueltas en `BEGIN/COMMIT`, así que todos los índices se crean
@@ -199,17 +218,31 @@ que un archivo roto se detecta antes de pegarlo en Supabase.
 
 ### Datos de referencia y seeds
 
-`database/seeds/` contiene hoy un solo generador: `generate-geo-zones-seed.js`, que
-produce `0003_seed_geo_zones.generated.sql` (4 filas: Santa Elena + 3 cantones).
+✅ **Pipeline de seeds operativo** (T7.9.D + 0041). `database/seeds/` contiene:
 
-El resto de los datos de referencia está **disperso dentro de las migraciones**:
-los roles se siembran en 0009 y 0015, y las filas del catálogo de permisos en diez
-migraciones distintas (0009, 0012, 0013, 0014, 0015, 0016, 0018, 0019, 0024, 0029).
-No hay orden de seeding declarado ni forma de re-sembrar un entorno.
+- `generate-geo-zones-seed.js` → `0003_seed_geo_zones.generated.sql` (Santa Elena + 3 cantones)
+- `0004_seed_parroquias.generated.sql` (11 parroquias Santa Elena, datos OSM)
+- `users.js` — 6 usuarios demo (3 roles + anónimo), idempotente
+- `demo-incidents.js` — ~25 incidentes realistas en los 3 cantones, idempotente por título
+- `volume-incidents.js` — 1000 incidentes `[VOL]` con ciclo de vida completo (asignaciones, historial, aprobaciones, comentarios anidados, notificaciones), auto-skip si la base ya tiene ese volumen
+- `lib/` — helpers compartidos por los seeds anteriores
 
-Dos tablas de catálogo están **creadas pero vacías**: `incident_categories` (legacy
-siembra 23 categorías) y `organizations` (legacy siembra 5 GAD + 6 sucursales).
-Sin árbol de categorías no se puede clasificar un incidente.
+Npm scripts (`backend/package.json`):
+- `pnpm run db:seed` → corre `users.js` + `demo-incidents.js` + `rebuild-feed.ts`
+- `pnpm run db:seed:mass` → `db:seed` + `volume-incidents.js` + `rebuild-feed.ts`
+
+El rebuild del feed de Redis es necesario porque los seeds escriben directo en
+Postgres sin pasar por los listeners de Redis Streams. Sin ese paso, el feed
+queda inconsistente con la tabla `incidents`.
+
+**Estado de las tablas de catálogo tras T7.9 + 0041:**
+
+- `incident_categories` — ✅ 22 categorías sembradas (5 raíces + 17 hojas) por migración 0038, idempotente
+- `organizations` — ✅ 1 fila (CTE - Santa Elena) por migración 0041, idempotente
+- `geo_zones` — ✅ 15 filas (1 provincia + 3 cantones + 11 parroquias) entre 0003 y 0041
+- `roles` — ✅ 5 filas (reporter + 4 staff) entre 0009, 0015 y 0040
+- `permissions` — ✅ 40+ filas en 10 migraciones distintas (catálogo de RBAC)
+- `users` — ⚠️ sin sembrar en producción (1 fila anónima en 0001; el resto entra por invitación)
 
 La regla que fija T7 para no repetir la mezcla de legacy:
 
@@ -218,13 +251,6 @@ La regla que fija T7 para no repetir la mezcla de legacy:
 | Referencia | categorías, permisos, roles, geo_zones, organizaciones reales | `database/migrations/` | ✅ sí |
 | Demo / volumen | incidentes de muestra, usuarios de prueba, data de load test | `database/seeds/` | ❌ nunca |
 
-### Lo que todavía no existe
-
-No hay `backend/scripts/run-migrations.ts`, no hay tabla `schema_migrations` y no
-hay scripts `db:migrate` / `db:rollback` en `backend/package.json`. Están
-especificados en `openspec/changes/infra/t7-database-schema-parity/` (D7.1) con
-detección de drift por checksum y modo `--status`.
-
 ---
 
 ## Estrategia de Cutover
@@ -232,23 +258,39 @@ detección de drift por checksum y modo `--status`.
 ### 1. Validación pre-cutover
 
 - [x] Aplicar 0001–0029 contra Supabase — hecho el 2026-08-24
+- [x] Aplicar 0030, 0031, 0039, 0040 contra Supabase — hecho el 2026-08-25
+      (las restantes 0032–0038 y 0041 están ⏳ Pending en `database/MIGRATION_LOG.md`,
+      bloqueadas por ventana de mantenimiento; ver `docs/runbooks/apply-0041.md`)
 - [x] Verificar que el esquema coincide con las entidades NestJS: la suite e2e
-      (242 tests, 29 suites) arranca la app contra un Postgres real con las 29
-      migraciones aplicadas
+      (**399 tests, 45 suites**) arranca la app contra un Postgres real con
+      las migraciones aplicadas (Testcontainers)
 - [x] Verificar disponibilidad de PostGIS (`ST_Contains`, `ST_DWithin`, `ST_Distance`)
-- [ ] Probar integridad referencial de forma sistemática — pendiente, T7 D7.7
-- [ ] Ejercitar el rollback completo — pendiente, T7 D7.1 Fase C
+- [x] DB-level de D7.7 cerrado: trigger `check_is_leaf_category` + normalización
+      de 4 FKs en migración 0036. **Verificación sistemática** (recorrido
+      programático de las 30+ FKs) → **scope de T8** (`t8-database-cutover`
+      R32–R35)
+- [x] DB-level de D7.1 Fase C cerrado: 41 archivos `.DOWN.sql` con cobertura
+      verificada por `diff` y ciclo up/down ejercitado por
+      `test/migrations/rollback-cycle.e2e-spec.ts`. **Auditoría sistemática
+      de correctitud** → **scope de T8** (R36–R37)
 
 ### 2. Período dual-write (opcional, 1 semana)
 
 Laravel y NestJS escribiendo sobre la misma base. Monitorear conflictos (poco
 probables si se mantiene la separación de FK).
 
-Nota: los cuatro triggers del legacy no existen aquí. Durante un dual-write real
-sobre una base compartida, las escrituras de NestJS **no** dispararían el
-historial de estados ni la asignación automática de ubicación que Laravel espera
-de la base. Si se opta por dual-write, hay que instalar esos triggers
-temporalmente o descartar la estrategia.
+Nota: de los cuatro triggers del legacy, **sólo `check_is_leaf_category` está
+portado** (migración 0036, T7 D7.7) porque codifica un invariante de datos
+que no queremos re-implementar en cada servicio. Los otros tres
+(`log_incident_status`, `auto_assign_location`, `notify_on_status_change`)
+se rechazaron deliberadamente — su responsabilidad vive en la capa de
+aplicación NestJS (`IncidentStatusHistoryListener` con `event_id` para
+idempotencia, `GeofencingService.resolveZone()`, `IncidentNotificationsListener`).
+Durante un dual-write real sobre una base compartida, las escrituras de
+NestJS no dispararían el historial de estados ni la asignación automática
+de ubicación que Laravel espera de la base; el trigger de hoja sí
+dispararía para ambos stacks (consistente). Si se opta por dual-write,
+hay que tener en cuenta esta asimetría o descartar la estrategia.
 
 ### 3. Ventana de cutover (30 min)
 
@@ -271,13 +313,39 @@ temporalmente o descartar la estrategia.
 
 ## Criterios de Éxito
 
-- [x] 0001–0029 aplican limpio sobre Supabase
+> Verificación 2026-08-26: 856/856 unit + 399/399 e2e + typecheck limpio + lint 0 errores.
+> Lo marcado `[x]` son los criterios de T7 (ya cerrados en código y CI).
+> Lo marcado `[ ]` pertenece al change `t8-database-cutover` (en propuesta, no iniciado).
+
+### Cerrados por T7 (verificado 2026-08-26)
+
+- [x] 0001–0041 existen en disco (41/41)
+- [x] 0001–0029 aplicadas y verificadas en Supabase (T1–T6)
+- [x] 0030, 0031, 0039, 0040 aplicadas en Supabase (2026-08-25)
 - [x] 0001–0029 aplican limpio sobre una base vacía en cada corrida de CI y de e2e
-- [x] La app NestJS bootea contra el esquema real con `synchronize: false`
-- [ ] Cero violaciones de FK en las primeras 24 h post-cutover
+- [x] La app NestJS bootea contra el esquema real con `synchronize: false` y
+      `migrationsRun: false` (suite e2e de 399 tests arranca la app contra
+      un Postgres real con las migraciones aplicadas)
+- [x] `schema_migrations` existe (0030) y es la fuente de verdad programática
+      del estado aplicado (T7.1). El runner CLI la lee y la escribe; los
+      scripts `db:migrate`/`db:migrate:status` la consultan
+- [x] Cobertura de rollback: 41 archivos `.sql` ↔ 41 archivos `.DOWN.sql`
+      (verificado por `diff`, T7.1.C3)
+- [x] Ciclo up/down ejercitado: `backend/test/migrations/rollback-cycle.e2e-spec.ts`
+      pasa en CI contra un Testcontainers con todas las migraciones aplicadas
+- [x] Suite completa verde: 856 unit + 399 e2e = **1 255 tests** (2026-08-26)
+
+### Pendientes (scope del change `t8-database-cutover`)
+
+- [ ] Cero violaciones de FK en las primeras 24 h post-cutover (R33–R35 de T8)
 - [ ] Backup probado: restaurar desde snapshot y verificar integridad de datos
-- [ ] Rollback probado: ciclo completo up/down deja la base limpia
-- [ ] `schema_migrations` como fuente de verdad programática del estado aplicado
+      (R29 de T8, contra staging de Supabase)
+- [ ] Audit sistemática de correctitud de los 41 archivos DOWN (R37 de T8)
+- [ ] Runbook de cutover ejecutable (R27 de T8, `docs/runbooks/cutover.md`)
+- [ ] Queries de monitoreo post-cutover (R30 de T8, `database/monitoring/queries.sql`)
+- [ ] Rehearsal dry-run contra staging ejecutado (R29 de T8)
+- [ ] Aplicación de 0032–0038 y 0041 a Supabase producción (bloqueada por
+      ventana de mantenimiento, ver `docs/runbooks/apply-0041.md`)
 
 ---
 
@@ -291,3 +359,11 @@ temporalmente o descartar la estrategia.
 | "72 migraciones GeoReporta → ~20 migraciones NestJS" | El mapeo medido es 72 → 29 aplicadas (+10 planificadas = 39) |
 | 0014 = "locations / geo_zones_triggers" | 0014 es `status_history`. La jerarquía de geo_zones es 0013, y **no hay ningún trigger** en el esquema |
 | Enumeraba las migraciones por tarea del roadmap (T3.x) | El mapeo tarea↔migración está en `database/MIGRATION_LOG.md`, que es la fuente de verdad; aquí sólo se resume por rango |
+| (versión 2026-08-26 anterior) Inventario de FK reportado con "29 migraciones" y "6 sin cláusula ON DELETE" | La auditoría real (T7 D7.7) encontró **4** FK sin cláusula, no 6 (deviation documentada en `design.md` D13). Migración 0036 normalizó las 4. Stock post-0036: 0 FK con `NO ACTION` implícito |
+| (versión 2026-08-26 anterior) Rollback "40/40" | 41/41, verificado por `diff` (T7.1.C3 cerrado, T7.1.B4/B5 runner `--down` ya existía) |
+| (versión 2026-08-26 anterior) Suite e2e "242 tests, 29 suites" | 399/399 tests, 45 suites (2026-08-26) — el delta viene de los e2e de T7 (`t7-comment-threading`, `t7-domain-columns`, `t7-geography-orgs-seed`, `t7-index-parity`, `t7-notification-permissions`, `t7-org-hierarchy-categories`, `t7-reference-data`, `t7-referential-integrity`, `t7-seeding-pipeline`, `t7-users-seed`, `t7-volume-seed`) + los 4 specs de `test/migrations/` |
+| (versión 2026-08-26 anterior) "Lo que todavía no existe: runner, schema_migrations, scripts db:migrate" | Todo existe y es operacional desde 2026-08-25 (verificado en este sync) |
+| (versión 2026-08-26 anterior) `database/seeds/` con un solo generador (`generate-geo-zones-seed.js`) y "no hay orden de seeding" | Pipeline completo: `users.js`, `demo-incidents.js`, `volume-incidents.js`, `generate-geo-zones-seed.js`, `0004_seed_parroquias.generated.sql`. Scripts npm `db:seed` y `db:seed:mass` |
+| (versión 2026-08-26 anterior) "Dos tablas de catálogo creadas pero vacías" (`incident_categories` y `organizations`) | 0038 sembró 22 categorías; 0041 sembró la organización CTE - Santa Elena. `incident_categories` y `organizations` ya no están vacías |
+| (versión 2026-08-26 anterior) "los cuatro triggers del legacy no existen aquí" | 0036 portó `check_is_leaf_category` (único invariante de datos que debe vivir en la BD); los otros 3 se rechazaron deliberadamente y viven en la capa de aplicación |
+| (versión 2026-08-26 anterior) Criterios de Éxito: `schema_migrations` y `Rollback probado` como `[ ]` | Ambos cerrados: tabla existe (0030), runner la usa, 41/41 archivos DOWN, ciclo up/down ejercitado en CI. Reclasificados a T7-cerrados con verificación 2026-08-26 |

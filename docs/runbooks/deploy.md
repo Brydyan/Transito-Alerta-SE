@@ -31,6 +31,13 @@ Verificar que existe rollback para cada migración nueva:
 database/rollback/NNNN_nombre.DOWN.sql
 ```
 
+> **Migración 0041 (`geography_organizations_seed`)** — load-bearing
+> order, requiere 0040 registrada en `schema_migrations`, e incluye
+> checkpoints detallados (backfill de `code`, conteo de parroquias por
+> cantón, forma corta de la organización, idempotencia). Ver
+> [`docs/runbooks/apply-0041.md`](./apply-0041.md) para el runbook
+> paso a paso.
+
 ### Paso 3 — Deploy del servicio
 
 Plataforma dependiente. Pasos comunes:

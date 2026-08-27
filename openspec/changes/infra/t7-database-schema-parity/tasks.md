@@ -1,10 +1,24 @@
 # T7 — ARCHIVED (Partial) — 2026-08-24
 
 **Status**: T7.1–T7.9.B complete (4 apply batches, all Strict TDD, all green).
-T7.9.C/D blocked on operator input (real Santa Elena organization list) and
-not reached this cycle, respectively. See
+T7.9.C/D **re-anchored and implemented** in the follow-up change
+`openspec/changes/infra/t7-geography-organizations-seed` (migración
+`0041_geography_organizations_seed.sql` + `database/seeds/` pipeline) —
+the T7.9.C1 "operator input" blocker was resolved by switching the
+geography source to OpenStreetMap (admin_level=8, ODbL 1.0) per
+`openspec/changes/infra/t7-geography-organizations-seed/design.md D0`,
+and T7.9.C2–C6 + T7.9.D1–D11 were completed there. See
 `openspec/changes/archive/2026-08-24-t7-database-schema-parity/archive-report.md`
-for the full compliance breakdown and next steps.
+for the original archival breakdown; see
+`openspec/changes/infra/t7-geography-organizations-seed/apply-progress.md`
+for the implementation details of the re-anchored work.
+
+> **T7.9.Z2 (2026-08-26)** — references to "migración 0039" in T7.9.C1–C6
+> and T7.9.D1–D5 below are stale; the actual migration is
+> `0041_geography_organizations_seed.sql` in the
+> `t7-geography-organizations-seed` change. R21 in
+> `openspec/specs/database-schema/spec.md` likewise points to 0039 — see
+> the corresponding entry update below.
 
 ---
 
@@ -200,22 +214,40 @@ Motivo: 0040 permissions references new role names (master, admin_org, etc.) cre
 - [x] **T7.9.B2** — Añadir a 0039 las dos filas del catálogo y su concesión en el JSONB `roles.permissions` de los 4 roles staff, con el mismo patrón que 0019_incident_claim.sql (`permissions || jsonb_build_array(...)` + guarda `?&`). `PermissionAction` en `require-permission.decorator.ts` ya admite `READ`/`UPDATE` — sin cambios. **(1.5h)** ✅ implemented as 0039_organizations_permissions.sql
 - [x] **T7.9.B3** — Revisar si `NotificationsController` debe pasar a exigir el permiso o si sigue con `JwtAuthGuard` a secas. Registrar la decisión en `design.md`; no cambiar el guard sin decidirlo. **(1h)** ✅ decisión: sin cambios de guard — ver design.md D14 (approve/reject ya usaban `@RequirePermission('UPDATE')` desde T5.6; el gap era sólo de datos, no de código; rutas de notificaciones propias se quedan en `JwtAuthGuard` solo)
 
-### Fase C — Geografía y organizaciones (parte de 0039)
+### Fase C — Geografía y organizaciones (re-anchored a migración 0041, **ver `t7-geography-organizations-seed`**)
 
-- [ ] **T7.9.C1** — 🚧 **BLOQUEADA hasta input del operador**: obtener la lista real de organizaciones del despliegue de Santa Elena (nombre, cantón, si es sucursal de otra). No inventar datos ni portar los GAD de Quito/Guayaquil/Cuenca/Ambato/Loja del seeder legacy. **(—)**
-- [ ] **T7.9.C2** — Extender `database/seeds/generate-geo-zones-seed.js` para emitir también el nivel `parroquia` de los 3 cantones de Santa Elena, con `polygon` y `code`. Fuente de geometrías: el mismo origen que usó el seed actual, o `GeoReporta/backend/database/data/ecuador-locations-geom.json` filtrado por provincia. **(2h)**
-- [ ] **T7.9.C3** — Regenerar `0003_seed_geo_zones.generated.sql` — **no**: emitir las parroquias como parte de 0039, para no modificar una migración ya aplicada en Supabase (violaría el checksum de D2). **(1.5h)**
-- [ ] **T7.9.C4** — Añadir a 0039 las organizaciones acordadas en T7.9.C1, resolviendo `zone_id` por `geo_zones.code` y `parent_id` por nombre, con `ON CONFLICT DO NOTHING`. **(1.5h)**
-- [ ] **T7.9.C5** — Escribir `0039_…DOWN.sql`. **(45min)**
-- [ ] **T7.9.C6** — E2E R21.1–R21.5: parroquias sembradas con parent y polígono, jerarquía sin ciclos, `ST_Within(parroquia, canton)` verdadero en todos los pares, organizaciones cargadas con `zone_id` válido, re-aplicación sin duplicados. **(2h)**
+> **T7.9.Z2 (2026-08-26)** — Esta fase **NO se implementó como parte de
+> 0039**. La geografía y la organización semilla viven en la migración
+> `0041_geography_organizations_seed.sql` del change
+> `openspec/changes/infra/t7-geography-organizations-seed/`, aplicadas
+> siguiendo el orden load-bearing de su `design.md D4`:
+> 1. backfill de `code` en las 4 `geo_zones` preexistentes
+>    (EC-24, EC-24-01/02/03, matched por UUID literal — no por nombre)
+> 2. INSERT de las 11 parroquias de Santa Elena (OSM, ODbL 1.0)
+> 3. INSERT de la organización `CTE - Santa Elena`
+>
+> El R21 del catálogo (specs/database-schema/spec.md) se reescribió
+> allí; las versiones de abajo son **históricas** y se conservan sólo
+> para que el archivo siga siendo legible como referencia.
 
-### Fase D — Datos de demo y de volumen
+- [x] **T7.9.C1** — ✅ **Resuelta 2026-08-25** en `t7-geography-organizations-seed`. La fuente final es **OpenStreetMap** (`admin_level=8`, ODbL 1.0) — INEC DPA fue rechazada por falta de licencia (sin metadatos rellenados, "términos y condiciones" apuntando a la política de privacidad, alcance declarado sólo para "operativos de campo"), CONALI exige autorización expresa, IGM no publica parroquias, GADM es no-comercial. El dataset OSM ya está verificado: las 11 parroquias de Santa Elena existen como relaciones `admin_level=8` completas (7 en cantón Santa Elena, 1 en La Libertad, 3 en Salinas). El único punto legal abierto es el alcance del share-alike de ODbL 1.0 — un juicio del operador, no un bloqueo técnico. Detalles en `t7-geography-organizations-seed/design.md D0` y `t7-geography-organizations-seed/specs/database-schema/spec.md`. Implementado en `t7-geography-organizations-seed/tasks.md` T7.9.C1.
+- [x] **T7.9.C2** — ✅ `database/seeds/generate-geo-zones-seed.js` ahora tiene modo arity-2 (parroquia); emite `0004_seed_parroquias.generated.sql` con 11 parroquias, `uuidV5` desde el namespace congelado `NS_GEO_ZONE`, y wrap `ST_Multi(...)` defensivo. El modo arity-1 sigue byte-idéntico al comprometido (la guarda de estabilidad del checksum de 0003 se valida con un test unitario). Ver `t7-geography-organizations-seed/tasks.md` T7.9.C3.
+- [x] **T7.9.C3** — ✅ Emisión de parroquias parte como `0041`, no `0039`, por la razón de la Z2: `0039` ya está aplicada en Supabase y agregarle contenido violaría el checksum de `run-migrations.ts --status`. `0003_seed_geo_zones.generated.sql` NO se tocó.
+- [x] **T7.9.C4** — ✅ `database/migrations/0041_geography_organizations_seed.sql` ejecuta los 3 pasos load-bearing (code backfill → parroquias → organización), con la organización `CTE - Santa Elena` (forma corta — la rollback predicate depende de esta cadena exacta) y `max_active_claims=5`, `parent_id` NULL. Ver `t7-geography-organizations-seed/tasks.md` T7.9.C5.
+- [x] **T7.9.C5** — ✅ `database/rollback/0041_geography_organizations_seed.DOWN.sql` con guarda ruidosa (`RAISE EXCEPTION` si algún usuario referencia la org), una sola transacción, orden inverso. Ver `t7-geography-organizations-seed/tasks.md` T7.9.C6.
+- [x] **T7.9.C6** — ✅ `backend/test/e2e/t7-geography-orgs-seed.e2e-spec.ts` cubre R21.0–R21.5 (6/6 verde) **y** el ciclo rollback (4/4 verde), vía `MigrationHarness` contra PostGIS real (nunca fixtures `ST_MakeEnvelope` — R21.3 es sólo significativo contra geometría real). El `parent_ok` y `overlap_ratio >= 0.75` re-confirmados dentro del ciclo real de migraciones 0001–0041 (no en el contenedor aparte de la medición original 2026-08-25). Ver `t7-geography-organizations-seed/tasks.md` T7.9.C4 y T7.9.C7.
 
-- [ ] **T7.9.D1** — 🔴 E2E R22.1–R22.4: ninguna migración inserta incidentes, el generador de demo vive bajo `database/seeds/`, el seed es idempotente, y el feed de Redis queda consistente con Postgres tras sembrar. Debe fallar. **(1.5h)**
-- [ ] **T7.9.D2** — Crear el generador de incidentes de demo bajo `database/seeds/` (~25 incidentes realistas en los 3 cantones), idempotente por título, equivalente a `SantaElenaIncidentSeeder`. **NO** es una migración. **(2.5h)**
-- [ ] **T7.9.D3** — Crear el generador de volumen (1000 incidentes con ciclo de vida completo: asignaciones, `status_history`, aprobaciones, comentarios anidados y notificaciones), equivalente a `MassIncidentSeeder`. Auto-skip si la base ya tiene ese volumen. **(3h)**
-- [ ] **T7.9.D4** — Añadir el paso de reconstrucción del feed al final del seeding, invocando el `FeedRecoveryService` de T6 (equivalente al `feed:rebuild` que legacy llama al cerrar `DatabaseSeeder`). Los seeds escriben directo en Postgres sin pasar por los listeners de Redis Streams, así que sin este paso el feed queda vacío. **(1.5h)**
-- [ ] **T7.9.D5** — Añadir a `backend/package.json` los scripts `db:seed` (referencia + demo) y `db:seed:mass` (volumen), documentando que ninguno se ejecuta contra producción. **(45min)**
+### Fase D — Datos de demo y de volumen (re-anchored, **ver `t7-geography-organizations-seed`**)
+
+> **T7.9.Z2 (2026-08-26)** — Esta fase se implementó en
+> `t7-geography-organizations-seed/tasks.md` T7.9.D1–D11 con R22.1–R22.6
+> en el catálogo, no en este archivo.
+
+- [x] **T7.9.D1** — ✅ `backend/test/e2e/t7-seeding-pipeline.e2e-spec.ts` (R22.1, R22.2 mitades estáticas + R22.3 idempotencia + R22.4 stub del rebuild-feed). Ver `t7-geography-organizations-seed/tasks.md` T7.9.D1 y T7.9.D6.
+- [x] **T7.9.D2** — ✅ `database/seeds/demo-incidents.js` (~25 incidentes `[DEMO]`, distribución proporcional en los 3 cantones de Santa Elena, PRNG determinista `mulberry32(0x20260825)`, idempotente por prefijo de título, `zone_id`/`organization_id`/`geofence_matched` resueltos en SQL por `ST_Contains`). Ver `t7-geography-organizations-seed/tasks.md` T7.9.D7.
+- [x] **T7.9.D3** — ✅ `database/seeds/volume-incidents.js` (1000 incidentes `[VOL]` con ciclo completo: `status_history` por transición válida, `assignments`, aprobación, `resolution_date`, `notifications` con los 5 valores del CHECK 0022, `comments` con profundidad ≤ 2). Auto-skip si la base ya tiene el volumen. No escribe `status_history` para la transición approved→`closed` (gap conocido de `chk_status_history_new_status`). Ver `t7-geography-organizations-seed/tasks.md` T7.9.D9 y T7.9.D10.
+- [x] **T7.9.D4** — ✅ `backend/scripts/rebuild-feed.ts` (`createApplicationContext` + `FeedRecoveryService.rebuildFeed()` + `app.close()`); no bootea HTTP. Misma guarda `lib/guard.js` que los seeders. Ver `t7-geography-organizations-seed/tasks.md` T7.9.D8.
+- [x] **T7.9.D5** — ✅ `backend/package.json`: `db:seed` (usuarios + demo + rebuild-feed) y `db:seed:mass` (lo anterior + volumen + rebuild-feed). Ver `t7-geography-organizations-seed/tasks.md` T7.9.D11.
 
 ---
 
@@ -234,10 +266,15 @@ Razón: 0040 permissions needs names created by 0039 rename. Moved in order.
 
 ## Cierre
 
-- [ ] **T7.Z1** — E2E transversal `t7-full-schema.e2e-spec.ts` con R17.1–R17.4: base vacía 0001→0039; base con 0001–0029 y datos + 0030→0039 sin pérdida; re-aplicación de 0030–0039 inocua; la app NestJS bootea con `synchronize:false` y `/api/health` responde 200. **(2h)**
-- [ ] **T7.Z2** — Añadir 10 filas nuevas a `database/MIGRATION_LOG.md` (0030–0039) con descripción, estado y entorno (R4.2). **(1h)**
-- [ ] **T7.Z3** — Correr la suite completa (`npm test && npm run test:e2e`), `npm run lint`, `npm run typecheck` y `npm run build` desde `backend/`. Cero errores. **(1h)**
-- [ ] **T7.Z4** — Redactar el bloque de aplicación manual para el operador: orden de pegado de 0030→0039 en el editor SQL de Supabase, con el checkpoint a verificar tras cada una. **(1h)**
+> **T7.9.Z (2026-08-26)** — Re-anchored. La geografía y la organización
+> semilla viven en la migración **0041** (no 0039), y los generadores
+> de demo/volumen están en `database/seeds/`. Cierre extendido de 0030–0039
+> a 0030–0041. Los 4 T7.Z* de abajo cubren ahora 0001–0041.
+
+- [x] **T7.Z1** — ✅ E2E transversal `t7-full-schema.e2e-spec.ts` con R17.1–R17.4 contra **scope 0001–0041**: (a) `applyRange({ to: '0041' })` deja ≥17 tablas de dominio en `public` y exactamente 29 filas en `schema_migrations` (backfill 0001–0029); (b) `applyRange({ from: '0030', to: '0041' })` sobre una base con 0001–0029 y datos (org sembrada) preserva la fila y deja `geo_zones` con 4 preexistentes + 11 parroquias = 15; (c) re-aplicar 0030–0041 es inocua — `information_schema.tables`/`pg_indexes`/`pg_constraint` idénticos (ordenados alfabéticamente); (d) NestJS bootea con `synchronize:false`, `GET /api/health` → 200, y las 16 tablas de dominio están presentes. **5/5 verde** contra Postgres real vía `MigrationHarness` (R17.1–R17.3) y `TestEnvironment` (R17.4).
+- [x] **T7.Z2** — ✅ Las 12 filas 0030–0041 están en `database/MIGRATION_LOG.md` con descripción, estado y entorno. Re-anchored de "10 filas 0030–0039" a "12 filas 0030–0041" porque el alcance se extendió con 0040 (renombre de roles) y 0041 (geografía + org semilla). Estado actual: 0030 ✅, 0031 ✅, 0032–0038 ⏳, 0039 ✅, 0040 ⚠️ ejecutada sin registrar, 0041 ⏳. El operador actualiza las filas ⏳ → ✅ a medida que aplica (ver `docs/runbooks/apply-0030-0041.md` para T7.Z4).
+- [x] **T7.Z3** — ✅ Suite completa corrida 2026-08-26 desde `backend/`: `jest` (unit) **856/856** verde en 93 suites; `jest --config ./test/jest-e2e.json` **404/404** verde en 46 suites (incluye el nuevo `t7-full-schema` 5/5); `npm run lint` 0 errors; `npm run typecheck` limpio; `npm run build` limpio. Los `ERROR [MailOutboxConsumer]` en stderr son esperados (tests que prueban fallo SMTP sin mailhog levantado). Detalle completo en `apply-progress.md` § Z3.
+- [x] **T7.Z4** — ✅ `docs/runbooks/apply-0030-0041.md` redactado: cubre las 7 migraciones ⏳ (0032–0038) más 0041 con orden de pegado, prerrequisitos, checkpoint por migración y registro de SHA-256. Enlaza `apply-0041.md` para los detalles de 0041 (load-bearing order, 5 checkpoints, rollback). Enlazado desde `docs/runbooks/deploy.md` § paso 2.
 
 ---
 
@@ -253,7 +290,7 @@ Razón: 0040 permissions needs names created by 0039 rename. Moved in order.
 | D7.6 | 7 | 0035 | ~6h |
 | D7.7 | 9 | 0036 | ~13h |
 | D7.8 | 5 | 0037 | ~6h |
-| D7.9 | 18 | 0038, 0039 | ~26h |
+| D7.9 | 18 | 0038, 0039 (Fase A/B), **0041** (Fase C/D — ver `t7-geography-organizations-seed`) | ~26h |
 | D7.10 | 5 | 0040 | ~3h |
 | Cierre | 4 | — | ~5h |
 | **Total** | **111** | **11** | **~139h** |

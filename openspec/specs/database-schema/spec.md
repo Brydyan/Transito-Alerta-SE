@@ -2,8 +2,17 @@
 
 **Domain**: database-schema
 **Source change**: t7-database-schema-parity (archived 2026-08-24)
-**Version**: R1
+**Version**: R2
 **Date**: 2026-08-24
+**Update**: 2026-08-26 — Merged the `t7-geography-organizations-seed`
+change (T7.9.C/D/Z) on archive. R21 and R22 are now fully re-anchored
+in-line to migration `0041_geography_organizations_seed.sql` (no more
+stray "0039" references in R21/R22 scenario text) and extended with the
+scenarios added by that change (R21.0 code-backfill ordering, R22.5/R22.6
+users seeder). Three new requirements were added: R23 (migration
+documentation), R24 (pre-deploy CI verification), R25 (Supabase
+deployment prep). Archived source artifacts for full traceability live
+at `openspec/changes/archive/2026-08-26-t7-geography-organizations-seed/`.
 
 > Todos los escenarios se validan con Postgres + PostGIS real (Testcontainers),
 > nunca con mocks. Un escenario se considera cumplido sólo si existe un test que
@@ -11,7 +20,7 @@
 
 ---
 
-## Compliance Status (as of archive, 2026-08-24)
+## Compliance Status (as of 2026-08-26, post-reanchor)
 
 | Requirement Group | Status | Notes |
 |---|---|---|
@@ -25,8 +34,11 @@
 | R16 (D7.8 index parity) | ✅ Compliant | Migration 0037 (4 of 9 indexes newly created; 5 already existed under other names — see design.md D10) |
 | R17-R18 (transversal / docs) | ⚠️ Partial | Full-schema e2e (T7.Z1) and docs sync (T7.1.D2/R18.1) not yet executed |
 | R19-R20 (D7.9 category tree + notification perms) | ✅ Compliant | Migrations 0038, 0039 (Fase B only) |
-| R21 (D7.9 geography + seed orgs) | 🚧 Blocked | T7.9.C blocked on operator input (real Santa Elena organization list) |
-| R22 (D7.9 demo/volume data separation) | ⬜ Not started | T7.9.D not reached this cycle |
+| R21 (D7.9 geography + seed orgs) | ✅ Compliant | Migración `0041_geography_organizations_seed.sql`. Fuente OpenStreetMap (`admin_level=8`, ODbL 1.0) — INEC DPA rechazada por falta de licencia. Migración committed y verde en CI; **aplicación en Supabase queda `⏳ Pending`** (ver `database/MIGRATION_LOG.md` fila 0041 y `docs/runbooks/apply-0041.md`) |
+| R22 (D7.9 demo/volume data separation) | ✅ Compliant | `database/seeds/` pipeline (`users.js`, `demo-incidents.js`, `volume-incidents.js`) + migration 0041 (geo/orgs nunca vía seed script). E2E: `t7-seeding-pipeline`, `t7-users-seed`, `t7-volume-seed` |
+| R23 (D7.9.Z docs de migración 0041) | ✅ Compliant | `database/MIGRATION_LOG.md` fila 0041, `docs/tasks/3-DATABASE-SCHEMA.md` rango 0001–0041 |
+| R24 (D7.9.Z verificación pre-deploy) | ✅ Compliant | Backend 2026-08-26: lint 0 errores, typecheck limpio, build limpio, jest 856/856 unit + 399/399 e2e, migration suites verdes |
+| R25 (D7.9.Z preparación deployment Supabase) | ✅ Compliant | `docs/runbooks/apply-0041.md` — pre-flight, aplicación, 5 checkpoints, idempotencia, rollback |
 
 **Note on R10.4/R10.5**: the scenarios below describing a *partial* UNIQUE index
 (`UNIQUE (zone_id) WHERE parent_id IS NULL`) are historical — implementation
@@ -608,42 +620,75 @@ Scenario R20.3 — Re-aplicar 0039 no duplica filas del catálogo
 
 ### R21 — Datos geográficos y organizaciones semilla
 
-> **Status**: 🚧 Blocked on operator input (T7.9.C1). Not implemented as of
-> archive date. See archive-report.md for details.
+> **Status (2026-08-26)**: ✅ Compliant. Implementado por migración
+> `0041_geography_organizations_seed.sql`. Fuente: OpenStreetMap
+> (`admin_level=8`, ODbL 1.0) — INEC DPA fue rechazada por falta de
+> licencia (metadata FGDC sin rellenar, alcance declarado sólo para
+> uso interno de campo); CONALI/IGM/GADM descartados por razones
+> propias (ver design.md D0 del change de origen). El único punto
+> legal abierto es el alcance del share-alike de ODbL 1.0, juicio
+> del operador, no bloqueo técnico. **Aplicación en Supabase
+> `⏳ Pending`** — ver `database/MIGRATION_LOG.md` fila 0041 y el
+> runbook `docs/runbooks/apply-0041.md`.
+
+El sistema DEBE sembrar, mediante `database/migrations/0041_geography_organizations_seed.sql`, al menos una parroquia real por cantón de Santa Elena con jerarquía completa (`level`, `code`, `parent_id`) y la organización `CTE - Santa Elena`. El backfill de `code` en las 4 filas provincia/cantón preexistentes DEBE ejecutarse antes de cualquier INSERT de parroquia, porque `parent_id` se resuelve por subselect sobre `geo_zones.code`. 0041 DEBE ser idempotente: re-ejecutarlo NO DEBE cambiar el conteo de `geo_zones` ni `organizations`. La geometría real (OSM) NO DEBE editarse para forzar contención con el cantón; se usa en su lugar una tolerancia documentada.
 
 ```
+Scenario R21.0 — El backfill de code precede a las parroquias
+  Given  una base con 0040 aplicada, ejecutando 0041 por primera vez
+  When   se leen las 4 geo_zones preexistentes tras 0041
+  Then   sus code son 'EC-24', 'EC-24-01', 'EC-24-02', 'EC-24-03'
+  And    ninguna es NULL
+
 Scenario R21.1 — Las parroquias de Santa Elena quedan sembradas
-  Given  una base con 0039 aplicada
+  Given  una base con 0041 aplicada
   When   se cuentan las geo_zones con level = 'parroquia'
-  Then   hay al menos una por cada uno de los 3 cantones
-  And    cada una tiene parent_id apuntando a su cantón
-  And    cada una tiene polygon no nulo y code no nulo
+  Then   hay al menos una por cada uno de los 3 cantones (EC-24-01/02/03)
+  And    cada una tiene code no nulo y polygon no nulo (MULTIPOLYGON válido)
+  And    cada una tiene parent_id apuntando al id de su cantón
 
 Scenario R21.2 — La jerarquía geográfica es consistente
-  Given  las geo_zones sembradas
+  Given  las geo_zones sembradas por 0041
   When   se recorre parent_id desde cualquier parroquia
-  Then   se llega a un cantón y de ahí a la provincia, sin ciclos
+  Then   se llega a un cantón y de ahí a la provincia (level='provincia', parent_id NULL)
+  And    no existen ciclos en la cadena
 
-Scenario R21.3 — El polígono de cada parroquia cae dentro del de su cantón
-  Given  las geo_zones sembradas
-  When   se evalúa ST_Within(parroquia.polygon, canton.polygon) para cada par
+Scenario R21.3 — Cada parroquia pertenece geométricamente al cantón que declara como padre
+  Given  las geo_zones sembradas por 0041, donde las parroquias vienen de OSM y los cantones de Ecuador-geoJSON (0003) — fuentes distintas, con generalización y fecha distintas
+  When   se evalúa ST_Within(ST_PointOnSurface(parroquia.polygon), canton.polygon) por cada par
   Then   el resultado es verdadero en todos los casos
+  And    esta comprobación es binaria y NO admite tolerancia: un punto interior de la parroquia no puede caer en otro cantón por diferencias de generalización de bordes, sólo por un emparentamiento equivocado
+  And    se usa ST_PointOnSurface y no ST_Centroid porque el centroide de un polígono cóncavo puede caer fuera del propio polígono
+  When   se evalúa además ST_Area(ST_Intersection(parroquia.polygon, canton.polygon)) / ST_Area(parroquia.polygon) por cada par
+  Then   el cociente es >= OVERLAP_MIN en todos los casos, con OVERLAP_MIN = 0.75
+  And    ese valor se derivó midiendo contra la geometría real el 2026-08-25 (mínimo observado 0.8058, Anconcito), no se asumió; la tabla completa está en database/data/README.md
+  And    el test NO edita ninguna geometría para forzar el resultado; un par que falle se reporta como fallo, no se enmascara
 
-Scenario R21.4 — Las organizaciones semilla quedan cargadas
-  Given  una base con 0039 aplicada
-  When   se listan las organizaciones
-  Then   están las organizaciones acordadas con el operador
-  And    cada una tiene zone_id apuntando a una geo_zone existente
+Scenario R21.4 — La organización semilla CTE - Santa Elena queda cargada
+  Given  una base con 0041 aplicada
+  When   se busca la organización 'CTE - Santa Elena' (forma corta fijada por el operador; el predicado del rollback y la idempotencia del seeder dependen de esta cadena exacta)
+  Then   existe exactamente una fila
+  And    su zone_id apunta a la geo_zone con code='EC-24-01' (cantón Santa Elena)
+  And    su parent_id es NULL
 
-Scenario R21.5 — Re-aplicar 0039 no duplica organizaciones ni zonas
-  Given  una base con 0039 ya aplicada
-  When   se vuelve a ejecutar el archivo 0039
-  Then   el conteo de organizations y de geo_zones no cambia
+Scenario R21.5 — Re-aplicar 0041 no duplica organizaciones ni zonas
+  Given  una base con 0041 ya aplicada
+  When   se vuelve a ejecutar el archivo 0041
+  Then   el conteo de geo_zones no cambia
+  And    el conteo de organizations no cambia
 ```
 
 ### R22 — Separación entre datos de referencia y datos de demo
 
-> **Status**: ⬜ Not started (T7.9.D). Not implemented as of archive date.
+> **Status (2026-08-26)**: ✅ Compliant. La geografía y la
+> organización **nunca** llegan por un seed script (R22.1, R22.2);
+> siempre por la migración 0041. Los generadores de demo/volumen y
+> la seeder de usuarios son idempotentes; el feed de Redis se
+> reconcilia con Postgres al final del pipeline (`rebuild-feed.ts`).
+> E2E: `t7-seeding-pipeline.e2e-spec.ts`, `t7-users-seed.e2e-spec.ts`,
+> `t7-volume-seed.e2e-spec.ts`.
+
+El sistema DEBE mantener geografía y organizaciones exclusivamente en migraciones versionadas, y datos de demo/volumen/usuarios exclusivamente en `database/seeds/`, ejecutables vía `db:seed` / `db:seed:mass`. Ambos pipelines DEBEN ser idempotentes.
 
 ```
 Scenario R22.1 — Ninguna migración inserta incidentes
@@ -653,18 +698,129 @@ Scenario R22.1 — Ninguna migración inserta incidentes
 
 Scenario R22.2 — La data de demo vive fuera del pipeline de migraciones
   Given  el repositorio tras el change
-  When   se localiza el generador de incidentes de demo
-  Then   está bajo database/seeds/, no bajo database/migrations/
+  When   se localizan los generadores de incidentes de demo y volumen
+  Then   están bajo database/seeds/, no bajo database/migrations/
 
 Scenario R22.3 — El seed de demo es idempotente
-  Given  una base con la data de demo ya cargada
-  When   se vuelve a ejecutar el seed de demo
-  Then   no se duplica ningún incidente
+  Given  una base con la data de demo ya cargada (npm run db:seed)
+  When   se vuelve a ejecutar db:seed
+  Then   el conteo de incidentes, usuarios y notificaciones no cambia
 
 Scenario R22.4 — El feed de Redis se reconstruye tras sembrar
   Given  incidentes cargados por el seed de demo, sin pasar por los listeners
-  When   se ejecuta la reconstrucción del feed
-  Then   el feed de Redis devuelve los mismos incidentes que Postgres
+  When   se ejecuta rebuild-feed.ts
+  Then   el feed de Redis devuelve los mismos incidentes activos que Postgres
+
+Scenario R22.5 — La seeder de usuarios crea la distribución acordada
+  Given  una base limpia con 0041 aplicada
+  When   se ejecuta database/seeds/users.js
+  Then   existen exactamente 6 usuarios: 1 master, 1 operador_sistema, 2 admin_org, 2 operador_org
+  And    los 4 usuarios admin_org/operador_org tienen organization_id = CTE - Santa Elena
+
+Scenario R22.6 — La seeder de usuarios es idempotente por email
+  Given  el seeder de usuarios ya ejecutado una vez
+  When   se vuelve a ejecutar
+  Then   el conteo de usuarios permanece en 6, ningún email se duplica
+```
+
+---
+
+## D7.9.Z — Cierre y handoff al operador
+
+### R23 — Documentación de migración 0041
+
+El sistema DEBE registrar la migración 0041 (`geography_organizations_seed.sql`) en el registro de auditoría `database/MIGRATION_LOG.md` con descripción exacta del contenido (backfill de código, parroquias, organización semilla) y estado de aplicación (`⏳ Pending` hasta que el operador la aplique en Supabase, `✅ Applied` después).
+
+```
+Scenario R23.0 — MIGRATION_LOG.md incluye fila 0041
+  Given  un repositorio tras T7.9.C completado
+  When   se busca la fila `0041` en database/MIGRATION_LOG.md
+  Then   existe exactamente una fila
+  And    las columnas incluyen: Migración=0041, Nombre=geography_organizations_seed, Descripción=... (completa), Status=⏳ Pending, Ambiente=supabase
+  And    la descripción menciona explícitamente: backfill de code, parroquias de Santa Elena (11 filas), organización CTE - Santa Elena
+
+Scenario R23.1 — Re-anchor de R21 en openspec
+  Given  los archivos de spec en openspec/
+  When   se buscan referencias a "migración 0039" en contexto de R21 (parroquias/orgs)
+  Then   todas apuntan a "migración 0041" en su lugar
+  And    ninguna menciona "0039" en contexto de geografía (0039 sigue siendo válido para permisos/roles, T7.9.B)
+
+Scenario R23.2 — Rango de migraciones documentado
+  Given  el documento docs/tasks/3-DATABASE-SCHEMA.md
+  When   se lee la sección "Estado real de las migraciones"
+  Then   el rango documentado es 0001–0041 (no 0001–0040)
+  And    hay un resumen de T7.9.C/D scope, qué se implementó y qué se deja para T8
+
+Scenario R23.3 — Manual del operador listo
+  Given  una base Supabase con 0040 aplicado (schema_migrations registrado)
+  When   el operador ejecuta el contenido del runbook de aplicación de 0041
+  Then   la migración aplica sin errores
+  And    los conteos verifican (11 parroquias, 1 org)
+  And    una segunda ejecución del archivo es un no-op (0 filas cambiadas)
+```
+
+### R24 — Verificación pre-deploy (CI full suite)
+
+El sistema DEBE pasar todas las compuertas de calidad (lint, typecheck, build, tests) sin errores después de T7.9.C2–C7 y D1–D11 completas.
+
+```
+Scenario R24.0 — ESLint sin errores
+  Given  los archivos nuevos en backend/test/e2e/*.e2e-spec.ts
+  When   se ejecuta npm run lint desde backend/
+  Then   no hay errores (exit code 0)
+
+Scenario R24.1 — TypeScript sin errores
+  Given  backend/tsconfig.json con strict mode
+  When   se ejecuta tsc --noEmit -p tsconfig.json
+  Then   no hay errores de tipo (exit code 0)
+  And    todas las entidades resuelven contra las migraciones
+
+Scenario R24.2 — Build success
+  Given  backend/src y backend/test completos tras C/D
+  When   se ejecuta nest build
+  Then   exit code 0
+  And    dist/ se genera sin warnings de rollup/esbuild
+
+Scenario R24.3 — Unit + E2E tests green
+  Given  backend/test/unit/ y backend/test/e2e/ con T7.9.C/D coverage
+  When   se ejecuta jest (full suite)
+  Then   exit code 0
+  And    todos los tests C2–C7 (5 unit + 10 e2e) y D1–D11 (16 e2e) pasan
+  And    regresión en los suites adyacentes pasa íntegra
+
+Scenario R24.4 — Migration suite green
+  Given  database/migrations/0001–0041 y database/rollback/*.DOWN.sql
+  When   se ejecutan backend/test/migrations/* suites
+  Then   exit code 0
+  And    0041 aplica limpio sobre una base vacía
+  And    re-aplicar 0041 no cambia conteos (idempotencia)
+  And    0041.DOWN.sql revierte sin residuos
+```
+
+### R25 — Preparación de deployment a Supabase
+
+El sistema DEBE proporcionar al operador instrucciones exactas y verificables para aplicar 0041 en producción de forma segura.
+
+```
+Scenario R25.0 — Bloque de aplicación manual documentado
+  Given  el runbook de aplicación de 0041 (docs/runbooks/apply-0041.md)
+  When   el operador abre el documento
+  Then   contiene referencia exacta al SQL (contenido de 0041_geography_organizations_seed.sql)
+  And    precondiciones explícitas (0040 debe estar en schema_migrations)
+  And    checklist de verificación post-aplicación
+  And    instrucción de rollback (0041.DOWN.sql + guarda ruidosa)
+
+Scenario R25.1 — Pre-requisito de 0040 verificable
+  Given  una base Supabase antes de aplicar 0041
+  When   se ejecuta SELECT * FROM schema_migrations WHERE name='0040_rename_roles'
+  Then   retorna exactamente 1 fila (0040 ya fue aplicado y registrado)
+  And    si la query retorna 0 filas, el runbook instruye al operador correr npm run db:migrate primero
+
+Scenario R25.2 — Status tracking en MIGRATION_LOG.md
+  Given  0041 aplicada exitosamente en Supabase
+  When   el operador actualiza database/MIGRATION_LOG.md fila 0041
+  Then   Status pasa de ⏳ Pending a ✅ Applied
+  And    se registra Applied Date (fecha/hora) y Applied By (usuario operador)
 ```
 
 ---

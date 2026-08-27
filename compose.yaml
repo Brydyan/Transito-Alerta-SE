@@ -52,8 +52,14 @@ services:
   backend:
     profiles: [staging]
     build:
-      context: backend
-      dockerfile: Dockerfile
+      # El contexto de build es la raíz del repo porque `scripts/rebuild-feed.ts`
+      # importa `../../database/seeds/lib/guard`, un archivo que vive en
+      # `database/` (fuera de `backend/`). Con un contexto reducido a sólo
+      # `backend/`, ese archivo no entra a la imagen y el build falla con
+      # TS2307. Ver `.dockerignore` en la raíz para mantener el contexto
+      # ligero (excluye GeoReporta/, .git/, docs/, openspec/, frontend/, etc.).
+      context: .
+      dockerfile: backend/Dockerfile
       target: production
     image: tase-backend:${IMAGE_TAG:-latest}
     container_name: tase-backend
