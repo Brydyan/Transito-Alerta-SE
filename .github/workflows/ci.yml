@@ -15,7 +15,72 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ─── Path filter (única fuente de verdad sobre qué dispara CI) ───────────────
+  # Este job SIEMPRE corre; sólo produce booleanos que el resto usa para
+  # saltarse cuando el cambio no es relevante. Antes los 3 jobs (backend,
+  # integration, migrations) corrían en cada PR incluso cuando el cambio
+  # era sólo de docs, lo que costaba ~7-9 min por PR sin valor. Ahora un
+  # PR docs-only (docs/, openspec/, AGENTS.md, etc.) termina en ~10s.
+  #
+  # IMPORTANTE: en push (merge a develop/main) SIEMPRE corre todo, como
+  # última red de seguridad. Si el filtro se desconfigura, los PRs pasan
+  # por el gate "backend" en el push, no se va nada a producción sin
+  # haber sido probado.
+  changes:
+    name: Detect relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      migrations: ${{ steps.filter.outputs.migrations }}
+      integration: ${{ steps.filter.outputs.integration }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 es necesario para que dorny/paths-filter compare
+          # contra el merge-base del PR, no contra el último commit.
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # Paths que afectan al backend (lint, typecheck, build, test, deploy).
+          # Lista explícita y comentada — si añades un path nuevo que toque
+          # backend, agregalo acá. Olvidar un path es un fallo silencioso
+          # en CI: el PR pasa en verde y se rompe en deploy.
+          #
+          # - backend/**            código, tests, config
+          # - database/**           migrations, seeds, rollback, schemas
+          #                          (e2e las aplican; rebuild-feed.ts
+          #                          importa database/seeds/lib/guard)
+          # - compose.yaml          contexto de build del backend
+          # - .dockerignore          exclusiones del contexto
+          # - backend/Dockerfile    COPY paths, layers, CMD
+          # - .github/workflows/ci.yml   self-change del propio CI
+          backend: |
+            backend/**
+            database/**
+            compose.yaml
+            .dockerignore
+            backend/Dockerfile
+            .github/workflows/ci.yml
+
+          # Paths que requieren reaplicar migraciones sobre una BD limpia.
+          migrations: |
+            database/migrations/**
+            database/rollback/**
+
+          # Paths que requieren correr la suite e2e (Testcontainers).
+          integration: |
+            backend/**
+            database/**
+
   backend:
+    # En push (merge a develop/main) SIEMPRE corre. En PR, sólo si el
+    # filtro `changes` detectó paths del set `backend`.
+    needs: changes
+    if: |
+      github.event_name == 'push' ||
+      needs.changes.outputs.backend == 'true'
     name: Backend — lint, typecheck, build, test
     runs-on: ubuntu-latest
     defaults:
@@ -55,11 +120,13 @@ jobs:
   integration:
     name: Integration — e2e harness against real Postgres+PostGIS and Redis
     runs-on: ubuntu-latest
-    # Skip on PRs unless backend/ changed (save ~2-3m per PR)
+    # Skip en PR si nada del set `integration` cambió. En push SIEMPRE
+    # corre como gate final. Reemplaza el filtro anterior (que sólo
+    # discriminaba por nombre de rama) por el path filter real.
+    needs: changes
     if: |
       github.event_name == 'push' ||
-      github.event.pull_request.base.ref == 'main' ||
-      github.event.pull_request.base.ref == 'develop'
+      needs.changes.outputs.integration == 'true'
     defaults:
       run:
         working-directory: backend
@@ -93,6 +160,14 @@ jobs:
   migrations:
     name: Migrations — apply to a clean PostGIS database
     runs-on: ubuntu-latest
+    # Skip en PR si no hay cambios en migrations/rollback. En push
+    # SIEMPRE corre — la suite de checks de PostGIS y FK es la red de
+    # seguridad contra migraciones que rompen el esquema antes de que
+    # un humano las pegue en el editor SQL de Supabase (CC3).
+    needs: changes
+    if: |
+      github.event_name == 'push' ||
+      needs.changes.outputs.migrations == 'true'
 
     # Migrations are applied BY HAND to Supabase (design CC3). Nothing runs
     # them automatically, so nothing would catch a broken file before it is
