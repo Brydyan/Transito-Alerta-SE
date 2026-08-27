@@ -43,36 +43,47 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          # Paths que afectan al backend (lint, typecheck, build, test, deploy).
-          # Lista explícita y comentada — si añades un path nuevo que toque
-          # backend, agregalo acá. Olvidar un path es un fallo silencioso
-          # en CI: el PR pasa en verde y se rompe en deploy.
+          # dorny/paths-filter@v3 cambió la API: las listas de paths se
+          # pasan dentro de un único input `filters` (YAML o JSON), no como
+          # inputs por nombre. Cada clave top-level (backend, migrations,
+          # integration) se expone como un output con el mismo nombre
+          # (steps.filter.outputs.<clave>).
           #
-          # - backend/**            código, tests, config
-          # - database/**           migrations, seeds, rollback, schemas
-          #                          (e2e las aplican; rebuild-feed.ts
-          #                          importa database/seeds/lib/guard)
-          # - compose.yaml          contexto de build del backend
-          # - .dockerignore          exclusiones del contexto
-          # - backend/Dockerfile    COPY paths, layers, CMD
-          # - .github/workflows/ci.yml   self-change del propio CI
-          backend: |
-            backend/**
-            database/**
-            compose.yaml
-            .dockerignore
-            backend/Dockerfile
-            .github/workflows/ci.yml
-
-          # Paths que requieren reaplicar migraciones sobre una BD limpia.
-          migrations: |
-            database/migrations/**
-            database/rollback/**
-
-          # Paths que requieren correr la suite e2e (Testcontainers).
-          integration: |
-            backend/**
-            database/**
+          # Sets:
+          # - backend:    paths que afectan al backend (lint, typecheck, build,
+          #               test, deploy). Olvidar uno es un fallo silencioso:
+          #               el PR pasa en verde y se rompe en deploy.
+          #               - backend/**            código, tests, config
+          #               - database/**           migrations, seeds, rollback
+          #                                        (e2e las aplican; rebuild-feed.ts
+          #                                        importa database/seeds/lib/guard)
+          #               - compose.yaml          contexto de build del backend
+          #               - .dockerignore          exclusiones del contexto
+          #               - backend/Dockerfile    COPY paths, layers, CMD
+          #               - .github/workflows/ci.yml   self-change del propio CI
+          # - migrations: paths que requieren reaplicar migraciones sobre BD limpia
+          # - integration: paths que requieren correr la suite e2e (Testcontainers)
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'database/**'
+              - 'compose.yaml'
+              - '.dockerignore'
+              - 'backend/Dockerfile'
+              - '.github/workflows/ci.yml'
+            migrations:
+              - 'database/migrations/**'
+              - 'database/rollback/**'
+            integration:
+              - 'backend/**'
+              - 'database/**'
+          # list-files: none evita que la acción imprima la lista de
+          # archivos cambiados en el log (ruido puro en PRs grandes).
+          # initial-fetch-depth: 100 es más eficiente que 0 para PRs largos
+          # (dorny sólo necesita el último commit del merge-base para
+          # comparar paths, no todo el historial).
+          list-files: none
+          initial-fetch-depth: 100
 
   backend:
     # En push (merge a develop/main) SIEMPRE corre. En PR, sólo si el
