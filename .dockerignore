@@ -1,0 +1,74 @@
+# Root .dockerignore para el build del backend
+#
+# El contexto de build es la raíz del repo (compose.yaml `context: .`)
+# porque `scripts/rebuild-feed.ts` importa archivos de `database/seeds/lib/`.
+# Sin este .dockerignore, el contexto arrastraría ~114 MB de cosas que no
+# necesitan estar en la imagen (GeoReporta/, .git/, docs/, openspec/, etc.).
+# Las exclusiones específicas de `backend/` (node_modules/, dist/, *.spec.ts)
+# siguen gobernadas por `backend/.dockerignore`.
+
+# ── Directorios grandes del repo que no van al backend ───────────────────
+GeoReporta/          # ~70 MB del legacy Laravel (sólo referencia para auditoría)
+docs/                # ~9.4 MB de docs, openspec, runbooks, proposals
+openspec/            # ~2.4 MB de SDD (los artefacts NO van en la imagen)
+specs/               # arnés viejo, ya no se usa
+frontend/            # 12 KB placeholder, no se compila acá
+.claude/             # configuración de Claude Code local
+.ias/                # configuración de agentes (si existe)
+.rtk/                # binarios de RTK
+.atl/                # skill registry
+
+# ── Git y archivos de desarrollo ────────────────────────────────────────
+.git/                 # ~31 MB
+.gitignore
+.github/              # workflows de CI, no se ejecutan en runtime
+.gitattributes
+
+# ── Archivos de log, env, y temporales ────────────────────────────────────
+*.log
+*.tgz
+*.tar.gz
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Documentación no crítica ─────────────────────────────────────────────
+README.md
+CHECKPOINTS.md
+CLAUDE.md
+AGENTS.md
+IA.md
+init.sh
+load-tests/
+progress/
+feature_list.json
+.spec/
+
+# ── Seeds scripts — sólo se necesitan los .js ya compilados ───────────
+# `database/seeds/lib/{guard,deps,rand}.{js,d.ts}` SÍ van a la imagen
+# (los importa `scripts/rebuild-feed.ts`). El resto no.
+database/seeds/*.generated.sql
+database/seeds/generate-geo-zones-seed.js
+database/seeds/users.js
+database/seeds/demo-incidents.js
+database/seeds/volume-incidents.js
+database/seeds/0003_seed_geo_zones.generated.sql
+database/seeds/0004_seed_parroquias.generated.sql
+
+# NOTA: `database/migrations/` y `database/rollback/` NO se incluyen
+# intencionalmente — la app nunca modifica el esquema (CC3, `synchronize:false`).
+# Si en el futuro se necesita un admin de migraciones, agregarlos acá.
+
+# ── Scripts de mantenimiento y el propio runner ────────────────────────
+# `backend/scripts/run-migrations.ts` y `backend/scripts/rebuild-feed.ts`
+# SÍ van (los usa el runtime o el entrypoint). `backend/scripts/lib/` y
+# `backend/scripts/rebuild-feed.spec.ts` también (la lib la importa
+# run-migrations.ts).
+backend/scripts/*.bak
+backend/scripts/*.tmp
