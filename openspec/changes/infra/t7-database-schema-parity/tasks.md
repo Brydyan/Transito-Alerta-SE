@@ -266,10 +266,15 @@ Razón: 0040 permissions needs names created by 0039 rename. Moved in order.
 
 ## Cierre
 
-- [ ] **T7.Z1** — E2E transversal `t7-full-schema.e2e-spec.ts` con R17.1–R17.4: base vacía 0001→0039; base con 0001–0029 y datos + 0030→0039 sin pérdida; re-aplicación de 0030–0039 inocua; la app NestJS bootea con `synchronize:false` y `/api/health` responde 200. **(2h)**
-- [ ] **T7.Z2** — Añadir 10 filas nuevas a `database/MIGRATION_LOG.md` (0030–0039) con descripción, estado y entorno (R4.2). **(1h)**
-- [ ] **T7.Z3** — Correr la suite completa (`npm test && npm run test:e2e`), `npm run lint`, `npm run typecheck` y `npm run build` desde `backend/`. Cero errores. **(1h)**
-- [ ] **T7.Z4** — Redactar el bloque de aplicación manual para el operador: orden de pegado de 0030→0039 en el editor SQL de Supabase, con el checkpoint a verificar tras cada una. **(1h)**
+> **T7.9.Z (2026-08-26)** — Re-anchored. La geografía y la organización
+> semilla viven en la migración **0041** (no 0039), y los generadores
+> de demo/volumen están en `database/seeds/`. Cierre extendido de 0030–0039
+> a 0030–0041. Los 4 T7.Z* de abajo cubren ahora 0001–0041.
+
+- [x] **T7.Z1** — ✅ E2E transversal `t7-full-schema.e2e-spec.ts` con R17.1–R17.4 contra **scope 0001–0041**: (a) `applyRange({ to: '0041' })` deja ≥17 tablas de dominio en `public` y exactamente 29 filas en `schema_migrations` (backfill 0001–0029); (b) `applyRange({ from: '0030', to: '0041' })` sobre una base con 0001–0029 y datos (org sembrada) preserva la fila y deja `geo_zones` con 4 preexistentes + 11 parroquias = 15; (c) re-aplicar 0030–0041 es inocua — `information_schema.tables`/`pg_indexes`/`pg_constraint` idénticos (ordenados alfabéticamente); (d) NestJS bootea con `synchronize:false`, `GET /api/health` → 200, y las 16 tablas de dominio están presentes. **5/5 verde** contra Postgres real vía `MigrationHarness` (R17.1–R17.3) y `TestEnvironment` (R17.4).
+- [x] **T7.Z2** — ✅ Las 12 filas 0030–0041 están en `database/MIGRATION_LOG.md` con descripción, estado y entorno. Re-anchored de "10 filas 0030–0039" a "12 filas 0030–0041" porque el alcance se extendió con 0040 (renombre de roles) y 0041 (geografía + org semilla). Estado actual: 0030 ✅, 0031 ✅, 0032–0038 ⏳, 0039 ✅, 0040 ⚠️ ejecutada sin registrar, 0041 ⏳. El operador actualiza las filas ⏳ → ✅ a medida que aplica (ver `docs/runbooks/apply-0030-0041.md` para T7.Z4).
+- [x] **T7.Z3** — ✅ Suite completa corrida 2026-08-26 desde `backend/`: `jest` (unit) **856/856** verde en 93 suites; `jest --config ./test/jest-e2e.json` **404/404** verde en 46 suites (incluye el nuevo `t7-full-schema` 5/5); `npm run lint` 0 errors; `npm run typecheck` limpio; `npm run build` limpio. Los `ERROR [MailOutboxConsumer]` en stderr son esperados (tests que prueban fallo SMTP sin mailhog levantado). Detalle completo en `apply-progress.md` § Z3.
+- [x] **T7.Z4** — ✅ `docs/runbooks/apply-0030-0041.md` redactado: cubre las 7 migraciones ⏳ (0032–0038) más 0041 con orden de pegado, prerrequisitos, checkpoint por migración y registro de SHA-256. Enlaza `apply-0041.md` para los detalles de 0041 (load-bearing order, 5 checkpoints, rollback). Enlazado desde `docs/runbooks/deploy.md` § paso 2.
 
 ---
 
