@@ -52,8 +52,8 @@ services:
   backend:
     profiles: [staging]
     build:
-      context: backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
       target: production
     image: tase-backend:${IMAGE_TAG:-latest}
     container_name: tase-backend
