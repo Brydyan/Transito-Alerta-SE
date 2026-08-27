@@ -52,8 +52,17 @@ services:
   backend:
     profiles: [staging]
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      # El contexto de build es `./backend` (no la raíz del repo) porque
+      # pnpm trata `backend/` como su propio workspace: `package.json`,
+      # `pnpm-lock.yaml` y `pnpm-workspace.yaml` viven ahí, no en la raíz.
+      # Construir desde la raíz hacía que el `COPY package.json … ./` del
+      # Dockerfile fallara con "/pnpm-workspace.yaml: not found".
+      # Beneficio colateral: contexto mucho más pequeño (no sube
+      # `GeoReporta/`, `frontend/`, `database/`, `docs/`, `node_modules/`,
+      # etc. al daemon de Docker) y el `.dockerignore` de `backend/`
+      # aplica correctamente.
+      context: ./backend
+      dockerfile: Dockerfile
       target: production
     image: tase-backend:${IMAGE_TAG:-latest}
     container_name: tase-backend
