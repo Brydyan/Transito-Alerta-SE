@@ -68,3 +68,114 @@ node database/seeds/generate-geo-zones-seed.js \
 Re-run only if the source GeoJSON changes; the zone UUIDs are fixed
 constants in the script (not regenerated) so re-running is idempotent
 (`ON CONFLICT (id) DO NOTHING`).
+
+## Conexión a la base de datos
+
+### Conexión manual a Supabase (producción/staging)
+
+1. Abre el proyecto Supabase en https://supabase.com
+2. En la pestaña "SQL Editor", pega el contenido del archivo `.sql` que deseas ejecutar
+3. Haz clic en "Run" o presiona `Ctrl+Enter`
+
+Alternativamente, conéctate vía `psql` con la connection string de Supabase:
+
+```bash
+# Obtén la connection string desde Supabase:
+# Dashboard → Settings → Database → Connection string
+
+psql "postgresql://[user]:[password]@[host]:[port]/[database]"
+```
+
+Luego ejecuta un archivo:
+
+```bash
+psql "postgresql://..." -f database/migrations/0001_initial_schema.sql
+```
+
+O ejecuta todas las migraciones en orden:
+
+```bash
+for f in database/migrations/000*.sql; do
+  psql "postgresql://..." -f "$f" || break
+done
+```
+
+### Conexión con Docker (desarrollo local)
+
+#### 1. Levantar el contenedor PostgreSQL + PostGIS
+
+```bash
+docker compose up -d postgres
+```
+
+Esto levanta `postgis/postgis:16-3.4` con las siguientes credenciales (definidas en `docker-compose.yml`):
+- **User**: `postgres`
+- **Password**: `postgres`
+- **Database**: `transito_alerta`
+- **Port**: `5432`
+
+#### 2. Aplicar migraciones locales
+
+```bash
+# Aplicar todas las migraciones en orden
+for f in database/migrations/000*.sql; do
+  docker exec -i tase-postgres psql -U postgres -d transito_alerta \
+    -v ON_ERROR_STOP=1 -q < "$f" || break
+done
+```
+
+O aplica una migración individual:
+
+```bash
+docker exec -i tase-postgres psql -U postgres -d transito_alerta \
+  < database/migrations/0001_initial_schema.sql
+```
+
+#### 3. Conectar directamente al contenedor
+
+```bash
+# Abre una sesión interactiva psql
+docker exec -it tase-postgres psql -U postgres -d transito_alerta
+```
+
+Luego puedes ejecutar queries SQL directamente:
+
+```sql
+SELECT * FROM users LIMIT 10;
+SELECT COUNT(*) FROM incidents;
+```
+
+#### 4. Rollback local
+
+```bash
+# Revierte una migración
+docker exec -i tase-postgres psql -U postgres -d transito_alerta \
+  < database/rollback/0041_geography_organizations_seed.DOWN.sql
+```
+
+#### 5. Resetear la base de datos (borrar todo)
+
+```bash
+docker compose down -v postgres
+docker compose up -d postgres
+```
+
+Nota: el flag `-v` elimina el volumen, borrando todos los datos.
+
+### Variables de entorno
+
+El archivo `backend/.env` debe contener la connection string:
+
+```bash
+# Para desarrollo local (Docker)
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/transito_alerta"
+
+# Para Supabase (staging/producción)
+DATABASE_URL="postgresql://[user]:[password]@[host]:[port]/[database]"
+```
+
+### CI (GitHub Actions)
+
+El job `migrations` en `.github/workflows/ci.yml` levanta un contenedor
+`postgis/postgis:16-3.4` en cada PR y aplica todas las migraciones en orden.
+Si alguna falla, la PR queda roja sin pasar a Supabase manualmente.
