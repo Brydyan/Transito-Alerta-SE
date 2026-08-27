@@ -71,7 +71,17 @@ constants in the script (not regenerated) so re-running is idempotent
 
 ## Conexión a la base de datos
 
-### Conexión manual a Supabase (producción/staging)
+### Opción 1: Supabase (recomendado para dev/staging/prod — sin instalar nada)
+
+**Ventajas**: cloud-managed, backups automáticos, sin instalar PostgreSQL localmente, acceso desde cualquier máquina.
+
+1. Abre https://supabase.com → tu proyecto
+2. SQL Editor → pega y ejecuta los `.sql` files
+3. O usa `psql` remoto (ver más abajo)
+
+No requiere Docker ni instalación local de PostgreSQL.
+
+### Conexión manual a Supabase (vía UI o CLI)
 
 1. Abre el proyecto Supabase en https://supabase.com
 2. En la pestaña "SQL Editor", pega el contenido del archivo `.sql` que deseas ejecutar
@@ -100,7 +110,80 @@ for f in database/migrations/000*.sql; do
 done
 ```
 
-### Conexión con Docker (desarrollo local)
+### Opción 2: PostgreSQL local (sin Docker)
+
+**Ventajas**: control total, offline, no depende de internet.
+
+#### Instalación
+
+**macOS** (con Homebrew):
+```bash
+brew install postgresql@16 postgis
+brew services start postgresql@16
+```
+
+**Ubuntu/Debian**:
+```bash
+sudo apt-get update
+sudo apt-get install postgresql-16 postgresql-contrib-16 postgresql-16-postgis-3
+sudo systemctl start postgresql
+```
+
+**Windows**:
+1. Descarga PostgreSQL 16 desde https://www.postgresql.org/download/windows/
+2. En el instalador, marca "PostGIS" como extension
+3. Nota usuario/contraseña que estableces (default: `postgres` / `postgres`)
+
+#### Crear base de datos y usuario
+
+```bash
+# Conéctate como postgres
+psql -U postgres
+
+# En la sesión psql:
+CREATE DATABASE transito_alerta;
+CREATE USER transito_user WITH PASSWORD 'transito_password';
+GRANT ALL PRIVILEGES ON DATABASE transito_alerta TO transito_user;
+
+# Habilitar PostGIS
+\c transito_alerta
+CREATE EXTENSION postgis;
+CREATE EXTENSION postgis_topology;
+
+# Salir
+\q
+```
+
+#### Aplicar migraciones
+
+```bash
+# Aplica todas en orden
+for f in database/migrations/000*.sql; do
+  psql -U transito_user -d transito_alerta -f "$f" || break
+done
+```
+
+O una por una:
+
+```bash
+psql -U transito_user -d transito_alerta -f database/migrations/0001_initial_schema.sql
+```
+
+#### Conectar interactivamente
+
+```bash
+psql -U transito_user -d transito_alerta
+```
+
+Luego:
+
+```sql
+SELECT * FROM users;
+SELECT COUNT(*) FROM incidents;
+\q
+```
+
+### Opción 3: PostgreSQL con Docker (desarrollo local)
 
 #### 1. Levantar el contenedor PostgreSQL + PostGIS
 
@@ -164,15 +247,22 @@ Nota: el flag `-v` elimina el volumen, borrando todos los datos.
 
 ### Variables de entorno
 
-El archivo `backend/.env` debe contener la connection string:
+El archivo `backend/.env` debe contener la connection string según tu setup:
 
 ```bash
-# Para desarrollo local (Docker)
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/transito_alerta"
-
-# Para Supabase (staging/producción)
+# Opción 1: Supabase (cloud)
 DATABASE_URL="postgresql://[user]:[password]@[host]:[port]/[database]"
+
+# Opción 2: PostgreSQL local (native install)
+DATABASE_URL="postgresql://transito_user:transito_password@localhost:5432/transito_alerta"
+
+# Opción 3: Docker local
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/transito_alerta"
 ```
+
+Para obtener la connection string de Supabase:
+1. Dashboard → Settings → Database → Connection string
+2. Copia la URL y reemplaza `[password]` con tu contraseña real
 
 ### CI (GitHub Actions)
 
