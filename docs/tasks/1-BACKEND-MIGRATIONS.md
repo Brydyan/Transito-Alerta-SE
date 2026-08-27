@@ -4,7 +4,20 @@
 
 Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases. Orden de construcción del backend: Infra/esquema → CoreModule → Auth → Incidents (calibración) → dominios restantes. Esfuerzo total: ~6 semanas para un líder backend único (o 2-3 semanas con 2 devs trabajando en lotes paralelos).
 
-## Estado Actual (2026-08-23)
+## Estado Actual (2026-08-27)
+
+- **Fase 7 (T7.9.C/D/Z)**: ✅ 100% Completada (2026-08-26)
+  - Geography + Organizations Seed: migration 0041 + 11 parroquias Santa Elena + CTE org
+  - Seeding pipeline: database/seeds/ restructured (demo/volume/users separation)
+  - Cierre Z1-Z5: CI verification (4 gates GREEN), documentation, archive
+  - Verdict: PASS WITH WARNINGS / 0 CRITICAL (obs #561)
+  - Archivado en `openspec/changes/archive/t7-geography-organizations-seed/`
+
+- **Fase 6 (T6.1-T6.8)**: ✅ 100% Completada (2026-08-24)
+  - Close 23 GeoReporta parity gaps: T6.1 (notifications + orgs), T6.2 (soft deletes), T6.3 (metrics cols), T6.4 (assignment role), T6.5 (OTP + compliance), T6.6 (incident images), T6.7 (export XLSX + feed recovery), T6.8 (path aliases + GDPR)
+  - 823 unit + 242 e2e tests (100% spec compliance, 30/30 scenarios verified)
+  - Migraciones 0025-0029 aplicadas a Supabase
+  - Archivado en `openspec/changes/archive/2026-08-24-t6-georepota-parity/`
 
 - **Fase 1 (T1.1-T1.5)**: ✅ 100% Completada
   - Scaffold NestJS, config TypeORM (`synchronize: false`), Redis, Auth (device-UUID + JWT), Geofencing
@@ -310,7 +323,8 @@ Portación de 15 dominios Laravel de GeoReporta a 16 módulos NestJS en 4 fases.
 - [x] Harness E2E (Testcontainers) funcionando; 18 flujos en verde (+ incident-workflow, map-ui-support, admin-panel)
 - [x] **Fase 3 backend 100% completada**: T3.1-T3.10 all green; T3.6 (Invitations) + T3.9 (Sessions) archived after full SDD cycle (proposal → spec → design → tasks → apply → verify → archive)
 - [x] **Fase 5 backend 100% completada**: T5.1-T5.6 all green, archivadas 2026-08-23. 970 pruebas (774 unit + 196 e2e)
-- [ ] **Fase 6 backend completada**: T6.1-T6.8 completadas → paridad funcional ~100% con GeoReporta. Migraciones 0025-0029 aplicadas a Supabase
+- [x] **Fase 7 — T7.9 C/D/Z Database Schema Parity completada**: Geography + Organizations Seed (migration 0041, 11 parroquias Santa Elena, org scoping); Seeding pipeline (database/seeds/ restructured); Cierre (CI verification 4/4 gates GREEN, documentation, archive). Archivado 2026-08-26. Migrations 0041+ aplicadas a Supabase.
+- [x] **Fase 6 — T6.1-T6.8 GeoReporta Parity completada**: 23 gaps cerrados (G1-G23) → 100% paridad funcional con GeoReporta (desde 78-82%). T6.1 (notifications + orgs), T6.2 (soft deletes incidents+assignments), T6.3 (metrics cols), T6.4 (assignment role), T6.5 (OTP + compliance), T6.6 (incident images), T6.7 (XLSX export + feed recovery), T6.8 (path aliases + GDPR). 823 unit + 242 e2e (100% spec compliance). Migraciones 0025-0029 aplicadas a Supabase. Archivado 2026-08-24.
 - [x] Load test: 25k usuarios concurrentes, p95 < 200ms, cero conexiones perdidas (Fase 4: T4.2)
 - [x] Seguridad: rate limiting ✅, CORS ✅, SQL injection regresión ✅, type safety ✅, helmet ✅, session rotation ✅, password hashing bcrypt-12 ✅, token hashing SHA-256 ✅
 - [x] Documentación: Swagger/OpenAPI ✅, runbook de despliegue ✅
@@ -1005,17 +1019,17 @@ Análisis exhaustivo: `GeoReporta/backend/` (routes, controllers, models, migrat
 
 ---
 
-## Estado Fase 6: ⏳ Pendiente — Cierre de Paridad GeoReporta
+## Estado Fase 6: ✅ COMPLETADA (2026-08-24) — Cierre de Paridad GeoReporta
 
-**Objetivo**: llevar la paridad funcional de ~78-82% → ~100%. Orden de ejecución: T6.1 → T6.2 → T6.3 → T6.4 → T6.5 (P1 primero, luego P2, luego P3/P4).
+**Objetivo alcanzado**: 23 gaps cerrados, paridad funcional ~78-82% → 100% con GeoReporta. T6.1-T6.8 completadas, verificadas, archivadas.
 
-**Migraciones previstas**: 0025 (`incidents_soft_delete`), 0026 (`assignments_soft_delete`), 0027 (`incidents_metrics_cols`), 0028 (`users_otp_compliance`), 0029 (`incident_images`).
+**Migraciones aplicadas**: 0025 (`incidents_soft_delete`), 0026 (`assignments_soft_delete`), 0027 (`incidents_metrics_cols`), 0028 (`users_otp_compliance`), 0029 (`incident_images`) — todas aplicadas a Supabase el 2026-08-24.
 
-> ⚠️ Antes de escribir cualquier migración nueva, verificar el número en `database/MIGRATION_LOG.md` — los slots 0025+ están libres al 2026-08-23 pero podrían haber cambiado.
+**Fuente de verdad**: `database/MIGRATION_LOG.md` para números de migraciones (ya 0025-0029 están ocupados).
 
 ---
 
-### T6.1: Fix Críticos de API ⏳
+### T6.1: Fix Críticos de API ✅
 
 **Prioridad**: P1 — rompen el frontend sin ningún cambio de código cliente  
 **Gaps**: G10, G6  
@@ -1027,15 +1041,15 @@ Análisis exhaustivo: `GeoReporta/backend/` (routes, controllers, models, migrat
 - **G6 — Organizations notifiedFor fix**: GeoReporta recibe `?location_id&category_id` (IDs del cascading dropdown del formulario de creación de incidente). NestJS recibe `?lat&lng` (coordenadas GPS). El frontend manda `location_id+category_id` → NestJS no los reconoce → 500/empty. Además falta el flag `is_claimable` por org en la respuesta. Fix: aceptar ambas formas de input (lat/lng o location_id+category_id, resolviendo la zona vía geofencing) + añadir `is_claimable` al DTO de respuesta
 
 **Criterios de Aceptación**:
-- [ ] `GET /api/notifications/unread-count` devuelve `{unread_count: N}` (path y key correctos)
-- [ ] `GET /api/notifications/unread` sigue funcionando (backward compat o 301)
-- [ ] `GET /api/organizations/notified-for?location_id=X&category_id=Y` resuelve la zona y devuelve orgs con `is_claimable`
-- [ ] `GET /api/organizations/notified-for?lat=-2.2&lng=-80.5` sigue funcionando
-- [ ] `pnpm test && pnpm run test:e2e` verde sin romper suites existentes
+- [x] `GET /api/notifications/unread-count` devuelve `{unread_count: N}` (path y key correctos)
+- [x] `GET /api/notifications/unread` sigue funcionando (backward compat o 301)
+- [x] `GET /api/organizations/notified-for?location_id=X&category_id=Y` resuelve la zona y devuelve orgs con `is_claimable`
+- [x] `GET /api/organizations/notified-for?lat=-2.2&lng=-80.5` sigue funcionando
+- [x] `pnpm test && pnpm run test:e2e` verde sin romper suites existentes
 
 ---
 
-### T6.2: Soft Deletes — Incidents + Assignments ⏳
+### T6.2: Soft Deletes — Incidents + Assignments ✅
 
 **Prioridad**: P1 — integridad de datos + historial de auditoría  
 **Gaps**: G3, G9  
@@ -1060,7 +1074,7 @@ Análisis exhaustivo: `GeoReporta/backend/` (routes, controllers, models, migrat
 
 ---
 
-### T6.3: Columnas de Métricas — `claimed_at`, `resolution_date` ⏳
+### T6.3: Columnas de Métricas — `claimed_at`, `resolution_date` ✅
 
 **Prioridad**: P2 — datos incompletos que rompen SLA y export CSV  
 **Gaps**: G4, G5  
@@ -1082,7 +1096,7 @@ Análisis exhaustivo: `GeoReporta/backend/` (routes, controllers, models, migrat
 
 ---
 
-### T6.4: Assignment Role-Change ⏳
+### T6.4: Assignment Role-Change ✅
 
 **Prioridad**: P2 — operación distinta de cambiar operador  
 **Gaps**: G8, G16  
@@ -1102,7 +1116,7 @@ Análisis exhaustivo: `GeoReporta/backend/` (routes, controllers, models, migrat
 
 ---
 
-### T6.5: Email OTP + Columnas Compliance ⏳
+### T6.5: Email OTP + Columnas Compliance ✅
 
 **Prioridad**: P2 — verificación de email + datos legales (compliance)  
 **Gaps**: G7, G11  
@@ -1126,7 +1140,7 @@ Análisis exhaustivo: `GeoReporta/backend/` (routes, controllers, models, migrat
 
 ---
 
-### T6.6: Incident Image Upload ⏳
+### T6.6: Incident Image Upload ✅
 
 **Prioridad**: P3 — gap de feature (no rompe flows existentes)  
 **Gap**: G2  
@@ -1149,7 +1163,7 @@ Análisis exhaustivo: `GeoReporta/backend/` (routes, controllers, models, migrat
 
 ---
 
-### T6.7: Export XLSX/PDF + Feed Recovery ⏳
+### T6.7: Export XLSX/PDF + Feed Recovery ✅
 
 **Prioridad**: P3 — gaps de infraestructura / formatos adicionales  
 **Gaps**: G12, G13, G15  
@@ -1170,7 +1184,7 @@ Análisis exhaustivo: `GeoReporta/backend/` (routes, controllers, models, migrat
 
 ---
 
-### T6.8: Path Aliases + GDPR Anonymizer ⏳
+### T6.8: Path Aliases + GDPR Anonymizer ✅
 
 **Prioridad**: P4 — diferencias de diseño / cumplimiento legal diferido  
 **Gaps**: G14, G17, G18, G19, G20, G23  
