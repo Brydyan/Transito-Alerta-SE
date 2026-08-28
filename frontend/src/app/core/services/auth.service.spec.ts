@@ -142,11 +142,6 @@ describe('AuthService', () => {
     expect(localStorage.getItem(`auth_access_token_${env}`)).toBeNull();
   });
 
-  // ───── E1.7 register — REMOVED (backend is 410) ─────
-  it('register() throws because the backend endpoint is a 410 tombstone', () => {
-    expect(() => service.register()).toThrow(/410 Gone/);
-  });
-
   // ───── E1.8 token persistence — localStorage namespaced by env ─────
   it('persists access + refresh tokens under env-suffixed localStorage keys', () => {
     service.login({ device_uuid: 'dev-uuid-1' }).subscribe();
@@ -155,5 +150,118 @@ describe('AuthService', () => {
 
     expect(localStorage.getItem(`auth_access_token_${env}`)).toBe(tokens.access_token);
     expect(localStorage.getItem(`auth_refresh_token_${env}`)).toBe(tokens.refresh_token);
+  });
+
+  // ───── SC-207 — acceptInvitation ─────
+  it('SC-207.1: acceptInvitation posts snake_case body to /auth/accept-invitation and stores tokens', () => {
+    service
+      .acceptInvitation({ token: 'inv-token-123', password: 'StrongP@ssw0rd!' })
+      .subscribe();
+    const req = http.expectOne(`${apiUrl}/accept-invitation`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({
+      token: 'inv-token-123',
+      password: 'StrongP@ssw0rd!',
+    });
+    req.flush(tokens);
+
+    expect(service.accessToken()).toBe(tokens.access_token);
+    expect(service.refreshToken()).toBe(tokens.refresh_token);
+    expect(service.isAuthenticated()).toBe(true);
+
+    // Same post-success /me call as login.
+    http.expectOne(`${apiUrl}/me`).flush(me);
+  });
+
+  it('SC-207.2: acceptInvitation forwards terms_version when provided', () => {
+    service
+      .acceptInvitation({ token: 'inv-2', password: 'StrongP@ssw0rd!', terms_version: 'v1' })
+      .subscribe();
+    const req = http.expectOne(`${apiUrl}/accept-invitation`);
+    expect(req.request.body).toEqual({
+      token: 'inv-2',
+      password: 'StrongP@ssw0rd!',
+      terms_version: 'v1',
+    });
+    req.flush(tokens);
+    http.expectOne(`${apiUrl}/me`).flush(me);
+  });
+
+  it('SC-207.3: acceptInvitation on 422 surfaces the field-level errors', () => {
+    const errors = { password: ['min 12 chars'] };
+    const caught: Array<Error & { status?: number; errors?: unknown }> = [];
+    service
+      .acceptInvitation({ token: 'inv-3', password: 'short' })
+      .subscribe({ error: (e) => caught.push(e) });
+    http.expectOne(`${apiUrl}/accept-invitation`).flush(
+      { message: 'Validation', errors },
+      { status: 422, statusText: 'Unprocessable Entity' },
+    );
+    expect(caught[0]?.status).toBe(422);
+    expect(caught[0]?.errors).toEqual(errors);
+  });
+
+  it('SC-207.4: acceptInvitation on 410 surfaces the "invitation already used" message', () => {
+    const caught: Array<Error & { status?: number }> = [];
+    service
+      .acceptInvitation({ token: 'used-token', password: 'StrongP@ssw0rd!' })
+      .subscribe({ error: (e) => caught.push(e) });
+    http
+      .expectOne(`${apiUrl}/accept-invitation`)
+      .flush({ message: 'Token already used' }, { status: 410, statusText: 'Gone' });
+    expect(caught[0]?.status).toBe(410);
+    // The component's onSubmit will surface "La invitación ya fue usada…"
+    expect(caught[0]?.message).toBe('Token already used');
+  });
+
+  // ───── SC-207 — previewInvitation ─────
+  const preview = {
+    organization_name: 'ACME Transit',
+    inviter_name: 'Jane Admin',
+    role_name: 'Operator',
+    expires_at: '2026-09-05T00:00:00.000Z',
+  };
+
+  it('SC-207.5: previewInvitation sends the token as a query param and resolves the preview', () => {
+    const results: Array<typeof preview> = [];
+    service.previewInvitation('inv-token-123').subscribe((res) => results.push(res));
+    const req = http.expectOne(
+      (r) => r.url === `${environment.apiUrl}/invitations/preview` && r.params.get('token') === 'inv-token-123',
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush(preview);
+    expect(results[0]).toEqual(preview);
+  });
+
+  it('SC-207.6: previewInvitation on 404 surfaces a "not found" status', () => {
+    const caught: Array<Error & { status?: number }> = [];
+    service.previewInvitation('unknown-token').subscribe({ error: (e) => caught.push(e) });
+    http
+      .expectOne((r) => r.url === `${environment.apiUrl}/invitations/preview`)
+      .flush({ message: 'Invitation not found' }, { status: 404, statusText: 'Not Found' });
+    expect(caught[0]?.status).toBe(404);
+  });
+
+  it('SC-207.7: previewInvitation on 410 surfaces an "expired/used" status', () => {
+    const caught: Array<Error & { status?: number }> = [];
+    service.previewInvitation('expired-token').subscribe({ error: (e) => caught.push(e) });
+    http
+      .expectOne((r) => r.url === `${environment.apiUrl}/invitations/preview`)
+      .flush({ message: 'Token expired' }, { status: 410, statusText: 'Gone' });
+    expect(caught[0]?.status).toBe(410);
+  });
+
+  // ───── SC-207.8 — clearSession ─────
+  it('SC-207.8: clearSession() drops tokens/user so an authenticated user can preview a new invitation', () => {
+    service.login({ device_uuid: 'dev-uuid-1' }).subscribe();
+    http.expectOne(`${apiUrl}/login`).flush(tokens);
+    http.expectOne(`${apiUrl}/me`).flush(me);
+    expect(service.isAuthenticated()).toBe(true);
+
+    service.clearSession();
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(service.accessToken()).toBeNull();
+    expect(service.user()).toBeNull();
   });
 });

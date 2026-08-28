@@ -3,7 +3,9 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, catchError, switchMap, throwError, tap, shareReplay } from 'rxjs';
 import {
+  AcceptInvitationDto,
   AuthTokens,
+  InvitationPreview,
   LoginRequest,
   LogoutResponse,
   MeResponse,
@@ -22,14 +24,19 @@ import { MenuService } from './menu.service';
  * `LoginRequest` validator (exactly one of { device_uuid } or
  * { email, password }). Removed the `register()` flow because the
  * backend's `POST /auth/register` is a 410 tombstone — registration
- * is invitation-only via `POST /auth/accept-invitation` (deferred
- * to a follow-up change).
+ * is invitation-only via `POST /auth/accept-invitation`.
+ *
+ * Change `2026-08-28-sc-207-frontend-register-invitation-flow`: added
+ * `previewInvitation()` + `acceptInvitation()` to wire up the
+ * invitation-only registration flow end to end. The old `register()`
+ * throwing stub is gone — there's no remaining caller.
  *
  * Wire contracts sourced from:
  *   - backend/src/modules/auth/auth.service.ts (`AuthTokens`)
  *   - backend/src/modules/auth/dto/login.dto.ts
  *   - backend/src/modules/auth/dto/refresh.dto.ts
  *   - backend/src/modules/auth/auth.controller.ts (`/me`, `/logout`)
+ *   - backend/src/modules/invitations/invitations.controller.ts (`/preview`)
  */
 @Injectable({
   providedIn: 'root',
@@ -40,6 +47,9 @@ export class AuthService {
   private readonly menuService = inject(MenuService);
 
   private readonly API_URL = `${environment.apiUrl}/auth`;
+  // SC-207 — invitations live under their own controller, sibling to
+  // /auth (see backend/src/modules/invitations/invitations.controller.ts).
+  private readonly INVITATIONS_URL = `${environment.apiUrl}/invitations`;
 
   // ───── Reactive state (writable signals so the interceptor test
   //        can seed values without going through the HTTP flow) ─────
@@ -88,7 +98,7 @@ export class AuthService {
         catchError((err) => {
           this.refreshInProgress$ = null;
           this.clearAuthState();
-          this.router.navigate(['/auth/login']);
+          this.router.navigate(['/login']);
           return throwError(() => err);
         }),
         shareReplay(1),
@@ -99,10 +109,14 @@ export class AuthService {
   // ───── A.4 — Logout ─────
   logout(): Observable<LogoutResponse> {
     return this.http.post<LogoutResponse>(`${this.API_URL}/logout`, {}).pipe(
-      tap(() => this.clearAuthState()),
+      tap(() => {
+        this.clearAuthState();
+        this.router.navigate(['/login']);
+      }),
       catchError((err) => {
         // Even if the server call fails, drop the local session.
         this.clearAuthState();
+        this.router.navigate(['/login']);
         return throwError(() => err);
       }),
     );
@@ -127,23 +141,46 @@ export class AuthService {
       );
   }
 
-  // ───── Register — REMOVED ─────
-  //
-  // The backend's `POST /auth/register` returns 410 Gone (tombstone,
-  // see auth.controller.ts:54-58). The real registration path is
-  // `POST /auth/accept-invitation` which accepts an invitation token.
-  // That flow is deferred to a follow-up change (Priority 2) because
-  // the spec's B.* tasks asked for a public self-registration form
-  // that the backend deliberately doesn't support. Re-enable by
-  // wiring `acceptInvitation` when that change lands.
-  //
-  // (Stub kept to throw a clear error if any component still calls
-  // the old method.)
-  register(): never {
-    throw new Error(
-      'AuthService.register() is removed: backend POST /auth/register is 410 Gone. ' +
-        'Use /auth/accept-invitation instead (deferred to P2).',
-    );
+  // ───── SC-207 — `GET /invitations/preview?token=...`. Fetched by
+  //        AcceptInvitationComponent before rendering the password
+  //        form, so the user sees who invited them / to which org /
+  //        with what role before committing to a password. 404 (token
+  //        unknown) and 410 (expired/used) are surfaced via
+  //        handleError and mapped to copy by the component. ─────
+  previewInvitation(token: string): Observable<InvitationPreview> {
+    return this.http
+      .get<InvitationPreview>(`${this.INVITATIONS_URL}/preview`, { params: { token } })
+      .pipe(catchError((err) => this.handleError(err)));
+  }
+
+  // ───── SC-207 — `POST /auth/accept-invitation` (replaces the dead
+  //        `register()` flow, now removed). Backend mints a live
+  //        `AuthTokens` session on success → the user lands signed
+  //        in. Differs from the old `register()`: that one explicitly
+  //        did NOT auto-login (per the R11 "no auto-login" rule);
+  //        accept-invitation MUST auto-login because the backend has
+  //        just created the identity and there is no other way for
+  //        the user to access the system. The component navigates to
+  //        `/app/dashboard` on success (we use the SAME
+  //        `handleLoginSuccess` flow so the tokens, signal, and /me
+  //        call all happen identically to a normal login). ─────
+  acceptInvitation(dto: AcceptInvitationDto): Observable<AuthTokens> {
+    return this.http
+      .post<AuthTokens>(`${this.API_URL}/accept-invitation`, dto)
+      .pipe(
+        tap((tokens) => this.handleLoginSuccess(tokens)),
+        catchError((err) => this.handleError(err)),
+      );
+  }
+
+  // ───── SC-207 — invoked by AcceptInvitationComponent before showing
+  //        an invitation preview, so an already-authenticated user
+  //        can join a different organization without carrying over
+  //        the old session (the route has no guestGuard, so a signed-
+  //        in user can land here). Thin public wrapper around the
+  //        private clearAuthState() helper. ─────
+  clearSession(): void {
+    this.clearAuthState();
   }
 
   // ───── Helpers ─────

@@ -1,0 +1,35 @@
+.accept-invitation-container {
+  max-width: 420px;
+  margin: 4rem auto;
+  padding: 2rem;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 0.75rem;
+  background: var(--surface, #fff);
+}
+.muted { color: var(--text-muted, #6b7280); margin-bottom: 1.5rem; }
+label { display: block; margin-bottom: 1rem; }
+label.checkbox { display: flex; align-items: center; gap: 0.5rem; }
+label.checkbox > span { font-weight: 400; }
+label > span { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+input[type="text"], input[type="password"] {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 0.375rem;
+  font: inherit;
+}
+.error { color: var(--danger, #b91c1c); display: block; margin-top: 0.25rem; }
+.banner { padding: 0.75rem; border-radius: 0.375rem; }
+.banner.error { background: #fee2e2; }
+.banner.success { background: #d1fae5; }
+button {
+  width: 100%;
+  padding: 0.75rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: var(--primary, #2563eb);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:disabled { background: #9ca3af; cursor: not-allowed; }

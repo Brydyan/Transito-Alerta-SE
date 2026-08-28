@@ -14,6 +14,19 @@ export const routes: Routes = [
       import('./features/auth/login/login.component').then((m) => m.LoginComponent),
     canActivate: [guestGuard],
   },
+  // SC-207 — invitation token acceptance (replaces the dead
+  // /auth/register flow). Token arrives out-of-band (typically via
+  // email) as `?token=…`. Deliberately NO guestGuard: an already
+  // signed-in user must still be able to open an invitation link to
+  // join a different organization (the component clears their old
+  // session itself before previewing the new invitation).
+  {
+    path: 'accept-invitation',
+    loadComponent: () =>
+      import('./features/auth/accept-invitation/accept-invitation.component').then(
+        (m) => m.AcceptInvitationComponent,
+      ),
+  },
   {
     path: 'app',
     loadComponent: () =>
