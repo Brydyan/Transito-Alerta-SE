@@ -33,7 +33,10 @@ export class Header {
 
   logout(): void {
     this.closeUserDropdown();
-    this.authService.logout();
+    this.authService.logout().subscribe({
+      next: () => this.router.navigate(['/login']),
+      error: () => this.router.navigate(['/login']),
+    });
   }
 
   onDocumentClick(event: MouseEvent): void {

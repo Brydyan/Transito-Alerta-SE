@@ -1,7 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { vi } from 'vitest';
 import { of } from 'rxjs';
 
 import { MainLayout } from './main-layout.component';
@@ -14,7 +13,7 @@ describe('MainLayout', () => {
 
   beforeEach(async () => {
     const mockAuthService = {
-      logout: vi.fn(),
+      logout: jest.fn(() => of({ success: true })),
       isAuthenticated: signal(true),
       currentUser: signal({ name: 'Test User', roleName: 'Admin' }),
       token: signal('mock-token'),
@@ -24,8 +23,8 @@ describe('MainLayout', () => {
     };
 
     const mockMenuService = {
-      getMenuFromBackend: vi.fn(() => of([])),
-      clearMenu: vi.fn(),
+      getMenuFromBackend: jest.fn(() => of([])),
+      clearMenu: jest.fn(),
       menuItems: signal([]),
     };
 
