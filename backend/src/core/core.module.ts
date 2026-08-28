@@ -11,6 +11,7 @@ import authConfig from '../config/auth.config';
 import cacheConfig from '../config/cache.config';
 import { CacheConfig } from '../config/cache.config';
 import mailConfig from '../config/mail.config';
+import storageConfig from '../config/storage.config';
 
 /**
  * DI token for the raw ioredis client — used where cache-manager's Cache
@@ -88,7 +89,7 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, authConfig, cacheConfig, mailConfig],
+      load: [databaseConfig, authConfig, cacheConfig, mailConfig, storageConfig],
       envFilePath: ['.env'],
     }),
     TypeOrmModule.forRootAsync({

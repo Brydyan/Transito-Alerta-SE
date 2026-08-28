@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { createHash, randomUUID } from 'crypto';
+import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { IStorageClient, STORAGE_CLIENT } from '../../core/storage/storage-client.interface';
 
 export interface MulterFile {
   originalname: string;
@@ -16,24 +17,28 @@ export interface UploadResult {
 }
 
 /**
- * CommentImageStorageService (T5.5) — multipart upload → S3 → signed URL.
- * Same SHA-256 placeholder pattern as AvatarStorageService (T2.3).
+ * CommentImageStorageService (T5.5, SC-209 Phase A real impl) — multipart
+ * upload -> IStorageClient (Supabase in prod, noop locally, D1) -> signed
+ * URL. The SHA-256 placeholder is gone; key generation stays here (design
+ * D2 — only the placeholder lines changed), byte persistence + URL
+ * resolution is delegated to the injected client.
  * Key convention: `comments/{commentId}/{uuid}-{sanitizedOriginalname}`.
  */
 @Injectable()
 export class CommentImageStorageService {
+  constructor(@Inject(STORAGE_CLIENT) private readonly client: IStorageClient) {}
+
   async upload(commentId: string, file: MulterFile): Promise<UploadResult> {
     const sanitized = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     const key = `comments/${commentId}/${randomUUID()}-${sanitized}`;
-    return { key, url: this.getSignedUrl(key) };
+    return this.client.upload(key, file.buffer ?? Buffer.alloc(0), file.mimetype);
   }
 
-  getSignedUrl(key: string): string {
-    const signature = createHash('sha256').update(key).digest('hex').slice(0, 16);
-    return `https://storage.example.com/${key}?sig=${signature}`;
+  getSignedUrl(key: string): Promise<string> {
+    return this.client.getSignedUrl(key);
   }
 
-  async delete(_key: string): Promise<void> {
-    // no-op stub; real S3 DeleteObjectCommand plugs in here
+  delete(key: string): Promise<void> {
+    return this.client.delete(key);
   }
 }

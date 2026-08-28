@@ -72,10 +72,11 @@ data/
 # origen + su NOTICE de licencias), no datos locales de un contenedor.
 !database/data/
 
-# AWS S3 / Media (local dev)
+# Object storage (local dev) — NoopStorageClient (SC-209 D1) writes here
 .s3/
 uploads/
 media/
+.storage/
 
 # Secrets & credentials
 *.pem

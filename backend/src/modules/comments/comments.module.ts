@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CommentEntity } from '../../entities/comment.entity';
 import { CommentImageEntity } from '../../entities/comment-image.entity';
+import { StorageModule } from '../../core/storage/storage.module';
 import { IncidentsModule } from '../incidents/incidents.module';
 import { CommentsController } from './comments.controller';
 import { CommentsService } from './comments.service';
@@ -17,9 +18,15 @@ import { CommentImagesController } from './comment-images.controller';
  *
  * T5.5 — adds CommentImagesController + CommentImagesService +
  * CommentImageStorageService for upload/delete of comment attachments.
+ * SC-209 Phase A — imports StorageModule so CommentImageStorageService can
+ * @Inject(STORAGE_CLIENT) the real Supabase/noop backend (D1).
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([CommentEntity, CommentImageEntity]), IncidentsModule],
+  imports: [
+    TypeOrmModule.forFeature([CommentEntity, CommentImageEntity]),
+    IncidentsModule,
+    StorageModule,
+  ],
   controllers: [CommentsController, CommentImagesController],
   providers: [CommentsService, CommentImagesService, CommentImageStorageService],
   exports: [CommentsService],
