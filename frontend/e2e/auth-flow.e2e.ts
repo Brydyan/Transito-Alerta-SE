@@ -4,10 +4,16 @@ import { test, expect } from '@playwright/test';
  * F1 — auth-flow.e2e.ts
  * Change `2026-08-28-sc-203-auth-comments-backend-integration`.
  *
- * End-to-end smoke test for the login flow. Asserts:
- *  1. The login form calls the real `POST /auth/login` (not a mock).
- *  2. On success the user lands on the dashboard and the header
- *     shows the user name.
+ * 2nd pass: corrected selectors + route to match the real DOM/routing
+ * (change `2026-08-28-sc-208-frontend-e2e-tests-quick-fix`).
+ *  - route: `/auth/login` → `/login` (the real route per
+ *    `frontend/src/app/app.routes.ts:12`).
+ *  - email label: the form uses `Usuario` as the visible label
+ *    (`login.component.html:52`) — `getByLabel(/email/i)` returned 0
+ *    matches and timed out. Use `/usuario/i`.
+ *  - password label: keep `/contraseña|password/i` (the component
+ *    uses `Contraseña`).
+ *  - login button: keep `/entrar|iniciar|login/i`.
  *
  * Required environment:
  *  - `BASE_URL` points at an Angular app that proxies to a real
@@ -26,8 +32,8 @@ test.describe('Auth flow', () => {
       }
     });
 
-    await page.goto('/auth/login');
-    await page.getByLabel(/email/i).fill('admin@correo.com');
+    await page.goto('/login');
+    await page.getByLabel(/usuario/i).fill('admin@correo.com');
     await page.getByLabel(/contraseña|password/i).fill('123456');
     await page.getByRole('button', { name: /entrar|iniciar|login/i }).click();
 
