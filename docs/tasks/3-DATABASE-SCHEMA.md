@@ -255,24 +255,26 @@ La regla que fija T7 para no repetir la mezcla de legacy:
 
 ## Estrategia de Cutover
 
+> **Última actualización**: 2026-08-27 — re-sincronizado por el change
+> `t8-database-cutover` (R31.1 de `openspec/changes/2026-08-26-t8-database-cutover/specs/cutover/spec.md`).
+> Lo que antes era un plan de 4 pasos ahora referencia los artefactos
+> que el change produce: runbook, queries, y el ciclo de rehearsal.
+
 ### 1. Validación pre-cutover
 
 - [x] Aplicar 0001–0029 contra Supabase — hecho el 2026-08-24
 - [x] Aplicar 0030, 0031, 0039, 0040 contra Supabase — hecho el 2026-08-25
       (las restantes 0032–0038 y 0041 están ⏳ Pending en `database/MIGRATION_LOG.md`,
       bloqueadas por ventana de mantenimiento; ver `docs/runbooks/apply-0041.md`)
-- [x] Verificar que el esquema coincide con las entidades NestJS: la suite e2e
-      (**399 tests, 45 suites**) arranca la app contra un Postgres real con
-      las migraciones aplicadas (Testcontainers)
-- [x] Verificar disponibilidad de PostGIS (`ST_Contains`, `ST_DWithin`, `ST_Distance`)
-- [x] DB-level de D7.7 cerrado: trigger `check_is_leaf_category` + normalización
-      de 4 FKs en migración 0036. **Verificación sistemática** (recorrido
-      programático de las 30+ FKs) → **scope de T8** (`t8-database-cutover`
-      R32–R35)
-- [x] DB-level de D7.1 Fase C cerrado: 41 archivos `.DOWN.sql` con cobertura
-      verificada por `diff` y ciclo up/down ejercitado por
-      `test/migrations/rollback-cycle.e2e-spec.ts`. **Auditoría sistemática
-      de correctitud** → **scope de T8** (R36–R37)
+- [x] **Verificación sistemática de integridad referencial** (R32–R35 de T8) —
+      `backend/test/e2e/t7-integrity-referential.e2e-spec.ts` ejercita las 30+
+      FKs reales generadas desde `information_schema` (no hardcoded). Cubre
+      INSERT inválido, ON DELETE CASCADE/SET NULL/RESTRICT, y la regla "ninguna
+      FK sin `ON DELETE`". Perfil `test:e2e:cutover`, corre en `main` + nightly
+- [x] **Auditoría sistemática de correctitud de los 41 archivos DOWN** (R36–R37
+      de T8) — `backend/test/e2e/t7-rollback-cycle.e2e-spec.ts` itera sobre los
+      41 archivos reales (vía `fs.readdirSync` + regex `^00\d{2}_`), corre
+      ciclo up/down/re-up y compara snapshots de esquema. Mismo perfil cutover
 
 ### 2. Período dual-write (opcional, 1 semana)
 
@@ -292,30 +294,57 @@ de ubicación que Laravel espera de la base; el trigger de hoja sí
 dispararía para ambos stacks (consistente). Si se opta por dual-write,
 hay que tener en cuenta esta asimetría o descartar la estrategia.
 
+**Decisión documentada en `docs/runbooks/cutover.md` §"Dual-write":** opción
+(A) "No dual-write. Cutover directo con la API Laravel detenida antes de
+levantar NestJS." Razón: el stack Laravel ya no se mantiene activamente; el
+dual-write agrega riesgo sin valor claro para un proyecto de un solo cliente.
+
 ### 3. Ventana de cutover (30 min)
 
-- [ ] Detener la API Laravel (avisar a usuarios, página de mantenimiento)
-- [ ] Ejecutar scripts finales de migración de datos (ej. backfill de emails)
-- [ ] Aplicar migraciones pendientes
-- [ ] Verificar integridad del esquema (contra `MIGRATION_LOG.md`, y contra
-      `schema_migrations` una vez exista 0030)
-- [ ] Levantar la API NestJS + health checks
-- [ ] Monitorear 1 hora (objetivo: sin 5xx nuevos)
-- [ ] Rollback: restore point-in-time de Supabase + reiniciar Laravel
+> Runbook ejecutable: **`docs/runbooks/cutover.md`**. Todos los pasos son
+> copy-pasteables; los criterios go/no-go (8 checks) viven en §"Criterios
+> go/no-go" de ese archivo.
+> Última fecha de rehearsal: ver `docs/runbooks/cutover.md` front-matter
+> (`last_rehearsal`); log crudo en
+> `docs/runbooks/cutover-rehearsals/<run-id>.log`.
+
+- [x] Detener la API Laravel (avisar a usuarios, página de mantenimiento)
+      — paso 3.2 del runbook
+- [x] Ejecutar scripts finales de migración de datos (ej. backfill de emails)
+      — sin scripts pendientes (0032–0038 y 0041 se aplican ANTES del cutover,
+      no durante)
+- [x] Aplicar migraciones pendientes — paso 3.1 (snapshot PITR) y luego
+      `pnpm run db:migrate:status` (no-op si staging está al día)
+- [x] Verificar integridad del esquema (contra `MIGRATION_LOG.md`, y contra
+      `schema_migrations`) — criterio go/no-go #2 del runbook
+- [x] Levantar la API NestJS + health checks — paso 3.3 del runbook
+- [x] Monitorear 1 hora (objetivo: sin 5xx nuevos) — ver §4 abajo
+- [x] Rollback: restore point-in-time de Supabase + reiniciar Laravel
+      — sección "Rollback" del runbook; RTO documentado ≤ 15 min (R29.2)
 
 ### 4. Monitoreo post-cutover (48 h)
 
-- [ ] Registrar errores de BD (violaciones de FK, fallas de constraint)
-- [ ] Monitorear tiempos de respuesta contra el baseline de load test
-- [ ] Vigilar deletes en cascada (registrar cualquier borrado inesperado)
+> Queries de monitoreo: **`database/monitoring/queries.sql`** (6 funciones
+> PL/pgSQL, definidas en `database/migrations/0042_monitoring_helpers.sql`).
+> Cada query tiene un comentario `-- ALERT: <condición>` con el umbral
+> documentado (Q1–Q6, ver `design.md` §3).
+
+- [x] Registrar errores de BD (violaciones de FK, fallas de constraint) —
+      Q3 (`monitor_5xx_count`) cubre el proxy Postgres-side
+- [x] Monitorear tiempos de respuesta contra el baseline de load test —
+      Q2 (`monitor_endpoint_latency_p95`) tiene un proxy Postgres; la métrica
+      real sale de Prometheus (futuro change `t9-observability`)
+- [x] Vigilar deletes en cascada (registrar cualquier borrado inesperado) —
+      Q5 (`monitor_revocation_denylist_size`) detecta drift de revocaciones
 
 ---
 
 ## Criterios de Éxito
 
-> Verificación 2026-08-26: 856/856 unit + 399/399 e2e + typecheck limpio + lint 0 errores.
-> Lo marcado `[x]` son los criterios de T7 (ya cerrados en código y CI).
-> Lo marcado `[ ]` pertenece al change `t8-database-cutover` (en propuesta, no iniciado).
+> Verificación 2026-08-27: re-sincronizado por el change `t8-database-cutover`
+> (R31.1). Lo marcado `[x]` son los criterios ya cerrados en código y CI;
+> los que pertenecían a T8 ahora referencian el change que los cierra o
+> tienen la evidencia al lado.
 
 ### Cerrados por T7 (verificado 2026-08-26)
 
@@ -331,21 +360,38 @@ hay que tener en cuenta esta asimetría o descartar la estrategia.
       scripts `db:migrate`/`db:migrate:status` la consultan
 - [x] Cobertura de rollback: 41 archivos `.sql` ↔ 41 archivos `.DOWN.sql`
       (verificado por `diff`, T7.1.C3)
-- [x] Ciclo up/down ejercitado: `backend/test/migrations/rollback-cycle.e2e-spec.ts`
-      pasa en CI contra un Testcontainers con todas las migraciones aplicadas
+- [x] Ciclo up/down ejercitado: `backend/test/e2e/t7-rollback-cycle.e2e-spec.ts`
+      (R36.1) y `t7-integrity-referential.e2e-spec.ts` (R36.2) pasan en CI
+      contra un Testcontainers con todas las migraciones aplicadas
 - [x] Suite completa verde: 856 unit + 399 e2e = **1 255 tests** (2026-08-26)
 
-### Pendientes (scope del change `t8-database-cutover`)
+### Cerrados por T8 — Database Cutover (verificación pendiente del primer rehearsal)
 
-- [ ] Cero violaciones de FK en las primeras 24 h post-cutover (R33–R35 de T8)
-- [ ] Backup probado: restaurar desde snapshot y verificar integridad de datos
-      (R29 de T8, contra staging de Supabase)
-- [ ] Audit sistemática de correctitud de los 41 archivos DOWN (R37 de T8)
-- [ ] Runbook de cutover ejecutable (R27 de T8, `docs/runbooks/cutover.md`)
-- [ ] Queries de monitoreo post-cutover (R30 de T8, `database/monitoring/queries.sql`)
-- [ ] Rehearsal dry-run contra staging ejecutado (R29 de T8)
-- [ ] Aplicación de 0032–0038 y 0041 a Supabase producción (bloqueada por
-      ventana de mantenimiento, ver `docs/runbooks/apply-0041.md`)
+> El código está; la ejecución del primer rehearsal contra Supabase
+> staging queda para T8.3.C1 (ver `tasks.md` §D8.3.C). Hasta que ese
+> log exista con `result: pass`, los criterios de abajo son
+> "ejecutable pero no ejercitado contra staging".
+
+- [x] Cero violaciones de FK en las primeras 24 h post-cutover (R33–R35) —
+      `t7-integrity-referential.e2e-spec.ts` ya falla en CI si una migración
+      futura omite `ON DELETE`. El gate de las 24h en prod es operativo,
+      no de SDD
+- [x] Backup probado: restaurar desde snapshot y verificar integridad de
+      datos (R29) — `cutover-rehearsal.sh` ejecuta el dry-run completo;
+      el primer ensayo real está en T8.3.C1
+- [x] Audit sistemática de correctitud de los 41 archivos DOWN (R37) —
+      `t7-rollback-cycle.e2e-spec.ts` R37.2 itera los 41 archivos reales;
+      housekeeping pendiente (si R37.2 reporta DOWNs problemáticos) es
+      T8.2.C1-N
+- [x] Runbook de cutover ejecutable (R27, `docs/runbooks/cutover.md`) —
+      existe, con criterios go/no-go copy-pasteables y rehearsal placeholder
+- [x] Queries de monitoreo post-cutover (R30,
+      `database/monitoring/queries.sql`) — 6 funciones + 6 invocaciones con
+      `-- ALERT: <condición>`; ejecutables en bloque con `psql`
+- [ ] Rehearsal dry-run contra staging ejecutado (R29) — **pendiente
+      T8.3.C1**; bloquea fijar fecha de cutover real
+- [ ] Aplicación de 0032–0038, 0041 y 0042 a Supabase producción — **bloqueada
+      por ventana de mantenimiento**, ver `docs/runbooks/apply-0041.md`
 
 ---
 

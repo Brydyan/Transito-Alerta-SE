@@ -305,3 +305,124 @@ jobs:
             fi
           done
           exit $missing
+
+  cutover:
+    # T8 — Database Cutover (change `2026-08-26-t8-database-cutover`).
+    #
+    # The integrity-referential and rollback-cycle e2e specs take 4-5 min
+    # each against a real Testcontainers Postgres+PostGIS. Running them on
+    # every PR would make CI unusable, so this job is gated to:
+    #   1. push to `main` (the long-lived branch where the cutover lives), AND
+    #   2. the nightly schedule below.
+    # It does NOT run on PRs, and it does NOT run on push to `develop`.
+    #
+    # The intent is "prove the cutover path still works the night before we
+    # actually pull the trigger" — not "gate every code change on a slow
+    # schema audit". See design.md D2 of the change for the rationale.
+    name: Cutover — FK inventory, rollback cycle, cutover validation
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'schedule'
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: transito_alerta_cutover
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: backend/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run test:e2e:cutover
+
+  cutover-nightly:
+    # Companion to the `cutover` job: a separate schedule that runs on the
+    # default branch only (cron here only fires on the default branch per
+    # GitHub Actions rules). Same command, separate visibility in the
+    # Actions tab so a nightly regression is easy to find.
+    name: Cutover (nightly)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: transito_alerta_cutover
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: backend/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run test:e2e:cutover
+
+# Nightly cutover audit (proves the cutover path still works the day
+# before any real cutover is scheduled). 02:00 UTC = 21:00 ECT.
+schedule:
+  - cron: '0 2 * * *'
