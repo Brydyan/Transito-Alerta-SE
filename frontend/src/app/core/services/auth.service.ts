@@ -183,6 +183,16 @@ export class AuthService {
     this.clearAuthState();
   }
 
+  // ───── Update in-memory user state with partial changes
+  //        (name, email, avatar, etc.). Used by profile.component
+  //        after a successful profile update. ─────
+  updateCurrentUser(updates: Partial<User>): void {
+    const current = this.user();
+    if (current) {
+      this.user.set({ ...current, ...updates });
+    }
+  }
+
   // ───── Helpers ─────
   private handleLoginSuccess(tokens: AuthTokens): void {
     this.persistTokens(tokens);

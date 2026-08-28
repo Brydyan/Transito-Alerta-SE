@@ -5,6 +5,10 @@
 // truth for the wire shape; if a test fakes a response, it must
 // use the same field names (see auth.service.spec.ts).
 
+export interface Avatar {
+  url: string;
+}
+
 /** POST /auth/login — exactly one of the two shapes is required. */
 export interface LoginRequest {
   device_uuid?: string;
@@ -51,6 +55,7 @@ export interface User {
   roleName: string | null;
   permissions: string[];
   device_uuid: string | null;
+  avatar?: Avatar | null;
 }
 
 /** @deprecated — same reason as the removed self-service register flow. */

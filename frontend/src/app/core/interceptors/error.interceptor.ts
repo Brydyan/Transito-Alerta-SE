@@ -22,12 +22,12 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
       // Si recibimos 401 en un endpoint protegido, intentamos silent refresh una vez
       if (error.status === 401 && !isAuthEndpoint && !req.headers.has('X-Retry-Refresh')) {
-        return authService.refreshToken().pipe(
+        return authService.refresh().pipe(
           switchMap((refreshRes) => {
             // Reintentar la petición original con el nuevo token
             const retryReq = req.clone({
               setHeaders: {
-                Authorization: `Bearer ${refreshRes.accessToken}`,
+                Authorization: `Bearer ${refreshRes.access_token}`,
                 'X-Retry-Refresh': 'true',
               },
               withCredentials: true,

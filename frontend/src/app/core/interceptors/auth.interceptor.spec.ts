@@ -1,14 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 import {
-  HTTP_INTERCEPTORS,
   HttpClient,
-  HttpErrorResponse,
+  provideHttpClient,
+  withInterceptors,
+  withXsrfConfiguration,
 } from '@angular/common/http';
 import {
   HttpClientTestingModule,
   HttpTestingController,
+  provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { AuthInterceptor } from './auth.interceptor';
+import { authInterceptor } from './auth.interceptor';
 import { AuthService } from '../services/auth.service';
 
 /**
@@ -27,9 +29,12 @@ describe('AuthInterceptor', () => {
   beforeEach(() => {
     localStorage.clear();
     TestBed.configureTestingModule({
-      imports: [HttpClientTestingModule],
       providers: [
-        { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
+        provideHttpClient(
+          withInterceptors([authInterceptor]),
+          withXsrfConfiguration({ cookieName: '', headerName: '' }),
+        ),
+        provideHttpClientTesting(),
         AuthService,
       ],
     });
