@@ -67,7 +67,7 @@ jobs:
         env:
           CI: true
         run: |
-          pnpm install --frozen-lockfile
+          pnpm ci
           pnpm run build
 
       - name: Build and start backend + frontend
