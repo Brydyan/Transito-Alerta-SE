@@ -116,38 +116,6 @@ BANNER
   fi
 }
 
-# ───── R26 — Pre-cutover validation ────────────────────────────────────
-
-step "R26.1 schema migration status" check_migration_status
-step "R26.3 PostGIS version >= 3.4"        check_postgis_version
-step "R26.4 e2e suite smoke"               check_e2e_smoke
-step "R30.2 monitoring queries syntax"     check_monitoring_queries
-step "R29.1 snapshot/insert/restore dry-run" check_rollback_dry_run
-
-# ───── Resumen ──────────────────────────────────────────────────────────
-
-END_TIME=$(date +%s)
-TOTAL=$((END_TIME - START_TIME))
-
-echo ""
-echo "════════════════════════════════════════════════════════════"
-echo "  REHEARSAL SUMMARY — $RUN_ID"
-echo "════════════════════════════════════════════════════════════"
-for r in "${RESULTS[@]}"; do
-  echo "  $r"
-done
-echo "────────────────────────────────────────────────────────────"
-echo "  Total: ${TOTAL}s (target: <= 1800s / 30 min)"
-echo "  PASS : $PASS"
-echo "  FAIL : $FAIL"
-echo "  Log  : $LOG_FILE"
-echo "════════════════════════════════════════════════════════════"
-
-if [ "$FAIL" -gt 0 ]; then
-  exit 1
-fi
-exit 0
-
 # ───── Check implementations ────────────────────────────────────────────
 
 check_migration_status() {
@@ -227,3 +195,35 @@ check_rollback_dry_run() {
   fi
   return 0
 }
+
+# ───── R26 — Pre-cutover validation ────────────────────────────────────
+
+step "R26.1 schema migration status" check_migration_status
+step "R26.3 PostGIS version >= 3.4"        check_postgis_version
+step "R26.4 e2e suite smoke"               check_e2e_smoke
+step "R30.2 monitoring queries syntax"     check_monitoring_queries
+step "R29.1 snapshot/insert/restore dry-run" check_rollback_dry_run
+
+# ───── Resumen ──────────────────────────────────────────────────────────
+
+END_TIME=$(date +%s)
+TOTAL=$((END_TIME - START_TIME))
+
+echo ""
+echo "════════════════════════════════════════════════════════════"
+echo "  REHEARSAL SUMMARY — $RUN_ID"
+echo "════════════════════════════════════════════════════════════"
+for r in "${RESULTS[@]}"; do
+  echo "  $r"
+done
+echo "────────────────────────────────────────────────────────────"
+echo "  Total: ${TOTAL}s (target: <= 1800s / 30 min)"
+echo "  PASS : $PASS"
+echo "  FAIL : $FAIL"
+echo "  Log  : $LOG_FILE"
+echo "════════════════════════════════════════════════════════════"
+
+if [ "$FAIL" -gt 0 ]; then
+  exit 1
+fi
+exit 0

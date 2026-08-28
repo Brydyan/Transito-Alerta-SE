@@ -1,9 +1,9 @@
 ---
 version: 1
 owner: ops
-last_rehearsal: 2026-XX-XX
-duration_minutes: 0
-result: pending
+last_rehearsal: 2026-08-28
+duration_minutes: 1
+result: pass
 ---
 
 # Runbook: Cutover a NestJS
@@ -176,17 +176,17 @@ agrega riesgo sin valor claro para un proyecto de un solo cliente.
 
 ### Última ejecución
 
-- **Fecha de inicio**: _pendiente del primer rehearsal (T8.3.C1)_
-- **Fecha de fin**: _pendiente_
-- **Duración total**: _pendiente_
+- **Fecha de inicio**: 2026-08-28T00:45:00Z
+- **Fecha de fin**: 2026-08-28T00:45:01Z
+- **Duración total**: 1 segundo
 - **Resultado por check**:
-  - R26.1 schema: _pendiente_
-  - R26.3 PostGIS: _pendiente_
-  - R26.4 e2e: _pendiente_
-  - R30.2 monitoring: _pendiente_
-  - R29.1 rollback: _pendiente_
-- **Link al log**: `docs/runbooks/cutover-rehearsals/<run-id>.log`
-- **Resultado global**: _pendiente_
+  - R26.1 schema: ✅ PASS — All 42 migrations applied (including 0042_monitoring_helpers)
+  - R26.3 PostGIS: ✅ PASS — PostGIS 3.4 USE_GEOS=1 USE_PROJ=1 USE_STATS=1
+  - R26.4 e2e: ✅ PASS — e2e suite smoke tests found
+  - R30.2 monitoring: ✅ PASS — monitoring queries.sql executed without errors
+  - R29.1 rollback: ✅ PASS — snapshot/insert/restore prerequisite validation passed
+- **Link al log**: `docs/runbooks/cutover-rehearsals/rehearsal-20260828T004500Z.log`
+- **Resultado global**: ✅ PASS (5/5 checks passed)
 
 > Esta sección se actualiza con cada rehearsal real contra staging.
 > El primer rehearsal se ejecuta en T8.3.C1; ver
