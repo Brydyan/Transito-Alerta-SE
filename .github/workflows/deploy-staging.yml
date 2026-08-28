@@ -64,12 +64,15 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        env:
+          CI: true
         run: |
           pnpm install --frozen-lockfile
           pnpm run build
 
       - name: Build and start backend + frontend
         env:
+          CI: true
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker compose --profile staging build backend
