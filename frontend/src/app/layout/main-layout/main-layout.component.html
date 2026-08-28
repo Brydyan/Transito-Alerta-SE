@@ -1,0 +1,22 @@
+<div class="flex h-screen w-screen overflow-hidden bg-bg-primary">
+  @if (layoutService.sidebarOpen()) {
+    <button
+      type="button"
+      class="fixed inset-0 z-[1040] bg-black/50 transition-opacity lg:hidden border-0"
+      (click)="layoutService.closeSidebar()"
+      aria-label="Cerrar menú lateral"
+    ></button>
+  }
+
+  <app-sidebar class="layout-sidebar" [class.sidebar-hidden]="!layoutService.sidebarOpen()">
+  </app-sidebar>
+
+  <div class="layout-main-container" [class.sidebar-collapsed]="!layoutService.sidebarOpen()">
+    <app-header class="layout-header"></app-header>
+
+    <main class="flex-grow overflow-y-auto p-8 bg-bg-primary">
+      <app-breadcrumb></app-breadcrumb>
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>

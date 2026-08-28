@@ -1,6 +1,6 @@
 {
-  "project": "sistema-gestion-incidencias",
-  "description": "Sistema web para gestionar incidencias georreferenciadas con historial de estados, asignación de responsables, y más. Backend en Laravel y Frontend VanillaJS.",
+  "project": "transito-alerta-se",
+  "description": "Sistema web para gestionar incidencias georreferenciadas con historial de estados, asignación de responsables, y más. Backend en NestJS y Frontend Angular.",
   "rules": {
     "one_feature_at_a_time": true,
     "require_tests_to_close": true,
@@ -9,304 +9,179 @@
     "sdd_required_when": "feature has \"sdd\": true"
   },
   "features": [
-    {
-      "id": 1,
-      "name": "ejemplo_nueva_feature",
-      "title": "Ejemplo de nueva feature",
-      "description": "Agrega una descripción aquí.",
-      "acceptance": ["Criterio 1", "Criterio 2"],
-      "sdd": true,
-      "status": "blocked"
-    },
-    {
-      "id": 3,
-      "name": "exportar_bd_sql",
-      "title": "Implementar Herramienta de Exportación de Base de Datos",
-      "description": "El sistema debe proveer un mecanismo automatizado (ya sea mediante un comando personalizado de Artisan o un script ejecutable) que genere un volcado (dump) SQL completo de la base de datos actual. Este archivo es un entregable crítico requerido al finalizar el proyecto (UC-12).",
-      "acceptance": [
-        "Existe un comando Artisan (ej. 'php artisan db:dump') o un script automatizado que ejecute el volcado.",
-        "El comando interactúa correctamente con el contenedor de la base de datos definido en 'docker-compose.yml'.",
-        "El archivo resultante es un volcado SQL (.sql) válido, estructurado y autocontenido (datos y esquema).",
-        "El archivo generado se almacena en una ruta segura y parametrizada (ej. 'storage/app/backups/') o se descarga directamente si se expone un endpoint administrativo."
-      ],
-      "sdd": true,
-      "status": "done",
-      "references": [
-        "docs/01_analisis/casos_uso_descripcion.md",
-        "docker-compose.yml"
-      ],
-      "priority": "low"
-    },
-    {
-      "id": 4,
-      "name": "perf_backend_laravel",
-      "title": "Optimización de Rendimiento - Backend (Laravel)",
-      "description": "Auditar y optimizar la capa de la API en Laravel para reducir la latencia de los endpoints y el consumo de recursos mediante la erradicación de consultas ineficientes y estrategias de caché.",
-      "acceptance": [
-        "Se identificaron y erradicaron las consultas N+1 en los endpoints de listado de incidencias y dashboard implementando Eager Loading (with()).",
-        "Se implementó un mecanismo de caché (Redis/File) para catálogos estáticos y las consultas agregadas del esquema OLAP (metrics).",
-        "Los comandos de optimización en producción ('php artisan optimize', 'route:cache', 'config:cache', 'view:cache') se ejecutan correctamente sin romper la aplicación.",
-        "Los logs de la aplicación y herramientas de profiling no registran consultas N+1 activas."
-      ],
-      "sdd": true,
-      "priority": "high",
-      "status": "done",
-      "references": ["app/Http/Controllers/", "app/Models/"]
-    },
-    {
-      "id": 5,
-      "name": "perf_database_postgres",
-      "title": "Optimización de Rendimiento - Base de Datos (PostgreSQL/PostGIS)",
-      "description": "Revisar los planes de ejecución de las consultas más pesadas y aplicar estrategias de indexación y paginación eficiente para optimizar las consultas espaciales y relacionales.",
-      "acceptance": [
-        "Se crearon índices B-Tree en columnas de filtrado frecuente (estado_id, categoria_id, created_at).",
-        "Se configuraron índices GiST para las geometrías y coordenadas manejadas por PostGIS.",
-        "Se reemplazó 'paginate()' por 'simplePaginate()' o 'cursorPaginate()' en los listados masivos para eliminar el costo del COUNT(*).",
-        "El análisis con 'EXPLAIN ANALYZE' demuestra una reducción significativa en el costo de escaneo de las tablas de incidencias."
-      ],
-      "sdd": true,
-      "priority": "high",
-      "status": "done",
-      "references": ["database/migrations/", "docker-compose.yml"]
-    },
-    {
-      "id": 6,
-      "name": "perf_frontend_vanillajs",
-      "title": "Optimización de Rendimiento - Frontend (VanillaJS)",
-      "description": "Optimizar el renderizado del lado del cliente, la carga de recursos estáticos y el comportamiento del mapa interactivo para asegurar una experiencia fluida.",
-      "acceptance": [
-        "Se implementó agrupación de marcadores (Marker Clustering) en el mapa de incidencias usando una librería adecuada (ej. Leaflet.markercluster).",
-        "El mapa carga y renderiza más de 1,000 incidencias simultáneamente sin congelar el hilo principal (main thread) del navegador.",
-        "Los archivos nativos .js y .css se procesan mediante un pipeline de minificación y empaquetado para producción.",
-        "Se aplicó carga diferida (Lazy Loading) a imágenes pesadas, modales y scripts secundarios hasta que el usuario interactúe con ellos.",
-        "El frontend alcanza un puntaje de rendimiento (Performance) de 90+ en Google Lighthouse."
-      ],
-      "sdd": false,
-      "priority": "high",
-      "status": "done",
-      "references": ["public/js/", "public/css/"]
-    },
-    {
-      "id": 7,
-      "name": "perf_infra_docker_nginx",
-      "title": "Optimización de Rendimiento - Infraestructura (Docker/Nginx)",
-      "description": "Ajustar las configuraciones del servidor web Nginx y las variables de entorno/parámetros de memoria del contenedor de la base de datos para soportar cargas pesadas de datos geográficos.",
-      "acceptance": [
-        "Se activó y configuró la compresión GZIP o Brotli en 'nginx.conf' para las respuestas JSON de la API y los assets estáticos.",
-        "Se modificaron los parámetros de tuning de PostgreSQL en 'docker-compose.yml' (o archivo de conf dedicado), incrementando 'shared_buffers' y 'work_mem' para acelerar el procesamiento de PostGIS.",
-        "El tiempo de respuesta promedio global para los endpoints de lectura (GET) de la API se reduce por debajo de los 250ms bajo condiciones normales de red."
-      ],
-      "sdd": true,
-      "priority": "high",
-      "status": "done",
-      "references": ["docker-compose.yml", "docker/nginx/nginx.conf"]
-    },
-    {
-      "id": 8,
-      "name": "global_pagination",
-      "title": "Implementación Global de Paginación en Backend y Frontend",
-      "description": "Estandarizar e implementar la paginación de datos (simplePaginate o cursorPaginate) en todos los controladores REST del backend (Usuarios, Roles, Permisos, Instituciones, etc.) y adaptar los componentes VanillaJS del frontend para soportar controles de navegación (Siguiente, Anterior).",
-      "acceptance": [
-        "Todos los listados masivos en el backend devuelven respuestas paginadas en lugar de colecciones completas (get()).",
-        "Los servicios del frontend (ej. userService, roleService) admiten parámetros de paginación o cursor en el query string.",
-        "Los componentes UI del frontend renderizan controles de 'Siguiente' y 'Anterior' cuando existan múltiples páginas.",
-        "El componente Kanban sigue funcionando correctamente (si carga la data en bulk) o se adaptó para lazy-loading."
-      ],
-      "sdd": true,
-      "priority": "high",
-      "status": "done"
-    },
-    {
-      "id": 9,
-      "name": "rbac_implementation",
-      "title": "Implementar RBAC en toda la aplicación",
-      "description": "Aplicar controles de acceso basados en roles en todo el sistema (backend y frontend).",
-      "acceptance": [
-        "El backend valida permisos usando el middleware para las rutas correspondientes.",
-        "El frontend utiliza los permisos del usuario logueado para mostrar u ocultar opciones y botones."
-      ],
-      "sdd": true,
-      "priority": "high",
-      "status": "done"
-    },
-    {
-      "id": 10,
-      "name": "implement_test_api_controllers",
-      "description": "Implementar test para los controladores del backend.",
-      "acceptance": [
-        "Primero hay que listar todos los controladores en /Http/Controllers/Api/ y cubrir primero los que tienen como maximo 150 lineas para empezar con los más ligeros.",
-        "Los tests deben implementarse en la ruta: backend/api/tests; dependiendo si son tests unitarios (/tests/Unit) o de integración (/tests/Feature)",
-        "Los tests deben utilizar la database que se sigue utilizando, y optimizar las cargas de datos antes haciendo un refresh database.",
-        "No se podrá utilizar sqlite porque algunos datos necesitan ser procesados por PostGis",
-        "Los tests deben implementar un caso por cada método de los controladores",
-        "Los tests deben verificar que se devuelvan las respuestas correctas con el código de estado HTTP correspondiente",
-        "Los tests deben verificar que se manejen correctamente los errores y excepciones",
-        "Los tests deben verificar que se manejen correctamente las peticiones con datos inválidos"
-      ],
-      "sdd": true,
-      "status": "done"
-    },
-    {
-      "id": 11,
-      "name": "complete_backend_test_files_under_50_percent",
-      "description": "Completar los archivos de prueba de los archivos del backend que tienen menos del 50% de cobertura.",
-      "acceptance": [
-        "Primero hay que listar todos los archivos de la ruta backend/api/app, y localizar los que tengan cobertura menor al 50%",
-        "Los archivos de prueba de los archivos del backend que tienen menos del 50% de cobertura se completarán.",
-        "Los archivos de prueba de los archivos del backend que tienen menos del 50% de cobertura se ejecutarán.",
-        "Los archivos de prueba de los archivos del backend que tienen menos del 50% de cobertura se verificarán.",
-        "Debes asegurarte de que la cobertura llegue al menos al 80% para poder pasar al siguiente archivo",
-        "Debes evitar code smells, duplicaciones de código y funciones con muchos 'return' (evitar deuda tecnica).",
-        "Si hay funciones con demasiadas lineas, descomponlas, aplica divide y vencerás",
-        "Si se da el caso, también puedes implementar test unitarios para funciones específicas, ya que hay archivos que no cubren al menos una linea y por eso tienen 100%"
-      ],
-      "sdd": true,
-      "status": "done"
-    },
-    {
-      "id": 12,
-      "name": "refactor_backend_test_files_under_80",
-      "description": "Refactorizar los archivos de prueba de los archivos del backend que tengan cobertura menor al 80%.",
-      "acceptance": [
-        "Primero hay que listar todos los archivos de la ruta backend/api/app, y localizar los que tengan cobertura menor al 80%",
-        "Los archivos de prueba de los archivos del backend que tienen menos del 80% de cobertura se completarán.",
-        "Los archivos de prueba de los archivos del backend que tienen menos del 80% de cobertura se ejecutarán.",
-        "Los archivos de prueba de los archivos del backend que tienen menos del 80% de cobertura se verificarán.",
-        "Debes asegurarte de que la cobertura llegue al menos al 95% para poder pasar al siguiente archivo",
-        "Debes evitar code smells, duplicaciones de código y funciones con muchos 'return' (evitar deuda tecnica).",
-        "Si hay funciones con demasiadas lineas, descomponlas, aplica divide y vencerás",
-        "Implementa tests unitarios para funciones específicas, para evitar lineas rezagadas que puedan no cubrir el objetivo"
-      ],
-      "sdd": true,
-      "status": "done"
-    },
-    {
-      "id": 13,
-      "name": "fix_frontend_issues",
-      "title": "Estabilizar indice de problemas en el frontend",
-      "description": "Corregir los errores y malas practicas encontrados en el frontend",
-      "acceptance": [
-        "Usar el archivo local frontend_issues_list.json como checklist de desarrollo para resolver todas las incidencias de frontend con severidad 'MAJOR' o superior.",
-        "Ejecutar un nuevo análisis completo de SonarQube para actualizar el estado en el servidor.",
-        "Verificar la resolución de forma optimizada consultando a la API (usando `ps=1` y `severities=MAJOR,CRITICAL,BLOCKER`), asegurando que el total de issues abiertas devueltas sea exactamente 0.",
-        "Evitar introducir nuevos code smells, duplicaciones de código o funciones redundantes (deuda técnica).",
-        "Refactorizar funciones excesivamente complejas aplicando modularización (divide y vencerás)."
-      ],
-      "sdd": true,
-      "status": "done"
-    },
-    {
-      "id": 14,
-      "name": "citizen_frictionless_signup",
-      "title": "Registro Público de Ciudadanos sin Fricción",
-      "description": "Implementar el flujo de registro público y ágil para ciudadanos (solo email/username y password) sin confirmación previa por correo/OTP para permitir el reporte inmediato de incidencias.",
-      "acceptance": [
-        "Ajustar la migración de 'users' para garantizar que 'email'/'username' sea único e indexado.",
-        "Crear 'RegisterRequest' validando exclusivamente credenciales mínimas ('email'/'username' y 'password' de mínimo 6 caracteres).",
-        "El método 'AuthController@register' fuerza la asignación del rol 'Ciudadano' e ignora cualquier rol elevado enviado en el payload.",
-        "El registro autoverifica la cuenta ('email_verified_at = now()') y retorna el token (Sanctum/JWT) con HTTP 201 Created para login automático e inmediato.",
-        "Ruta pública expuesta: 'POST /v1/register'.",
-        "Frontend en VanillaJS con validación, deshabilitación de botón durante el envío (previene double-submit) y manejo de errores 422/500."
-      ],
-      "sdd": true,
-      "priority": "high",
-      "status": "done",
-      "references": [
-        "docs/01_analisis/casos_uso_descripcion.md",
-        "routes/api.php",
-        "app/Http/Controllers/AuthController.php",
-        "app/Http/Requests/RegisterRequest.php",
-        "public/js/services/authService.js",
-        "public/js/views/signup.js"
-      ]
-    },
-    {
-      "id": 15,
-      "name": "admin_institutional_onboarding_magic_link",
-      "title": "Alta e Invitación de Usuarios Internos (Admin, Operador, Institución) vía Magic Link / OTP",
-      "description": "Implementar la creación de cuentas con privilegios elevados. La alta es realizada por un Administrador desde un panel interno, enviando una invitación por correo con Magic Link u OTP para la activación y definición de contraseña.",
-      "acceptance": [
-        "Endpoint protegido 'POST /v1/admin/users/invite' restringido a rol 'Admin' mediante middleware RBAC.",
-        "Validador 'InviteUserRequest' requiere: 'email', 'name', 'role' (Admin, Operador, Institución) e 'institution_id' (si aplica).",
-        "El backend genera un token de un solo uso con expiración (24h) y envía una notificación por correo con un Magic Link u OTP.",
-        "El usuario invitado ingresa al Magic Link/pantalla de activación en el Frontend, define su contraseña por primera vez y activa su cuenta.",
-        "El método 'activateAccount' valida el token/OTP, guarda el hash de la contraseña, marca 'email_verified_at = now()' y activa el usuario.",
-        "Soporte para reexpedir enlaces en caso de token expirado (HTTP 403/422).",
-        "Vista en VanillaJS para la gestión de invitaciones (panel Admin) y pantalla de activación de cuenta."
-      ],
-      "sdd": true,
-      "priority": "high",
-      "status": "done",
-      "references": [
-        "docs/01_analisis/casos_uso_descripcion.md",
-        "routes/api.php",
-        "app/Http/Controllers/Admin/UserController.php",
-        "app/Http/Requests/InviteUserRequest.php",
-        "app/Notifications/UserInvitationNotification.php",
-        "public/js/views/admin/users.js",
-        "public/js/views/auth/activate.js"
-      ]
-    },
-    {
-      "id": 16,
-      "name": "cover_frontend_test",
-      "title": "Cobertura de pruebas en el frontend",
-      "description": "Completar los archivos de prueba del frontend de manera procedural, asegurandose de que en cada fase, los test pasen con la cobertura solicitada.",
-      "acceptance": [
-        "Primero hay que listar todos los archivos de la ruta frontend/js",
-        "FASE 1: los test deben cubrir al menos el 75% de cobertura.",
-        "FASE 2: los test deben cubrir al menos el 85% de cobertura.",
-        "FASE 3 FINAL: los test deben cubrir al menos el 95% de cobertura.",
-        "Asegurar que el codigo sea el definido en el .properties de sonarqube",
-        "Debes evitar code smells, duplicaciones de código y funciones con muchos 'return' (evitar deuda tecnica).",
-        "Si hay funciones con demasiadas lineas, descomponlas, aplica divide y vencerás, para una mejor implementación del test"
-      ],
-      "sdd": true,
-      "status": "done",
-      "references": ["sonar-project.properties", "frontend/js/**.test.ts**"]
-    },
-    {
-      "id": 17,
-      "name": "fix_issues_incidents",
-      "title": "Arreglar problemas de sonarqube para el modulo de incidencias",
-      "description": "Completar los archivos de prueba del frontend que tengan cobertura menor al 80%.",
-      "acceptance": [
-        "Usar el archivo local frontend_issues_list.json como checklist de desarrollo para resolver TODOS LOS PROBLEMAS.",
-        "Para resolver TODOS los problemas, debes atender a las indicaciones de cada 'message' en el objeto json del problema.",
-        "Para resolver TODOS los problemas, debes localizar el text range, resolverlo, y verificar que no se genere el mismo caso después de la resolución.",
-        "Ejecutar un nuevo análisis completo de SonarQube para actualizar el estado en el servidor.",
-        "Verificar la resolución de forma optimizada consultando a la API (usando `ps=1` sin parametrizar por severities), asegurando que el total de issues abiertas devueltas sea exactamente 0.",
-        "Evitar introducir nuevos code smells, duplicaciones de código o funciones redundantes (deuda técnica).",
-        "Localizar y refactorizar funciones excesivamente complejas aplicando modularización (divide y vencerás)."
-      ],
-      "sdd": true,
-      "status": "done",
-      "references": ["frontend/js/pages/incidencias/**"]
-    },
-    {
-      "id": 18,
-      "name": "implement_responsive_css",
-      "title": "Implementar estilos CSS responsivos",
-      "description": "Se implementará la responsividad para celulares y estilización correcta de modales llanos.",
-      "acceptance": [
-        "Revisar cada vista del frontend y verificar que se pueda ver correctamente en celulares.",
-        "Se debe usar media queries para ajustar los estilos CSS para celulares.",
-        "Se debe usar responsividad bootstrap si lo amerita",
-        "Revisar responsividad en modulo de estado individual de incidencias, ya que en pantallas pequeñas hay elementos que generan una expansión innecesaria hacia abajo.",
-        "Para los botones de acceso rapido en el dashboard, solo los iconos deben ser visibles para pantallas pequeñas y mantener su responsividad en pantallas grandes debe mostrar el texto y el icono (actualmente)",
-        "Comparar clases en modulos como el de Categorías, que usa un modal pero sin border-radius, buscar las los css centralizados y aplicarselo a los elementos modales que sufran lo mismo. ",
-        "Los modales deben tener un borde ligeramente visible que armonice con la paleta de colores actual y contraste con el fondo sombreado",
-        "revisar en modulos como el de categorias, la tabla no se está renderizando con app-data-table-component"
-      ],
-      "sdd": true,
-      "status": "done",
-      "references": [
-        "frontend/js/pages/incidencias/components/estado-individual-incidencia/**",
-        "frontend/js/pages/dashboard/components/dashboard-index/**",
-        "frontend/js/pages/instituciones/components/kanban/**",
-        "frontend/js/pages/categorias/**",
-        "frontend/js/shared/components/app-data-table/**"
-      ]
-    }
+    [
+      {
+        "id": 1,
+        "name": "migracion_framework_angular",
+        "title": "Migración de Framework: Vanilla JS a Angular 17+ (standalone)",
+        "description": "Configurar la base del proyecto Transito-Alerta-SE utilizando Angular 17+ con componentes standalone para habilitar una arquitectura modular, DI y Type Safety.",
+        "acceptance": [
+          "El proyecto debe compilar utilizando Angular 17+ sin errores.",
+          "Todos los nuevos componentes deben ser definidos como 'standalone: true'.",
+          "No se deben incluir módulos de Angular (NgModule) heredados.",
+          "La estructura debe soportar la inyección de dependencias nativa para los servicios del sistema."
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 2,
+        "name": "configuracion_typescript_estricto",
+        "title": "Configuración de Lenguaje: TypeScript 5.2+",
+        "description": "Implementar TypeScript 5.2+ con reglas estrictas de tipado para reemplazar JavaScript ES6+, garantizando refactorizaciones seguras y soporte robusto en el IDE.",
+        "acceptance": [
+          "El archivo tsconfig.json debe tener activada la bandera 'strict: true'.",
+          "No se permite el uso del tipo 'any' en el nuevo código de la aplicación.",
+          "Todas las interfaces de datos de tránsito deben estar fuertemente tipadas.",
+          "El linter debe fallar si existen variables o parámetros sin tipo definido."
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 3,
+        "name": "estilos_tailwind_css",
+        "title": "Migración de Estilos: Bootstrap 5 a Tailwind CSS 3+",
+        "description": "Reemplazar las dependencias de Bootstrap 5 por Tailwind CSS 3+ (actualmente está con Tailwind css v4) para adoptar un enfoque utility-first, reducir el tamaño del bundle y habilitar dark mode nativo.",
+        "acceptance": [
+          "Las dependencias de Bootstrap deben ser removidas del package.json.",
+          "El archivo tailwind.config.js debe estar configurado y procesar las rutas de los componentes Angular.",
+          "La interfaz debe soportar el cambio a dark mode mediante la clase 'dark' en el elemento raíz.",
+          "Los estilos de los componentes deben usar clases utilitarias de Tailwind en lugar de CSS embebido o selectores Bootstrap."
+        ],
+        "sdd": true,
+        "status": "blocked"
+      },
+      {
+        "id": 4,
+        "name": "estado_reactivo_signals",
+        "title": "Gestión de Estado: Migración de RxJS Observables a Signals con Hidratación v20",
+        "description": "Refactorizar el flujo de datos asíncrono del estado de alertas de tránsito para utilizar Signals nativas de Angular, optimizando el rendimiento del ciclo de vida de hidratación (SSR/SSG) y eliminando suscripciones manuales.",
+        "acceptance": [
+          "El estado global y reactivo de las alertas debe almacenarse y exponerse exclusivamente mediante Signals de solo lectura (Readonly Signals).",
+          "Los flujos asíncronos de la API (HttpClient) deben convertirse a Signals en la capa de servicios utilizando el operador interoperable 'toSignal'.",
+          "La manipulación de datos derivados (filtros, contadores de alertas) debe implementarse estrictamente con la función 'computed' para evitar ejecuciones innecesarias.",
+          "Eliminar por completo el uso de '.subscribe()' y el pipe '| async' en los componentes de este feature, garantizando una hidratación limpia y libre de parpadeos (flickering).",
+          "El manejo de efectos secundarios de red (reintentos con retry, catchError) debe aislarse en el stream de origen de RxJS antes de su conversión a Signal."
+        ],
+        "sdd": true,
+        "status": "blocked"
+      },
+
+      {
+        "id": 5,
+        "name": "persistencia_offline_indexeddb",
+        "title": "Almacenamiento Offline: localStorage a IndexedDB + Service Worker",
+        "description": "Migrar el almacenamiento persistente local simple a IndexedDB asistido por un Service Worker para lograr una estrategia offline-first con sincronización automática.",
+        "acceptance": [
+          "Los reportes de tránsito generados sin conexión deben guardarse en IndexedDB de manera estructurada.",
+          "Se debe registrar e instalar el Service Worker mediante @angular/pwa.",
+          "El Service Worker debe interceptar las peticiones fallidas por falta de red y encolar la sincronización de datos.",
+          "Al recuperar la conexión, el sistema debe vaciar la cola de IndexedDB hacia el servidor de manera automática."
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 6,
+        "name": "automatizacion_build_ngcli",
+        "title": "Optimización de Build: Vite Custom a ng build (Vite/Esbuild)",
+        "description": "Configurar el pipeline de construcción nativo de Angular CLI para automatizar el code splitting, lazy loading y optimización de bundles.",
+        "acceptance": [
+          "El comando 'ng build' debe generar los artefactos utilizando el builder basado en Vite/Esbuild de Angular 17.",
+          "Las rutas principales de la aplicación deben estar configuradas con carga perezosa (loadComponent).",
+          "El tamaño total del bundle inicial de producción no debe exceder los presupuestos (budgets) definidos en angular.json.",
+          "El pipeline de CI/CD debe ejecutar la validación del build sin configuraciones manuales de scripts externos."
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 7,
+        "name": "modulo_autenticacion_angular",
+        "title": "Módulo de Autenticación: Base Auth + Guards",
+        "description": "Implementar el módulo de autenticación (auth/) en Angular, basado en la arquitectura de GeoReporta pero adaptado a JWT y autenticación basada en device UUID contra el backend.",
+        "acceptance": [
+          "Debe existir un AuthService (inyectable globalmente) que consuma /api/auth/login, /api/auth/refresh, /api/auth/me y /api/auth/logout.",
+          "Debe implementarse un AuthGuard para proteger rutas privadas basado en la existencia de sesión activa.",
+          "Debe implementarse un RoleGuard/PermissionGuard análogo al de GeoReporta que verifique los claims (permisos) de req.user.",
+          "Debe implementarse un Interceptor HTTP para adjuntar el Bearer token (access_token) en cada petición y manejar la rotación (refresh_token) en caso de 401 Unauthorized."
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 8,
+        "name": "ui_autenticacion_angular",
+        "title": "UI de Autenticación y Enrutamiento Base",
+        "description": "Crear los componentes visuales de autenticación en /features/auth (como el LoginComponent) basándose en GeoReporta/auth/pages y configurar el enrutamiento principal (app.routes.ts) guiándose de app.router-example.ts. Se utilizarán mocks para el inicio de sesión temporalmente.",
+        "acceptance": [
+          "Debe existir un LoginComponent standalone en src/app/features/auth/login/.",
+          "El LoginComponent debe tener su plantilla HTML basada en GeoReporta pero adaptada a Tailwind CSS.",
+          "Debe configurarse app.routes.ts con la ruta 'login' (lazy loaded) y una redirección por defecto según el estado de la sesión.",
+          "El LoginComponent debe interactuar con AuthService enviando un device_uuid mockeado simulando un login real.",
+          "El enrutamiento debe estar protegido integrando los guards desarrollados en la feature 7."
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 9,
+        "name": "core_models_and_http_wrapper",
+        "title": "Modelos Base y HTTP Wrapper (Angular Services T2)",
+        "description": "Crear las interfaces base (Incident, Comment, Auth) asegurando la compatibilidad de snake_case con el backend y un HttpService centralizado envolviendo HttpClient.",
+        "acceptance": [
+          "Deben existir los modelos de Incident, Comment y Auth en app/models fuertemente tipados.",
+          "Debe implementarse HttpService envolviendo HttpClient de Angular con soporte para GET, POST, PATCH y DELETE.",
+          "Las peticiones deben usar adecuadamente HttpParams cuando sea necesario para los query parameters."
+        ],
+        "references": [
+          "docs/tasks/T2_ANGULAR_SERVICES.md",
+          "src/app/models/incident.model.ts",
+          "src/app/models/comment.model.ts",
+          "src/app/models/auth.model.ts",
+          "src/app/core/services/http.service.ts"
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 10,
+        "name": "api_data_services",
+        "title": "Servicios de Entidades de API (Angular Services T2)",
+        "description": "Desarrollo de servicios Reactivos (RxJS) para interactuar con los endpoints de backend para Incidencias, Comentarios y Notificaciones.",
+        "acceptance": [
+          "IncidentService debe permitir obtener, crear, actualizar y eliminar incidencias manteniendo un estado local reactivo (BehaviorSubject o Signals).",
+          "CommentService debe implementar las peticiones a la API para gestión de comentarios ligados a una incidencia.",
+          "NotificationService debe permitir consultar notificaciones y marcarlas como leídas."
+        ],
+        "references": [
+          "docs/tasks/T2_ANGULAR_SERVICES.md",
+          "src/app/core/services/incident.service.ts",
+          "src/app/core/services/comment.service.ts",
+          "src/app/core/services/notification.service.ts"
+        ],
+        "sdd": true,
+        "status": "done"
+      },
+      {
+        "id": 11,
+        "name": "device_api_services",
+        "title": "Servicios Nativos de Dispositivo (Angular Services T2)",
+        "description": "Abstracción de las APIs del navegador (Geolocalización e Imágenes) en servicios Angular inyectables, completando lo avanzado en la PWA.",
+        "acceptance": [
+          "GeolocationService debe ofrecer observables para obtener ubicación actual y monitorear (watch) los cambios del GPS.",
+          "ImageCompressorService debe permitir reducir el tamaño de imágenes usando Canvas API, exportando a Blob WebP.",
+          "Ambos servicios deben contemplar el manejo de errores si los permisos son denegados o la API no está soportada."
+        ],
+        "references": [
+          "docs/tasks/T2_ANGULAR_SERVICES.md",
+          "src/app/core/services/geolocation.service.ts",
+          "src/app/core/services/image-compressor.service.ts"
+        ],
+        "sdd": true,
+        "status": "done"
+      }
+    ]
   ]
 }

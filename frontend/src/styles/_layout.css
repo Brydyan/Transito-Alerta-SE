@@ -1,0 +1,380 @@
+/* 
+  Layout Styles
+  Global styles for the application shell (Header, Sidebar, Main Layout)
+*/
+
+/* ---------------------------------------------------
+   1. MAIN LAYOUT SHELL
+--------------------------------------------------- */
+.layout-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  height: 100%;
+  background-color: var(--color-brand-navy);
+  border-right: 1px solid var(--color-border-subtle);
+  z-index: 1000;
+  transition:
+    width 0.3s ease-in-out,
+    transform 0.3s ease-in-out,
+    margin-left 0.3s ease-in-out;
+}
+
+.layout-sidebar.sidebar-hidden {
+  transform: translateX(-100%);
+  margin-left: -260px;
+}
+
+.layout-main-container {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  transition: margin-left 0.3s ease-in-out;
+}
+
+.layout-main-container.sidebar-collapsed {
+  margin-left: 0;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1040;
+  transition: opacity 0.3s ease-in-out;
+}
+
+@media (max-width: 991px) {
+  .sidebar-overlay {
+    display: block;
+  }
+
+  .layout-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 1050;
+  }
+
+  .layout-sidebar.sidebar-hidden {
+    transform: translateX(-100%);
+    margin-left: 0;
+  }
+
+  .layout-main-container {
+    width: 100%;
+  }
+
+  .layout-main-container.sidebar-collapsed {
+    margin-left: 0;
+  }
+}
+
+@media (min-width: 992px) {
+  .sidebar-overlay {
+    display: none !important;
+  }
+
+  .layout-sidebar.sidebar-hidden {
+    transform: none !important;
+    margin-left: 0 !important;
+    width: 70px !important;
+
+    /* Center navigation items list */
+    .nav {
+      align-items: center !important;
+    }
+
+    /* Hide text labels */
+    .link-text {
+      display: none !important;
+    }
+
+    /* Hide dropdown chevron icons */
+    .bi-chevron-down {
+      display: none !important;
+    }
+
+    /* Hide submenus completely when collapsed */
+    .btn-toggle-nav {
+      display: none !important;
+    }
+
+    /* Center and shrink brand section */
+    .sidebar-brand {
+      height: 64px !important;
+      padding: 0 !important;
+      justify-content: center !important;
+
+      h5 {
+        display: none !important;
+      }
+    }
+
+    .brand-logo {
+      margin-bottom: 0 !important;
+      width: 32px !important;
+      height: 32px !important;
+    }
+
+    /* Transform menu buttons to centered circular buttons */
+    .nav-link-custom {
+      margin: 8px auto !important;
+      padding: 0 !important;
+      width: 44px !important;
+      height: 44px !important;
+      border-radius: 50% !important;
+      justify-content: center !important;
+      border-left: none !important;
+
+      i,
+      .material-symbols-outlined {
+        margin-right: 0 !important;
+        font-size: 1.25rem !important;
+      }
+
+      &.active {
+        background-color: var(--color-brand-navy-light) !important;
+        color: white !important;
+        border-left: none !important;
+      }
+
+      &:hover {
+        transform: scale(1.05);
+      }
+    }
+  }
+}
+
+/* ---------------------------------------------------
+   2. HEADER SPECIFICS
+--------------------------------------------------- */
+.btn-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+  text-decoration: none;
+}
+
+.btn-icon:hover {
+  background-color: var(--color-bg-primary);
+  color: var(--color-brand-navy) !important;
+}
+
+.dropdown {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 1000;
+  display: none;
+  min-width: 10rem;
+  padding: 0.5rem 0;
+  margin: 0;
+  font-size: 1rem;
+  color: #212529;
+  text-align: left;
+  list-style: none;
+  background-color: #fff;
+  background-clip: padding-box;
+  border: 1px solid var(--border-color, #cbd5e1) !important;
+  border-radius: 0.5rem;
+  box-shadow:
+    0 10px 15px -3px rgba(15, 23, 42, 0.08),
+    0 4px 6px -2px rgba(15, 23, 42, 0.04) !important;
+}
+
+.dropdown-menu.show {
+  display: block;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  clear: both;
+  font-weight: 400;
+  color: #212529;
+  text-align: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  background-color: transparent;
+  border: 0;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  color: var(--color-brand-navy) !important;
+  background-color: var(--color-bg-primary) !important;
+}
+
+.dropdown-item.text-danger:hover {
+  color: var(--color-status-critical) !important;
+  background-color: #fee2e2 !important;
+}
+
+.dropdown-divider {
+  height: 0;
+  margin: 0.5rem 0;
+  overflow: hidden;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.avatar:hover {
+  opacity: 0.9;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------
+   3. SIDEBAR STYLING
+--------------------------------------------------- */
+.sidebar-brand {
+  height: 64px;
+  padding: 0 1.5rem 0 2rem; /* Matches the 64px header height and aligns logo with menu icons */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-nav {
+  padding-top: 0.75rem !important; /* 12px padding top + 4px menu item margin = 16px spacing below divider */
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-link-custom {
+  margin: 4px 14px;
+  padding: 0.7rem 1.1rem;
+  font-size: 0.925rem;
+  font-weight: 500;
+  color: #94A3B8;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-left: 4px solid transparent;
+}
+
+.nav-link-custom:hover {
+  background-color: var(--color-brand-navy-light);
+  color: white !important;
+}
+
+.nav-link-custom i,
+.nav-link-custom .material-symbols-outlined {
+  display: inline-block;
+  font-size: 1.25rem; /* Material Symbols look better at 1.25rem (20px) */
+  transition: transform 0.2s ease-in-out;
+}
+
+.nav-link-custom .bi-chevron-down {
+  font-size: 0.8rem;
+  margin-right: 0.75rem; /* Separar el chevron del borde derecho */
+}
+
+.rotate-icon {
+  transform: rotate(-180deg);
+}
+
+.nav-link-custom.active,
+.nav-link.active {
+  background-color: var(--color-brand-navy-light) !important;
+  color: white !important;
+  font-weight: 600;
+  border-left: 4px solid var(--color-brand-hivis) !important;
+
+  i {
+    color: var(--color-brand-hivis) !important;
+  }
+}
+
+.nav-link-sub {
+  color: #94A3B8;
+  text-decoration: none;
+  padding: 0.55rem 1rem 0.55rem 1.75rem;
+  margin: 2px 14px;
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+}
+
+.nav-link-sub:hover {
+  background-color: var(--color-brand-navy-light);
+  color: white;
+}
+
+.nav-link-sub.active {
+  background-color: var(--color-brand-navy-light) !important;
+  color: white !important;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------
+   4. SIDEBAR SEARCH
+--------------------------------------------------- */
+.sidebar-search {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+  .input-group-text,
+  .form-control {
+    border-color: rgba(255, 255, 255, 0.1);
+    background-color: transparent;
+    color: white;
+    font-size: 0.875rem;
+  }
+
+  .form-control:focus {
+    border-color: var(--color-brand-hivis);
+  }
+
+  .sidebar-search-clear {
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #94A3B8;
+    font-size: 0.65rem;
+    text-decoration: none;
+  }
+}
+
+.sidebar-search-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #94A3B8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+
+  &:hover {
+    background-color: var(--color-brand-navy-light);
+    color: white !important;
+  }
+}
+
+.sidebar-empty-state {
+  font-size: 0.85rem;
+
+  .bi-search {
+    font-size: 1.25rem;
+    opacity: 0.4;
+  }
+}

@@ -1,0 +1,45 @@
+<div class="accept-invitation-container">
+  <h2>Aceptar invitación</h2>
+
+  <!-- Loading preview -->
+  <p class="muted" *ngIf="loading() && !invitation()">Cargando invitación…</p>
+
+  <!-- Preview failed / no token: no form, error only -->
+  <p class="error banner" *ngIf="errorMessage() && !invitation()">{{ errorMessage() }}</p>
+
+  <!-- Preview succeeded: show invitation details + password form -->
+  <ng-container *ngIf="invitation() as preview">
+    <p class="muted invitation-summary">
+      Te invitó <strong>{{ preview.inviter_name || 'un administrador' }}</strong>
+      a unirte a <strong>{{ preview.organization_name || 'la organización' }}</strong>
+      como <strong>{{ preview.role_name }}</strong>.
+    </p>
+    <p class="muted expires">
+      Esta invitación expira el {{ preview.expires_at | date: 'medium' }}.
+    </p>
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <label>
+        <span>Contraseña (mín. 12 caracteres)</span>
+        <input type="password" formControlName="password" autocomplete="new-password" />
+        <small class="error" *ngIf="f['password'].touched && f['password'].invalid">
+          Debe tener al menos 12 caracteres.
+        </small>
+        <small class="error" *ngIf="fieldErrors()['password']">
+          {{ fieldErrors()['password']?.join(' ') }}
+        </small>
+      </label>
+
+      <p class="error banner" *ngIf="errorMessage()">{{ errorMessage() }}</p>
+
+      <button type="submit" [disabled]="loading() || form.invalid">
+        <span *ngIf="!loading()">Crear cuenta</span>
+        <span *ngIf="loading()">Creando…</span>
+      </button>
+    </form>
+  </ng-container>
+
+  <p>
+    ¿Ya tenés cuenta? <a routerLink="/login">Iniciar sesión</a>
+  </p>
+</div>

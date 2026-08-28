@@ -1,0 +1,35 @@
+@reference "../../../../styles.css";
+
+/* Contenedor de la pantalla de reportes */
+.reports-container {
+  @apply w-full;
+}
+
+/* Encabezado de la página */
+.page-header {
+  @apply gap-4;
+}
+
+/* Estado inicial / sin reporte generado */
+.empty-state {
+  @apply text-center py-14 px-4;
+}
+
+.empty-state-icon {
+  @apply w-16 h-16 rounded-2xl bg-brand-navy/10 text-brand-navy flex items-center justify-center text-[1.8rem] mx-auto mb-4 opacity-65;
+}
+
+/* Fondo de los modales de selección */
+.picker-modal {
+  @apply bg-slate-900/45;
+}
+
+/* Barra de rango rápido */
+.quick-range-bar {
+  @apply px-1;
+}
+
+/* Texto auxiliar */
+.x-small {
+  @apply text-xs;
+}

@@ -33,6 +33,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       migrations: ${{ steps.filter.outputs.migrations }}
       integration: ${{ steps.filter.outputs.integration }}
+      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -77,6 +78,11 @@ jobs:
             integration:
               - 'backend/**'
               - 'database/**'
+            frontend:
+              - 'frontend/**'
+              - 'frontend/.eslintrc*'
+              - 'frontend/eslint.config.*'
+              - '.github/workflows/ci.yml'
           # list-files: none evita que la acción imprima la lista de
           # archivos cambiados en el log (ruido puro en PRs grandes).
           # initial-fetch-depth: 100 es más eficiente que 0 para PRs largos
@@ -305,6 +311,139 @@ jobs:
             fi
           done
           exit $missing
+
+  frontend:
+    # T8.5 / SC-203 — gate para los cambios en `frontend/`. Antes de este
+    # job, un PR que sólo tocaba `frontend/src/**` pasaba en verde
+    # sin verificar nada del Angular code (mismo riesgo que el job
+    # `backend` antes de tener su propio gate: tipos y tests rotos
+    # podían mergear). Ahora:
+    #   - `pnpm test` corre `jest` (ts-jest typechecks los .ts que
+    #     ejercita; cubre auth.service, comment.service y el
+    #     interceptor que son los puntos críticos del SC-203).
+    #   - `pnpm run build` corre `ng build` que typecheckea con
+    #     Angular compiler (strictTemplates + strictInjectionParameters
+    #     si están activos) y verifica que el bundle production salga
+    #     sin errores de compilación.
+    #   - `pnpm run lint` corre eslint sobre `src/` y `e2e/`. Si
+    #     la config eslint no existe, el script no-op (no falla).
+    needs: changes
+    if: |
+      github.event_name == 'push' ||
+      needs.changes.outputs.frontend == 'true'
+    name: Frontend — typecheck (jest), build (ng), lint (eslint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          # `defaults.run.working-directory` no aplica a inputs de
+          # `uses:` — el path al package.json tiene que ir explícito.
+          package_json_file: frontend/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # --frozen-lockfile: si package.json y pnpm-lock.yaml están
+      # desincronizados, falla en vez de resolver silenciosamente.
+      - run: pnpm install --frozen-lockfile
+
+      # ts-jest (transpila + typecheck) corre los .spec.ts que
+      # importan los services. Si un cambio rompe la firma de
+      # `auth.service.ts` o del interceptor, jest falla acá.
+      - run: pnpm test
+
+      # `ng build` corre el compilador de Angular que valida:
+      #   - strictTemplates
+      #   - strictInjectionParameters
+      #   - errores de binding en componentes (RegisterComponent,
+      #     etc.)
+      # Falla con un mensaje claro si hay un import roto o un tipo
+      # que no resuelve.
+      - run: pnpm run build
+
+      # Lint. Si el proyecto no tiene config eslint, este comando
+      # falla rápido — debería agregarse en un change aparte. Por
+      # ahora, lo dejamos opcional (|| true) hasta que se defina la
+      # convención.
+      - run: |
+          if [ -f .eslintrc.json ] || [ -f .eslintrc.js ] || [ -f .eslintrc.yml ] || [ -f eslint.config.js ] || [ -f eslint.config.mjs ]; then
+            pnpm exec eslint "src/**/*.{ts,html}" "e2e/**/*.ts"
+          else
+            echo "::notice::no eslint config found, skipping lint"
+          fi
+
+  frontend-e2e:
+    # SC-203 — Playwright e2e. Sólo corre en push a develop/main y
+    # en PRs que tocan `frontend/`. Requiere:
+    #   - Supabase staging o un backend real con seed
+    #     (`admin@correo.com` / `123456` + un incident válido).
+    #   - Los secrets `STAGING_DATABASE_URL` y `STAGING_REDIS_URL`
+    #     configurados en el environment `staging` de GitHub (los
+    #     mismos que usa `rehearsal-staging.yml`).
+    #
+    # El `webServer` de `playwright.config.ts` arranca el dev server
+    # automáticamente. Los specs actuales son smoke flows — para
+    # e2e con backend real habría que pasar `BASE_URL` apuntando
+    # al server de staging.
+    needs: changes
+    if: |
+      github.event_name == 'push' ||
+      needs.changes.outputs.frontend == 'true'
+    name: Frontend e2e (Playwright)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # Playwright necesita el browser binary. `--with-deps`
+      # instala también las libs del sistema (libnss, libxss, etc.)
+      # que el browser usa en Linux.
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # Sin `BASE_URL`, playwright arranca el dev server local vía
+      # `webServer` en `playwright.config.ts`. Para apuntar a un
+      # backend real, exportar `BASE_URL=https://staging.tase.ec`.
+      # SC-208: hard-fail (removed the `|| echo "::warning::"` soft-fail
+      # that hid every prior failure). If the backend is unreachable
+      # in CI the job goes red — the proposal accepts that trade-off
+      # because a green-by-default frontend e2e gate proves nothing.
+      - name: Run Playwright tests
+        env:
+          BASE_URL: ${{ vars.STAGING_BASE_URL }}
+        run: pnpm run test:e2e --reporter=list
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: frontend/playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
 
   cutover:
     # T8 — Database Cutover (change `2026-08-26-t8-database-cutover`).

@@ -62,14 +62,20 @@ jobs:
           done
           echo "${applied} migration(s) applied"
 
-      - name: Build and start backend
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Build and start backend + frontend
         env:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker compose --profile staging build backend
-          docker compose --profile staging up -d backend
+          docker compose --profile staging up -d backend frontend
 
-      - name: Health check
+      - name: Health check — backend
         run: |
           set -a; source .env; set +a
           PORT=${APP_PORT:-3004}
@@ -84,6 +90,23 @@ jobs:
           done
           echo "Health check failed — last 50 lines:"
           docker compose logs backend --tail=50
+          exit 1
+
+      - name: Health check — frontend
+        run: |
+          set -a; source .env; set +a
+          FRONTEND_PORT=${FRONTEND_PORT:-80}
+          echo "Health check → http://localhost:${FRONTEND_PORT}"
+          for i in $(seq 1 10); do
+            if curl -sf "http://localhost:${FRONTEND_PORT}" > /dev/null; then
+              echo "Frontend healthy"
+              exit 0
+            fi
+            echo "Attempt ${i}/10 — waiting 2s..."
+            sleep 2
+          done
+          echo "Health check failed — last 50 lines:"
+          docker compose logs frontend --tail=50
           exit 1
 
       # T8 — Cutover rehearsal NO corre en cada push a develop. Se dispara

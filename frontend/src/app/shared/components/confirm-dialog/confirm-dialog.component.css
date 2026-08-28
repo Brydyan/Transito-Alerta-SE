@@ -1,0 +1,4 @@
+/* Confirm Dialog inherits global modal classes from src/styles/_modals.css */
+.modal-card-sm {
+  max-width: 440px !important;
+}

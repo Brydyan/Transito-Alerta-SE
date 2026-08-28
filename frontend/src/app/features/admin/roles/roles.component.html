@@ -1,0 +1,52 @@
+<div class="p-4 w-full">
+  <div class="flex flex-col">
+    <div class="w-full">
+      <h2 class="mb-4 text-2xl font-bold text-slate-800">Configuración de roles</h2>
+
+      @if (isLoading()) {
+        <div class="flex justify-center py-12">
+          <div class="spinner-border text-brand-navy w-8 h-8 border-2" role="status">
+            <span class="sr-only">Cargando...</span>
+          </div>
+        </div>
+      } @else if (errorMessage()) {
+        <div class="bg-status-critical/10 border border-status-critical/30 text-status-critical px-4 py-3 rounded mb-4 flex items-center gap-2">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span>{{ errorMessage() }}</span>
+          <button class="btn btn-primary bg-status-critical hover:bg-status-critical/80 ml-auto text-sm px-3 py-1 border-0" (click)="ngOnInit()">
+            Reintentar
+          </button>
+        </div>
+      } @else if (roles().length === 0) {
+        <div class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded flex items-center gap-2">
+          <i class="bi bi-info-circle"></i>
+          No hay roles configurados en el sistema.
+        </div>
+      } @else {
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-2">
+          @for (role of roles(); track role.rolId) {
+            <div
+              class="card h-full border border-border-subtle shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              [routerLink]="[role.rolId]"
+            >
+              <div class="card-body flex items-center gap-3 p-4">
+                <div
+                  class="rounded-full bg-brand-navy/10 p-2 flex items-center justify-center w-11 h-11"
+                >
+                  <i class="bi bi-shield-lock text-brand-navy text-lg"></i>
+                </div>
+                <div>
+                  <h5 class="font-semibold text-slate-800 mb-0">{{ role.nombre }}</h5>
+                  <small class="text-slate-500 text-sm">Configurar permisos</small>
+                </div>
+                <i class="bi bi-chevron-right text-slate-500 ml-auto"></i>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<router-outlet></router-outlet>

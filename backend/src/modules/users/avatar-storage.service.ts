@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { createHash, randomUUID } from 'crypto';
+import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { IStorageClient, STORAGE_CLIENT } from '../../core/storage/storage-client.interface';
 
 export interface UploadedFile {
   buffer: Buffer;
@@ -8,28 +9,25 @@ export interface UploadedFile {
 }
 
 /**
- * AvatarStorageService (T2.3) — multipart upload -> S3 -> signed URL.
- *
- * NOTE: this is a thin, swappable abstraction, not the AWS SDK — pulling in
- * @aws-sdk/client-s3 was out of scope for this batch (not in the explicit
- * dependency list). `upload()` is the seam a real S3 client plugs into;
- * tests mock this whole service, so nothing here ever makes a live call.
+ * AvatarStorageService (T2.3, SC-209 Phase A design D2 — avatar follow-up
+ * wired in the same batch) — multipart upload -> IStorageClient (Supabase
+ * in prod, noop locally, D1) -> signed URL. SHA-256 placeholder removed;
+ * key generation stays here, byte persistence + URL resolution delegated
+ * to the injected client. No `delete()` here — design D2: the two
+ * services' contracts differ, avatars are never explicitly deleted today.
  * Object key convention: `avatars/{userId}/{uuid}-{originalname}`.
  */
 @Injectable()
 export class AvatarStorageService {
+  constructor(@Inject(STORAGE_CLIENT) private readonly client: IStorageClient) {}
+
   async upload(userId: string, file: UploadedFile): Promise<string> {
     const key = `avatars/${userId}/${randomUUID()}-${file.originalname}`;
-    return this.getSignedUrl(key);
+    const { url } = await this.client.upload(key, file.buffer, file.mimetype);
+    return url;
   }
 
-  /**
-   * Deterministic placeholder "signed" URL (real impl: S3
-   * getSignedUrl/pre-signed PUT/GET). Kept pure/side-effect-free so it is
-   * trivially testable without network access.
-   */
-  getSignedUrl(key: string): string {
-    const signature = createHash('sha256').update(key).digest('hex').slice(0, 16);
-    return `https://storage.example.com/${key}?sig=${signature}`;
+  getSignedUrl(key: string): Promise<string> {
+    return this.client.getSignedUrl(key);
   }
 }

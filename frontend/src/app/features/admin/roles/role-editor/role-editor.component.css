@@ -1,0 +1,56 @@
+@reference "../../../../../styles.css";
+
+.role-editor-container {
+  @apply w-full;
+}
+
+.search-group {
+  .form-control:focus {
+    @apply border-border-subtle;
+  }
+}
+
+/* Tabla estándar del sistema */
+.custom-table {
+  thead th {
+    @apply bg-slate-50 border-b border-border-subtle py-3 px-4 text-xs uppercase tracking-wider text-slate-500 font-semibold;
+  }
+
+  tbody td {
+    @apply py-3 px-4 border-b border-slate-100;
+  }
+}
+
+.module-row {
+  @apply transition-colors duration-150 ease-in-out;
+
+  &:hover {
+    @apply bg-slate-50;
+  }
+}
+
+.table-checkbox {
+  @apply cursor-pointer rounded;
+}
+
+.permission-pill {
+  @apply text-xs bg-white border border-border-subtle select-none transition-all duration-150 ease-in-out;
+
+  &:hover {
+    @apply border-brand-navy;
+  }
+
+  &.active-pill {
+    @apply bg-brand-navy/10 border-brand-navy/40 text-brand-navy;
+  }
+}
+
+.expanded-detail-row {
+  td {
+    @apply bg-slate-50 border-t-0;
+  }
+}
+
+.x-small {
+  @apply text-[0.72rem];
+}

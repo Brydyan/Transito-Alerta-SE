@@ -1,0 +1,49 @@
+.error-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #e0f7fa 0%, #b3e5fc 100%);
+}
+
+.error-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 3rem 2.5rem;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+}
+
+.mascot-wrapper {
+  margin-bottom: 1.5rem;
+}
+
+.mascot-img {
+  width: 200px;
+  max-width: 100%;
+  height: auto;
+}
+
+.error-code {
+  font-size: 4rem;
+  font-weight: 800;
+  color: #0277bd;
+  margin: 0;
+  line-height: 1;
+}
+
+.error-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0.5rem 0;
+}
+
+.error-desc {
+  font-size: 1rem;
+  color: #64748b;
+  margin-bottom: 2rem;
+}

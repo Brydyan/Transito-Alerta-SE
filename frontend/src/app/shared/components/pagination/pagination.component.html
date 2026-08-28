@@ -1,0 +1,86 @@
+<div class="pagination-container flex justify-between items-center flex-wrap gap-4 w-full">
+  <!-- Left Side: Total and Range Info -->
+  <div class="flex items-center gap-4 flex-wrap">
+    @if (showTotal() || showRange()) {
+      <span class="text-muted-text text-sm whitespace-nowrap">
+        @if (showRange()) {
+          Mostrando <strong class="font-semibold text-dark-text">{{ startRange() }}-{{ endRange() }}</strong> de
+        }
+        <strong class="font-semibold text-dark-text">{{ totalItems() }}</strong>
+        {{ totalItems() === 1 ? itemNameSingular() : itemNamePlural() }}
+      </span>
+    }
+
+    <!-- Page Size Select -->
+    @if (showPageSize()) {
+      <div class="flex items-center gap-2">
+        <span class="text-muted-text text-sm whitespace-nowrap">Mostrar:</span>
+        <select
+          class="form-control form-select-sm shadow-none py-1 pl-2 pr-8 text-sm"
+          (change)="onPageSizeChange($event)"
+        >
+          @for (opt of pageSizeOptions(); track opt) {
+            <option [value]="opt" [selected]="opt === pageSize()">{{ opt }}</option>
+          }
+        </select>
+      </div>
+    }
+  </div>
+
+  <!-- Right Side: Navigation buttons -->
+  <nav aria-label="Navegación de páginas">
+    <ul class="flex items-center gap-1 m-0 p-0 list-none">
+      <!-- Previous Button -->
+      <li [class.opacity-50]="currentPage() === 1" [class.pointer-events-none]="currentPage() === 1">
+        <a
+          class="border-none text-dark-text bg-transparent font-medium text-sm inline-flex items-center px-2 py-1.5 hover:text-primary-color transition-colors no-underline"
+          href="#"
+          (click)="onPrevious($event)"
+          [attr.tabindex]="currentPage() === 1 ? -1 : null"
+          [attr.aria-disabled]="currentPage() === 1"
+        >
+          <i class="bi bi-chevron-left mr-1 text-xs"></i>
+          Anterior
+        </a>
+      </li>
+
+      <!-- Page Numbers -->
+      @for (page of pages(); track $index) {
+        @if (page === '...') {
+          <li class="opacity-50 pointer-events-none">
+            <span class="border-none bg-transparent text-muted-text px-2 py-1.5 flex items-center justify-center">...</span>
+          </li>
+        } @else {
+          <li [attr.aria-current]="currentPage() === page ? 'page' : null">
+            <a
+              class="font-semibold inline-flex items-center justify-center min-w-[32px] h-[32px] rounded-lg transition-all text-sm no-underline"
+              [class.bg-primary-color]="currentPage() === page"
+              [class.text-white]="currentPage() === page"
+              [class.shadow-md]="currentPage() === page"
+              [class.text-dark-text]="currentPage() !== page"
+              [class.hover:bg-primary-color/10]="currentPage() !== page"
+              href="#"
+              (click)="onPageClick(page, $event)"
+            >
+              {{ page }}
+            </a>
+          </li>
+        }
+      }
+
+      <!-- Next Button -->
+      <li [class.opacity-50]="currentPage() === totalPages()" [class.pointer-events-none]="currentPage() === totalPages()">
+        <a
+          class="border-none text-dark-text bg-transparent font-medium text-sm inline-flex items-center px-2 py-1.5 hover:text-primary-color transition-colors no-underline"
+          href="#"
+          (click)="onNext($event)"
+          [attr.tabindex]="currentPage() === totalPages() ? -1 : null"
+          [attr.aria-disabled]="currentPage() === totalPages()"
+        >
+          Siguiente
+          <i class="bi bi-chevron-right ml-1 text-xs"></i>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</div>

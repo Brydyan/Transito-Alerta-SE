@@ -1,0 +1,347 @@
+<div class="system-config-container p-4 w-full">
+  <!-- Page Header -->
+  <div class="page-header mb-6">
+    <div>
+      <h3 class="font-bold mb-1 text-slate-800 text-2xl">Configuraciones del Sistema</h3>
+      <p class="text-slate-500 text-sm mb-0">
+        Variables globales del sistema, opciones de formato de reportes y parámetros de caché.
+      </p>
+    </div>
+  </div>
+
+  <!-- Main Card Table -->
+  <div class="card border-none shadow-sm rounded-lg mb-6 overflow-hidden">
+    <!-- Toolbar: Acción a la izquierda y buscador/acciones a la derecha -->
+    <div
+      class="card-header bg-bg-secondary border-b-0 pt-6 pb-4 px-6 flex justify-between items-center flex-wrap gap-4"
+    >
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          class="btn btn-primary flex items-center gap-2 font-medium px-4 py-2"
+          (click)="openCreateModal()"
+        >
+          <i class="bi bi-plus-lg"></i>
+          Nueva Configuración
+        </button>
+      </div>
+
+      <div class="flex items-center gap-3 flex-wrap">
+        <!-- Search Input -->
+        <div class="relative w-80">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+            <i class="bi bi-search"></i>
+          </span>
+          <input
+            type="text"
+            class="form-control pl-9"
+            placeholder="Buscar por clave, valor o descripción..."
+            [(ngModel)]="searchQuery"
+          />
+          @if (searchQuery) {
+            <button
+              class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
+              type="button"
+              (click)="searchQuery = ''"
+            >
+              <i class="bi bi-x-circle-fill"></i>
+            </button>
+          }
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-outline-secondary flex items-center gap-2 font-medium px-4 py-2"
+          (click)="loadConfigs()"
+          [disabled]="isLoading"
+        >
+          <i class="bi bi-arrow-clockwise" [class.spin]="isLoading"></i>
+          Refrescar
+        </button>
+
+        @if (selectedClaves.size > 0) {
+          <span class="badge bg-brand-navy/10 text-brand-navy px-3 py-1.5 rounded-full text-sm">
+            {{ selectedClaves.size }} seleccionado(s)
+          </span>
+        }
+
+        <div class="text-slate-500 text-sm ml-2">
+          Total: <strong class="text-slate-800">{{ configs.length }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Body -->
+    <div class="pt-2">
+      @if (isLoading) {
+        <div class="p-6">
+          <app-table-skeleton [rows]="4" [cols]="6" />
+        </div>
+      } @else if (filteredConfigs.length === 0) {
+        <app-empty-state
+          icon="bi bi-sliders"
+          title="No se encontraron configuraciones"
+          description="No existen variables registradas o ninguna coincide con la búsqueda."
+        />
+      } @else {
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse custom-config-table">
+            <thead class="bg-slate-50 border-b border-border-subtle">
+              <tr>
+                <th scope="col" class="pl-6 py-3 w-12">
+                  <input
+                    class="form-check-input table-checkbox m-0"
+                    type="checkbox"
+                    [checked]="isAllSelected"
+                    [indeterminate]="isIndeterminate"
+                    (change)="toggleSelectAll()"
+                    aria-label="Seleccionar todas las configuraciones"
+                  />
+                </th>
+                <th class="py-3 px-4 font-semibold text-slate-500 text-sm min-w-[200px]">Clave</th>
+                <th class="py-3 px-4 font-semibold text-slate-500 text-sm min-w-[220px]">Valor Actual</th>
+                <th class="py-3 px-4 font-semibold text-slate-500 text-sm">Descripción</th>
+                <th class="py-3 px-4 font-semibold text-slate-500 text-sm whitespace-nowrap">Última Actualización</th>
+                <th class="py-3 px-4 font-semibold text-slate-500 text-sm text-center pr-6 w-20">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of filteredConfigs; track c.clave) {
+                <tr [class.bg-brand-navy/5]="isSelected(c.clave)" class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                  <td class="pl-6 py-3">
+                    <input
+                      class="form-check-input table-checkbox m-0"
+                      type="checkbox"
+                      [checked]="isSelected(c.clave)"
+                      (change)="toggleSelect(c.clave, $event)"
+                      aria-label="Seleccionar configuración"
+                    />
+                  </td>
+                  <td class="py-3 px-4">
+                    <div class="flex items-center gap-2">
+                      <span class="inline-block bg-slate-100 text-slate-800 font-mono text-sm border border-slate-200 rounded px-2 py-1">
+                        {{ c.clave }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="py-3 px-4">
+                    @if (isReportStyleConfig(c)) {
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="badge rounded-full px-2.5 py-1 text-xs font-medium flex items-center"
+                          [ngClass]="
+                            c.valor === 'modern' ? 'bg-status-success/10 text-status-success' : 'bg-slate-200 text-slate-800'
+                          "
+                        >
+                          <i
+                            class="bi mr-1.5"
+                            [ngClass]="c.valor === 'modern' ? 'bi-stars' : 'bi-clock-history'"
+                          ></i>
+                          {{ c.valor | uppercase }}
+                        </span>
+                        <button
+                          type="button"
+                          class="btn btn-outline-primary py-0.5 px-2.5 text-xs rounded border"
+                          (click)="toggleReportStyle(c)"
+                          title="Alternar estilo entre Modern y Legacy"
+                        >
+                          Cambiar a {{ c.valor === 'modern' ? 'legacy' : 'modern' }}
+                        </button>
+                      </div>
+                    } @else {
+                      <span
+                        class="inline-block font-mono text-brand-navy font-semibold bg-slate-100 px-2 py-1 rounded border border-slate-200 text-sm"
+                      >
+                        {{ c.valor }}
+                      </span>
+                    }
+                  </td>
+                  <td class="py-3 px-4">
+                    <span class="text-slate-500 text-sm">
+                      {{ c.descripcion || '—' }}
+                    </span>
+                  </td>
+                  <td class="whitespace-nowrap text-sm text-slate-500 py-3 px-4">
+                    {{ c.updatedAt | date: 'dd/MM/yyyy HH:mm' }}
+                  </td>
+                  <td class="text-center pr-6 py-3 relative">
+                    <div>
+                      <button
+                        class="text-slate-500 hover:text-slate-800 p-1 transition-colors"
+                        type="button"
+                        (click)="toggleDropdown(c.clave, $event)"
+                        aria-label="Menú de opciones"
+                      >
+                        <i class="bi bi-three-dots-vertical"></i>
+                      </button>
+                      
+                      @if (openDropdownClave === c.clave) {
+                        <ul
+                          class="absolute right-6 top-10 bg-bg-secondary shadow-[0_4px_6px_-1px_rgba(30,30,84,0.05)] rounded-md border border-border-subtle py-1 min-w-[155px] z-10 text-left"
+                        >
+                          @if (isReportStyleConfig(c)) {
+                            <li>
+                              <button
+                                class="w-full text-left px-4 py-2 text-sm text-brand-navy hover:bg-slate-50 flex items-center gap-2"
+                                type="button"
+                                (click)="toggleReportStyle(c)"
+                              >
+                                <i class="bi bi-arrow-repeat text-sm"></i>
+                                Alternar estilo
+                              </button>
+                            </li>
+                          }
+                          <li>
+                            <button
+                              class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                              type="button"
+                              (click)="openEditModal(c)"
+                            >
+                              <i class="bi bi-pencil text-slate-500 text-sm"></i>
+                              Editar
+                            </button>
+                          </li>
+                          <li>
+                            <hr class="border-border-subtle my-1" />
+                          </li>
+                          <li>
+                            <button
+                              class="w-full text-left px-4 py-2 text-sm text-status-critical hover:bg-status-critical/5 flex items-center gap-2"
+                              type="button"
+                              (click)="deleteConfig(c)"
+                            >
+                              <i class="bi bi-trash text-sm"></i>
+                              Eliminar
+                            </button>
+                          </li>
+                        </ul>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Modal Formulario Configuración -->
+@if (isModalOpen) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+    <div class="bg-bg-secondary rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-border-subtle bg-slate-50 flex items-center justify-between shrink-0">
+        <h5 class="font-bold text-slate-800 text-lg flex items-center gap-2 m-0">
+          <i
+            class="bi"
+            [ngClass]="
+              isEditing ? 'bi-pencil-square text-brand-navy' : 'bi-plus-circle text-brand-navy'
+            "
+          ></i>
+          {{ isEditing ? 'Editar Configuración' : 'Nueva Configuración' }}
+        </h5>
+        <button
+          type="button"
+          class="text-slate-500 hover:text-slate-800 transition-colors"
+          (click)="closeModal()"
+          aria-label="Close"
+        >
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <form [formGroup]="configForm" (ngSubmit)="saveConfig()" class="flex flex-col grow min-h-0">
+        <div class="p-6 overflow-y-auto grow">
+          <!-- Clave -->
+          <div class="mb-4">
+            <label for="configClaveInput" class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
+              Clave de Configuración <span class="text-status-critical">*</span>
+            </label>
+            <input
+              id="configClaveInput"
+              type="text"
+              class="form-control"
+              placeholder="ej: reporte.estilo, NOTIFICACIONES_ENABLED"
+              formControlName="clave"
+              [class.border-status-critical]="
+                configForm.get('clave')?.invalid && configForm.get('clave')?.touched
+              "
+            />
+            @if (configForm.get('clave')?.invalid && configForm.get('clave')?.touched) {
+              <div class="text-status-critical text-xs mt-1">
+                Clave obligatoria (letras, números, puntos o guiones).
+              </div>
+            }
+          </div>
+
+          <!-- Valor -->
+          <div class="mb-4">
+            <label for="configValorInput" class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
+              Valor <span class="text-status-critical">*</span>
+            </label>
+            <input
+              id="configValorInput"
+              type="text"
+              class="form-control"
+              placeholder="ej: modern, 3600000, true"
+              formControlName="valor"
+              [class.border-status-critical]="
+                configForm.get('valor')?.invalid && configForm.get('valor')?.touched
+              "
+            />
+            @if (configForm.get('valor')?.invalid && configForm.get('valor')?.touched) {
+              <div class="text-status-critical text-xs mt-1">El valor es requerido.</div>
+            }
+          </div>
+
+          <!-- Descripción -->
+          <div class="mb-2">
+            <label
+              for="configDescripcionTextarea"
+              class="form-label font-semibold text-slate-800 text-sm mb-1.5 block"
+            >
+              Descripción
+            </label>
+            <textarea
+              id="configDescripcionTextarea"
+              class="form-control"
+              rows="3"
+              placeholder="Explica qué controla esta variable y sus posibles valores..."
+              formControlName="descripcion"
+            ></textarea>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="px-6 py-4 border-t border-border-subtle bg-slate-50 flex justify-end gap-3 shrink-0">
+          <button
+            type="button"
+            class="btn btn-outline-secondary px-5 py-2 font-medium"
+            (click)="closeModal()"
+            [disabled]="isSaving"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="btn btn-primary flex items-center gap-2 px-6 py-2 shadow-sm font-medium"
+            [disabled]="isSaving"
+          >
+            @if (isSaving) {
+              <span class="spinner-border spinner-border-sm w-4 h-4 border-2" role="status"></span>
+            } @else {
+              <i class="bi bi-check-lg"></i>
+            }
+            Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

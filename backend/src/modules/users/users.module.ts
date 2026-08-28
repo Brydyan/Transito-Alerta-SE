@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RoleEntity } from '../../entities/role.entity';
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { UserEntity } from '../../entities/user.entity';
+import { StorageModule } from '../../core/storage/storage.module';
 import { AuthModule } from '../auth/auth.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { AvatarStorageService } from './avatar-storage.service';
@@ -19,12 +20,15 @@ import { UsersService } from './users.service';
  * injection, `recordSession`, `handleAuthLogin`) is REMOVED (D2):
  * `AuthService`, via `SessionsRepository`, is now the sole writer of
  * `user_sessions`.
+ * SC-209 Phase A — imports StorageModule so AvatarStorageService can
+ * @Inject(STORAGE_CLIENT) the real Supabase/noop backend (D1).
  */
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserEntity, RoleEntity, OrganizationEntity]),
     AuthModule,
     SessionsModule,
+    StorageModule,
   ],
   controllers: [UsersController],
   providers: [UsersService, AvatarStorageService],

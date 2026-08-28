@@ -3,3 +3,6 @@ dist/
 coverage/
 .env
 *.log
+
+# NoopStorageClient local dev storage (SC-209 D1)
+.storage/
