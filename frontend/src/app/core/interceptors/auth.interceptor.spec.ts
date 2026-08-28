@@ -1,0 +1,137 @@
+import { TestBed } from '@angular/core/testing';
+import {
+  HTTP_INTERCEPTORS,
+  HttpClient,
+  HttpErrorResponse,
+} from '@angular/common/http';
+import {
+  HttpClientTestingModule,
+  HttpTestingController,
+} from '@angular/common/http/testing';
+import { AuthInterceptor } from './auth.interceptor';
+import { AuthService } from '../services/auth.service';
+
+/**
+ * E3 — auth.interceptor.spec.ts.
+ *
+ * 2nd pass: removed pre-flight refresh tests because the real
+ * `AuthTokens` contract does not expose token expiry, so a
+ * pre-flight check is impossible. The refresh path is now purely
+ * on-401: 401 from a non-login/non-refresh call → refresh+retry.
+ */
+describe('AuthInterceptor', () => {
+  let http: HttpClient;
+  let backend: HttpTestingController;
+  let auth: AuthService;
+
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
+        AuthService,
+      ],
+    });
+    http = TestBed.inject(HttpClient);
+    backend = TestBed.inject(HttpTestingController);
+    auth = TestBed.inject(AuthService);
+  });
+
+  afterEach(() => {
+    backend.verify();
+    localStorage.clear();
+  });
+
+  // ───── E3.1 — JWT injected on authed calls ─────
+  it('attaches Authorization: Bearer <token> when the user is signed in', () => {
+    auth.accessToken.set('jwt-1');
+    http.get('/api/v1/incidents').subscribe();
+    const req = backend.expectOne('/api/v1/incidents');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer jwt-1');
+    req.flush([]);
+  });
+
+  // ───── E3.2 — No JWT on public calls ─────
+  it('does NOT attach Authorization when no token is present', () => {
+    http.get('/api/v1/incidents').subscribe();
+    const req = backend.expectOne('/api/v1/incidents');
+    expect(req.request.headers.has('Authorization')).toBe(false);
+    req.flush([]);
+  });
+
+  // ───── E3.3 — 401 on a regular call → refresh + retry ─────
+  it('on 401 from a regular call, refreshes and retries the original request', () => {
+    auth.accessToken.set('jwt-1');
+    auth.refreshToken.set('rt-1');
+
+    http.get('/api/v1/incidents').subscribe();
+    backend
+      .expectOne('/api/v1/incidents')
+      .flush({ message: 'expired' }, { status: 401, statusText: 'Unauthorized' });
+
+    const refresh = backend.expectOne('/api/v1/auth/refresh');
+    expect(refresh.request.method).toBe('POST');
+    // Real backend contract: refresh_token in body, snake_case.
+    expect(refresh.request.body).toEqual({ refresh_token: 'rt-1' });
+    refresh.flush({
+      access_token: 'jwt-2',
+      refresh_token: 'rt-2',
+      permissions: ['READ incidents'],
+    });
+
+    const retry = backend.expectOne('/api/v1/incidents');
+    expect(retry.request.headers.get('Authorization')).toBe('Bearer jwt-2');
+    retry.flush([]);
+
+    // The post-refresh /me fires too.
+    backend.expectOne('/api/v1/auth/me').flush({
+      user_id: 'user-1',
+      device_uuid: 'dev-1',
+      permissions: ['READ incidents'],
+    });
+  });
+
+  // ───── E3.4 — 401 on the refresh endpoint itself does NOT recurse ─────
+  it('does NOT retry on 401 from /auth/refresh (would loop forever)', () => {
+    auth.accessToken.set('jwt-1');
+    auth.refreshToken.set('rt-1');
+
+    // The refresh endpoint returns 401 (refresh token expired).
+    // The interceptor must surface this error and NOT try to
+    // refresh again — otherwise we'd recurse.
+    const errorSpy = jest.fn();
+    serviceHttpRefreshAndCatch(auth, http, errorSpy);
+
+    backend
+      .expectOne('/api/v1/auth/refresh')
+      .flush({ message: 'expired' }, { status: 401, statusText: 'Unauthorized' });
+
+    expect(errorSpy).toHaveBeenCalled();
+  });
+
+  // ───── E3.5 — 401 on the login endpoint does NOT trigger refresh ─────
+  it('does NOT refresh on 401 from /auth/login (login failures are terminal)', () => {
+    const errorSpy = jest.fn();
+    http.post('/api/v1/auth/login', { device_uuid: 'dev-1' }).subscribe({ error: errorSpy });
+    backend
+      .expectOne('/api/v1/auth/login')
+      .flush({ message: 'bad' }, { status: 401, statusText: 'Unauthorized' });
+
+    expect(errorSpy).toHaveBeenCalled();
+    // No /auth/refresh call was made.
+    backend.expectNone((r) => r.url.includes('/auth/refresh'));
+  });
+});
+
+function serviceHttpRefreshAndCatch(
+  auth: AuthService,
+  http: HttpClient,
+  errorSpy: jest.Mock,
+): void {
+  // Manually call the underlying refresh path to trigger a request
+  // to /auth/refresh directly (the test isn't using the interceptor
+  // to trigger this — it triggers the refresh via the service so we
+  // can assert the interceptor doesn't re-enter the refresh on 401).
+  auth.refresh().subscribe({ error: errorSpy });
+}

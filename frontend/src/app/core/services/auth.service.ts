@@ -1,22 +1,36 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { Observable, catchError, switchMap, throwError, tap, shareReplay } from 'rxjs';
 import {
-  Observable,
-  tap,
-  catchError,
-  throwError,
-  switchMap,
-  timer,
-  Subscription,
-  shareReplay,
-  of,
-  delay
-} from 'rxjs';
-import { LoginRequest, LoginResponse, RefreshTokenResponse, User } from '../models/auth.model';
+  AuthTokens,
+  LoginRequest,
+  LogoutResponse,
+  MeResponse,
+  RefreshRequest,
+  User,
+} from '../models/auth.model';
 import { environment } from '../../../environments/environment';
 import { MenuService } from './menu.service';
 
+/**
+ * AuthService — real backend contract.
+ *
+ * Change `2026-08-28-sc-203-auth-comments-backend-integration` 2nd
+ * pass: rewrote to match the actual NestJS `AuthTokens` shape
+ * (`{ access_token, refresh_token, permissions }`) and the
+ * `LoginRequest` validator (exactly one of { device_uuid } or
+ * { email, password }). Removed the `register()` flow because the
+ * backend's `POST /auth/register` is a 410 tombstone — registration
+ * is invitation-only via `POST /auth/accept-invitation` (deferred
+ * to a follow-up change).
+ *
+ * Wire contracts sourced from:
+ *   - backend/src/modules/auth/auth.service.ts (`AuthTokens`)
+ *   - backend/src/modules/auth/dto/login.dto.ts
+ *   - backend/src/modules/auth/dto/refresh.dto.ts
+ *   - backend/src/modules/auth/auth.controller.ts (`/me`, `/logout`)
+ */
 @Injectable({
   providedIn: 'root',
 })
@@ -27,278 +41,172 @@ export class AuthService {
 
   private readonly API_URL = `${environment.apiUrl}/auth`;
 
-  private readonly tokenSignal = signal<string | null>(this.getStoredToken());
-  private readonly sidSignal = signal<string | null>(this.getStoredSid());
-  private readonly tokenCreatedAtSignal = signal<string | null>(this.getStoredTokenCreatedAt());
-  private readonly tokenExpiresAtSignal = signal<string | null>(this.getStoredTokenExpiresAt());
-  private readonly userSignal = signal<User | null>(this.getStoredUser());
+  // ───── Reactive state (writable signals so the interceptor test
+  //        can seed values without going through the HTTP flow) ─────
+  readonly accessToken = signal<string | null>(this.getStored('access_token'));
+  readonly refreshToken = signal<string | null>(this.getStored('refresh_token'));
+  readonly user = signal<User | null>(null);
 
-  readonly isAuthenticated = computed(() => !!this.tokenSignal());
-  readonly currentUser = computed(() => this.userSignal());
-  readonly token = computed(() => this.tokenSignal());
-  readonly sid = computed(() => this.sidSignal());
-  readonly tokenCreatedAt = computed(() => this.tokenCreatedAtSignal());
-  readonly tokenExpiresAt = computed(() => this.tokenExpiresAtSignal());
+  readonly isAuthenticated = computed(() => !!this.accessToken());
+  readonly currentUser = computed(() => this.user());
+  readonly token = this.accessToken; // legacy alias used by auth.interceptor.ts
 
-  private refreshTimerSubscription: Subscription | null = null;
+  private refreshInProgress$: Observable<AuthTokens> | null = null;
 
-  // login(credentials: LoginRequest): Observable<LoginResponse> {
-  //   return this.http
-  //     .post<LoginResponse>(`${this.API_URL}/login`, credentials, { withCredentials: true })
-  //     .pipe(
-  //       tap((response: LoginResponse) => this.handleLoginSuccess(response)),
-  //       catchError((error) => this.handleError(error)),
-  //     );
-  // }
+  constructor() {
+    // If we have a token in storage but no in-memory user, try to
+    // hydrate from /auth/me. If the token is expired the call will
+    // 401 and the interceptor handles the refresh+retry.
+    if (this.accessToken() && !this.user()) {
+      this.fetchUser().subscribe({ error: () => this.clearAuthState() });
+    }
+  }
 
-  //MOCK temporal para el login
-  login(credentials: { email?: string; password?: string; device_uuid?: string }): Observable<any> {
-    // 1. Simulamos una respuesta exitosa del backend
-    const mockResponse = {
-      access_token: 'mock.access.token.123',
-      refresh_token: 'mock.refresh.token.456',
-      user: {
-        id: 'user_123',
-        permissions: ['admin:read', 'admin:write'],
-      },
-    };
-    // 2. Usamos 'of' y 'delay' de RxJS para simular el tiempo de espera de la red (1.5 segundos)
-    return of(mockResponse).pipe(
-      delay(1500),
-      tap((response) => {
-        // Validamos credenciales falsas
-        if (credentials.email === 'admin@correo.com' && credentials.password === '123456') {
-          const mockUser: User = {
-            id: response.user.id,
-            email: credentials.email,
-            name: 'Administrador Mock',
-            roleId: 1,
-            roleName: 'Admin',
-            avatar: null,
-          };
-          const created = new Date().toISOString();
-          const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-          
-          this.updateSignalsAndStorage(response.access_token, 'mock_sid_789', created, expires, mockUser);
+  // ───── A.1 — Real login ─────
+  login(credentials: LoginRequest): Observable<AuthTokens> {
+    return this.http
+      .post<AuthTokens>(`${this.API_URL}/login`, credentials)
+      .pipe(
+        tap((tokens) => this.handleLoginSuccess(tokens)),
+        catchError((err) => this.handleError(err)),
+      );
+  }
 
-          // Redirigimos al usuario al dashboard (es ruta hija de /app)
-          this.router.navigate(['/app/dashboard']);
-        } else {
-          // Simulamos un error HTTP si las credenciales están mal
-          throw new Error('Credenciales inválidas');
-        }
+  // ───── A.3 — Refresh (single-flight, body-based per backend contract) ─────
+  refresh(): Observable<AuthTokens> {
+    if (this.refreshInProgress$) {
+      return this.refreshInProgress$;
+    }
+    const body: RefreshRequest = { refresh_token: this.refreshToken() ?? '' };
+    this.refreshInProgress$ = this.http
+      .post<AuthTokens>(`${this.API_URL}/refresh`, body)
+      .pipe(
+        tap((tokens) => {
+          this.handleRefreshSuccess(tokens);
+          this.refreshInProgress$ = null;
+        }),
+        catchError((err) => {
+          this.refreshInProgress$ = null;
+          this.clearAuthState();
+          this.router.navigate(['/auth/login']);
+          return throwError(() => err);
+        }),
+        shareReplay(1),
+      );
+    return this.refreshInProgress$;
+  }
+
+  // ───── A.4 — Logout ─────
+  logout(): Observable<LogoutResponse> {
+    return this.http.post<LogoutResponse>(`${this.API_URL}/logout`, {}).pipe(
+      tap(() => this.clearAuthState()),
+      catchError((err) => {
+        // Even if the server call fails, drop the local session.
+        this.clearAuthState();
+        return throwError(() => err);
       }),
     );
   }
 
-  // logout(): void {
-  //   this.cancelRefreshTimer();
-  //   this.http.post(`${this.API_URL}/logout`, {}, { withCredentials: true }).subscribe({
-  //     next: () => this.executeLocalLogout(),
-  //     error: () => this.executeLocalLogout(),
-  //   });
-  // }
-  logout() {
-    localStorage.removeItem('access_token');
-    this.router.navigate(['/auth/login']);
-  }
-
-  private executeLocalLogout(): void {
-    this.clearAuthData();
-    this.menuService.clearMenu();
-    this.router.navigate(['/login']);
-  }
-
-  private refreshInProgress$: Observable<RefreshTokenResponse> | null = null;
-
-  refreshToken(): Observable<RefreshTokenResponse> {
-    if (this.refreshInProgress$) {
-      return this.refreshInProgress$;
-    }
-
-    this.refreshInProgress$ = this.http
-      .post<RefreshTokenResponse>(`${this.API_URL}/refresh`, {}, { withCredentials: true })
+  // ───── GET /auth/me — used after login to populate the user signal ─────
+  fetchUser(): Observable<MeResponse> {
+    return this.http
+      .get<MeResponse>(`${this.API_URL}/me`)
       .pipe(
-        tap((response: RefreshTokenResponse) => {
-          this.handleRefreshSuccess(response);
-          this.refreshInProgress$ = null;
+        tap((me) => {
+          this.user.set({
+            id: me.user_id,
+            email: null,
+            name: null,
+            roleId: null,
+            roleName: null,
+            permissions: me.permissions,
+            device_uuid: me.device_uuid,
+          });
         }),
-        catchError((error) => {
-          this.refreshInProgress$ = null;
-          console.error('Error al refrescar token:', error);
-          return throwError(() => error);
-        }),
-        shareReplay(1),
       );
-
-    return this.refreshInProgress$;
   }
 
-  private calculateRefreshDelay(): number {
-    const expiresAt = this.tokenExpiresAtSignal();
-    if (!expiresAt) return 0;
-    const expirationTime = new Date(expiresAt).getTime();
-    const now = Date.now();
-    const createdAt = this.tokenCreatedAtSignal();
-    const createdTime = createdAt ? new Date(createdAt).getTime() : now;
+  // ───── Register — REMOVED ─────
+  //
+  // The backend's `POST /auth/register` returns 410 Gone (tombstone,
+  // see auth.controller.ts:54-58). The real registration path is
+  // `POST /auth/accept-invitation` which accepts an invitation token.
+  // That flow is deferred to a follow-up change (Priority 2) because
+  // the spec's B.* tasks asked for a public self-registration form
+  // that the backend deliberately doesn't support. Re-enable by
+  // wiring `acceptInvitation` when that change lands.
+  //
+  // (Stub kept to throw a clear error if any component still calls
+  // the old method.)
+  register(): never {
+    throw new Error(
+      'AuthService.register() is removed: backend POST /auth/register is 410 Gone. ' +
+        'Use /auth/accept-invitation instead (deferred to P2).',
+    );
+  }
 
-    const lifetime = expirationTime - createdTime;
+  // ───── Helpers ─────
+  private handleLoginSuccess(tokens: AuthTokens): void {
+    this.persistTokens(tokens);
+    this.fetchUser().subscribe({
+      error: () => {
+        // Even if /me fails, the tokens are valid — keep the user
+        // signed in. The user signal stays null until next refresh.
+      },
+    });
+  }
 
-    let refreshTime: number;
-    if (lifetime <= 3 * 60 * 1000) {
-      refreshTime = createdTime + lifetime * 0.8;
+  private handleRefreshSuccess(tokens: AuthTokens): void {
+    this.persistTokens(tokens);
+    this.fetchUser().subscribe({ error: () => undefined });
+  }
+
+  private persistTokens(tokens: AuthTokens): void {
+    this.accessToken.set(tokens.access_token);
+    this.refreshToken.set(tokens.refresh_token);
+    this.persist('access_token', tokens.access_token);
+    this.persist('refresh_token', tokens.refresh_token);
+  }
+
+  private clearAuthState(): void {
+    this.accessToken.set(null);
+    this.refreshToken.set(null);
+    this.user.set(null);
+    ['access_token', 'refresh_token'].forEach((k) => this.persist(k, null));
+    this.menuService.clearMenu();
+  }
+
+  private persist(key: string, value: string | null): void {
+    const env = environment.production ? 'production' : 'development';
+    const namespaced = `auth_${key}_${env}`;
+    if (value === null) {
+      localStorage.removeItem(namespaced);
     } else {
-      refreshTime = expirationTime - 2 * 60 * 1000;
-    }
-
-    const delayMs = refreshTime - now;
-    return delayMs > 0 ? delayMs : 0;
-  }
-
-  constructor() {
-    if (this.isAuthenticated()) {
-      this.startRefreshTimer();
+      localStorage.setItem(namespaced, value);
     }
   }
 
-  private startRefreshTimer(): void {
-    this.cancelRefreshTimer();
-
-    if (!this.isAuthenticated() || !this.tokenExpiresAtSignal()) {
-      return;
-    }
-
-    const delayMs = this.calculateRefreshDelay();
-
-    this.refreshTimerSubscription = timer(delayMs)
-      .pipe(switchMap(() => this.refreshToken()))
-      .subscribe({
-        next: () => console.log('Token refrescado automaticamente'),
-        error: (error) => console.error('Error en auto-refresh:', error),
-      });
+  private getStored(key: string): string | null {
+    const env = environment.production ? 'production' : 'development';
+    return localStorage.getItem(`auth_${key}_${env}`);
   }
 
-  private cancelRefreshTimer(): void {
-    if (this.refreshTimerSubscription) {
-      this.refreshTimerSubscription.unsubscribe();
-      this.refreshTimerSubscription = null;
+  private handleError(err: { status?: number; error?: { message?: string; errors?: unknown } }): Observable<never> {
+    let message = err.error?.message ?? 'Error de autenticación';
+    if (err.status === 401) {
+      message = 'Credenciales inválidas';
+    } else if (err.status === 0) {
+      message = 'No se pudo conectar con el servidor';
     }
-  }
-
-  private handleLoginSuccess(response: LoginResponse): void {
-    const { sub, accessToken, sid, email, nombre, rolId, nombreRol, avatar, accessTokenInfo } =
-      response;
-
-    const createdAt = accessTokenInfo?.iatDate || new Date().toISOString();
-    const expiresAt =
-      accessTokenInfo?.expDate || new Date(Date.now() + 15 * 60 * 1000).toISOString();
-
-    const user: User = {
-      id: String(sub),
-      email: email || '',
-      name: nombre || 'Usuario',
-      roleId: rolId,
-      roleName: nombreRol || 'Usuario',
-      avatar,
+    const enriched = new Error(message) as Error & {
+      status?: number;
+      errors?: unknown;
     };
-
-    this.updateSignalsAndStorage(accessToken, String(sid), createdAt, expiresAt, user);
-    this.startRefreshTimer();
-  }
-
-  private handleRefreshSuccess(response: RefreshTokenResponse): void {
-    const newAccessToken = response.accessToken;
-    const createdAt = response.createdAt || new Date().toISOString();
-    const expiresAt = response.expiresAt || new Date(Date.now() + 15 * 60 * 1000).toISOString();
-
-    this.tokenSignal.set(newAccessToken);
-    this.tokenCreatedAtSignal.set(createdAt);
-    this.tokenExpiresAtSignal.set(expiresAt);
-
-    localStorage.setItem('token', newAccessToken);
-    localStorage.setItem('tokenCreatedAt', createdAt);
-    localStorage.setItem('tokenExpiresAt', expiresAt);
-
-    this.startRefreshTimer();
-  }
-
-  private updateSignalsAndStorage(
-    token: string,
-    sid: string,
-    created: string,
-    expires: string,
-    user: User,
-  ): void {
-    this.tokenSignal.set(token);
-    this.sidSignal.set(sid);
-    this.tokenCreatedAtSignal.set(created);
-    this.tokenExpiresAtSignal.set(expires);
-    this.userSignal.set(user);
-
-    localStorage.setItem('token', token);
-    localStorage.setItem('sid', sid);
-    localStorage.setItem('tokenCreatedAt', created);
-    localStorage.setItem('tokenExpiresAt', expires);
-    localStorage.setItem('user', JSON.stringify(user));
-  }
-
-  private clearAuthData(): void {
-    this.tokenSignal.set(null);
-    this.sidSignal.set(null);
-    this.tokenCreatedAtSignal.set(null);
-    this.tokenExpiresAtSignal.set(null);
-    this.userSignal.set(null);
-
-    const keys = ['token', 'sid', 'tokenCreatedAt', 'tokenExpiresAt', 'user'];
-    keys.forEach((key) => localStorage.removeItem(key));
-
-    this.cancelRefreshTimer();
-  }
-
-  private getStoredToken(): string | null {
-    return localStorage.getItem('token');
-  }
-
-  private getStoredSid(): string | null {
-    return localStorage.getItem('sid');
-  }
-
-  private getStoredTokenCreatedAt(): string | null {
-    return localStorage.getItem('tokenCreatedAt');
-  }
-
-  private getStoredTokenExpiresAt(): string | null {
-    return localStorage.getItem('tokenExpiresAt');
-  }
-
-  private getStoredUser(): User | null {
-    const userJson = localStorage.getItem('user');
-    if (!userJson) return null;
-    try {
-      return JSON.parse(userJson);
-    } catch {
-      return null;
+    enriched.status = err.status;
+    if (err.status === 422 && err.error?.errors) {
+      enriched.errors = err.error.errors;
     }
-  }
-
-  updateCurrentUser(patch: Partial<User>): void {
-    const current = this.userSignal();
-    if (!current) return;
-    const updated: User = { ...current, ...patch };
-    this.userSignal.set(updated);
-    localStorage.setItem('user', JSON.stringify(updated));
-  }
-
-  private handleError(error: { error?: { message?: string }; status?: number }): Observable<never> {
-    console.error('Error en autenticacion:', error);
-    let errorMessage = 'Ocurrio un error en el servidor';
-    if (error.error?.message) {
-      errorMessage = error.error.message;
-    } else if (error.status === 401) {
-      errorMessage = 'Credenciales invalidas';
-    } else if (error.status === 0) {
-      errorMessage = 'No se pudo conectar con el servidor';
-    }
-    return throwError(() => new Error(errorMessage));
+    return throwError(() => enriched);
   }
 }
