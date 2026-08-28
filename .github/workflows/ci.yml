@@ -427,10 +427,14 @@ jobs:
       # Sin `BASE_URL`, playwright arranca el dev server local vía
       # `webServer` en `playwright.config.ts`. Para apuntar a un
       # backend real, exportar `BASE_URL=https://staging.tase.ec`.
+      # SC-208: hard-fail (removed the `|| echo "::warning::"` soft-fail
+      # that hid every prior failure). If the backend is unreachable
+      # in CI the job goes red — the proposal accepts that trade-off
+      # because a green-by-default frontend e2e gate proves nothing.
       - name: Run Playwright tests
         env:
           BASE_URL: ${{ vars.STAGING_BASE_URL }}
-        run: pnpm exec playwright test --reporter=list || echo "::warning::Playwright suite failed (backend may not be reachable)"
+        run: pnpm run test:e2e --reporter=list
 
       - name: Upload Playwright report
         if: always()
