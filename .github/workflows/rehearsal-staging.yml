@@ -1,0 +1,94 @@
+name: Rehearsal — Staging cutover
+
+# T8 D8.3 — Disparo manual del cutover rehearsal contra Supabase staging.
+# No se triggerea en push ni en schedule. Se invoca desde la UI de GitHub
+# Actions (botón "Run workflow") en dos momentos del ciclo de vida:
+#
+#   1. Antes del cutover a staging final: para validar que el rehearsal
+#      pasa con el código que se va a promover.
+#   2. Antes del cutover a producción: para validar que el rehearsal
+#      pasa con el código exacto de la release.
+#
+# NO triggerea en PRs, ni en push a develop, ni en push a main, ni
+# schedule. Razón: el rehearsal corre 5 checks pesados (R26.1 schema,
+# R26.3 PostGIS, R26.4 e2e suite completo ~5 min, R30.2 monitoring
+# queries, R29.1 rollback dry-run) y no aporta valor en cada push.
+# Ver `docs/runbooks/cutover.md` §"Rehearsal" para el procedimiento
+# operativo completo.
+#
+# Secrets requeridos (GitHub → Settings → Secrets and variables →
+# Actions, environment `staging`):
+#   STAGING_DATABASE_URL   — postgres://... al Supabase staging
+#   STAGING_REDIS_URL      — redis://... al Redis de Supabase
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: 'Notas para este rehearsal (opcional, se loguean)'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  # Solo un rehearsal a la vez. Si hay uno en curso, los nuevos quedan
+  # en cola o se cancelan (cancel-in-progress: false para no perder
+  # resultados de un rehearsal que tardó 5+ min).
+  group: rehearsal-staging
+  cancel-in-progress: false
+
+jobs:
+  rehearsal:
+    name: Run cutover rehearsal against Supabase staging
+    runs-on: [self-hosted, staging]
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run cutover rehearsal
+        env:
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          STAGING_REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+          CUTOVER_MODE: staging
+          REHEARSAL_NOTES: ${{ github.event.inputs.notes }}
+        run: |
+          set -euo pipefail
+          if [ -n "${REHEARSAL_NOTES}" ]; then
+            echo "── Rehearsal notes: ${REHEARSAL_NOTES}"
+          fi
+          chmod +x backend/scripts/cutover-rehearsal.sh
+          ./backend/scripts/cutover-rehearsal.sh
+
+      - name: Upload rehearsal log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-rehearsal-log-${{ github.run_id }}
+          path: docs/runbooks/cutover-rehearsals/
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Cutover rehearsal"
+            echo ""
+            echo "- **Run**: ${{ github.run_id }}"
+            echo "- **Triggered by**: ${{ github.actor }}"
+            echo "- **Notes**: ${{ github.event.inputs.notes }}"
+            echo ""
+            echo "### Log"
+            echo ""
+            echo "Download the artifact \`cutover-rehearsal-log-${{ github.run_id }}\` below."
+            echo ""
+            if [ -d docs/runbooks/cutover-rehearsals ]; then
+              echo "### Latest log files in this run"
+              echo ""
+              for f in docs/runbooks/cutover-rehearsals/*.log; do
+                [ -f "$f" ] || continue
+                echo "- \`$f\`"
+              done
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

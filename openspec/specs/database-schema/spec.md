@@ -32,7 +32,7 @@ at `openspec/changes/archive/2026-08-26-t7-geography-organizations-seed/`.
 | R12-R13 (D7.6 domain columns) | ✅ Compliant | Migration 0035 |
 | R14-R15 (D7.7 referential integrity) | ✅ Compliant | Migration 0036 |
 | R16 (D7.8 index parity) | ✅ Compliant | Migration 0037 (4 of 9 indexes newly created; 5 already existed under other names — see design.md D10) |
-| R17-R18 (transversal / docs) | ⚠️ Partial | Full-schema e2e (T7.Z1) and docs sync (T7.1.D2/R18.1) not yet executed |
+| R17-R18 (transversal / docs) | ✅ Compliant | R17 cerrado por `t8-database-cutover` R37 (systematic DOWN audit sobre los 41 archivos + ciclo up/down completo en `t7-rollback-cycle.e2e-spec.ts`); R18 cerrado por R31.1 de `t8-database-cutover` (`docs/tasks/3-DATABASE-SCHEMA.md` re-sincronizado contra el runbook `docs/runbooks/cutover.md`) |
 | R19-R20 (D7.9 category tree + notification perms) | ✅ Compliant | Migrations 0038, 0039 (Fase B only) |
 | R21 (D7.9 geography + seed orgs) | ✅ Compliant | Migración `0041_geography_organizations_seed.sql`. Fuente OpenStreetMap (`admin_level=8`, ODbL 1.0) — INEC DPA rechazada por falta de licencia. Migración committed y verde en CI; **aplicación en Supabase queda `⏳ Pending`** (ver `database/MIGRATION_LOG.md` fila 0041 y `docs/runbooks/apply-0041.md`) |
 | R22 (D7.9 demo/volume data separation) | ✅ Compliant | `database/seeds/` pipeline (`users.js`, `demo-incidents.js`, `volume-incidents.js`) + migration 0041 (geo/orgs nunca vía seed script). E2E: `t7-seeding-pipeline`, `t7-users-seed`, `t7-volume-seed` |
