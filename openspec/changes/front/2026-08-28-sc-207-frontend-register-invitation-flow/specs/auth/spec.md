@@ -1,4 +1,6 @@
-# Delta for Auth
+# Spec: SC-207 — Frontend Register via Invitation Flow
+
+## Domain: auth (Modified — Delta)
 
 **Capability**: `auth-backend` (login, register/invitation-accept, token lifecycle)
 
@@ -80,3 +82,9 @@ The system MUST replace self-service registration with invitation-only account c
 
 ### Requirement: R2.3 Email Already Exists
 (Reason: self-service registration removed; email-exists is enforced at invitation-creation time, not at this flow)
+
+## Coverage
+Happy paths: covered (preview success, accept success, auto-login). Edge cases: covered (missing token, already-used). Error states: covered (404, 410, 422, validation).
+
+## Next
+Ready for sdd-tasks.
