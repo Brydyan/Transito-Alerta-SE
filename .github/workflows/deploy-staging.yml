@@ -70,6 +70,9 @@ jobs:
           pnpm ci
           pnpm run build
 
+      - name: Copy dist to project
+        run: cp -r frontend/dist /mnt/storage/projects/tase/frontend/
+
       - name: Build and start backend + frontend
         env:
           CI: true
