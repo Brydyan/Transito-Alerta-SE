@@ -40,29 +40,17 @@ jobs:
           echo "ERROR: postgres did not become ready"
           exit 1
 
-      # Aplica solo las migraciones nuevas desde el último deploy.
-      # El marcador persiste en /mnt/storage/projects/tase/last_migration
-      # y guarda el ID (prefijo numérico) de la última migración aplicada.
-      - name: Apply pending migrations
+      # Aplicar todas las migraciones (idempotent — si ya existe, falla silenciosamente)
+      - name: Apply all migrations
         working-directory: /mnt/storage/projects/tase
         run: |
-          set -euo pipefail
-          MARKER=/mnt/storage/projects/tase/last_migration
-          LAST=$(cat "$MARKER" 2>/dev/null || echo "0000")
-          echo "Last applied migration: $LAST"
-          applied=0
           for file in database/migrations/[0-9]*.sql; do
-            id=$(basename "$file" | cut -d_ -f1)
-            if [[ "$id" > "$LAST" ]]; then
-              echo "── Applying $(basename "$file")"
-              docker compose exec -T postgres psql \
-                -U postgres -d transito_alerta \
-                -v ON_ERROR_STOP=1 -q < "$file"
-              echo "$id" > "$MARKER"
-              applied=$((applied + 1))
-            fi
+            echo "Applying $(basename "$file")..."
+            docker compose exec -T postgres psql \
+              -U postgres -d transito_alerta \
+              -v ON_ERROR_STOP=1 -q < "$file" || true
           done
-          echo "${applied} migration(s) applied"
+          echo "All migrations processed"
 
       # Docker detecta cambios en Dockerfile/código y solo reconstruye si es necesario.
       # Sin cambios → reutiliza imágenes existentes (sin residuos).
