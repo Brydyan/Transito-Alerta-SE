@@ -16,21 +16,32 @@ jobs:
     environment: staging
 
     steps:
-      - uses: actions/checkout@v4
+      # Clone/pull latest code from develop to server
+      - name: Fetch code to server
+        run: |
+          REPO_PATH=/mnt/storage/projects/tase-src
+          if [ -d "$REPO_PATH" ]; then
+            cd "$REPO_PATH"
+            git fetch origin
+            git reset --hard origin/develop
+          else
+            git clone https://github.com/Brydyan/Transito-Alerta-SE.git "$REPO_PATH"
+            cd "$REPO_PATH"
+            git checkout develop
+          fi
 
-      # .env vive en el server (no en el repo). Se copia al workspace del runner
-      # para que compose.yaml y el backend lo lean.
       - name: Load .env from persistent storage
-        run: cp /mnt/storage/projects/tase/.env .env
+        run: cp /mnt/storage/projects/tase/.env /mnt/storage/projects/tase-src/.env
 
       - name: Start infra (postgres + redis)
+        working-directory: /mnt/storage/projects/tase-src
         run: docker compose up -d postgres redis
 
       - name: Wait for postgres
         run: |
           echo "Waiting for postgres..."
           for i in $(seq 1 30); do
-            if docker compose exec -T postgres pg_isready -U postgres; then
+            if docker compose -f /mnt/storage/projects/tase-src/compose.yaml exec -T postgres pg_isready -U postgres; then
               echo "Postgres ready after ${i} attempts"
               exit 0
             fi
@@ -43,6 +54,7 @@ jobs:
       # El marcador persiste en /mnt/storage/projects/tase/last_migration
       # y guarda el ID (prefijo numérico) de la última migración aplicada.
       - name: Apply pending migrations
+        working-directory: /mnt/storage/projects/tase-src
         run: |
           set -euo pipefail
           MARKER=/mnt/storage/projects/tase/last_migration
@@ -63,20 +75,15 @@ jobs:
           echo "${applied} migration(s) applied"
 
       - name: Build frontend
-        working-directory: frontend
+        working-directory: /mnt/storage/projects/tase-src/frontend
         env:
           CI: true
         run: |
           pnpm ci
           pnpm run build
 
-      - name: Copy dist to project
-        run: cp -r frontend/dist /mnt/storage/projects/tase/frontend/
-
-      - name: Copy database to project
-        run: cp -r database /mnt/storage/projects/tase/
-
       - name: Build and start backend + frontend
+        working-directory: /mnt/storage/projects/tase-src
         env:
           CI: true
           IMAGE_TAG: ${{ github.sha }}
