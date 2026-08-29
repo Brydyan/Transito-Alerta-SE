@@ -19,11 +19,12 @@ jobs:
       # Code está en /mnt/storage/projects/tase/ (clonado manualmente, actualizar con git pull)
 
       - name: Stop old containers and clean volumes
-        working-directory: /mnt/storage/projects/tase
         run: |
           set -x
-          docker compose down -v --remove-orphans || true
-          docker container prune -f || true
+          # List and forcibly remove all TASE containers by name pattern
+          docker ps -a --filter "name=tase-" -q | xargs -r docker rm -f || true
+          # Clean up volumes
+          docker volume rm tase_postgres-data tase_redis-data 2>/dev/null || true
           sleep 2
 
       - name: Start infra (postgres + redis)
