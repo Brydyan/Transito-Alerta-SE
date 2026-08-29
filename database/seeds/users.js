@@ -118,12 +118,19 @@ function deviceUuidFor(email) {
 }
 
 /**
+ * Resuelve permisos desde el rol (T3.9: users.permissions es snapshot
+ * denormalizado de role.permissions, copiado en insert).
+ */
+async function getRolePermissions(client, roleId) {
+  const rows = await client.query(`SELECT permissions FROM roles WHERE id = $1`, [roleId]);
+  return rows.rows.length > 0 ? rows.rows[0].permissions : [];
+}
+
+/**
  * Inserta o no-op un usuario por email. Devuelve { inserted, skipped }.
  */
 async function upsertUser(client, params) {
-  // 0010_user_email.sql define un unique INDEX parcial sobre
-  // users(email) WHERE email IS NOT NULL. Para que Postgres lo reconozca
-  // como arbiter de ON CONFLICT hay que repetir el predicado aquí.
+  const permissions = await getRolePermissions(client, params.roleId);
   const sql = `
     INSERT INTO users (
       device_uuid, email, password_hash,
@@ -140,7 +147,7 @@ async function upsertUser(client, params) {
       $4, $5,
       $6, $7,
       $8,
-      '[]'::jsonb, 1,
+      $9::jsonb, 1,
       now(), 'v1',
       now()
     )
@@ -156,6 +163,7 @@ async function upsertUser(client, params) {
     params.role,
     params.roleId,
     params.organizationId,
+    JSON.stringify(permissions),
   ]);
   return { inserted: result.rowCount === 1, skipped: result.rowCount === 0 };
 }

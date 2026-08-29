@@ -21,16 +21,35 @@ export class MenuService {
 
   /**
    * Obtiene el menú desde el backend
-   * El backend ya envía el menú filtrado según el rol del usuario
+   * El backend envía { label, route, icon? } pero el frontend espera
+   * { id, name, route, icon?, children? }, así que transformamos aquí.
    */
   getMenuFromBackend(): Observable<MenuItem[]> {
     // El interceptor de autenticación se encarga de añadir el token automáticamente
-    return this.http.get<MenuItem[]>(`${this.API_URL}/my`, { withCredentials: true }).pipe(
+    return this.http.get<Array<{ label: string; route: string; icon?: string }>>(
+      `${this.API_URL}/my`,
+      { withCredentials: true }
+    ).pipe(
+      map((backendMenu) => this.transformBackendMenu(backendMenu)),
       map((menu) => this.formatRoutes(menu)),
       tap((menu) => {
         this.menuItemsSignal.set(menu);
       }),
     );
+  }
+
+  /**
+   * Transforma el formato del backend { label, route, icon? }
+   * al formato del frontend { id, name, route, icon?, children? }
+   */
+  private transformBackendMenu(items: Array<{ label: string; route: string; icon?: string }>): MenuItem[] {
+    return items.map((item, index) => ({
+      id: index + 1,
+      name: item.label,
+      route: item.route,
+      icon: item.icon,
+      children: [],
+    }));
   }
 
   /**
