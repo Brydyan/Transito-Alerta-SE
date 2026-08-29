@@ -110,3 +110,18 @@ dist-prod/
 
 # Personal
 GeoReporta/
+
+# Project docs & specs (not needed in runtime)
+docs/
+openspec/
+CLAUDE.md
+MEMORY.md
+.claude/
+
+# Frontend build output (regenerated on deploy)
+frontend/dist/
+frontend/browser/
+
+# Build artifacts from CI
+*.tgz
+build-*.tar.gz
