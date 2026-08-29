@@ -73,6 +73,9 @@ jobs:
       - name: Copy dist to project
         run: cp -r frontend/dist /mnt/storage/projects/tase/frontend/
 
+      - name: Copy database to project
+        run: cp -r database /mnt/storage/projects/tase/
+
       - name: Build and start backend + frontend
         env:
           CI: true
