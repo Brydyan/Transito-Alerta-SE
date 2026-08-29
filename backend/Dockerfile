@@ -5,7 +5,7 @@ RUN corepack enable
 # viven en `backend/` y no en la raíz. El contexto de build es la raíz del
 # repo (ver compose.yaml), por eso el `COPY` los toma desde `backend/`.
 COPY backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN CI=true pnpm install --frozen-lockfile
 
 FROM node:22-alpine AS build
 # pnpm necesita que package.json esté en el CWD. Como vive en backend/
@@ -26,13 +26,13 @@ COPY backend/ /app/backend/
 # que hay que traer esos archivos. El resto de database/ no se incluye
 # (ver .dockerignore en la raíz).
 COPY database/seeds/lib /app/database/seeds/lib
-RUN pnpm run build
+RUN CI=true pnpm run build
 
 FROM node:22-alpine AS production
 WORKDIR /app/backend
 RUN corepack enable
 COPY backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile --prod
+RUN CI=true pnpm install --frozen-lockfile --prod
 # dist ahora vive en /app/backend/dist (porque el build stage corre
 # desde /app/backend), no en /app/dist.
 COPY --from=build /app/backend/dist /app/backend/dist

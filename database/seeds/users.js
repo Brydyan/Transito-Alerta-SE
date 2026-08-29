@@ -216,7 +216,9 @@ async function run(client, opts = {}) {
 }
 
 async function main() {
-  const client = new Client();
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL
+  });
   try {
     await client.connect();
   } catch (err) {

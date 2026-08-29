@@ -23,7 +23,9 @@ async function bootstrap(): Promise<void> {
 
   // T4.3a — HTTP security headers (X-Frame-Options, X-Content-Type-Options,
   // Strict-Transport-Security, etc.) on every response, including CORS.
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: false,
+  }));
 
   app.setGlobalPrefix('api');
   app.enableCors({
