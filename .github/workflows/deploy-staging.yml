@@ -16,20 +16,7 @@ jobs:
     environment: staging
 
     steps:
-      # Clone/pull latest code from develop to server
-      - name: Fetch code to server
-        run: |
-          REPO_PATH=/mnt/storage/projects/tase-src
-          if [ -d "$REPO_PATH" ]; then
-            cd "$REPO_PATH"
-            git fetch origin
-            git reset --hard origin/develop
-          else
-            git clone https://github.com/Brydyan/Transito-Alerta-SE.git "$REPO_PATH"
-            cd "$REPO_PATH"
-            git checkout develop
-          fi
-
+      # Code debe estar ya en /mnt/storage/projects/tase-src/ (clonado manualmente)
       - name: Load .env from persistent storage
         run: cp /mnt/storage/projects/tase/.env /mnt/storage/projects/tase-src/.env
 
@@ -74,22 +61,15 @@ jobs:
           done
           echo "${applied} migration(s) applied"
 
-      - name: Build frontend
-        working-directory: /mnt/storage/projects/tase-src/frontend
-        env:
-          CI: true
-        run: |
-          pnpm ci
-          pnpm run build
-
+      # Docker detecta cambios en Dockerfile/código y solo reconstruye si es necesario.
+      # Sin cambios → reutiliza imágenes existentes (sin residuos).
       - name: Build and start backend + frontend
         working-directory: /mnt/storage/projects/tase-src
         env:
           CI: true
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker compose --profile staging build backend
-          docker compose --profile staging up -d backend frontend
+          docker compose --profile staging up --build -d backend frontend
 
       - name: Health check — backend
         run: |
