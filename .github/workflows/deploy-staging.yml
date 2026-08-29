@@ -20,12 +20,8 @@ jobs:
 
       - name: Stop old containers and clean volumes
         run: |
-          set -x
-          # List and forcibly remove all TASE containers by name pattern
           docker ps -a --filter "name=tase-" -q | xargs -r docker rm -f || true
-          # Clean up volumes
           docker volume rm tase_postgres-data tase_redis-data 2>/dev/null || true
-          sleep 2
 
       - name: Start infra (postgres + redis)
         working-directory: /mnt/storage/projects/tase
