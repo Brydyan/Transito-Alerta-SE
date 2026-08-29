@@ -18,9 +18,9 @@ jobs:
     steps:
       # Code está en /mnt/storage/projects/tase/ (clonado manualmente, actualizar con git pull)
 
-      - name: Stop old containers
+      - name: Stop old containers and clean volumes
         working-directory: /mnt/storage/projects/tase
-        run: docker compose down --remove-orphans || true
+        run: docker compose down -v --remove-orphans 2>/dev/null || true
 
       - name: Start infra (postgres + redis)
         working-directory: /mnt/storage/projects/tase
