@@ -18,16 +18,27 @@ jobs:
     steps:
       # Code está en /mnt/storage/projects/tase/ (clonado manualmente, actualizar con git pull)
 
-      - name: Stop old containers and clean volumes
+      - name: Detect database changes
+        id: db_changes
+        working-directory: /mnt/storage/projects/tase
+        run: |
+          if git diff HEAD~1..HEAD --quiet -- database/migrations/ database/seeds/; then
+            echo "has_db_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_db_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Stop old containers (preserve data volumes)
         run: |
           docker ps -a --filter "name=tase-" -q | xargs -r docker rm -f || true
-          docker volume rm tase_postgres-data tase_redis-data 2>/dev/null || true
 
-      - name: Start infra (postgres + redis)
+      - name: Start infra (postgres + redis) — if database changed
+        if: steps.db_changes.outputs.has_db_changes == 'true'
         working-directory: /mnt/storage/projects/tase
         run: docker compose up -d postgres redis
 
-      - name: Wait for postgres
+      - name: Wait for postgres — if database changed
+        if: steps.db_changes.outputs.has_db_changes == 'true'
         run: |
           echo "Waiting for postgres..."
           for i in $(seq 1 30); do
@@ -40,8 +51,8 @@ jobs:
           echo "ERROR: postgres did not become ready"
           exit 1
 
-      # Aplicar todas las migraciones (idempotent — si ya existe, falla silenciosamente)
-      - name: Apply all migrations
+      - name: Apply migrations — if database changed
+        if: steps.db_changes.outputs.has_db_changes == 'true'
         working-directory: /mnt/storage/projects/tase
         run: |
           for file in database/migrations/[0-9]*.sql; do
@@ -52,8 +63,6 @@ jobs:
           done
           echo "All migrations processed"
 
-      # Docker detecta cambios en Dockerfile/código y solo reconstruye si es necesario.
-      # Sin cambios → reutiliza imágenes existentes (sin residuos).
       - name: Build and start backend + frontend
         working-directory: /mnt/storage/projects/tase
         env:
