@@ -20,7 +20,11 @@ jobs:
 
       - name: Stop old containers and clean volumes
         working-directory: /mnt/storage/projects/tase
-        run: docker compose down -v --remove-orphans 2>/dev/null || true
+        run: |
+          set -x
+          docker compose down -v --remove-orphans || true
+          docker container prune -f || true
+          sleep 2
 
       - name: Start infra (postgres + redis)
         working-directory: /mnt/storage/projects/tase
