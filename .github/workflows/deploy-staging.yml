@@ -16,19 +16,17 @@ jobs:
     environment: staging
 
     steps:
-      # Code debe estar ya en /mnt/storage/projects/tase-src/ (clonado manualmente)
-      - name: Load .env from persistent storage
-        run: cp /mnt/storage/projects/tase/.env /mnt/storage/projects/tase-src/.env
+      # Code está en /mnt/storage/projects/tase/ (clonado manualmente, actualizar con git pull)
 
       - name: Start infra (postgres + redis)
-        working-directory: /mnt/storage/projects/tase-src
+        working-directory: /mnt/storage/projects/tase
         run: docker compose up -d postgres redis
 
       - name: Wait for postgres
         run: |
           echo "Waiting for postgres..."
           for i in $(seq 1 30); do
-            if docker compose -f /mnt/storage/projects/tase-src/compose.yaml exec -T postgres pg_isready -U postgres; then
+            if docker compose -f /mnt/storage/projects/tase/compose.yaml exec -T postgres pg_isready -U postgres; then
               echo "Postgres ready after ${i} attempts"
               exit 0
             fi
@@ -41,7 +39,7 @@ jobs:
       # El marcador persiste en /mnt/storage/projects/tase/last_migration
       # y guarda el ID (prefijo numérico) de la última migración aplicada.
       - name: Apply pending migrations
-        working-directory: /mnt/storage/projects/tase-src
+        working-directory: /mnt/storage/projects/tase
         run: |
           set -euo pipefail
           MARKER=/mnt/storage/projects/tase/last_migration
@@ -64,7 +62,7 @@ jobs:
       # Docker detecta cambios en Dockerfile/código y solo reconstruye si es necesario.
       # Sin cambios → reutiliza imágenes existentes (sin residuos).
       - name: Build and start backend + frontend
-        working-directory: /mnt/storage/projects/tase-src
+        working-directory: /mnt/storage/projects/tase
         env:
           CI: true
           IMAGE_TAG: ${{ github.sha }}
