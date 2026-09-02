@@ -113,7 +113,6 @@ GeoReporta/
 
 # Project docs & specs (not needed in runtime)
 docs/
-openspec/
 CLAUDE.md
 MEMORY.md
 .claude/
