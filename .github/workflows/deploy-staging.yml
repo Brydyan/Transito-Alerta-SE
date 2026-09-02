@@ -33,9 +33,9 @@ jobs:
         id: db_changes
         run: |
           if git diff HEAD~1..HEAD --quiet -- database/migrations/ database/seeds/; then
-            echo "has_db_changes=false" >> $GITHUB_OUTPUT
+            echo "has_db_changes=false" >> "$GITHUB_OUTPUT"
           else
-            echo "has_db_changes=true" >> $GITHUB_OUTPUT
+            echo "has_db_changes=true" >> "$GITHUB_OUTPUT"
           fi
 
       # El filtro `name=tase-` matchea TODO: tase-backend, tase-frontend,
@@ -92,10 +92,10 @@ jobs:
           if docker compose exec -T postgres psql -U postgres -d transito_alerta \
                -tAc "SELECT to_regclass('public.roles') IS NOT NULL" 2>/dev/null \
                | tr -d '[:space:]' | grep -qx 't'; then
-            echo "present=true" >> $GITHUB_OUTPUT
+            echo "present=true" >> "$GITHUB_OUTPUT"
             echo "Esquema presente"
           else
-            echo "present=false" >> $GITHUB_OUTPUT
+            echo "present=false" >> "$GITHUB_OUTPUT"
             echo "Esquema AUSENTE — se migrará aunque el diff no toque database/"
           fi
 
@@ -210,6 +210,91 @@ jobs:
           echo "Health check failed — last 50 lines:"
           docker compose logs frontend --tail=50
           exit 1
+
+      # ── Seed ────────────────────────────────────────────────────────────
+      #
+      # Va después de los health checks a propósito: sembrar es poblar datos,
+      # y no tiene sentido intentarlo sobre un stack que no arrancó. El
+      # backend no necesita usuarios para estar sano — sólo el esquema — así
+      # que este orden no lo bloquea.
+      #
+      # La condición mira si la tabla está vacía. `users.js` ya es idempotente
+      # (`ON CONFLICT (email) DO NOTHING`), así que sembrar de más no
+      # duplicaría filas; pero recomputa seis hashes bcrypt de coste 12 en
+      # cada deploy para no insertar nada, y sobre todo: el día que el seeder
+      # deje de ser idempotente, esta condición es lo único que separa a
+      # staging de perder datos. La idempotencia es del script, no del deploy.
+      - name: Detect empty users table
+        id: users
+        run: |
+          count=$(docker compose exec -T postgres psql \
+                    -U postgres -d transito_alerta \
+                    -tAc "SELECT count(*) FROM users" 2>/dev/null \
+                  | tr -d '[:space:]')
+          # Cadena vacía = la consulta falló (tabla ausente, postgres caído).
+          # Eso NO es cero: si no se pudo preguntar, no se siembra a ciegas.
+          if [ "$count" = "0" ]; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            echo "Tabla users vacía — se sembrará"
+          else
+            echo "empty=false" >> "$GITHUB_OUTPUT"
+            echo "No se siembra · filas=${count:-<consulta fallida>}"
+          fi
+
+      - name: Seed users — sólo con la tabla vacía
+        if: steps.users.outputs.empty == 'true'
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+        run: |
+          # Sin el secret, `users.js` cae a DEFAULT_SEED_PASSWORD, que es una
+          # constante en claro del repo (database/seeds/users.js). Staging
+          # está publicado a internet por el Tailscale Funnel, así que seis
+          # cuentas con contraseña conocida es peor que cero cuentas: se corta.
+          if [ -z "$SEED_PASSWORD" ]; then
+            echo "::error::falta el secret SEED_PASSWORD — sin él el seed usaría la contraseña por defecto del repo, y staging es público"
+            exit 1
+          fi
+
+          # `-e SEED_PASSWORD` sin `=valor`: compose lo resuelve del entorno
+          # del paso. Escribir `-e SEED_PASSWORD="$SEED_PASSWORD"` metería el
+          # secret en la línea de comandos, visible en `ps` para cualquier
+          # proceso del runner.
+          #
+          # El montaje de database/ es obligatorio: el .dockerignore de la
+          # raíz la deja fuera de la imagen de producción del backend, así que
+          # dentro del contenedor /app/database no existe. :ro — el seeder
+          # sólo lee.
+          #
+          # El guard (database/seeds/lib/guard.js) exige LAS DOS cosas,
+          # `--force` y SEED_ALLOW_PRODUCTION=1; su propio comentario explica
+          # por qué: "--force se tipea por reflejo, sólo no alcanza".
+          docker compose --profile staging run --rm \
+            -e SEED_ALLOW_PRODUCTION=1 \
+            -e SEED_PASSWORD \
+            -v /mnt/storage/projects/tase/database:/app/database:ro \
+            backend node /app/database/seeds/users.js --force
+
+          # No se limpia Redis acá. La caché de permisos vive en la DB 1 y
+          # `FLUSHDB` a secas pega en la DB 0, que es la de Streams — borraría
+          # los incidentes. Y de todos modos este paso sólo corre con la tabla
+          # vacía, es decir en bootstrap, donde no hay nada cacheado que
+          # invalidar. Si alguna vez hace falta: `redis-cli -n 1 FLUSHDB`.
+
+      - name: Verify seeded users
+        if: steps.users.outputs.empty == 'true'
+        run: |
+          # `users.js` sale con 0 aunque no inserte nada (ON CONFLICT DO
+          # NOTHING no es un error), así que su código de salida no prueba que
+          # las filas existan. Se cuenta.
+          count=$(docker compose exec -T postgres psql \
+                    -U postgres -d transito_alerta \
+                    -tAc "SELECT count(*) FROM users WHERE email LIKE '%@tase.local'" \
+                  | tr -d '[:space:]')
+          if [ "$count" != "6" ]; then
+            echo "::error::se esperaban 6 usuarios sembrados, hay '${count}'"
+            exit 1
+          fi
+          echo "6 usuarios sembrados"
 
       # T8 — Cutover rehearsal NO corre en cada push a develop. Se dispara
       # manualmente desde la UI de GitHub Actions vía el workflow
