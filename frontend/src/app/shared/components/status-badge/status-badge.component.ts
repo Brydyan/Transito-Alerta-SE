@@ -1,19 +1,29 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { UiBadgeComponent, UiBadgeVariant } from '../ui-badge/ui-badge.component';
 
 export type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'primary' | 'secondary';
 
+const TONE_TO_VARIANT: Record<BadgeTone, UiBadgeVariant> = {
+  success: 'resuelto',
+  warning: 'en_proceso',
+  danger: 'cerrada',
+  info: 'pendiente',
+  primary: 'en_proceso',
+  secondary: 'pendiente',
+};
+
+/**
+ * Envoltorio delgado sobre `ui-badge` — D6.
+ * Conserva la API pública previa (`status`, `customLabel`, `customTone`, `dot`)
+ * para no romper consumidores actuales; traduce estado de dominio → variante
+ * del primitivo compartido.
+ */
 @Component({
   selector: 'app-status-badge',
   standalone: true,
-  imports: [CommonModule],
+  imports: [UiBadgeComponent],
   template: `
-    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold tracking-wide rounded-full whitespace-nowrap" [ngClass]="'badge-soft-' + tone()">
-      @if (dot()) {
-        <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
-      }
-      <span>{{ label() }}</span>
-    </span>
+    <ui-badge [variant]="variant()" [label]="label()" [dot]="dot()" />
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -29,8 +39,10 @@ export class StatusBadgeComponent {
     return st.replace(/_/g, ' ');
   });
 
-  readonly tone = computed<BadgeTone>(() => {
-    if (this.customTone()) return this.customTone() as BadgeTone;
+  readonly variant = computed<UiBadgeVariant>(() => {
+    if (this.customTone()) {
+      return TONE_TO_VARIANT[this.customTone() as BadgeTone];
+    }
     const st = (this.status() || '').toUpperCase();
 
     if (
@@ -47,7 +59,7 @@ export class StatusBadgeComponent {
         'COMPLETADA',
       ].includes(st)
     ) {
-      return 'success';
+      return 'resuelto';
     }
     if (
       [
@@ -60,7 +72,7 @@ export class StatusBadgeComponent {
         'POR_REVISION',
       ].includes(st)
     ) {
-      return 'warning';
+      return 'en_proceso';
     }
     if (
       [
@@ -78,7 +90,7 @@ export class StatusBadgeComponent {
         'CANCELADA',
       ].includes(st)
     ) {
-      return 'danger';
+      return 'cerrada';
     }
     if (
       [
@@ -93,8 +105,8 @@ export class StatusBadgeComponent {
         'TOMADA',
       ].includes(st)
     ) {
-      return 'info';
+      return 'pendiente';
     }
-    return 'secondary';
+    return 'pendiente';
   });
 }

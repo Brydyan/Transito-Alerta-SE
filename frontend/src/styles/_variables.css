@@ -1,43 +1,117 @@
-/* 
-  Global CSS Variables
-  Define color palettes, typography, spacing, and other design tokens here.
-  Corporate Water Theme applied.
+/*
+  Global CSS Variables — F0 design system alignment.
+  Paleta violeta del mock 01-01/02-01 reemplaza navy/hi-vis como tokens canónicos.
+
+  Las escalas `--color-brand-navy*` y `--color-brand-hivis*` se conservan
+  temporalmente como ALIAS de la paleta violeta para que el build siga
+  compilando mientras F1-F6 migran los consumidores externos (auth/, admin/,
+  profile/, reports/…). F0 sólo garantiza la limpieza dentro de `layout/`
+  (ver DoD). El grep de tokens viejos debe dar cero en `layout/`, no
+  en todo `src/`.
+
+  Los alias son deliberadamente no diferenciados visualmente: brand-navy →
+  brand-primary (violeta), brand-hivis → brand-primary-hover. Cuando F1-F6
+  los retiren, las pantallas afectadas cambiarán de color como parte
+  prevista de la migración.
 */
 
 @theme {
-  --color-brand-navy: #1E1E54;
-  --color-brand-navy-light: #2D2D93;
-  --color-brand-hivis: #CCFF00;
-  --color-brand-hivis-hover: #B2D800;
-  --color-brand-hivis-text: #111827;
-  
+  /* Brand canónico (F0) */
+  --color-brand-primary: #7C3AED;
+  --color-brand-primary-hover: #6D28D9;
+  --color-brand-primary-soft: #F5F3FF;
+
+  /* Bridge temporal — retirar en F1-F6 */
+  --color-brand-navy: var(--color-brand-primary);
+  --color-brand-navy-light: var(--color-brand-primary-soft);
+  --color-brand-hivis: var(--color-brand-primary-hover);
+  --color-brand-hivis-hover: var(--color-brand-primary-hover);
+  --color-brand-hivis-text: #FFFFFF;
+
+  /* Lienzo — sin cambio (mock 01-01 coincide) */
   --color-bg-primary: #F8F9FA;
   --color-bg-secondary: #FFFFFF;
   --color-border-subtle: #E2E8F0;
 
-  --color-status-critical: #EF142B;
-  --color-status-pending: #FFC600;
-  --color-status-info: #08C3EB;
-  --color-status-success: #2B8A3E;
+  /* Estados de incidencia (mock 02-01) */
+  --color-status-pendiente: #94A3B8;
+  --color-status-proceso: #7C3AED;
+  --color-status-resuelto: #10B981;
+  --color-status-cerrada: #1F2937;
 
-  --font-sans: 'Barlow Condensed', sans-serif;
+  /* Prioridades — D9: critical existe en backend, sólo no se maquetaba */
+  --color-prio-low: #10B981;
+  --color-prio-medium: #FCD34D;
+  --color-prio-high: #EF4444;
+  --color-prio-critical: #B91C1C;
+
+  /* Acentos para KPI / charts (mock 01-01) */
+  --color-accent-cyan: #06B6D4;
+  --color-accent-green: #22C55E;
+
+  /* D10 — tokens de texto para fondos tintados (F0.4.1 / D10 de design.md).
+     Relleno y texto tienen ciclos de vida distintos; por eso no se aliasan
+     aunque dos casos coincidan con tokens ya existentes (`on-tint-violet`
+     == `brand-primary-hover`, `on-tint-graphite` == `status-cerrada`).
+     Tocar uno de estos tokens afecta a todo el patrón visual de badges
+     y KPI. Contrastes medidos contra el token de relleno de cada variante:
+       on-tint-slate    vs bg-status-pendiente/20  = 9.5 ✓
+       on-tint-violet   vs bg-brand-primary-soft   = 6.5 ✓
+       on-tint-green    vs bg-status-resuelto/15   = 7.1 ✓
+       on-tint-graphite vs bg-status-cerrada/12   = 9.9 ✓
+       on-tint-amber    vs bg-prio-medium/40      = 8.1 ✓
+       on-tint-red      vs bg-prio-high/15        = 7.5 ✓
+     Mover los alfas ±5 no rompe el contraste. Cambiar el token de texto
+     sí — avisá en vez de sustituirlo. */
+  --color-on-tint-slate: #334155;
+  --color-on-tint-violet: #6D28D9;
+  --color-on-tint-green: #065F46;
+  --color-on-tint-amber: #78350F;
+  --color-on-tint-red: #991B1B;
+  --color-on-tint-graphite: #1F2937;
+
+  /* Bridge temporal — alias de los nombres viejos para que _badges.css
+     y los features aún no migrados (F1-F6) compilen. Se retiran
+     cuando cada consumidor adopte los tokens canónicos.
+
+     ⚠️ `pending` ≠ `pendiente` (WARNING-6 / CRITICAL-2 de fixes-required.md):
+     el token canónico es `--color-status-pendiente` (#94A3B8 gris pizarra),
+     declarado arriba. Este alias es `--color-status-pending` (#FFC600 ámbar)
+     — un carácter de distancia, color totalmente distinto, y un dev de
+     F1-F6 que escriba `bg-status-pending` esperando el estado «pendiente»
+     obtiene ámbar sin error de compilación ni test que lo agarre. El
+     alias existe sólo porque `_badges.css` lo consume; en cuanto ese
+     consumidor adopte el canónico, este alias se retira junto con los
+     otros del bloque.
+
+     La retirada de los dos bloques de puente (`--color-brand-*` legacy y
+     los `--color-status-*` que aún no se usan) está ticketeada en
+     [sc-323](https://app.shortcut.com/upse/story/323), asignada a F6. */
+  --color-status-critical: var(--color-prio-high);
+  --color-status-pending: #FFC600;
+  --color-status-info: var(--color-accent-cyan);
+  --color-status-success: var(--color-status-resuelto);
+
+  /* Tipografía — D2: Outfit geométrica */
+  --font-sans: 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 :root {
-  /* Legacy & Custom properties fallbacks mapped to new design system */
-  --primary-color: var(--color-brand-navy);
-  --secondary-color: var(--color-brand-navy-light);
-  --accent-color: var(--color-brand-hivis);
-  --info-color: var(--color-status-info);
+  /* Compatibilidad hacia atrás — mapeo al sistema violeta.
+     Permite que _components/_forms/_tables compilen sin cambios. */
+  --primary-color: var(--color-brand-primary);
+  --secondary-color: var(--color-brand-primary-soft);
+  --accent-color: var(--color-brand-primary);
+  --info-color: var(--color-accent-cyan);
   --white: var(--color-bg-secondary);
   --light-bg: var(--color-bg-primary);
   --soft-blue-bg: #E0F2FE; /* Optional keeping for layout accents */
   --dark-text: #334155;
   --muted-text: #64748B;
   --border-color: var(--color-border-subtle);
-  --input-focus-ring: rgba(30, 30, 84, 0.2);
-  --success: var(--color-status-success);
-  --warning: var(--color-status-pending);
-  --danger: var(--color-status-critical);
+  --input-focus-ring: rgba(124, 58, 237, 0.2);
+  --success: var(--color-status-resuelto);
+  --warning: var(--color-status-pendiente);
+  --danger: var(--color-prio-high);
   --font-family-base: var(--font-sans);
 }

@@ -1,6 +1,7 @@
 @layer utilities {
   .hover-primary:hover {
-    @apply text-brand-navy;
+    /* F0 — alias del antiguo `.hover-primary` con token canónico. */
+    @apply text-brand-primary;
   }
 
   .text-glow {

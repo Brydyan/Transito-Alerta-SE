@@ -1,9 +1,12 @@
 @layer components {
-  /* ===================== 
-    Modal Styles 
+  /* =====================
+    Modal Styles — F0 (D1): fondo violeta con opacidad, no navy.
+    El brand-navy queda como alias bridge; este archivo migra a
+    los tokens canónicos para que el DoD de "design system
+    migrado" quede completo.
     ===================== */
   .modal-backdrop-custom {
-    @apply fixed inset-0 bg-brand-navy/60 z-[1040] animate-[fadeIn_0.2s_ease];
+    @apply fixed inset-0 bg-brand-primary/60 z-[1040] animate-[fadeIn_0.2s_ease];
   }
 
   .modal-custom {
@@ -11,7 +14,7 @@
   }
 
   .modal-card {
-    @apply bg-bg-secondary rounded-2xl shadow-[0_20px_60px_rgba(30,30,84,0.18)] w-full max-w-[520px] pointer-events-auto animate-[slideUp_0.25s_ease];
+    @apply bg-bg-secondary rounded-2xl shadow-[0_20px_60px_rgba(124,58,237,0.18)] w-full max-w-[520px] pointer-events-auto animate-[slideUp_0.25s_ease];
   }
 
   .modal-card-sm {
@@ -31,12 +34,12 @@
   }
 
   .btn-close-modal {
-    @apply bg-transparent border-none text-slate-400 text-base cursor-pointer p-1 leading-none transition-colors duration-200 hover:text-brand-navy;
+    @apply bg-transparent border-none text-slate-400 text-base cursor-pointer p-1 leading-none transition-colors duration-200 hover:text-brand-primary;
   }
 
   /* Form controls inside modal */
   .modal-card-body .form-control,
   .modal-card-body .form-select {
-    @apply border-border-subtle rounded-lg text-sm focus:border-brand-navy focus:ring focus:ring-brand-navy/20;
+    @apply border-border-subtle rounded-lg text-sm focus:border-brand-primary focus:ring focus:ring-brand-primary/20;
   }
 }

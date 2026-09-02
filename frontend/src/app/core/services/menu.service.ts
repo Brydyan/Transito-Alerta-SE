@@ -48,6 +48,8 @@ export class MenuService {
       name: item.label,
       route: item.route,
       icon: item.icon,
+      menu_order: index,
+      is_active: true,
       children: [],
     }));
   }

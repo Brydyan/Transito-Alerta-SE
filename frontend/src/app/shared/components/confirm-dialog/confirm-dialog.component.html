@@ -10,14 +10,15 @@
     <div class="modal-card modal-card-sm">
       <div class="modal-card-header">
         <h5 class="font-bold mb-0 text-lg flex items-center" [class.text-status-critical]="dialog.isDanger">
-          <i
-            class="bi mr-2 text-xl"
-            [ngClass]="dialog.isDanger ? 'bi-exclamation-triangle-fill' : 'bi-question-circle-fill'"
-          ></i>
+          <ui-icon
+            [name]="dialog.isDanger ? 'alert-triangle' : 'circle-dot'"
+            extraClass="mr-2"
+            [size]="20"
+          />
           {{ dialog.title || 'Confirmación' }}
         </h5>
         <button type="button" class="btn-close-modal" (click)="onCancel()" aria-label="Cerrar">
-          <i class="bi bi-x-lg"></i>
+          <ui-icon name="x" [size]="16" />
         </button>
       </div>
 

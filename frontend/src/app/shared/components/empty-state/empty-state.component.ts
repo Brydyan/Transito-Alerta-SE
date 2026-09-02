@@ -1,14 +1,21 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { UiIconComponent } from '../ui-icon/ui-icon.component';
 
+/**
+ * Estado vacío para listados y pantallas sin datos. F0 — usa `<ui-icon>` de
+ * Lucide en lugar de `bi bi-*` (F0.2). El input `icon` es ahora un nombre
+ * Lucide kebab-case (p. ej. `inbox`, `search`, `settings`); los consumidores
+ * que pasaban `bi bi-*` deben migrar a un nombre equivalente.
+ */
 @Component({
   selector: 'app-empty-state',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, UiIconComponent],
   template: `
     <div class="empty-state-container text-center py-12 px-4">
       <div class="empty-state-icon mb-4">
-        <i [class]="icon()"></i>
+        <ui-icon [name]="icon()" [size]="32" />
       </div>
       <h5 class="font-semibold text-slate-800 mb-2">{{ title() }}</h5>
       <p class="text-slate-500 text-sm mb-4 max-w-sm mx-auto">{{ description() }}</p>
@@ -18,7 +25,7 @@ import { CommonModule } from '@angular/common';
           (click)="actionClicked.emit()"
         >
           @if (actionIcon()) {
-            <i [class]="actionIcon()"></i>
+            <ui-icon [name]="actionIcon()" [size]="16" />
           }
           {{ actionLabel() }}
         </button>
@@ -38,12 +45,11 @@ import { CommonModule } from '@angular/common';
         width: 64px;
         height: 64px;
         border-radius: 16px;
-        background-color: rgba(30, 30, 84, 0.05);
-        color: var(--color-brand-navy);
+        background-color: rgba(124, 58, 237, 0.05);
+        color: var(--color-brand-primary);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.75rem;
       }
 
       .max-w-sm {
@@ -54,10 +60,12 @@ import { CommonModule } from '@angular/common';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EmptyStateComponent {
-  readonly icon = input<string>('bi bi-inbox');
+  /** Nombre Lucide kebab-case (p. ej. `inbox`, `search`, `settings`). */
+  readonly icon = input<string>('inbox');
   readonly title = input<string>('Sin datos');
   readonly description = input<string>('No se encontraron registros para mostrar.');
   readonly actionLabel = input<string>('');
+  /** Nombre Lucide kebab-case para el icono del botón de acción. */
   readonly actionIcon = input<string>('');
 
   readonly actionClicked = output<void>();
