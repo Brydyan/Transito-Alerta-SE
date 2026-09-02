@@ -93,6 +93,29 @@ jobs:
           docker compose --progress quiet --profile staging up \
             --build --quiet-pull -d backend frontend
 
+      # `if: failure()` para que corra aunque el paso anterior aborte. Sin esto
+      # el volcado de logs vivía sólo dentro de "Health check — backend", que no
+      # llega a ejecutarse cuando `compose up` sale con error: el deploy fallaba
+      # con una línea ("container tase-backend is unhealthy") y ningún dato para
+      # diagnosticar. `|| true` en cada comando para que un fallo acá no tape la
+      # causa real del fallo original.
+      - name: Diagnóstico — sólo si algo falló
+        if: failure()
+        working-directory: /mnt/storage/projects/tase
+        run: |
+          echo "───── estado de los contenedores ─────"
+          docker ps -a --filter "name=tase-" \
+            --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' || true
+
+          for c in tase-backend tase-frontend tase-postgres tase-redis; do
+            echo
+            echo "───── $c · healthcheck ─────"
+            docker inspect "$c" --format '{{json .State.Health}}' 2>/dev/null \
+              | python3 -m json.tool 2>/dev/null || echo "(sin healthcheck o contenedor ausente)"
+            echo "───── $c · últimas 80 líneas ─────"
+            docker logs "$c" --tail=80 2>&1 || true
+          done
+
       - name: Health check — backend
         run: |
           set -a; source .env; set +a
