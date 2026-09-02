@@ -20,6 +20,20 @@ import { AuthService } from '../services/auth.service';
  * `AuthTokens` contract does not expose token expiry, so a
  * pre-flight check is impossible. The refresh path is now purely
  * on-401: 401 from a non-login/non-refresh call → refresh+retry.
+ *
+ * Por qué las URLs se escriben a mano (D3, design del change
+ * `2026-09-01-fix-auth-interceptor-spec-urls`):
+ * - El backend expone prefijo `api` (`backend/src/main.ts:30`,
+ *   `app.setGlobalPrefix('api')`). **No** hay `enableVersioning`
+ *   ni segmento de versión (grep en cero en `backend/src`).
+ * - `frontend/src/environments/environment.ts` define `apiUrl: '/api'`.
+ * - El literal escrito a mano es deliberado: el test debe tener
+ *   una opinión INDEPENDIENTE del `environment`. Si alguien cambia
+ *   `apiUrl` por error, el test lo detecta.
+ * - Las rutas válidas hoy son `/api/auth/login`, `/api/auth/refresh`,
+ *   `/api/auth/me`, `/api/incidents` (controlador real). Un regression
+ *   test hermano bloquea cualquier reintroducción de un segmento de
+ *   versión (ver `auth.interceptor.regression.spec.ts`).
  */
 describe('AuthInterceptor', () => {
   let http: HttpClient;
@@ -51,16 +65,16 @@ describe('AuthInterceptor', () => {
   // ───── E3.1 — JWT injected on authed calls ─────
   it('attaches Authorization: Bearer <token> when the user is signed in', () => {
     auth.accessToken.set('jwt-1');
-    http.get('/api/v1/incidents').subscribe();
-    const req = backend.expectOne('/api/v1/incidents');
+    http.get('/api/incidents').subscribe();
+    const req = backend.expectOne('/api/incidents');
     expect(req.request.headers.get('Authorization')).toBe('Bearer jwt-1');
     req.flush([]);
   });
 
   // ───── E3.2 — No JWT on public calls ─────
   it('does NOT attach Authorization when no token is present', () => {
-    http.get('/api/v1/incidents').subscribe();
-    const req = backend.expectOne('/api/v1/incidents');
+    http.get('/api/incidents').subscribe();
+    const req = backend.expectOne('/api/incidents');
     expect(req.request.headers.has('Authorization')).toBe(false);
     req.flush([]);
   });
@@ -70,12 +84,12 @@ describe('AuthInterceptor', () => {
     auth.accessToken.set('jwt-1');
     auth.refreshToken.set('rt-1');
 
-    http.get('/api/v1/incidents').subscribe();
+    http.get('/api/incidents').subscribe();
     backend
-      .expectOne('/api/v1/incidents')
+      .expectOne('/api/incidents')
       .flush({ message: 'expired' }, { status: 401, statusText: 'Unauthorized' });
 
-    const refresh = backend.expectOne('/api/v1/auth/refresh');
+    const refresh = backend.expectOne('/api/auth/refresh');
     expect(refresh.request.method).toBe('POST');
     // Real backend contract: refresh_token in body, snake_case.
     expect(refresh.request.body).toEqual({ refresh_token: 'rt-1' });
@@ -85,12 +99,12 @@ describe('AuthInterceptor', () => {
       permissions: ['READ incidents'],
     });
 
-    const retry = backend.expectOne('/api/v1/incidents');
+    const retry = backend.expectOne('/api/incidents');
     expect(retry.request.headers.get('Authorization')).toBe('Bearer jwt-2');
     retry.flush([]);
 
     // The post-refresh /me fires too.
-    backend.expectOne('/api/v1/auth/me').flush({
+    backend.expectOne('/api/auth/me').flush({
       user_id: 'user-1',
       device_uuid: 'dev-1',
       permissions: ['READ incidents'],
@@ -109,7 +123,7 @@ describe('AuthInterceptor', () => {
     serviceHttpRefreshAndCatch(auth, http, errorSpy);
 
     backend
-      .expectOne('/api/v1/auth/refresh')
+      .expectOne('/api/auth/refresh')
       .flush({ message: 'expired' }, { status: 401, statusText: 'Unauthorized' });
 
     expect(errorSpy).toHaveBeenCalled();
@@ -118,9 +132,9 @@ describe('AuthInterceptor', () => {
   // ───── E3.5 — 401 on the login endpoint does NOT trigger refresh ─────
   it('does NOT refresh on 401 from /auth/login (login failures are terminal)', () => {
     const errorSpy = jest.fn();
-    http.post('/api/v1/auth/login', { device_uuid: 'dev-1' }).subscribe({ error: errorSpy });
+    http.post('/api/auth/login', { device_uuid: 'dev-1' }).subscribe({ error: errorSpy });
     backend
-      .expectOne('/api/v1/auth/login')
+      .expectOne('/api/auth/login')
       .flush({ message: 'bad' }, { status: 401, statusText: 'Unauthorized' });
 
     expect(errorSpy).toHaveBeenCalled();
