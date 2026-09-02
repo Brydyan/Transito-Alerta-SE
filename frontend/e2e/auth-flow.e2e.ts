@@ -22,8 +22,41 @@ import { test, expect } from '@playwright/test';
  *    (T3.6 / seed-data pipeline). If the backend is fresh, run
  *    `pnpm run db:seed` first.
  */
+/**
+ * Este spec necesita un backend real: hace login con credenciales sembradas
+ * y afirma que la petición salió de verdad (`not mocked`). Sin backend, el
+ * POST a /api/auth/login muere en el proxy del dev server y la navegación a
+ * /app/dashboard nunca ocurre.
+ *
+ * `accept-invitation.e2e.ts` y `comment-flow.e2e.ts` ya estaban saltados por
+ * este mismo motivo, con un TODO a mano. Este archivo tenía el requisito
+ * declarado en su docblock y se había quedado corriendo igual — la regla
+ * aplicada en dos de tres archivos.
+ *
+ * En vez de otro `test.skip()` a mano, la condición se hace explícita: sin
+ * `BASE_URL` no hay backend que valga, y con ella el test se activa solo.
+ * Así el motivo queda verificado por la máquina en lugar de recordado en un
+ * comentario, y no hay que acordarse de "des-saltarlo" el día que exista el
+ * entorno.
+ *
+ * OJO: esto vuelve honesto al gate, no lo convierte en gate. Mientras
+ * `vars.STAGING_BASE_URL` siga sin configurarse, el job pasa sin probar el
+ * login — que es justo lo que SC-208 advertía. La solución real es apuntar
+ * BASE_URL a staging o levantar el backend en CI.
+ */
+const BACKEND_URL = process.env['BASE_URL']?.trim();
+
 test.describe('Auth flow', () => {
+  // A nivel de describe, no dentro del test: acá la condición se evalúa antes
+  // de que se instancien los fixtures, así que ni siquiera se levanta el
+  // browser. Dentro del test, `page` se resuelve primero y el skip llega tarde.
+  test.skip(
+    !BACKEND_URL,
+    'Requiere un backend real con seed (admin@correo.com). Definí BASE_URL apuntando a staging.',
+  );
+
   test('F1.1: admin login → dashboard', async ({ page }) => {
+
     // Capture every network call so we can assert the real endpoint fired.
     const loginRequests: string[] = [];
     page.on('request', (req) => {
