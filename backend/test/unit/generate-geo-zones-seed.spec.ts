@@ -9,10 +9,20 @@ import { join } from 'path';
  * outside `rootDir`/TypeScript's module graph — `require`d directly rather
  * than imported.
  *
- * (a) checksum guard: `generate(legacyInput)` must stay byte-identical to
- *     the already-committed `0003_seed_geo_zones.generated.sql` — that file
- *     is what got pasted into migration 0003, so any drift here would mean
- *     0003's registered checksum silently no longer matches its generator.
+ * (a) RETIRADO 2026-09-02. Era un checksum guard: `generate(legacyInput)`
+ *     debía seguir siendo byte-idéntico a `0003_seed_geo_zones.generated.sql`.
+ *     Su entrada era `GeoReporta/backend/database/data/ecuador-locations-geom.json`,
+ *     y `GeoReporta/` se borró del repositorio al terminar el port — así que
+ *     el test fallaba con ENOENT en cada corrida de CI, sin posibilidad de
+ *     pasar nunca.
+ *
+ *     Lo que se pierde: la garantía de que el generador reproduce exactamente
+ *     lo que se pegó en la migración 0003. No es recuperable sin la entrada
+ *     legacy, y restaurarla contradice la decisión de purgar GeoReporta.
+ *     Mitigación existente: 0003 ya está aplicada y su checksum registrado,
+ *     y el camino legacy de `generate()` no tiene consumidores — el vivo es
+ *     `generateParroquias()`, que sí cubren (c) y (d) contra
+ *     `database/data/santa-elena-parroquias.geojson`.
  * (b) `uuidV5(code, NS_GEO_ZONE)` must carry version nibble '5' — a
  *     structural (not probabilistic) non-collision proof against the
  *     hand-picked v4-shaped literals in ZONE_IDS, whose third group always
@@ -39,24 +49,9 @@ const generator = require('../../../database/seeds/generate-geo-zones-seed.js') 
 };
 
 const REPO_ROOT = join(__dirname, '../../..');
-const LEGACY_INPUT_PATH = join(
-  REPO_ROOT,
-  'GeoReporta/backend/database/data/ecuador-locations-geom.json',
-);
-const LEGACY_OUTPUT_PATH = join(REPO_ROOT, 'database/seeds/0003_seed_geo_zones.generated.sql');
 const PARROQUIAS_INPUT_PATH = join(REPO_ROOT, 'database/data/santa-elena-parroquias.geojson');
 
 describe('generate-geo-zones-seed.js (T7.9.C2)', () => {
-  it('(a) generate(legacyInput) is byte-identical to the committed 0003 seed', () => {
-    const legacyInput = JSON.parse(readFileSync(LEGACY_INPUT_PATH, 'utf8')) as Record<
-      string,
-      unknown
-    >;
-    const expected = readFileSync(LEGACY_OUTPUT_PATH, 'utf8');
-
-    expect(generator.generate(legacyInput)).toBe(expected);
-  });
-
   it('(b) uuidV5(code, NS_GEO_ZONE) is deterministic with version nibble 5 — structurally distinct from the v4 ZONE_IDS literals', () => {
     const id = generator.uuidV5('EC-24-01-50', generator.NS_GEO_ZONE);
 
