@@ -49,36 +49,94 @@ jobs:
               -q | xargs -r docker rm -f || true
           fi
 
-      - name: Start infra (postgres + redis) — if database changed
-        if: steps.db_changes.outputs.has_db_changes == 'true'
+      # Sin condicionar: `up -d` es idempotente — si postgres y redis ya están
+      # corriendo y sanos, no hace nada. Antes esto estaba detrás de
+      # has_db_changes, lo que dejaba la infra sin garantía de estar levantada
+      # en los deploys que no tocaban database/.
+      - name: Ensure infra (postgres + redis)
         working-directory: /mnt/storage/projects/tase
-        run: docker compose up -d postgres redis
+        run: docker compose --progress quiet up -d postgres redis
 
-      - name: Wait for postgres — if database changed
-        if: steps.db_changes.outputs.has_db_changes == 'true'
+      - name: Wait for postgres
+        working-directory: /mnt/storage/projects/tase
         run: |
-          echo "Waiting for postgres..."
           for i in $(seq 1 30); do
-            if docker compose -f /mnt/storage/projects/tase/compose.yaml exec -T postgres pg_isready -U postgres; then
-              echo "Postgres ready after ${i} attempts"
+            if docker compose exec -T postgres pg_isready -U postgres; then
+              echo "Postgres listo tras ${i} intentos"
               exit 0
             fi
             sleep 2
           done
-          echo "ERROR: postgres did not become ready"
+          echo "ERROR: postgres no respondió"
           exit 1
 
-      - name: Apply migrations — if database changed
-        if: steps.db_changes.outputs.has_db_changes == 'true'
+      # El defecto que rompió staging: la condición miraba el DIFF DE GIT, no el
+      # ESTADO REAL de la base. Un volumen nuevo más un deploy que no tocaba
+      # database/ dejaba la base vacía para siempre — el backend arrancaba y
+      # moría con `relation "roles" does not exist`, y el deploy sólo decía
+      # "container tase-backend is unhealthy".
+      #
+      # Ahora se pregunta si el esquema existe. `to_regclass` devuelve NULL
+      # cuando la tabla no está, sin lanzar error.
+      - name: Detect schema state
+        id: schema
         working-directory: /mnt/storage/projects/tase
         run: |
+          if docker compose exec -T postgres psql -U postgres -d transito_alerta \
+               -tAc "SELECT to_regclass('public.roles') IS NOT NULL" 2>/dev/null \
+               | tr -d '[:space:]' | grep -qx 't'; then
+            echo "present=true" >> $GITHUB_OUTPUT
+            echo "Esquema presente"
+          else
+            echo "present=false" >> $GITHUB_OUTPUT
+            echo "Esquema AUSENTE — se migrará aunque el diff no toque database/"
+          fi
+
+      - name: Apply migrations — si cambió database/ o falta el esquema
+        if: |
+          steps.db_changes.outputs.has_db_changes == 'true' ||
+          steps.schema.outputs.present == 'false'
+        working-directory: /mnt/storage/projects/tase
+        env:
+          BOOTSTRAP: ${{ steps.schema.outputs.present == 'false' }}
+        run: |
+          # Con el esquema ausente (bootstrap) toda migración DEBE aplicar: un
+          # fallo acá deja la base a medias y el backend no arranca, así que se
+          # corta. Con el esquema ya presente se toleran los errores de las
+          # migraciones ya aplicadas — no hay tracking en schema_migrations
+          # todavía, así que re-aplicarlas falla por diseño.
+          failed=0
           for file in database/migrations/[0-9]*.sql; do
-            echo "Applying $(basename "$file")..."
-            docker compose exec -T postgres psql \
-              -U postgres -d transito_alerta \
-              -v ON_ERROR_STOP=1 -q < "$file" || true
+            echo "── $(basename "$file")"
+            if ! docker compose exec -T postgres psql \
+                 -U postgres -d transito_alerta \
+                 -v ON_ERROR_STOP=1 -q < "$file"; then
+              if [ "$BOOTSTRAP" = "true" ]; then
+                echo "::error::$(basename "$file") falló durante el bootstrap"
+                exit 1
+              fi
+              failed=$((failed + 1))
+            fi
           done
-          echo "All migrations processed"
+          echo "Migraciones procesadas · $failed con error (esperable si ya estaban aplicadas)"
+
+      - name: Verify schema after migrations
+        if: |
+          steps.db_changes.outputs.has_db_changes == 'true' ||
+          steps.schema.outputs.present == 'false'
+        working-directory: /mnt/storage/projects/tase
+        run: |
+          # Sin esto, un bootstrap a medias se descubre recién cuando el backend
+          # muere por `relation ... does not exist`, sin decir cuál falta.
+          for t in roles users incidents user_sessions; do
+            if ! docker compose exec -T postgres psql -U postgres -d transito_alerta \
+                 -tAc "SELECT to_regclass('public.$t') IS NOT NULL" \
+                 | tr -d '[:space:]' | grep -qx 't'; then
+              echo "::error::falta la tabla '$t' después de migrar"
+              exit 1
+            fi
+          done
+          echo "Esquema verificado: roles, users, incidents, user_sessions"
 
       - name: Build and start backend + frontend
         working-directory: /mnt/storage/projects/tase
