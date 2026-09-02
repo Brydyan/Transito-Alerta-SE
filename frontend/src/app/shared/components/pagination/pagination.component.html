@@ -39,7 +39,7 @@
           [attr.tabindex]="currentPage() === 1 ? -1 : null"
           [attr.aria-disabled]="currentPage() === 1"
         >
-          <i class="bi bi-chevron-left mr-1 text-xs"></i>
+          <ui-icon name="chevron-left" [size]="12" extraClass="mr-1" />
           Anterior
         </a>
       </li>
@@ -78,7 +78,7 @@
           [attr.aria-disabled]="currentPage() === totalPages()"
         >
           Siguiente
-          <i class="bi bi-chevron-right ml-1 text-xs"></i>
+          <ui-icon name="chevron-right" [size]="12" extraClass="ml-1" />
         </a>
       </li>
     </ul>

@@ -87,6 +87,13 @@
 
 ## R3 — Token Refresh
 
+> **Contrato de rutas (fijado 2026-09-01)**: la ruta real es `POST /api/auth/refresh` —
+> prefijo global `api` (`backend/src/main.ts:30`, `app.setGlobalPrefix('api')`) +
+> `@Controller('auth')` (`backend/src/modules/auth/auth.controller.ts:41`). **No hay
+> segmento de versión**: no existe `enableVersioning` en el backend, y el frontend
+> compone la URL con `apiUrl: '/api'` (`frontend/src/environments/environment.ts:3`).
+> Cualquier test o cliente que asuma `/api/v1/...` está desalineado con el sistema real.
+
 ### R3.1 Auto-Refresh Before Expiry
 
 **Given** access token within 2 min of expiry  
@@ -94,7 +101,7 @@
 **Then**:
 - Interceptor checks `tokenExpiresAt` signal
 - If remaining time < 2 min, call `authService.refresh()` first
-- `POST /auth/refresh` called (backend uses httpOnly refresh cookie)
+- `POST /api/auth/refresh` called (backend uses httpOnly refresh cookie)
 - Backend returns `{ access_token: 'new_jwt...' }`
 - `tokenSignal` updated
 - `tokenExpiresAt` recalculated (now + 15m)
@@ -106,7 +113,7 @@
 **Given** refresh token expired (no cookie or invalid)  
 **When** auto-refresh triggered  
 **Then**:
-- `POST /auth/refresh` called
+- `POST /api/auth/refresh` called
 - Backend returns 401: `{ message: 'Refresh token invalid' }`
 - `clearAuthState()` called: all signals reset to null
 - Router navigates to `/auth/login`
@@ -163,6 +170,13 @@
 
 ## R6 — JWT Injection (Auth Interceptor)
 
+> **Contrato de rutas**: idéntico al de R3 — `setGlobalPrefix('api')` + `@Controller(...)`,
+> sin segmento de versión. La suite `auth.interceptor.spec.ts` DEBE dirigirse a rutas
+> reales (`/api/auth/login`, `/api/auth/refresh`, `/api/auth/me`, `/api/incidents`, …).
+> Una URL inventada que el propio test emite y espera no verifica nada — pasa con
+> cualquier literal. Corregido en `2026-09-01-fix-auth-interceptor-spec-urls` (ver
+> `openspec/changes/archive/2026-09-01-fix-auth-interceptor-spec-urls/`).
+
 ### R6.1 JWT Injected on Authenticated Calls
 
 **Given** logged-in user with valid token  
@@ -181,6 +195,16 @@
 - `auth.interceptor` checks `authService.token()` signal
 - If null, NO `Authorization` header added
 - Request proceeds as-is (public endpoint or 401 if protected)
+
+### R6.3 Interceptor Test Suite Targets Real Routes
+
+**Given** `frontend/src/app/core/interceptors/auth.interceptor.spec.ts`  
+**When** se busca la cadena `/api/v1`  
+**Then**:
+- No hay coincidencias — toda URL del archivo corresponde a un `@Controller` existente
+  del backend
+- Un test de regresión (`auth.interceptor.regression.spec.ts`) falla si `/api/v1`
+  reaparece en el spec
 
 ---
 

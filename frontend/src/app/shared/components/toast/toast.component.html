@@ -9,7 +9,7 @@
     >
       <div class="toast-content flex items-center p-4">
         <div class="toast-icon-wrapper flex items-center justify-center mr-4">
-          <i class="bi text-xl" [ngClass]="getIconClass(toast.type)"></i>
+          <ui-icon [name]="getIconName(toast.type)" [size]="20" />
         </div>
 
         <div class="toast-body-wrapper flex-grow">
@@ -25,7 +25,7 @@
           (click)="removeToast(toast.id)"
           aria-label="Cerrar"
         >
-          <i class="bi bi-x-lg text-sm"></i>
+          <ui-icon name="x" [size]="14" />
         </button>
       </div>
 

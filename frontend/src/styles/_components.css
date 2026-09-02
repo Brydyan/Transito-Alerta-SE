@@ -2,7 +2,7 @@
   .card {
     @apply bg-bg-secondary border border-border-subtle rounded-xl flex flex-col min-w-0 break-words shadow-[0_4px_6px_-1px_rgba(30,30,84,0.03)];
   }
-  
+
   .card-body {
     @apply p-6 flex-auto;
   }
@@ -15,46 +15,49 @@
     @apply hover:bg-slate-50 cursor-pointer;
   }
 
-  /* Buttons */
+  /* Buttons — F0: la marca primaria ahora es violeta (D1). El antiguo
+     `.btn-primary` con `bg-brand-hivis` se retira: el primitivo canónico
+     es `ui-button[uiButton][variant="primary"]` (ver F0.4.3). */
   .btn {
     @apply inline-flex items-center justify-center font-medium text-center align-middle cursor-pointer border border-transparent rounded-lg px-4 py-2 text-sm transition-all duration-200 select-none;
   }
-  
+
   .btn-sm {
     @apply px-3 py-1.5 text-xs rounded-md;
   }
 
-  /* Primary Action Button (Hi-Vis) */
   .btn-primary {
-    @apply bg-brand-hivis border-brand-hivis text-brand-hivis-text hover:bg-brand-hivis-hover hover:border-brand-hivis-hover focus:ring-2 focus:ring-brand-hivis/50 outline-none;
+    /* F0 — alias del botón primario: ahora violeta. Mantener la clase
+       legacy para no romper consumidores hasta que F6 los migre. */
+    @apply bg-brand-primary border-brand-primary text-white hover:bg-brand-primary-hover hover:border-brand-primary-hover focus:ring-2 focus:ring-brand-primary/40 outline-none;
   }
 
   .btn-outline-primary {
-    @apply text-brand-navy border-brand-navy hover:bg-brand-navy hover:text-white focus:ring-2 focus:ring-brand-navy/30;
+    @apply text-brand-primary border-brand-primary hover:bg-brand-primary hover:text-white focus:ring-2 focus:ring-brand-primary/30;
   }
-  
+
   .btn-secondary {
     @apply bg-slate-500 border-slate-500 text-white hover:bg-slate-600 focus:ring-2 focus:ring-slate-500/30;
   }
-  
+
   .btn-outline-secondary {
     @apply text-slate-500 border-slate-300 hover:bg-slate-50 hover:text-slate-700 focus:ring-2 focus:ring-slate-200;
   }
 
   .btn-danger {
-    @apply bg-status-critical border-status-critical text-white hover:bg-red-600 focus:ring-2 focus:ring-status-critical/30;
+    @apply bg-prio-high border-prio-high text-white hover:bg-red-600 focus:ring-2 focus:ring-prio-high/30;
   }
-  
+
   .btn-outline-danger {
-    @apply text-status-critical border-status-critical hover:bg-status-critical hover:text-white focus:ring-2 focus:ring-status-critical/30;
+    @apply text-prio-high border-prio-high hover:bg-prio-high hover:text-white focus:ring-2 focus:ring-prio-high/30;
   }
 
   .btn-link {
-    @apply font-normal text-brand-navy-light hover:text-brand-navy hover:underline bg-transparent border-transparent px-0 py-0;
+    @apply font-normal text-brand-primary-hover hover:text-brand-primary hover:underline bg-transparent border-transparent px-0 py-0;
   }
 
   /* Text & Spinners */
   .text-primary {
-    @apply text-brand-navy;
+    @apply text-brand-primary;
   }
 }

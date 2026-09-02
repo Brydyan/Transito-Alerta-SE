@@ -1,6 +1,10 @@
-/* 
+/*
   Base Styles
   Unopinionated HTML element styles, resets, and typography defaults.
+
+  F0 — paleta violeta: se sustituyen las referencias residuales a
+  `brand-navy` y `brand-navy-light` por los tokens canónicos
+  `brand-primary` y `brand-primary-hover`.
 */
 
 @layer base {
@@ -14,7 +18,7 @@
   }
 
   h2 {
-    @apply font-sans font-semibold text-2xl text-brand-navy;
+    @apply font-sans font-semibold text-2xl text-brand-primary;
   }
 
   h3 {
@@ -26,10 +30,10 @@
   }
 
   a {
-    @apply text-brand-navy-light no-underline transition-all duration-200;
+    @apply text-brand-primary-hover no-underline transition-all duration-200;
   }
 
   a:hover {
-    @apply text-brand-navy underline;
+    @apply text-brand-primary underline;
   }
 }

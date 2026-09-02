@@ -4,28 +4,32 @@
   <div class="flex items-center w-full">
     <!-- Hamburger Menu toggle (for sidebar) -->
     <button
-      class="flex items-center text-slate-800 p-0 border-none bg-transparent hover:text-brand-navy transition-colors"
+      class="flex items-center text-slate-800 p-0 border-none bg-transparent hover:text-brand-primary transition-colors"
       (click)="toggleSidebar()"
+      aria-label="Alternar barra lateral"
     >
-      <i class="bi bi-list text-2xl"></i>
+      <ui-icon name="menu" [size]="24" />
     </button>
 
     <!-- Right Side Icons -->
     <div class="flex items-center ml-auto gap-4">
-      <button class="btn-icon p-1 text-slate-500 bg-transparent border-none">
-        <i class="bi bi-search text-xl"></i>
+      <button class="btn-icon p-1 text-slate-500 bg-transparent border-none" aria-label="Buscar">
+        <ui-icon name="search" [size]="20" />
       </button>
-      <button class="btn-icon p-1 text-slate-500 bg-transparent border-none relative">
-        <i class="bi bi-bell text-xl"></i>
+      <button
+        class="btn-icon p-1 text-slate-500 bg-transparent border-none relative"
+        aria-label="Notificaciones"
+      >
+        <ui-icon name="bell" [size]="20" />
         <!-- Optional notification dot -->
         <span
-          class="absolute top-1 right-1 w-2.5 h-2.5 bg-status-critical border-2 border-white rounded-full"
+          class="absolute top-1 right-1 w-2.5 h-2.5 bg-prio-high border-2 border-white rounded-full"
         >
           <span class="sr-only">New alerts</span>
         </span>
       </button>
-      <button class="btn-icon p-1 text-slate-500 bg-transparent border-none">
-        <i class="bi bi-moon text-xl"></i>
+      <button class="btn-icon p-1 text-slate-500 bg-transparent border-none" aria-label="Modo oscuro">
+        <ui-icon name="moon" [size]="20" />
       </button>
 
       <!-- User Profile Dropdown -->
@@ -35,10 +39,11 @@
             class="flex items-center gap-2 p-0 bg-transparent border-none cursor-pointer"
             type="button"
             (click)="toggleUserDropdown()"
+            [attr.aria-expanded]="userDropdownOpen()"
           >
             <div class="flex items-center gap-2">
               <div
-                class="avatar bg-brand-navy text-white rounded-full flex items-center justify-center overflow-hidden w-9 h-9"
+                class="avatar bg-brand-primary text-white rounded-full flex items-center justify-center overflow-hidden w-9 h-9"
               >
                 @if (user.avatar?.url) {
                   <img
@@ -56,10 +61,12 @@
                   {{ user.roleName || 'Usuario' }}
                 </div>
               </div>
-              <i
-                class="bi bi-chevron-down text-slate-500 text-xs transition-transform duration-200"
+              <ui-icon
+                name="chevron-down"
+                [size]="14"
+                extraClass="text-slate-500 transition-transform duration-200"
                 [class.rotate-180]="userDropdownOpen()"
-              ></i>
+              />
             </div>
           </button>
           <ul
@@ -68,21 +75,32 @@
             [class.block]="userDropdownOpen()"
           >
             <li>
-              <a class="block px-4 py-2 text-sm text-slate-800 hover:bg-slate-100 hover:text-brand-navy transition-colors" routerLink="/app/profile" (click)="closeUserDropdown()">
-                <i class="bi bi-person mr-2"></i> Mi Perfil
+              <a
+                class="block px-4 py-2 text-sm text-slate-800 hover:bg-slate-50 hover:text-brand-primary transition-colors"
+                routerLink="/app/profile"
+                (click)="closeUserDropdown()"
+              >
+                <ui-icon name="user" [size]="16" extraClass="mr-2" /> Mi Perfil
               </a>
             </li>
             <li>
-              <a class="block px-4 py-2 text-sm text-slate-800 hover:bg-slate-100 hover:text-brand-navy transition-colors" routerLink="/app/admin/config" (click)="closeUserDropdown()">
-                <i class="bi bi-gear mr-2"></i> Configuración
+              <a
+                class="block px-4 py-2 text-sm text-slate-800 hover:bg-slate-50 hover:text-brand-primary transition-colors"
+                routerLink="/app/admin/config"
+                (click)="closeUserDropdown()"
+              >
+                <ui-icon name="settings" [size]="16" extraClass="mr-2" /> Configuración
               </a>
             </li>
             <li>
               <hr class="my-1 border-t border-border-subtle" />
             </li>
             <li>
-              <button class="block w-full text-left px-4 py-2 text-sm text-status-critical hover:bg-red-50 transition-colors border-none bg-transparent cursor-pointer" (click)="logout()">
-                <i class="bi bi-box-arrow-right mr-2"></i> Cerrar Sesión
+              <button
+                class="block w-full text-left px-4 py-2 text-sm text-prio-high hover:bg-red-50 transition-colors border-none bg-transparent cursor-pointer"
+                (click)="logout()"
+              >
+                <ui-icon name="log-out" [size]="16" extraClass="mr-2" /> Cerrar Sesión
               </button>
             </li>
           </ul>

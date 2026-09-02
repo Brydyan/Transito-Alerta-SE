@@ -1,11 +1,15 @@
 @layer components {
   /* =====================
-    Badges and Avatars
+    Badges and Avatars — F0 (D1/D9): violeta + escala de prioridad.
+    Las reglas detalladas de las píldoras de estado/prioridad viven en
+    `ui-badge` (F0.4.1). Aquí conservamos los avatares y los badges
+    legacy que aún referencian los features de admin/, hasta que F6 los
+    migre a `ui-badge`.
     ===================== */
 
   /* User avatar circle */
   .user-avatar {
-    @apply w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 bg-brand-navy text-white;
+    @apply w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 bg-brand-primary text-white;
   }
 
   /* Role badges */
@@ -14,7 +18,7 @@
   }
 
   .badge-rol-admin {
-    @apply bg-indigo-50 text-[#4C3DA8] font-semibold;
+    @apply bg-brand-primary-soft text-brand-primary font-semibold;
   }
 
   .badge-rol-operador,
@@ -22,25 +26,25 @@
     @apply bg-slate-100 text-[#475569] font-medium;
   }
 
-  /* Status Badges */
+  /* Status Badges — F0: mapeados a la paleta canónica. */
   .badge-soft-success,
   .badge-status-resolved {
-    @apply bg-[#2B8A3E]/10 text-[#2B8A3E] border border-[#2B8A3E]/20;
+    @apply bg-status-resuelto/10 text-status-resuelto border border-status-resuelto/20;
   }
 
   .badge-soft-warning,
   .badge-status-pending {
-    @apply bg-[#FFC600]/10 text-[#B28A00] border border-[#FFC600]/30;
+    @apply bg-status-pendiente/10 text-status-pendiente border border-status-pendiente/30;
   }
 
   .badge-soft-danger,
   .badge-status-critical {
-    @apply bg-[#EF142B]/10 text-[#EF142B] border border-[#EF142B]/20;
+    @apply bg-prio-high/10 text-prio-high border border-prio-high/20;
   }
 
   .badge-soft-info,
   .badge-status-info {
-    @apply bg-[#08C3EB]/10 text-[#068CA8] border border-[#08C3EB]/20;
+    @apply bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20;
   }
 
   .badge-soft-secondary {

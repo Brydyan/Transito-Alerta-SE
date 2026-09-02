@@ -28,11 +28,12 @@ const MESES = [
 ];
 
 import { ClickOutsideDirective } from '../../directives/click-outside.directive';
+import { UiIconComponent } from '../ui-icon/ui-icon.component';
 
 @Component({
   selector: 'app-date-picker',
   standalone: true,
-  imports: [ClickOutsideDirective],
+  imports: [ClickOutsideDirective, UiIconComponent],
   templateUrl: './date-picker.component.html',
   styleUrl: './date-picker.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -10,7 +10,7 @@
   width: 260px;
   flex-shrink: 0;
   height: 100%;
-  background-color: var(--color-brand-navy);
+  background-color: var(--color-bg-secondary);
   border-right: 1px solid var(--color-border-subtle);
   z-index: 1000;
   transition:
@@ -134,14 +134,14 @@
       border-left: none !important;
 
       i,
-      .material-symbols-outlined {
+      .ui-icon {
         margin-right: 0 !important;
         font-size: 1.25rem !important;
       }
 
       &.active {
-        background-color: var(--color-brand-navy-light) !important;
-        color: white !important;
+        background-color: var(--color-brand-primary-soft) !important;
+        color: var(--color-brand-primary) !important;
         border-left: none !important;
       }
 
@@ -166,7 +166,7 @@
 
 .btn-icon:hover {
   background-color: var(--color-bg-primary);
-  color: var(--color-brand-navy) !important;
+  color: var(--color-brand-primary) !important;
 }
 
 .dropdown {
@@ -216,12 +216,12 @@
 
 .dropdown-item:hover,
 .dropdown-item:focus {
-  color: var(--color-brand-navy) !important;
+  color: var(--color-brand-primary) !important;
   background-color: var(--color-bg-primary) !important;
 }
 
 .dropdown-item.text-danger:hover {
-  color: var(--color-status-critical) !important;
+  color: var(--color-prio-high) !important;
   background-color: #fee2e2 !important;
 }
 
@@ -238,18 +238,21 @@
 }
 
 /* ---------------------------------------------------
-   3. SIDEBAR STYLING
+   3. SIDEBAR STYLING — F0 (D4): fondo claro, item activo violeta,
+      sin borde izq hi-vis.
 --------------------------------------------------- */
 .sidebar-brand {
   height: 64px;
   padding: 0 1.5rem 0 2rem; /* Matches the 64px header height and aligns logo with menu icons */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: var(--color-bg-secondary);
 }
 
 .sidebar-nav {
   padding-top: 0.75rem !important; /* 12px padding top + 4px menu item margin = 16px spacing below divider */
   overflow-y: auto !important;
   overflow-x: hidden !important;
+  background-color: var(--color-bg-secondary);
 }
 
 .brand-logo {
@@ -259,34 +262,48 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Encabezado de sección del sidebar (versalitas atenuadas) */
+.sidebar-section-label {
+  margin: 1rem 1.5rem 0.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-text);
+}
+
 .nav-link-custom {
-  margin: 4px 14px;
-  padding: 0.7rem 1.1rem;
+  margin: 2px 14px;
+  padding: 0.65rem 1rem;
   font-size: 0.925rem;
   font-weight: 500;
-  color: #94A3B8;
+  color: #475569; /* gris pizarra */
   border-radius: 8px;
   display: flex;
   align-items: center;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  border-left: 4px solid transparent;
+  text-decoration: none;
 }
 
 .nav-link-custom:hover {
-  background-color: var(--color-brand-navy-light);
-  color: white !important;
+  background-color: var(--color-bg-primary);
+  color: var(--color-brand-primary) !important;
 }
 
-.nav-link-custom i,
-.nav-link-custom .material-symbols-outlined {
-  display: inline-block;
-  font-size: 1.25rem; /* Material Symbols look better at 1.25rem (20px) */
+.nav-link-custom ui-icon,
+.nav-link-custom .ui-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 0.2s ease-in-out;
 }
 
-.nav-link-custom .bi-chevron-down {
-  font-size: 0.8rem;
-  margin-right: 0.75rem; /* Separar el chevron del borde derecho */
+.nav-link-custom .chevron {
+  margin-left: auto;
+  margin-right: 0 !important;
+  color: #94A3B8;
+  transition: transform 0.2s ease-in-out;
 }
 
 .rotate-icon {
@@ -295,20 +312,15 @@
 
 .nav-link-custom.active,
 .nav-link.active {
-  background-color: var(--color-brand-navy-light) !important;
-  color: white !important;
+  background-color: var(--color-brand-primary-soft) !important;
+  color: var(--color-brand-primary) !important;
   font-weight: 600;
-  border-left: 4px solid var(--color-brand-hivis) !important;
-
-  i {
-    color: var(--color-brand-hivis) !important;
-  }
 }
 
 .nav-link-sub {
-  color: #94A3B8;
+  color: #64748B;
   text-decoration: none;
-  padding: 0.55rem 1rem 0.55rem 1.75rem;
+  padding: 0.55rem 1rem 0.55rem 2.5rem;
   margin: 2px 14px;
   display: block;
   font-size: 0.875rem;
@@ -318,13 +330,13 @@
 }
 
 .nav-link-sub:hover {
-  background-color: var(--color-brand-navy-light);
-  color: white;
+  background-color: var(--color-bg-primary);
+  color: var(--color-brand-primary);
 }
 
 .nav-link-sub.active {
-  background-color: var(--color-brand-navy-light) !important;
-  color: white !important;
+  background-color: var(--color-brand-primary-soft) !important;
+  color: var(--color-brand-primary) !important;
   font-weight: 600;
 }
 
@@ -332,22 +344,23 @@
    4. SIDEBAR SEARCH
 --------------------------------------------------- */
 .sidebar-search {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background-color: var(--color-bg-secondary);
 
   .input-group-text,
   .form-control {
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: var(--color-border-subtle);
     background-color: transparent;
-    color: white;
+    color: #334155;
     font-size: 0.875rem;
   }
 
   .form-control:focus {
-    border-color: var(--color-brand-hivis);
+    border-color: var(--color-brand-primary);
   }
 
   .sidebar-search-clear {
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: var(--color-border-subtle);
     color: #94A3B8;
     font-size: 0.65rem;
     text-decoration: none;
@@ -363,18 +376,21 @@
   align-items: center;
   justify-content: center;
   text-decoration: none;
+  background-color: transparent;
 
   &:hover {
-    background-color: var(--color-brand-navy-light);
-    color: white !important;
+    background-color: var(--color-bg-primary);
+    color: var(--color-brand-primary) !important;
   }
 }
 
 .sidebar-empty-state {
   font-size: 0.85rem;
+  color: #94A3B8;
 
-  .bi-search {
-    font-size: 1.25rem;
-    opacity: 0.4;
+  .ui-icon {
+    display: inline-flex;
+    justify-content: center;
+    width: 100%;
   }
 }

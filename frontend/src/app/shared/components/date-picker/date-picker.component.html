@@ -13,7 +13,7 @@
       (keydown.space)="toggle(); $event.preventDefault()"
     />
     <span class="date-picker-icon">
-      <i class="bi bi-calendar3"></i>
+      <ui-icon name="calendar" [size]="16" />
     </span>
   </div>
 
@@ -21,11 +21,11 @@
     <div class="date-picker-popover" [class.open-upwards]="openUpwards()">
       <div class="date-picker-header">
         <button type="button" class="date-picker-nav" title="Mes anterior" (click)="prevMonth()">
-          <i class="bi bi-chevron-left"></i>
+          <ui-icon name="chevron-left" [size]="16" />
         </button>
         <span class="date-picker-label">{{ viewLabel() }}</span>
         <button type="button" class="date-picker-nav" title="Mes siguiente" (click)="nextMonth()">
-          <i class="bi bi-chevron-right"></i>
+          <ui-icon name="chevron-right" [size]="16" />
         </button>
       </div>
 

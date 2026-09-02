@@ -14,10 +14,16 @@ import { MenuService } from '../../core/services/menu.service';
 import { LayoutService } from '../../core/services/layout.service';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MenuItem } from '../../core/models/menu.model';
+import { UiIconComponent } from '../../shared/components/ui-icon/ui-icon.component';
+
+export interface MenuGroup {
+  label: string | null;
+  items: MenuItem[];
+}
 
 @Component({
   selector: 'app-sidebar',
-  imports: [CommonModule, RouterModule, MatTooltipModule, FormsModule],
+  imports: [CommonModule, RouterModule, MatTooltipModule, FormsModule, UiIconComponent],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,6 +66,29 @@ export class Sidebar {
 
       return acc;
     }, []);
+  });
+
+  /**
+   * Agrupa los items filtrados por su campo `group`, preservando el orden
+   * de llegada del backend. Los items sin `group` van al principio bajo
+   * un encabezado `null` (sin etiqueta en el render).
+   */
+  readonly groupedMenuItems = computed<MenuGroup[]>(() => {
+    const items = this.filteredMenuItems();
+    const groups: MenuGroup[] = [];
+    const seen = new Map<string, MenuGroup>();
+
+    for (const item of items) {
+      const key = item.group ?? '';
+      if (!seen.has(key)) {
+        const group: MenuGroup = { label: key || null, items: [] };
+        seen.set(key, group);
+        groups.push(group);
+      }
+      seen.get(key)!.items.push(item);
+    }
+
+    return groups;
   });
 
   readonly effectiveExpandedItems = computed(() => {
