@@ -28,9 +28,26 @@ jobs:
             echo "has_db_changes=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Stop old containers (preserve data volumes)
+      # El filtro `name=tase-` matchea TODO: tase-backend, tase-frontend,
+      # tase-postgres y tase-redis. Correrlo sin condicionar destruía la base
+      # en cada deploy aunque no hubiera cambios de esquema — el arranque de
+      # infra estaba condicionado y la parada no, así que postgres sólo revivía
+      # de rebote por `depends_on` al levantar backend. Los datos sobrevivían
+      # (los volúmenes son nombrados y no se borran) pero cada deploy pagaba una
+      # recreación completa de la base y su ventana de caída, que es justo lo
+      # que la detección de cambios existe para evitar.
+      - name: Stop old app containers (preserve infra when the DB didn't change)
         run: |
-          docker ps -a --filter "name=tase-" -q | xargs -r docker rm -f || true
+          if [ "${{ steps.db_changes.outputs.has_db_changes }}" = "true" ]; then
+            echo "Cambios de BD: se recrea todo, incluida la infra"
+            docker ps -a --filter "name=tase-" -q | xargs -r docker rm -f || true
+          else
+            echo "Sin cambios de BD: sólo backend y frontend; postgres y redis siguen vivos"
+            docker ps -a \
+              --filter "name=tase-backend" \
+              --filter "name=tase-frontend" \
+              -q | xargs -r docker rm -f || true
+          fi
 
       - name: Start infra (postgres + redis) — if database changed
         if: steps.db_changes.outputs.has_db_changes == 'true'
@@ -69,7 +86,12 @@ jobs:
           CI: true
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker compose --profile staging up --build -d backend frontend
+          # --quiet-pull y --progress quiet: sin esto, el progreso de descarga
+          # capa por capa produce miles de líneas ("Downloading 1.049MB"
+          # repetido) que entierran cualquier error real del build. Los errores
+          # siguen saliendo; lo que se calla es la barra de progreso.
+          docker compose --progress quiet --profile staging up \
+            --build --quiet-pull -d backend frontend
 
       - name: Health check — backend
         run: |
