@@ -27,8 +27,46 @@ jobs:
         working-directory: /mnt/storage/projects/tase
 
     steps:
-      # Code está en /mnt/storage/projects/tase/ (clonado manualmente, actualizar con git pull)
+      # El código vive en /mnt/storage/projects/tase, un clon hecho a mano en la
+      # VM. NO se usa actions/checkout: el checkout dejaría los archivos en el
+      # workspace temporal del runner, donde no está `.env` y donde el nombre de
+      # proyecto de compose sería otro — o sea, contenedores y volúmenes nuevos,
+      # base de datos vacía en cada deploy.
+      #
+      # Pero durante meses nadie actualizó ese clon desde el workflow: GitHub
+      # sólo mandaba la orden de desplegar y compose construía con los archivos
+      # que hubiera en disco, que dependían de si alguien se acordó de hacer
+      # `git pull` por SSH. El deploy igual etiquetaba la imagen con
+      # `IMAGE_TAG: github.sha`, así que la etiqueta afirmaba un commit que la
+      # imagen no contenía. Un `docker inspect` "confirmaba" un despliegue que
+      # nunca ocurrió.
+      #
+      # Este paso cierra eso: el árbol se lleva al commit exacto que disparó el
+      # workflow, ni el último de la rama ni lo que quedó en disco.
+      - name: Sync working tree to the pushed commit
+        run: |
+          echo "En disco antes de sincronizar: $(git rev-parse --short HEAD)"
+          git fetch --prune origin "${{ github.ref_name }}"
 
+          # `reset --hard` al SHA, no `pull`: `pull` fusiona y puede quedar en
+          # conflicto o arrastrar un commit más nuevo que el que se está
+          # desplegando; `reset` deja el árbol idéntico a lo que se probó.
+          # Descarta modificaciones locales en archivos VERSIONADOS — esa es la
+          # intención: la VM no es un sitio donde editar.
+          git reset --hard "${{ github.sha }}"
+
+          # A propósito NO se corre `git clean`. Borraría los archivos sin
+          # versionar, y ahí vive `.env` — con las credenciales de la base, que
+          # no están en el repo y nadie podría regenerar. El costo de omitirlo
+          # es que sobreviven artefactos viejos sin versionar; irrelevante,
+          # porque el build ocurre dentro de Docker y los .dockerignore ya
+          # excluyen dist/, node_modules/ y demás.
+
+          echo "Desplegando: $(git rev-parse --short HEAD) — $(git log -1 --format=%s)"
+
+      # Ahora `HEAD~1..HEAD` sí es el diff del push. Antes comparaba contra el
+      # HEAD que hubiera quedado en la VM, que podía ser de días atrás: el
+      # detector de cambios de BD respondía sobre un rango inventado.
       - name: Detect database changes
         id: db_changes
         run: |
