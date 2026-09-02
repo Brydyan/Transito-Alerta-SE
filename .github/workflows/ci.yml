@@ -4,6 +4,21 @@ name: CI
 # deploys — it only decides whether a change is allowed to merge.
 on:
   pull_request:
+    # `edited` es obligatorio por culpa de auto-redirect-pr.yml. Sin él, los
+    # tipos por defecto son [opened, synchronize, reopened], y cambiar la
+    # rama base por API dispara `edited`, no `synchronize`. Secuencia del
+    # fallo, que ya se dio:
+    #   1. PR contra main            -> `opened`, CI corre contra main
+    #   2. el bot redirige a develop -> `edited`, este workflow lo ignoraba
+    #   3. el PR queda mostrando checks calculados contra la base VIEJA
+    # Y como dorny/paths-filter compara contra la base del PR, los jobs se
+    # saltaban cuando el diff contra main no tocaba sus paths — en gris, que
+    # se lee igual que "no corrió".
+    #
+    # Coste: `edited` también dispara al editar título o descripción. Lo
+    # amortiguan el `concurrency` de abajo (cancela la corrida anterior) y el
+    # job `changes`, que deja un PR sin paths relevantes en ~10s.
+    types: [opened, synchronize, reopened, edited]
     branches: [develop, main]
   push:
     branches: [develop, main]
