@@ -1,0 +1,23 @@
+# Contexto de build del frontend (compose.yaml → `context: ./frontend`).
+#
+# node_modules se reinstala dentro de la imagen desde el lockfile: copiarlo
+# desde el host es más lento y arrastra binarios compilados para otra
+# plataforma. dist/ se genera en el stage `build`, así que copiarlo sólo
+# sirve para que un artefacto viejo del host tape al recién construido —
+# exactamente el bug que este Dockerfile viene a cerrar.
+
+node_modules/
+dist/
+.angular/
+
+# Artefactos de test — no van a la imagen y engordan el contexto.
+test-results/
+playwright-report/
+coverage/
+
+# El Dockerfile no se copia a sí mismo.
+Dockerfile
+.dockerignore
+
+.git/
+*.log

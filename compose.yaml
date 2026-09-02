@@ -88,13 +88,28 @@ services:
   # ── Frontend Angular + Nginx (solo perfil staging) ──────────────────────────────
   frontend:
     profiles: [staging]
-    image: nginx:alpine
+    # Construido, no sólo servido. Antes era `image: nginx:alpine` con
+    # `./frontend/dist/browser` montado como volumen. El `--build` del deploy
+    # no lo tocaba —sólo construye servicios con sección `build:`— así que
+    # staging sirvió durante días un artefacto hecho a mano el 29 de agosto,
+    # sin relación con el commit desplegado.
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    image: tase-frontend:${IMAGE_TAG:-latest}
     container_name: tase-frontend
     restart: unless-stopped
     ports:
       - '${FRONTEND_PORT:-8083}:80'
     volumes:
-      - ./frontend/dist/browser:/usr/share/nginx/html:ro
+      # El montaje de dist/ SE ELIMINÓ a propósito: un volumen del host tapa
+      # el contenido de la imagen, así que dejarlo habría hecho que la app
+      # recién construida quedara oculta detrás del build viejo — el mismo
+      # bug, con más pasos.
+      #
+      # nginx.conf sí sigue montado: es configuración de despliegue, no
+      # artefacto de build, y así se ajusta sin reconstruir la imagen.
       - ./frontend/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       backend:
