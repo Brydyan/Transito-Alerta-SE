@@ -43,9 +43,9 @@ internamente — ver «Ciudadano» más abajo.
 | 3 | **315** Fix estados | [315](https://app.shortcut.com/upse/story/315) | 3 | Habilita `closed`, declara la máquina |
 | 4 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
 | 5 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
-| — | **REG** Auto-registro | sin ticket | 5 | El ciudadano puede crearse cuenta. **Hoy no puede** |
-| — | **ANON** Cerrar sin sesión | sin ticket | 3 | Retira el reporte anónimo sin cuenta |
-| — | **AUD** Auditoría y revelación | sin ticket | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría |
+| — | **REG** Auto-registro | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano puede crearse cuenta. **Hoy no puede** |
+| — | **ANON** Cerrar sin sesión | [326](https://app.shortcut.com/upse/story/326) | 3 | Retira el reporte anónimo sin cuenta |
+| — | **AUD** Auditoría y revelación | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría |
 | 6 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
 | 7 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
 | 8 | **F5** Menús dinámicos | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura |
@@ -53,8 +53,9 @@ internamente — ver «Ciudadano» más abajo.
 
 **Empezar por F0 → F1. 315 antes de F3. REG antes de ANON, sin excepción.**
 
-**Sin ticket todavía:** REG, ANON y AUD nacieron de la sesión del 2026-09-02 y aún no
-tienen story en Shortcut. Crearlas bajo el epic 192 antes de empezar.
+Las dependencias de la cadena están además declaradas como enlaces «blocks» en Shortcut
+(325→326→327→{306, 316}), no sólo en este documento: un orden que sólo vive en un `.md`
+se salta sin que nada se entere.
 
 ---
 
