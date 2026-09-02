@@ -22,6 +22,11 @@ on:
     branches: [develop, main]
   push:
     branches: [develop, main]
+  # Auditoría nocturna de cutover: prueba que el camino de cutover sigue
+  # funcionando el día antes de cualquier cutover real. 02:00 UTC = 21:00 ECT.
+  # La consume el job `cutover-nightly` vía `if: github.event_name == 'schedule'`.
+  schedule:
+    - cron: '0 2 * * *'
 
 # A new push to the same PR cancels the previous run; only the latest commit
 # needs an answer.
@@ -575,8 +580,3 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm run test:e2e:cutover
-
-# Nightly cutover audit (proves the cutover path still works the day
-# before any real cutover is scheduled). 02:00 UTC = 21:00 ECT.
-schedule:
-  - cron: '0 2 * * *'
