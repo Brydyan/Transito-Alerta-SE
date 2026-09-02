@@ -15,12 +15,22 @@ jobs:
     runs-on: self-hosted
     environment: staging
 
+    # A nivel de job, no por paso. Antes cada paso lo declaraba por su cuenta y
+    # los dos health checks se habían quedado sin él: corrían en el directorio
+    # temporal del runner, donde no existe `.env` ni `compose.yaml`, y el deploy
+    # moría con `line 1: .env: No such file or directory` después de haber
+    # construido y levantado todo correctamente.
+    #
+    # Declarado acá, ningún paso `run:` futuro puede olvidarlo.
+    defaults:
+      run:
+        working-directory: /mnt/storage/projects/tase
+
     steps:
       # Code está en /mnt/storage/projects/tase/ (clonado manualmente, actualizar con git pull)
 
       - name: Detect database changes
         id: db_changes
-        working-directory: /mnt/storage/projects/tase
         run: |
           if git diff HEAD~1..HEAD --quiet -- database/migrations/ database/seeds/; then
             echo "has_db_changes=false" >> $GITHUB_OUTPUT
@@ -54,11 +64,9 @@ jobs:
       # has_db_changes, lo que dejaba la infra sin garantía de estar levantada
       # en los deploys que no tocaban database/.
       - name: Ensure infra (postgres + redis)
-        working-directory: /mnt/storage/projects/tase
         run: docker compose --progress quiet up -d postgres redis
 
       - name: Wait for postgres
-        working-directory: /mnt/storage/projects/tase
         run: |
           for i in $(seq 1 30); do
             if docker compose exec -T postgres pg_isready -U postgres; then
@@ -80,7 +88,6 @@ jobs:
       # cuando la tabla no está, sin lanzar error.
       - name: Detect schema state
         id: schema
-        working-directory: /mnt/storage/projects/tase
         run: |
           if docker compose exec -T postgres psql -U postgres -d transito_alerta \
                -tAc "SELECT to_regclass('public.roles') IS NOT NULL" 2>/dev/null \
@@ -96,7 +103,6 @@ jobs:
         if: |
           steps.db_changes.outputs.has_db_changes == 'true' ||
           steps.schema.outputs.present == 'false'
-        working-directory: /mnt/storage/projects/tase
         env:
           BOOTSTRAP: ${{ steps.schema.outputs.present == 'false' }}
         run: |
@@ -124,7 +130,6 @@ jobs:
         if: |
           steps.db_changes.outputs.has_db_changes == 'true' ||
           steps.schema.outputs.present == 'false'
-        working-directory: /mnt/storage/projects/tase
         run: |
           # Sin esto, un bootstrap a medias se descubre recién cuando el backend
           # muere por `relation ... does not exist`, sin decir cuál falta.
@@ -139,7 +144,6 @@ jobs:
           echo "Esquema verificado: roles, users, incidents, user_sessions"
 
       - name: Build and start backend + frontend
-        working-directory: /mnt/storage/projects/tase
         env:
           CI: true
           IMAGE_TAG: ${{ github.sha }}
@@ -159,7 +163,6 @@ jobs:
       # causa real del fallo original.
       - name: Diagnóstico — sólo si algo falló
         if: failure()
-        working-directory: /mnt/storage/projects/tase
         run: |
           echo "───── estado de los contenedores ─────"
           docker ps -a --filter "name=tase-" \
