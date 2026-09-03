@@ -124,3 +124,10 @@ frontend/browser/
 # Build artifacts from CI
 *.tgz
 build-*.tar.gz
+
+# Artefactos de Playwright — se regeneran en cada corrida.
+# `playwright-report/index.html` son 508K de HTML autocontenido: versionarlo
+# ensucia el diff de cada PR con ruido que nadie revisa, y el reporte útil ya
+# se sube como artifact del job `frontend-e2e` (retención 14 días).
+frontend/playwright-report/
+frontend/test-results/
