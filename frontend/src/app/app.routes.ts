@@ -134,10 +134,75 @@ export const routes: Routes = [
           import('./features/profile/profile.component').then((m) => m.ProfileComponent),
       },
 
+      // F1 (D2) — Rutas placeholder para los destinos del MENU_MAP que aún
+      // no tienen pantalla real. Cada una monta `PlaceholderComponent` con
+      // el comentario `// PLACEHOLDER F<n>` para que la fase siguiente la
+      // identifique y reemplace. El listado vive también en
+      // `backend/src/modules/menus/menu-map.spec.ts` (D6).
       {
-        path: 'Reportes',
+        path: 'inicio',
+        data: { breadcrumb: 'Inicio', title: 'Inicio', phase: 'F4' },
         loadComponent: () =>
-          import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+          import('./features/placeholder/placeholder.component').then(
+            (m) => m.PlaceholderComponent,
+          ),
+        // PLACEHOLDER F4
+      },
+      {
+        path: 'incidencias',
+        data: { breadcrumb: 'Lista de Incidencias', title: 'Lista de Incidencias', phase: 'F3' },
+        loadComponent: () =>
+          import('./features/placeholder/placeholder.component').then(
+            (m) => m.PlaceholderComponent,
+          ),
+        // PLACEHOLDER F3
+      },
+      {
+        path: 'mapa',
+        data: { breadcrumb: 'Mapa', title: 'Mapa', phase: 'F4' },
+        loadComponent: () =>
+          import('./features/placeholder/placeholder.component').then(
+            (m) => m.PlaceholderComponent,
+          ),
+        // PLACEHOLDER F4
+      },
+      // F1.5.3 — `citizen-report` era código muerto (sólo importable).
+      // F1 lo registra como ruta real del menú `Reportar`. La pantalla
+      // existe y se conserva tal cual.
+      {
+        path: 'reportar',
+        data: { breadcrumb: 'Reportar' },
+        loadComponent: () =>
+          import('./features/citizen-report/citizen-report.component').then(
+            (m) => m.CitizenReportComponent,
+          ),
+      },
+      {
+        path: 'organizaciones',
+        data: { breadcrumb: 'Organizaciones', title: 'Organizaciones', phase: 'F2' },
+        loadComponent: () =>
+          import('./features/placeholder/placeholder.component').then(
+            (m) => m.PlaceholderComponent,
+          ),
+        // PLACEHOLDER F2
+      },
+      {
+        path: 'categorias',
+        data: { breadcrumb: 'Categorías', title: 'Categorías', phase: 'F2' },
+        loadComponent: () =>
+          import('./features/placeholder/placeholder.component').then(
+            (m) => m.PlaceholderComponent,
+          ),
+        // PLACEHOLDER F2
+      },
+      {
+        path: 'ubicaciones',
+        data: { breadcrumb: 'Ubicaciones', title: 'Ubicaciones', phase: 'F2' },
+        loadComponent: () =>
+          import('./features/placeholder/placeholder.component').then(
+            (m) => m.PlaceholderComponent,
+          ),
+        // PLACEHOLDER F2
       },
 
       {
