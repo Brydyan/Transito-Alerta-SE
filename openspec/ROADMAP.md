@@ -39,7 +39,7 @@ internamente — ver «Ciudadano» más abajo.
 |---|---|---|---|---|
 | 1 | **F0** Design system ✅ | [300](https://app.shortcut.com/upse/story/300) | 5 | Tokens violeta, Outfit, Lucide, 6 primitivos — **completada y archivada 2026-09-02** |
 | 2 | **F1** Navegación | [303](https://app.shortcut.com/upse/story/303) | 2 | Arregla el 404 del sidebar |
-| — | **324** Test de contraste | [324](https://app.shortcut.com/upse/story/324) | 2 | Cierra el único requisito de `design-system` sin cobertura. Independiente: puede correr en paralelo a F1 |
+| — | **324** Test de contraste ✅ | [324](https://app.shortcut.com/upse/story/324) | 2 | Cierra el único requisito de `design-system` sin cobertura. **Completada y archivada 2026-09-02** |
 | 3 | **315** Fix estados | [315](https://app.shortcut.com/upse/story/315) | 3 | Habilita `closed`, declara la máquina |
 | 4 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
 | 5 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
@@ -76,7 +76,7 @@ ya no aplica, F1–F6 pueden consumir los primitivos.
 
 | Qué | Dónde se cierra |
 |---|---|
-| El requisito de contraste no tiene test automatizado | [sc-324](https://app.shortcut.com/upse/story/324) · `front/2026-09-02-contrast-regression-test/` |
+| ✅ El requisito de contraste no tiene test automatizado | [sc-324](https://app.shortcut.com/upse/story/324) · `archive/2026-09-02-contrast-regression-test/` — cerrada |
 | Alias de puente `brand-navy`/`brand-hivis` vivos (21 consumidores) | [sc-323](https://app.shortcut.com/upse/story/323) · F6 |
 | **12 archivos de `features/` sin icono** — `bi bi-*` sin hoja de estilos | F1–F6, pantalla por pantalla |
 | `transformBackendMenu()` no popula `group`; el backend tampoco lo envía | F1 (anotado en su `tasks.md`) |
@@ -285,6 +285,7 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 | **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos | `auth.config.ts:74` | ANON + AUD |
 | **No hay tabla de auditoría** — F7 la necesita para la excepción al tope | — | AUD |
 | «Volver al inicio» del login es `href="#!"` | `login.component.html:147` | REG (apunta a `/registro`) |
+| **Compuerta de typecheck es un no-op** — `npx tsc -p tsconfig.json --noEmit` revisa 0 archivos (`files: []`); el comando real es `npx tsc -b tsconfig.json --noEmit` | `frontend/tsconfig.json` + `frontend/tsconfig.spec.json` | Sin ticket — detectado en sc-324; afecta toda ejecución de verificación de tipos en el frontend |
 
 **Patrón común: reglas implementadas a medias** — aplicadas en el camino por donde entró
 la funcionalidad y no en el añadido después.

@@ -23,7 +23,7 @@ ejecuté los comandos, no confié en `apply-progress.md`.
  M frontend/src/app/shared/components/ui-kpi-card/ui-kpi-card.component.ts
  M frontend/src/styles/_variables.css
  M openspec/changes/front/2026-09-02-contrast-regression-test/tasks.md
-?? frontend/src/app/shared/components/contrast.regression.spec.ts
+ ?? frontend/src/app/shared/components/contrast.regression.spec.ts
 ```
 
 ## Gates — ejecutados de nuevo, no reusados de round 1
