@@ -44,21 +44,40 @@ e `image-compressor.service.ts` existen sin consumidor.
 - Captura de ubicación con `geolocation.service.ts`
 - Compresión de imágenes con `image-compressor.service.ts`
 
-### In Scope — Fase B (añadido 2026-08-29 tras aclaración del equipo)
-- **Reporte anónimo y de emergencia sin sesión.** Reincorporado al alcance: se había
-  descartado por falta de mock, pero el backend **ya lo soporta por completo** y no
-  exponerlo deja construida una capacidad clave sin puerta de entrada.
+### ~~In Scope — Fase B (añadido 2026-08-29 tras aclaración del equipo)~~ · REVERTIDO 2026-09-02
 
-  Verificado:
-  - `database/migrations/0001_initial_schema.sql:49` crea el usuario con
-    `device_uuid = 'anonymous'`
-  - `backend/src/config/auth.config.ts:74-80` define su techo de permisos:
-    `READ/CREATE incidents`, `READ/CREATE comments` — leer y contribuir, nunca modificar
-  - `backend/src/config/auth.config.spec.ts:56` lo dice literal: *«lets an anonymous
-    device report an emergency without logging in»*
+> **Se conserva tachado a propósito.** Un alcance que desaparece sin rastro reaparece en
+> la siguiente sesión como idea nueva, y alguien vuelve a razonarlo desde cero.
 
-  El techo anónimo **no** se toca: se consume tal cual. La emergencia se expresa con la
-  prioridad `alta` del asistente, no con un tipo nuevo de incidencia.
+~~**Reporte anónimo y de emergencia sin sesión.** Reincorporado al alcance: se había
+descartado por falta de mock, pero el backend ya lo soporta por completo y no exponerlo
+deja construida una capacidad clave sin puerta de entrada.~~
+
+**Revertido por decisión de producto del 2026-09-02.** El razonamiento original era
+correcto con la información de entonces; lo que cambió es el requisito. El equipo quiere
+poder **sancionar la información falsa**, y eso es incompatible con el reporte sin
+sesión: la identidad anónima es **una sola fila compartida** por todos los anónimos, así
+que un reporte hecho por ahí no es rastreable por construcción. Mantener ese camino
+abierto mientras se sella la autoría del camino autenticado sería la regla aplicada en un
+camino y no en el vecino.
+
+Lo sustituye:
+
+| Fase | Qué aporta |
+|---|---|
+| **REG** `front/2026-09-02-reg-citizen-self-registration/` | El ciudadano puede crearse cuenta — hoy no puede |
+| **ANON** `back/2026-09-02-anon-close-anonymous-reporting/` | Cierra el techo anónimo; la fila máscara sobrevive |
+| **AUD** `back/2026-09-02-aud-audit-trail-and-identity-reveal/` | Autoría sellada, permiso `REVEAL` sólo para `master`, auditoría |
+
+### In Scope — Fase B (revisado 2026-09-02)
+- **Publicación anónima con sesión.** El asistente ofrece un interruptor «publicar de
+  forma anónima». La incidencia se rotula como anónima, `citizen_id` apunta a la máscara
+  y el autor real queda sellado en `incident_reporters` (AUD).
+- **Aviso obligatorio junto al interruptor.** El texto lo define AUD para que exista una
+  sola versión. No es copy opcional: prometer un anonimato que el sistema no da es
+  precisamente lo que el requisito impide. Ver AUD `R-AUD-6`.
+- La emergencia se sigue expresando con la prioridad `critical`, no con un tipo nuevo de
+  incidencia (decisión cerrada, sin cambios).
 
 ### Out of Scope
 - Envío diferido sin conexión: `offline-sync.service.ts` existe y las dependencias

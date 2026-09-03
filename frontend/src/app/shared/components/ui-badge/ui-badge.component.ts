@@ -33,20 +33,25 @@ interface BadgeStyle {
  *
  * Mapa contrato (D10, ver `specs/design-system/spec.md`):
  *
- * | Variante  | Fondo                       | Texto                | Contraste |
- * |-----------|-----------------------------|----------------------|-----------|
- * | pendiente | bg-status-pendiente/20     | text-on-tint-slate   | 9.5 ✓     |
- * | en_proceso| bg-brand-primary-soft      | text-on-tint-violet  | 6.5 ✓     |
- * | resuelto  | bg-status-resuelto/15      | text-on-tint-green   | 7.1 ✓     |
- * | cerrada   | bg-status-cerrada/12       | text-on-tint-graphite| 9.9 ✓     |
- * | low       | bg-prio-low/15             | text-on-tint-green   | 7.1 ✓     |
- * | medium    | bg-prio-medium/40         | text-on-tint-amber   | 8.1 ✓     |
- * | high      | bg-prio-high/15           | text-on-tint-red     | 7.5 ✓     |
- * | critical  | bg-prio-critical **sólido**| text-white + alert-octagon | 6.5 ✓ |
+ * | Variante  | Fondo                         | Texto                     | Umbral    |
+ * |-----------|-------------------------------|---------------------------|-----------|
+ * | pendiente | bg-status-pendiente/20        | text-on-tint-slate        | ≥ 4.5 ✓   |
+ * | en_proceso| bg-brand-primary-soft         | text-on-tint-violet       | ≥ 4.5 ✓   |
+ * | resuelto  | bg-status-resuelto/15         | text-on-tint-green        | ≥ 4.5 ✓   |
+ * | cerrada   | bg-status-cerrada/12          | text-on-tint-graphite     | ≥ 4.5 ✓   |
+ * | low       | bg-prio-low/15                | text-on-tint-green        | ≥ 4.5 ✓   |
+ * | medium    | bg-prio-medium/40             | text-on-tint-amber        | ≥ 4.5 ✓   |
+ * | high      | bg-prio-high/15               | text-on-tint-red          | ≥ 4.5 ✓   |
+ * | critical  | bg-prio-critical **sólido**   | text-white + alert-octagon| ≥ 4.5 ✓   |
  *
  * Tintado para todas las variantes, `critical` sólido como única excepción
  * (el sólido se reserva para `ui-kpi-card`; acá se usa por la carga
  * semántica de la emergencia — D9).
+ *
+ * Verificación ejecutable del umbral: ver
+ * `frontend/src/app/shared/components/contrast.regression.spec.ts`. El
+ * valor exacto se recalcula en cada corrida, no se documenta en el
+ * comentario porque envejece mal.
  *
  * D9: `critical` lleva además un icono (`alert-octagon`) porque dos rojos
  * contiguos son indistinguibles para buena parte de los usuarios.

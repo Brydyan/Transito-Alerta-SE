@@ -81,9 +81,15 @@
 - [ ] **B.2.8** — Paso 4: resumen completo y envío.
 - [ ] **B.2.9** — Retroceder conserva los datos; recargar restaura paso y datos desde el borrador.
 - [ ] **B.2.10** — Envío exitoso ⇒ crear incidencia, subir imágenes, descartar borrador y navegar al detalle. Fallo ⇒ conservar borrador y mostrar el error.
-- [ ] **B.2.11** — **Flujo anónimo / de emergencia sin sesión.** El asistente debe ser alcanzable sin autenticar, usando el techo anónimo que ya define `auth.config.ts` (`READ/CREATE incidents`, `READ/CREATE comments`). **No ampliar ese techo**: `AuthService.getPermissions` ramifica por `device_uuid === 'anonymous'` y lee el config directamente, aislamiento deliberado documentado en 0009 — ampliar el rol `reporter` no debe ampliar jamás lo que puede hacer un anónimo.
-- [ ] **B.2.12** — Tras enviar de forma anónima, ofrecer registro o inicio de sesión para poder seguir la incidencia. Sin sesión no hay a quién notificar, y ése es el momento en que la cuenta tiene valor para el ciudadano.
-- [ ] **B.2.13** — Specs del flujo anónimo: sin sesión se puede completar el asistente; las acciones fuera del techo (editar, borrar) no se ofrecen ni siquiera sobre la incidencia recién creada.
+> **B.2.11–B.2.13 reescritas el 2026-09-02.** Describían el flujo **sin sesión**, que la
+> decisión de producto de esa fecha retiró (ver ANON). Se reescriben en lugar de
+> borrarse: el texto anterior queda en el historial de git y en el proposal de F4, con el
+> motivo. Dependen de **REG**, **ANON** y **AUD** ya integradas.
+
+- [ ] **B.2.11** — **Interruptor «publicar de forma anónima»** en el asistente. Requiere sesión: sin ella el asistente no es alcanzable. Al activarlo, el envío incluye `is_anonymous = true`; el backend (AUD) hace que `citizen_id` apunte a la máscara y sella al autor real en `incident_reporters`. El frontend **no** ve ni maneja el id real: si nunca lo recibe, no puede filtrarlo por descuido.
+- [ ] **B.2.12** — **Aviso junto al interruptor**, consumiendo la constante que exporta AUD. Visible sin interacción: **no** detrás de un tooltip, un acordeón ni un enlace. El texto dice que la identidad no se publica y que puede ser revelada, dejando registro, ante una denuncia por información falsa. Una sola versión del texto, en AUD, para que no se bifurque.
+- [ ] **B.2.13** — Specs de publicación anónima: con el interruptor activo la incidencia sale rotulada como anónima; el detalle y el feed **no** exponen al autor real; el propio autor sí ve su incidencia en «mis reportes»; el aviso está presente y visible sin interacción; sin sesión el asistente **no** se completa.
+- [ ] **B.2.14** — Enlace a `/registro` desde el login y desde el asistente (cierra la promesa que la antigua B.2.12 hacía sin destino: hasta REG no existía pantalla de registro).
 
 ## B.3 — Feed
 

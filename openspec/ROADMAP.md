@@ -4,7 +4,9 @@
 > ya cerradas y los hechos verificados del código, para que nadie los vuelva a discutir
 > ni los redescubra.
 >
-> Fecha: 2026-08-29 · Artefactos SDD: `openspec/changes/` · Tickets: epic 192 «⚠️ GeoReporta» (workspace `upse`)
+> Fecha: 2026-08-29 · **Revisado 2026-09-02** (cadena REG → ANON → AUD; el ciudadano deja
+> de reportar sin sesión) · Artefactos SDD: `openspec/changes/` · Tickets: epic 192
+> «⚠️ GeoReporta» (workspace `upse`)
 
 ---
 
@@ -20,27 +22,40 @@ contra 8 rutas.
 
 ```
 F0 ──┬──► F1 ──┬──► F2 ──┬──► F3 ──► F4 ──► F7
-     │         │        │      ▲
-     │         │        └──────┤
-     │         └──► F5         │
-     │                    315 ─┘
-     └──► F6 ◄── F2
+     │         │        │      ▲      ▲      ▲
+     │         │        └──────┤      │      │
+     │         └──► F5         │      │      │
+     │                    315 ─┘      │      │
+     └──► F6 ◄── F2                   │      │
+                                      │      │
+   REG ──► ANON ──► AUD ──────────────┴──────┘
 ```
+
+La cadena **REG → ANON → AUD** es independiente de F1–F3: sólo toca backend, esquema y
+una pantalla pública. Puede avanzar en paralelo. Lo que **no** admite es reordenarse
+internamente — ver «Ciudadano» más abajo.
 
 | # | Fase | Story | Est. | Qué hace |
 |---|---|---|---|---|
 | 1 | **F0** Design system ✅ | [300](https://app.shortcut.com/upse/story/300) | 5 | Tokens violeta, Outfit, Lucide, 6 primitivos — **completada y archivada 2026-09-02** |
 | 2 | **F1** Navegación | [303](https://app.shortcut.com/upse/story/303) | 2 | Arregla el 404 del sidebar |
-| — | **324** Test de contraste | [324](https://app.shortcut.com/upse/story/324) | 2 | Cierra el único requisito de `design-system` sin cobertura. Independiente: puede correr en paralelo a F1 |
+| — | **324** Test de contraste ✅ | [324](https://app.shortcut.com/upse/story/324) | 2 | Cierra el único requisito de `design-system` sin cobertura. **Completada y archivada 2026-09-02** |
 | 3 | **315** Fix estados | [315](https://app.shortcut.com/upse/story/315) | 3 | Habilita `closed`, declara la máquina |
 | 4 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
 | 5 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
-| 6 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa |
+| — | **REG** Auto-registro | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano puede crearse cuenta. **Hoy no puede** |
+| — | **ANON** Cerrar sin sesión | [326](https://app.shortcut.com/upse/story/326) | 3 | Retira el reporte anónimo sin cuenta |
+| — | **AUD** Auditoría y revelación | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría |
+| 6 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
 | 7 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
 | 8 | **F5** Menús dinámicos | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura |
 | 9 | **F6** Rediseño | [308](https://app.shortcut.com/upse/story/308) | 5 | Dashboard, Usuarios, Roles, Perfil |
 
-**Empezar por F0 → F1. 315 antes de F3.**
+**Empezar por F0 → F1. 315 antes de F3. REG antes de ANON, sin excepción.**
+
+Las dependencias de la cadena están además declaradas como enlaces «blocks» en Shortcut
+(325→326→327→{306, 316}), no sólo en este documento: un orden que sólo vive en un `.md`
+se salta sin que nada se entere.
 
 ---
 
@@ -61,7 +76,7 @@ ya no aplica, F1–F6 pueden consumir los primitivos.
 
 | Qué | Dónde se cierra |
 |---|---|
-| El requisito de contraste no tiene test automatizado | [sc-324](https://app.shortcut.com/upse/story/324) · `front/2026-09-02-contrast-regression-test/` |
+| ✅ El requisito de contraste no tiene test automatizado | [sc-324](https://app.shortcut.com/upse/story/324) · `archive/2026-09-02-contrast-regression-test/` — cerrada |
 | Alias de puente `brand-navy`/`brand-hivis` vivos (21 consumidores) | [sc-323](https://app.shortcut.com/upse/story/323) · F6 |
 | **12 archivos de `features/` sin icono** — `bi bi-*` sin hoja de estilos | F1–F6, pantalla por pantalla |
 | `transformBackendMenu()` no popula `group`; el backend tampoco lo envía | F1 (anotado en su `tasks.md`) |
@@ -99,11 +114,55 @@ de categorías, detalle con historial, galería, mini-mapa y comentarios.
 **Primera tarea, antes de maquetar: revalidar contratos.** `incident.service.ts` y
 `comment.service.ts` existen sin consumidor; su mapeo nunca tocó el wire real.
 
+### Ciudadano — la cadena REG → ANON → AUD · añadida 2026-09-02
+
+Nace de una decisión de producto: **el ciudadano se registra y puede publicar de forma
+anónima; el reporte sin sesión desaparece.** Antes, la única forma de reportar sin cuenta
+era la identidad `device_uuid = 'anonymous'`, que es **una sola fila compartida por todos
+los anónimos** y por tanto no rastreable por construcción.
+
+El equipo quiere poder **sancionar la información falsa**. Eso es incompatible con esa
+identidad compartida, y de ahí las tres fases.
+
+#### REG — Auto-registro · `front/2026-09-02-reg-citizen-self-registration/`
+Hoy `POST /auth/register` responde **410 Gone** (`auth.controller.ts:54`, T6.8.C1): el
+alta es sólo por invitación. Correcto para el personal, y deja fuera al ciudadano. REG lo
+revierte **sólo para `reporter`**; el rol es constante del servidor, nunca dato de la
+petición. Reutiliza `EmailVerificationService` y `email_verified_at`, que ya existen.
+
+#### ANON — Cerrar el reporte sin sesión · `back/2026-09-02-anon-close-anonymous-reporting/`
+Vacía `anonymousPermissions` y rechaza el login con `device_uuid = 'anonymous'`. **La
+fila máscara sobrevive**: AUD la recicla como identidad de publicación.
+
+Alcance quirúrgico: se cierra **la rama** `device_uuid === 'anonymous'`, no la forma de
+credencial `{device_uuid}` — los 122 tests e2e la usan.
+
+#### AUD — Auditoría y revelación · `back/2026-09-02-aud-audit-trail-and-identity-reveal/`
+La primera tabla de auditoría del proyecto. `incident_reporters` guarda al autor real de
+una publicación anónima; `incidents.citizen_id` apunta a la máscara, así que **la tabla
+principal no contiene la identidad**. Revelarla es un `POST` con motivo obligatorio que
+deja registro, y el permiso `REVEAL incidents` lo tiene **sólo `master`**.
+
+**Bloquea también a F7**, cuya decisión cerrada («excepción al tope con motivo y autor
+registrados») necesita la misma auditoría. Se construye una vez.
+
+**El orden no es negociable:**
+
+```
+REG ──► ANON ──► AUD
+```
+
+Cerrar el reporte sin sesión antes de que exista el registro deja una ventana en la que
+**ningún ciudadano puede reportar nada**. Primero la puerta nueva.
+
 ### F4 — Ciudadano · `front/2026-08-29-f4-citizen-feed-wizard-map/`
 Dos fases con compuerta (B no se integra antes que A).
 - **A (backend)**: tablas `incident_followers` e `incident_corroborations`
 - **B (frontend)**: asistente de 4 pasos con borrador en IndexedDB, feed con carga
-  incremental, mapa Leaflet con clustering, reporte anónimo
+  incremental, mapa Leaflet con clustering, **publicación anónima con sesión**
+
+**Depende de REG, ANON y AUD.** Sus tareas `B.2.11`–`B.2.13` se reescribieron el
+2026-09-02: describían el flujo sin sesión, que ya no existe.
 
 ### F7 — Emergencias · `back/2026-08-29-f7-emergency-dispatch/`
 Dos bloques independientes.
@@ -149,6 +208,22 @@ una, se cambió comportamiento y eso está fuera de alcance.
 | Excepción al tope | Limitada a `critical`, con motivo y autor registrados |
 | Permiso de excepción | **No** se añade `OVERRIDE assignments` — `ASSIGN` ya está bien acotado |
 
+### Añadidas 2026-09-02 — el ciudadano
+
+| Tema | Decisión |
+|---|---|
+| Reporte sin sesión | **Se retira.** El ciudadano es `reporter` autenticado. Revierte el alcance que F4 había reincorporado el 2026-08-29 |
+| Publicación anónima | Con sesión. `citizen_id` apunta a la máscara; el autor real se sella en `incident_reporters` |
+| El nombre correcto | Es **seudonimato sellado**, no anonimato. El sistema sabe; nadie lo ve; hay procedimiento para abrirlo |
+| Aviso al ciudadano | **Obligatorio y visible sin interacción.** Un mecanismo de revelación oculto no disuade a nadie y convierte la etiqueta «anónimo» en una afirmación falsa |
+| Quién revela | **Sólo `master`.** El cliente no pidió esta capacidad; ampliarla a `admin_org` sería decidir por él |
+| Auto-registro | Concede **siempre y sólo** `reporter`. El rol es constante del servidor, nunca dato de la petición |
+| Invitación | Sigue siendo el **único** camino a los roles de personal |
+| Correo verificado | Exigido para **publicar**, no para entrar. Sin eso el auto-registro genera cuentas desechables y el sello de AUD no vale nada |
+| Existencia de cuentas | El alta **no** revela si un correo ya está registrado. Un 409 convierte el endpoint en oráculo |
+| Cifrado de `incident_reporters` | **Fuera de alcance hoy.** Tabla aparte para que endurecer sea migración, no reescritura |
+| Renderizado | Sigue siendo **SPA estática**. Si aparece superficie pública indexable, la herramienta es prerender de rutas puntuales, no SSR completo |
+
 ---
 
 ## Hechos verificados del código
@@ -163,8 +238,30 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
   `device_uuid === 'anonymous'`. Ampliar `reporter` nunca amplía el techo anónimo
 - **`roles` no tiene `organization_id`** — catálogo global con `name` único
 - **`critical` ya existe** en `0004_incidents.sql:27` y en todo el backend
-- **El reporte anónimo de emergencia ya está soportado** — ver
-  `auth.config.spec.ts:56`
+- ~~**El reporte anónimo de emergencia ya está soportado**~~ — cierto hasta el
+  2026-09-02. **ANON lo retira.** `auth.config.spec.ts:56` afirma hoy lo contrario de lo
+  que debe afirmar cuando ANON se integre: ese test se **invierte**, no se borra
+
+### Verificados el 2026-09-02
+
+- **`incidents.citizen_id` es `NOT NULL REFERENCES users (id)`**
+  (`0004_incidents.sql:30`). La autoría vive en la tabla principal: ocultar al autor no
+  es sólo filtrar en la API. De ahí la máscara de AUD/D1
+- **`POST /auth/register` responde 410 Gone** (`auth.controller.ts:54`, T6.8.C1) — lápida
+  deliberada, alta sólo por invitación. **Hoy un ciudadano no puede crearse cuenta**
+- **No hay pantalla de registro.** `frontend/src/app/features/auth/` tiene
+  `login`, `accept-invitation`, `forgot-password`, `reset-password`, `verify-email`
+- **La verificación de correo por OTP ya existe** — `EmailVerificationService`,
+  `email_verified_at`, columnas OTP de `0028_users_otp_compliance.sql`. REG la consume,
+  no la construye
+- **Los 122 tests e2e autentican con `{device_uuid}`** —
+  `exactly-one-credential.validator.ts:24`. Esa forma de credencial **no se toca**;
+  ANON cierra sólo la rama `=== 'anonymous'`
+- **El frontend es SPA estática, sin SSR.** Builder `@angular/build:application` con sólo
+  `browser`; sin `@angular/ssr`, sin `platform-server`, sin `server.ts`;
+  `nginx.conf:42` hace `try_files $uri $uri/ /index.html`
+- **Cero rutas públicas hoy.** `path: ''` redirige a `login` y todo `/app/**` está tras
+  `authGuard`. El «Volver al inicio» del login es `href="#!"` — un enlace muerto
 - **`@nestjs/schedule@6.1.3` instalado**; **no hay tabla de auditoría**; **la acción
   `CLOSE` no existe** en el `CHECK` de `permissions.action`
 - **`users.permissions` es copia denormalizada de `roles.permissions`.** Toda migración
@@ -184,6 +281,11 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 | `assign()` no valida el tope de carga | `assignments.service.ts:28-36` | F7 / A.2 |
 | Escrituras de asignación sin acotar por organización | `assignments.controller.ts` | F7 / A.5 |
 | Sidebar cae al 404 | `menu-map.ts` ↔ `app.routes.ts` | F1 |
+| **El ciudadano no puede registrarse** — F4/B.2.12 ofrecía un registro inexistente | `auth.controller.ts:54` (410) | REG |
+| **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos | `auth.config.ts:74` | ANON + AUD |
+| **No hay tabla de auditoría** — F7 la necesita para la excepción al tope | — | AUD |
+| «Volver al inicio» del login es `href="#!"` | `login.component.html:147` | REG (apunta a `/registro`) |
+| **Compuerta de typecheck es un no-op** — `npx tsc -p tsconfig.json --noEmit` revisa 0 archivos (`files: []`); el comando real es `npx tsc -b tsconfig.json --noEmit` | `frontend/tsconfig.json` + `frontend/tsconfig.spec.json` | Sin ticket — detectado en sc-324; afecta toda ejecución de verificación de tipos en el frontend |
 
 **Patrón común: reglas implementadas a medias** — aplicadas en el camino por donde entró
 la funcionalidad y no en el añadido después.
