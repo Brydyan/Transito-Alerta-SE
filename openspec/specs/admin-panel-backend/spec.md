@@ -1,8 +1,40 @@
-# Spec: Admin Panel Backend + CRUD Gaps — T5.6
+# Spec: Admin Panel Backend + CRUD Gaps — T5.6 + F1
 
 **Capability**: admin-panel-backend
-**Change**: t5.6-admin-panel-backend
-**Date**: 2026-08-23
+**Changes**: t5.6-admin-panel-backend (2026-08-23), 2026-08-29-f1-menu-routing-alignment (2026-08-29)
+**Last Updated**: 2026-09-02
+
+---
+
+## Grupo 0 — Menú: Alineación y contrato (F1, 2026-08-29)
+
+**F1-01 — Toda entrada de menú resuelve a una ruta registrada**
+- **Given** cualquier usuario autenticado
+- **When** GET `/api/menus/my` devuelve un array de `MenuEntry`
+- **Then** cada `route` en la respuesta, tras prefijado con `/app` en el cliente, corresponde a una ruta declarada en `frontend/src/app/app.routes.ts` (placeholders para pantallas futuras incluidas); ninguna entrada navega al wildcard 404
+
+**F1-02 — Etiquetas en español**
+- **Given** el backend emite `MenuEntry[]`
+- **When** se serializa `MENU_MAP`
+- **Then** todas las etiquetas (`label`) están en español (ej: "Lista de Incidencias", no "Incidents") coherente con mocks 01-01, 02-01, 05-01
+
+**F1-03 — Agrupación y orden explícitos**
+- **Given** el endpoint devuelve `MenuEntry`
+- **When** se serializa una entrada autorizada
+- **Then** contiene `order: number` (obligatorio, determinista) y `group?: string` (opcional, omitido si está ausente en `MENU_MAP`)
+- **And** el servicio ordena la respuesta por `order` ascendente antes de devolver
+- **And** grupos que quedan vacíos tras filtrado por permisos no se emiten (el cliente no renderiza encabezados huérfanos)
+
+**F1-04 — Contrato de `MenuEntry` extendido**
+- **Given** backend emite `MenuEntry[]` desde `GET /api/menus/my`
+- **When** cliente (`MenuService.transformBackendMenu()`) recibe la respuesta
+- **Then** propaga `group` y `order` al modelo `MenuItem[]` frontend sin perder campos preexistentes (`id`, `name`, `route`, `icon`)
+- **And** tolera respuestas sin `group` (backend desfasado) sin lanzar, renderizándose sin agrupación
+
+**F1-05 — Rutas huérfanas registradas**
+- **Given** componentes en `features/` del frontend (ej: `citizen-report`)
+- **When** se revisa `app.routes.ts`
+- **Then** o bien están registrados en una ruta navegable, o bien son eliminados (nunca código muerto)
 
 ---
 
