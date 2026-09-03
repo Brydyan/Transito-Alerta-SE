@@ -301,7 +301,7 @@ la funcionalidad y no en el añadido después.
 **Pendiente y no ticketeado:** auditar el backend con esa misma lente — soft delete,
 alcance por organización en otros módulos, guards de permiso, y DTOs que asuman camelCase.
 
-### Compuertas que no comprueban lo que dicen — candidato a change de tooling
+### Compuertas que no comprueban lo que dicen → **TOOL** · [sc-329](https://app.shortcut.com/upse/story/329) · `front/2026-09-03-tool-ci-gates/`
 
 Tres síntomas, un mismo defecto. **Un gate que no corre se lee igual que un gate que
 pasa**, y es la clase de problema que costó tres pasadas en F1.
@@ -309,11 +309,40 @@ pasa**, y es la clase de problema que costó tres pasadas en F1.
 | Síntoma | Efecto |
 |---|---|
 | `npx tsc -p tsconfig.json --noEmit` compila **cero** archivos (`files: []`) y sale 0 siempre | Toda verificación de tipos del frontend es un no-op. El comando real es `npx tsc -b` |
-| `@types/node` ausente en **5** specs de regresión del frontend | 14 errores permanentes en `-b`, que normalizan el rojo |
+| `frontend/tsconfig.spec.json` declara `"types": ["jest"]`, sin `node` | 14 errores permanentes en `-b`, que normalizan el rojo. **Una línea los cierra** |
 | `frontend/package.json` sin script `lint` | `tasks.md` de varias fases exige `pnpm lint` y no existe |
 
-Cerrarlos junto, y de paso dejar **actionlint** como gate de CI: ambos workflows ya pasan
-limpios, así que entra sin ruido. Sin ticket.
+Incluye **actionlint** como gate: ambos workflows ya pasan limpios, así que entra sin
+deuda previa. Justifica su existencia el `schedule:` suelto que dejó `ci.yml` **inválido**
+desde `351eec0` sin que nadie lo notara.
+
+**Cuánto lleva mintiendo:** al menos cuatro artefactos archivados declaran
+`npx tsc --noEmit → 0 errors` como evidencia (`t3.6-invitations/verify-report.md:32`,
+`sc-207/tasks.md:42`, `sc-203/verify-report.md:33`). Ninguno era falso por descuido: el
+comando salía 0 de verdad, **porque no miraba nada**.
+
+**El gate nace en rojo a propósito.** Al arreglarlo aflora un `TS2345` legítimo en
+`frontend/src/app/core/services/auth.service.spec.ts:227` (`string | null` no asignable a
+`string`). TOOL lo expone y **no** lo arregla: decidir si `organization_name` puede ser
+nulo en `InvitationPreview` es una pregunta de dominio, no de herramientas.
+
+### e2e sin credenciales válidas → **E2E** · [sc-328](https://app.shortcut.com/upse/story/328) · `front/2026-09-03-e2e-test-user-and-credentials/`
+
+`auth-flow.e2e.ts:69` entra con `admin@correo.com` / `123456`, credenciales que
+`database/seeds/users.js` no crea — vienen del GeoReporta original. `comment-flow` y
+`menu-navigation` dependen del mismo login.
+
+Mientras `vars.STAGING_BASE_URL` estuvo sin definir, los specs se saltaban y el fallo
+estaba tapado. Ahora corren y fallan: **no es una regresión, es el mismo defecto ahora
+visible.** Una corrida llegó a 9m44 antes de que `efe021f` acotara la suite
+(`globalTimeout`, `maxFailures: 3`, `retries: 1`).
+
+Entrega un usuario dedicado `e2e@tase.local` con rol **`operador_org`** —no `master`, que
+atraviesa los guards sin que ninguno decida nada— credenciales por entorno, y caché de los
+navegadores de Playwright, que hoy se descargan enteros en cada corrida mientras el store
+de pnpm sí se cachea.
+
+**Bloquea de hecho el flujo de PR**: un rojo permanente es un rojo que se deja de mirar.
 
 ### Deuda con fecha de caducidad — heredada de F1
 
