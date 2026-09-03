@@ -4,18 +4,17 @@ import { UiKpiCardComponent } from './ui-kpi-card.component';
 /**
  * CRITICAL-3 (D12): `ui-kpi-card` tiene el mismo defecto de raíz que
  * `ui-badge` antes del fix — emparejar `text-white` con tonos que no
- * llegan al 4.5:1. La auditoría midió los contrastes y los corrigió
- * así:
+ * llegan al 4.5:1. La auditoría corrigió los pares así:
  *   - `cyan` y `green` pasan a `text-on-tint-graphite` (#1F2937).
- *   - `red` cambia el FONDO a `bg-prio-critical` (#B91C1C, 6.54:1 con
- *     blanco) porque el texto blanco sobre `bg-prio-high` (#EF4444) sólo
- *     llega a 3.76:1.
+ *   - `red` cambia el FONDO a `bg-prio-critical` (#B91C1C) porque el
+ *     texto blanco sobre `bg-prio-high` (#EF4444) no llegaba al umbral.
  *
  * R2.2 de `fixes-required.md`: `slate` y `amber` también usaban clases
  * stock de Tailwind (`bg-slate-700`, `bg-amber-500`, `text-slate-900`).
  * Migrados a tokens: `slate` → `bg-status-cerrada` (mismo gris oscuro
  * que usa el badge `cerrada` en `ui-badge`); `amber` → `bg-prio-medium`
- * con `text-on-tint-amber` (umbral `≥ 4.5 ✓` — ver R3.3 abajo).
+ * con `text-on-tint-amber`. Verificación ejecutable del umbral:
+ * `frontend/src/app/shared/components/contrast.regression.spec.ts`.
  *
  * El spec afirma sobre el PAR resuelto (no sólo el fondo) y mantiene la
  * misma red allowed/forbidden que `ui-badge` para que un atajo a
@@ -38,7 +37,7 @@ const CONTRACT: Record<(typeof ALL_TONES)[number], Pair> = {
   slate: ['bg-status-cerrada', 'text-white', 'light-text'],
   // R2.2: `amber` migra de `bg-amber-500 text-slate-900` (ambos stock)
   // a `bg-prio-medium text-on-tint-amber` (tokens de la paleta de
-  // prioridad; umbral `≥ 4.5 ✓` — ver R3.3).
+  // prioridad). Umbral `≥ 4.5 ✓` — ver `contrast.regression.spec.ts`.
   amber: ['bg-prio-medium', 'text-on-tint-amber', 'dark-text'],
   violet: ['bg-brand-primary-hover', 'text-white', 'light-text'],
 };

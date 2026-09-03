@@ -37,33 +37,28 @@ interface KpiStyle {
  *
  * Tones y pares accesibles (D12, ver `specs/design-system/spec.md`):
  *
- * | Tone   | Fondo                 | Texto                     | Contraste |
- * |--------|-----------------------|---------------------------|-----------|
- * | brand  | bg-brand-primary      | text-white                | ≥ 4.5 ✓   |
- * | cyan   | bg-accent-cyan        | **text-on-tint-graphite** | ≥ 4.5 ✓   |
- * | green  | bg-accent-green       | **text-on-tint-graphite** | ≥ 4.5 ✓   |
- * | red    | **bg-prio-critical**  | text-white                | ≥ 4.5 ✓   |
- * | slate  | **bg-status-cerrada** | text-white                | ≥ 4.5 ✓   |
- * | amber  | **bg-prio-medium**    | **text-on-tint-amber**    | ≥ 4.5 ✓   |
- * | violet | bg-brand-primary-hover| text-white                | ≥ 4.5 ✓   |
+ * | Tone   | Fondo                   | Texto                     | Umbral    |
+ * |--------|-------------------------|---------------------------|-----------|
+ * | brand  | bg-brand-primary        | text-white                | ≥ 4.5 ✓   |
+ * | cyan   | bg-accent-cyan          | **text-on-tint-graphite** | ≥ 4.5 ✓   |
+ * | green  | bg-accent-green         | **text-on-tint-graphite** | ≥ 4.5 ✓   |
+ * | red    | **bg-prio-critical**    | text-white                | ≥ 4.5 ✓   |
+ * | slate  | **bg-status-cerrada**   | text-white                | ≥ 4.5 ✓   |
+ * | amber  | **bg-prio-medium**      | **text-on-tint-amber**    | ≥ 4.5 ✓   |
+ * | violet | bg-brand-primary-hover  | text-white                | ≥ 4.5 ✓   |
  *
- * **Se cita el umbral, no el valor.** Los siete pares se verificaron ≥ 4.5:1;
- * el número exacto no se documenta porque envejece mal y ya falló tres veces
- * en este change: `amber` figuraba como `8.1:1`, que es el par del badge
- * `medium` con fondo TINTADO (`bg-prio-medium/40`) y no el sólido de acá
- * (≈6.29:1); `slate` figuraba como `12.4:1` y el recálculo dio ≈14.68:1; y la
- * tabla original de D10 tenía toda la columna corrida porque el blend de alfa
- * se estimó en vez de calcularse.
- *
- * El umbral ES el contrato (`spec.md`, escenario «Contraste accesible»). El
- * valor puntual es un dato de medición: vive en el reporte de auditoría que lo
- * midió, con su fecha y su método, no en un comentario que nadie revalida.
+ * **Se cita el umbral, no el valor.** El valor exacto se recalcula en cada
+ * corrida desde los tokens — vive en la verificación ejecutable:
+ * `frontend/src/app/shared/components/contrast.regression.spec.ts`.
+ * Históricamente citar el número envejeció mal: en F0 varias cifras
+ * documentadas fallaron al recálculo, en parte por estimar el blend de alfa
+ * en vez de calcularlo.
  *
  * Por qué los pares cambiaron: `cyan` (#06B6D4) y `green` (#22C55E) con
- * blanco no llegan a 3:1, y `red` (#EF4444) llega sólo a 3.76. `cyan` y
- * `green` pasan a texto grafito; `red` cambia el fondo a `#B91C1C` (que
- * con blanco llega a 6.54 y de paso alinea el KPI de críticas con el
- * badge `critical`, sólido en ese mismo rojo por D10).
+ * blanco no alcanzaban el umbral; pasan a texto grafito. `red` (#EF4444)
+ * con blanco tampoco llegaba; cambia el fondo a `bg-prio-critical`
+ * (#B91C1C), que de paso alinea el KPI de críticas con el badge `critical`
+ * (sólido en ese mismo rojo por D10).
  *
  * @example
  *   <ui-kpi-card label="Total" [value]="42" tone="brand" iconName="layers" />
@@ -115,14 +110,14 @@ export class UiKpiCardComponent {
 
   readonly style = computed<KpiStyle>(() => {
     const map: Record<UiKpiTone, KpiStyle> = {
-      // Violeta del brand — texto blanco (5.70:1).
+      // Violeta del brand — texto blanco. Verificación en contrast.regression.spec.ts.
       brand: {
         wrapper: 'bg-brand-primary text-white',
         iconBox: 'text-white',
         solidBg: '#7C3AED',
         pair: 'light-text',
       },
-      // Cyan (#06B6D4) y green (#22C55E) sobre blanco NO llegan a 4.5:1.
+      // Cyan (#06B6D4) y green (#22C55E) sobre blanco NO llegan al umbral.
       // D12: texto grafito, el icono hereda el mismo color.
       cyan: {
         wrapper: 'bg-accent-cyan text-on-tint-graphite',
@@ -136,8 +131,9 @@ export class UiKpiCardComponent {
         solidBg: '#22C55E',
         pair: 'dark-text',
       },
-      // `red` cambia el fondo a `bg-prio-critical` (#B91C1C) para llegar a
-      // 6.54:1 con texto blanco. Antes era `bg-prio-high` (#EF4444, 3.76:1).
+      // `red` cambia el fondo a `bg-prio-critical` (#B91C1C) para llegar al
+      // umbral con texto blanco. Antes era `bg-prio-high` (#EF4444), que no
+      // llegaba. Verificación en contrast.regression.spec.ts.
       red: {
         wrapper: 'bg-prio-critical text-white',
         iconBox: 'text-white',
@@ -155,18 +151,15 @@ export class UiKpiCardComponent {
       },
       // Amber — R2.2: `bg-amber-500` y `text-slate-900` son stock. Uso
       // `bg-prio-medium` (la prioridad media del sistema) con el token de
-      // texto `text-on-tint-amber`. ⚠️ R3.3: el `8.1:1` que cité antes viene
-      // de la tabla D10 del badge `medium` con fondo TINTADO. El KPI usa
-      // fondo SÓLIDO; el auditor recalculó el par en ≈6.29:1. Pasa el umbral
-      // con margen pero no vuelvo a citar el valor — quedó como `≥ 4.5 ✓`
-      // en el JSDoc de la cabecera.
+      // texto `text-on-tint-amber`. El valor exacto se recalcula en
+      // contrast.regression.spec.ts; acá se cita sólo el umbral.
       amber: {
         wrapper: 'bg-prio-medium text-on-tint-amber',
         iconBox: 'text-on-tint-amber',
         solidBg: '#FCD34D',
         pair: 'dark-text',
       },
-      // Violet (hover del brand) — 7.10:1 con blanco.
+      // Violet (hover del brand) — texto blanco.
       violet: {
         wrapper: 'bg-brand-primary-hover text-white',
         iconBox: 'text-white',

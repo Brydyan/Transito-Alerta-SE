@@ -49,18 +49,23 @@
   --color-accent-cyan: #06B6D4;
   --color-accent-green: #22C55E;
 
+  /* Texto blanco sobre color sólido (KPI cards, badge `critical`).
+     Intencionalmente independiente de `--color-bg-secondary` (lienzo):
+     si el lienzo deja de ser blanco (dark mode, ajustes), el texto
+     sobre los bloques de color NO se mueve. La clase Tailwind `text-white`
+     resuelve a este mismo `#FFFFFF`; este token existe para que la
+     verificación de contraste lo lea del sistema, no de una constante
+     stock de Tailwind. */
+  --color-fg-on-solid: #FFFFFF;
+
   /* D10 — tokens de texto para fondos tintados (F0.4.1 / D10 de design.md).
      Relleno y texto tienen ciclos de vida distintos; por eso no se aliasan
      aunque dos casos coincidan con tokens ya existentes (`on-tint-violet`
      == `brand-primary-hover`, `on-tint-graphite` == `status-cerrada`).
      Tocar uno de estos tokens afecta a todo el patrón visual de badges
-     y KPI. Contrastes medidos contra el token de relleno de cada variante:
-       on-tint-slate    vs bg-status-pendiente/20  = 9.5 ✓
-       on-tint-violet   vs bg-brand-primary-soft   = 6.5 ✓
-       on-tint-green    vs bg-status-resuelto/15   = 7.1 ✓
-       on-tint-graphite vs bg-status-cerrada/12   = 9.9 ✓
-       on-tint-amber    vs bg-prio-medium/40      = 8.1 ✓
-       on-tint-red      vs bg-prio-high/15        = 7.5 ✓
+     y KPI. El umbral WCAG AA (≥ 4.5:1) se verifica ejecutable para los
+     6 pares contra los rellenos tintados correspondientes en
+     `frontend/src/app/shared/components/contrast.regression.spec.ts`.
      Mover los alfas ±5 no rompe el contraste. Cambiar el token de texto
      sí — avisá en vez de sustituirlo. */
   --color-on-tint-slate: #334155;
