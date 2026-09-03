@@ -38,7 +38,7 @@ internamente — ver «Ciudadano» más abajo.
 | # | Fase | Story | Est. | Qué hace |
 |---|---|---|---|---|
 | 1 | **F0** Design system ✅ | [300](https://app.shortcut.com/upse/story/300) | 5 | Tokens violeta, Outfit, Lucide, 6 primitivos — **completada y archivada 2026-09-02** |
-| 2 | **F1** Navegación | [303](https://app.shortcut.com/upse/story/303) | 2 | Arregla el 404 del sidebar |
+| 2 | **F1** Navegación ✅ | [303](https://app.shortcut.com/upse/story/303) | 2 | Arregla el 404 del sidebar — **completada y archivada 2026-09-02** |
 | — | **324** Test de contraste ✅ | [324](https://app.shortcut.com/upse/story/324) | 2 | Cierra el único requisito de `design-system` sin cobertura. **Completada y archivada 2026-09-02** |
 | 3 | **315** Fix estados | [315](https://app.shortcut.com/upse/story/315) | 3 | Habilita `closed`, declara la máquina |
 | 4 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
@@ -79,7 +79,7 @@ ya no aplica, F1–F6 pueden consumir los primitivos.
 | ✅ El requisito de contraste no tiene test automatizado | [sc-324](https://app.shortcut.com/upse/story/324) · `archive/2026-09-02-contrast-regression-test/` — cerrada |
 | Alias de puente `brand-navy`/`brand-hivis` vivos (21 consumidores) | [sc-323](https://app.shortcut.com/upse/story/323) · F6 |
 | **12 archivos de `features/` sin icono** — `bi bi-*` sin hoja de estilos | F1–F6, pantalla por pantalla |
-| `transformBackendMenu()` no popula `group`; el backend tampoco lo envía | F1 (anotado en su `tasks.md`) |
+| ✅ `transformBackendMenu()` no popula `group`; el backend tampoco lo envía | F1 (cerrada 2026-09-02) · `archive/2026-08-29-f1-menu-routing-alignment/` |
 | `ui-table` no encapsula: los consumidores deben recordar las helper classes | sin asignar |
 
 La tercera es una **regresión visual viva**: F0.2.5 retiró Material Symbols y Bootstrap
@@ -87,10 +87,12 @@ Icons del `index.html`, y esos 12 archivos renderizan hueco hoy, no «con estilo
 Se difirió a propósito —esas pantallas se rediseñan igual— pero conviene no confundirla
 con trabajo pendiente neutro.
 
-### F1 — Navegación · `front/2026-08-29-f1-menu-routing-alignment/`
+### F1 — Navegación ✅ · `archive/2026-08-29-f1-menu-routing-alignment/`
 `MENU_MAP` apunta a rutas que no existen en `app.routes.ts` → las 5 entradas del sidebar
 caen al wildcard 404. Reescribe el mapa en español con `group` y `order`, registra
 placeholders para destinos futuros, engancha el huérfano `citizen-report`.
+
+**Completada y archivada** (2026-09-02, 3 pasadas de `sdd-verify`, 0 CRITICAL, 883/883 tests backend, 227/227 frontend). Spec consolidado en `openspec/specs/admin-panel-backend/spec.md` con 5 requisitos nuevos (Grupo 0).
 
 Entregable de fondo: **`menu-map.spec.ts`**, test que falla si rutas y menú divergen otra vez.
 
@@ -280,7 +282,7 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 | `closed` inalcanzable desde el flujo | `incident-workflow.service.ts:31,46` | 315 |
 | `assign()` no valida el tope de carga | `assignments.service.ts:28-36` | F7 / A.2 |
 | Escrituras de asignación sin acotar por organización | `assignments.controller.ts` | F7 / A.5 |
-| Sidebar cae al 404 | `menu-map.ts` ↔ `app.routes.ts` | F1 |
+| ✅ Sidebar cae al 404 | `menu-map.ts` ↔ `app.routes.ts` | F1 (cerrada 2026-09-02) · `archive/2026-08-29-f1-menu-routing-alignment/` |
 | **El ciudadano no puede registrarse** — F4/B.2.12 ofrecía un registro inexistente | `auth.controller.ts:54` (410) | REG |
 | **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos | `auth.config.ts:74` | ANON + AUD |
 | **No hay tabla de auditoría** — F7 la necesita para la excepción al tope | — | AUD |
@@ -298,6 +300,30 @@ la funcionalidad y no en el añadido después.
 
 **Pendiente y no ticketeado:** auditar el backend con esa misma lente — soft delete,
 alcance por organización en otros módulos, guards de permiso, y DTOs que asuman camelCase.
+
+### Compuertas que no comprueban lo que dicen — candidato a change de tooling
+
+Tres síntomas, un mismo defecto. **Un gate que no corre se lee igual que un gate que
+pasa**, y es la clase de problema que costó tres pasadas en F1.
+
+| Síntoma | Efecto |
+|---|---|
+| `npx tsc -p tsconfig.json --noEmit` compila **cero** archivos (`files: []`) y sale 0 siempre | Toda verificación de tipos del frontend es un no-op. El comando real es `npx tsc -b` |
+| `@types/node` ausente en **5** specs de regresión del frontend | 14 errores permanentes en `-b`, que normalizan el rojo |
+| `frontend/package.json` sin script `lint` | `tasks.md` de varias fases exige `pnpm lint` y no existe |
+
+Cerrarlos junto, y de paso dejar **actionlint** como gate de CI: ambos workflows ya pasan
+limpios, así que entra sin ruido. Sin ticket.
+
+### Deuda con fecha de caducidad — heredada de F1
+
+`menu-map.spec.ts` valida que cada **segmento** de una ruta de `MENU_MAP` exista en
+`app.routes.ts`, pero **no la jerarquía**: `/app/categorias` y `/app/admin/categorias` le
+resultan indistinguibles.
+
+Hoy no es alcanzable (10 entradas, 2 rutas multi-segmento, ambas reales). **Se vuelve
+alcanzable a medida que el menú crezca**, y F2, F3 y F4 añaden destinos. **Dueño natural:
+F5**, que sustituye `MENU_MAP` por tablas en BD y rehace ese test igual.
 
 ---
 
