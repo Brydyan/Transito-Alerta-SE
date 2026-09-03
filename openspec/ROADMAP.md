@@ -279,7 +279,9 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 
 | Defecto | Dónde | Cubierto en |
 |---|---|---|
-| `closed` inalcanzable desde el flujo | `incident-workflow.service.ts:31,46` | 315 |
+| ✅ `closed` inalcanzable desde el flujo | `incident-workflow.service.ts:31,46` | 315 (verify PASS 2026-09-03, pendiente archivar) |
+| **Lista de estados a mano en analíticas** — `by_status` enumera los cuatro estados como literal, tercer origen de verdad tras eliminar `LEGAL_TRANSITIONS` | `incident-analytics.service.ts:125` | Sin ticket — fuera del alcance declarado de 315, detectado en su 2ª pasada |
+| ✅ **Inventario de filas `closed` preexistentes** — ejecutado contra staging el 2026-09-03: **0 filas**. Sin migración de datos que hacer, como preveía D6 (el servicio nunca pudo escribir ese estado) | `database/migrations/0043`, `0044` | 315 / D6 — cerrado |
 | `assign()` no valida el tope de carga | `assignments.service.ts:28-36` | F7 / A.2 |
 | Escrituras de asignación sin acotar por organización | `assignments.controller.ts` | F7 / A.5 |
 | ✅ Sidebar cae al 404 | `menu-map.ts` ↔ `app.routes.ts` | F1 (cerrada 2026-09-02) · `archive/2026-08-29-f1-menu-routing-alignment/` |

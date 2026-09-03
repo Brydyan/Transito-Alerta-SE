@@ -24,6 +24,15 @@ export interface IncidentRow {
   rejected_by: string | null;
   rejected_at: Date | null;
   rejection_reason: string | null;
+  /**
+   * sc-315 (D4) — motivo de cierre cuando status='closed'. Se persiste
+   * en la fila de la incidencia (no sólo en status_history.notes) para
+   * que un informe pueda consultarlo sin recorrido al historial.
+   * NULL en cualquier otro estado. Lo garantiza `SELECT_COLUMNS`
+   * (presente en `findOne`, `findAll`, `create`) y el `RETURNING` de
+   * `IncidentWorkflowService.changeStatus()`.
+   */
+  closed_reason: string | null;
   lat: number;
   lng: number;
   created_at: Date;
@@ -49,7 +58,7 @@ const SELECT_COLUMNS = `
   id, title, description, status, priority,
   citizen_id, assigned_to, zone_id, geofence_matched, organization_id,
   category_id, claimed_by, claimed_at, approved_by, approved_at, rejected_by, rejected_at,
-  rejection_reason, resolution_date,
+  rejection_reason, closed_reason, resolution_date,
   ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng,
   created_at, updated_at, deleted_at
 `;
@@ -130,25 +139,17 @@ export class IncidentsRepository {
     return rows[0] ?? null;
   }
 
-  async updateStatus(id: string, status: IncidentStatus): Promise<IncidentRow | null> {
-    // T6.3: $3 is a boolean flag to avoid PostgreSQL "inconsistent types for $2" when
-    // using the same enum-bound parameter in both SET and a CASE comparison.
-    const result = await this.dataSource.query(
-      `UPDATE incidents
-         SET status = $2,
-             resolution_date = CASE WHEN $3 THEN NOW() ELSE NULL END
-       WHERE id = $1
-       RETURNING ${SELECT_COLUMNS}`,
-      [id, status, status === 'resolved'],
-    );
-    return unwrapReturningRows<IncidentRow>(result)[0] ?? null;
-  }
-
   /**
    * T5.6 — partial update of mutable content fields. Each field is
    * coalesced to its current value when null/undefined, so the caller
    * can send any subset. `status`, `zone_id`, `organization_id` and
    * `geofence_matched` are NEVER touched (D5).
+   *
+   * sc-315 C4 (ronda 2) — el viejo `updateStatus()` del repository se
+   * eliminó junto con `IncidentsService.updateStatus()`. La transición
+   * de estado pasó a vivir en `IncidentWorkflowService.changeStatus()`,
+   * que es la única fuente que delega en la máquina de estados. Dejar
+   * el gemelo aquí reintroducía el defecto 1 con cobertura falsa.
    */
   async update(
     id: string,

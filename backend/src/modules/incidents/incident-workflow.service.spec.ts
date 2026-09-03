@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   HttpException,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -242,8 +244,267 @@ describe('IncidentWorkflowService.availableOperators', () => {
 // ---------- getStatuses ----------------------------------------------------
 
 describe('IncidentWorkflowService.getStatuses', () => {
-  it('returns the exact IncidentStatus enum values', async () => {
+  // F1 (sc-315) — regresión del defecto 1. El test debe fallar antes
+  // del cambio (devuelve 3) y pasar después (devuelve 4, derivado de
+  // `Object.keys(TRANSITIONS)`).
+  it('returns the four IncidentStatus enum values, including closed (sc-315 D3)', async () => {
     const svc = await buildService([]);
-    expect(svc.getStatuses()).toEqual(['pending', 'in_progress', 'resolved']);
+    const statuses = svc.getStatuses();
+    expect(statuses).toHaveLength(4);
+    expect(statuses).toEqual(
+      expect.arrayContaining(['pending', 'in_progress', 'resolved', 'closed']),
+    );
+  });
+
+  it('derives the list from the state machine, not a hand-maintained array (sc-315 D3)', async () => {
+    // Si las dos listas se desincronizan, el consumidor (frontend de
+    // F3, reports) se entera: `closed` no puede volver a quedar
+    // "implementado" en el tipo y ausente del listado.
+    const svc = await buildService([]);
+    expect(new Set(svc.getStatuses())).toEqual(
+      new Set(['pending', 'in_progress', 'resolved', 'closed']),
+    );
+  });
+});
+
+// ---------- changeStatus (sc-315) ------------------------------------------
+
+describe('IncidentWorkflowService.changeStatus (sc-315)', () => {
+  it('REJECTS resolved → closed with 409 INCIDENT_INVALID_TRANSITION (D1)', async () => {
+    // Test de regresión del bug original: la semántica vieja permitía
+    // esta transición. La nueva la prohíbe explícitamente.
+    //
+    // Mock del manager: la transacción ejecuta un SELECT FOR UPDATE
+    // que devuelve la fila en estado `resolved`; la transición debe
+    // rechazarse antes de cualquier UPDATE o INSERT.
+    const inProgressRow = {
+      id: 'inc-1',
+      title: 'Pothole',
+      status: 'resolved',
+      priority: 'medium',
+      claimed_by: null,
+      organization_id: 'org-X',
+      updated_at: new Date(),
+    };
+    const queryMock = jest.fn().mockResolvedValueOnce([inProgressRow]);
+    const transactionSpy = jest.fn(async (cb: (manager: unknown) => unknown) =>
+      cb({ query: queryMock, queryRunner: { query: queryMock } }),
+    );
+    const dataSource = { transaction: transactionSpy } as unknown as DataSource;
+
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: dataSource },
+      ],
+    }).compile();
+    const svc = module.get(IncidentWorkflowService);
+
+    await expect(
+      svc.changeStatus({
+        incidentId: 'inc-1',
+        to: 'closed',
+        actorId: 'user-1',
+        actorPermissions: ['CLOSE incidents'],
+        closedReason: 'no aplica, la transición es ilegal',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    // El SELECT FOR UPDATE corrió (leímos el estado actual)…
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    // …pero no hubo UPDATE ni INSERT a status_history.
+    // (canTransition se valida antes de cualquier escritura.)
+  });
+
+  it('REJECTS closed without reason with 422 INCIDENT_CLOSED_REASON_REQUIRED (D4)', async () => {
+    // sc-315 C5 (ronda 2) — el código de respuesta es 422, no 400.
+    // El test verifica AMBOS: la clase (`UnprocessableEntityException`)
+    // y el `getStatus()` real de NestJS (que es 422). Si alguien
+    // cambia a `BadRequestException` "porque sí", este test lo nombra
+    // y el cliente de F3 (workflow.util.ts) puede distinguir.
+    const inProgressRow = {
+      id: 'inc-1',
+      title: 'Pothole',
+      status: 'in_progress',
+      priority: 'medium',
+      claimed_by: null,
+      organization_id: 'org-X',
+      updated_at: new Date(),
+    };
+    const queryMock = jest.fn().mockResolvedValueOnce([inProgressRow]);
+    const transactionSpy = jest.fn(async (cb: (manager: unknown) => unknown) =>
+      cb({ query: queryMock, queryRunner: { query: queryMock } }),
+    );
+    const dataSource = { transaction: transactionSpy } as unknown as DataSource;
+
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: dataSource },
+      ],
+    }).compile();
+    const svc = module.get(IncidentWorkflowService);
+
+    let caught: unknown;
+    try {
+      await svc.changeStatus({
+        incidentId: 'inc-1',
+        to: 'closed',
+        actorId: 'user-1',
+        actorPermissions: ['CLOSE incidents'],
+        // closedReason ausente a propósito
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(UnprocessableEntityException);
+    expect(caught).not.toBeInstanceOf(BadRequestException);
+    // 422 verificado contra el `getStatus()` real de Nest, no sólo
+    // contra la clase — la clase cambia de nombre en cada versión
+    // menor, el status number es contrato HTTP.
+    expect((caught as HttpException).getStatus()).toBe(422);
+  });
+
+  it('REJECTS closed without CLOSE incidents permission with 403 (D8 defense in depth)', async () => {
+    const inProgressRow = {
+      id: 'inc-1',
+      title: 'Pothole',
+      status: 'in_progress',
+      priority: 'medium',
+      claimed_by: null,
+      organization_id: 'org-X',
+      updated_at: new Date(),
+    };
+    const queryMock = jest.fn().mockResolvedValueOnce([inProgressRow]);
+    const transactionSpy = jest.fn(async (cb: (manager: unknown) => unknown) =>
+      cb({ query: queryMock, queryRunner: { query: queryMock } }),
+    );
+    const dataSource = { transaction: transactionSpy } as unknown as DataSource;
+
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: dataSource },
+      ],
+    }).compile();
+    const svc = module.get(IncidentWorkflowService);
+
+    await expect(
+      svc.changeStatus({
+        incidentId: 'inc-1',
+        to: 'closed',
+        actorId: 'operator-1',
+        actorPermissions: ['UPDATE incidents'], // sin CLOSE
+        closedReason: 'intento de cierre sin permiso',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('writes UPDATE + status_history in the same transaction (S.5.1)', async () => {
+    // El happy path: la transición es válida, hay motivo, hay permiso.
+    // Verificamos que la transacción del DataSource envuelve tanto el
+    // UPDATE como el INSERT, y que la segunda llamada (INSERT) lleva
+    // el `notes` con el motivo de cierre.
+    const inProgressRow = {
+      id: 'inc-1',
+      title: 'Pothole',
+      status: 'in_progress',
+      priority: 'medium',
+      claimed_by: 'op-1',
+      organization_id: 'org-X',
+      closed_reason: null,
+      updated_at: new Date(),
+    };
+    const closedRow = {
+      ...inProgressRow,
+      status: 'closed',
+      closed_reason: 'recurso no disponible',
+    };
+    // 1) SELECT FOR UPDATE  2) UPDATE  3) INSERT status_history
+    const queryMock = jest
+      .fn()
+      .mockResolvedValueOnce([inProgressRow])
+      .mockResolvedValueOnce([closedRow]);
+    const transactionSpy = jest.fn(async (cb: (manager: unknown) => unknown) =>
+      cb({ query: queryMock, queryRunner: { query: queryMock } }),
+    );
+    const dataSource = { transaction: transactionSpy } as unknown as DataSource;
+
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: dataSource },
+      ],
+    }).compile();
+    const svc = module.get(IncidentWorkflowService);
+
+    const result = await svc.changeStatus({
+      incidentId: 'inc-1',
+      to: 'closed',
+      actorId: 'admin-1',
+      actorPermissions: ['CLOSE incidents'],
+      closedReason: 'recurso no disponible',
+    });
+
+    // C1 (ronda 2) — la fila de retorno expone `closed_reason`. Si este
+    // aserto falla, D4 del design queda sin cumplimiento: el motivo se
+    // persistiría pero sería de sólo escritura desde la perspectiva de
+    // la API.
+    expect(result.status).toBe('closed');
+    expect(result.closed_reason).toBe('recurso no disponible');
+    expect(queryMock).toHaveBeenCalledTimes(3); // SELECT, UPDATE, INSERT
+    // El INSERT llevó el motivo en `notes` para que el historial
+    // pueda reconstruir el cierre sin joins extra.
+    const insertCall = queryMock.mock.calls[2];
+    expect(insertCall[0]).toContain('INSERT INTO status_history');
+    // mock.calls[2] = [sql, [incidentId, actorId, from, to, notes]]
+    expect(insertCall[1][4]).toBe('[closed] recurso no disponible');
+  });
+
+  it('S.5.3: a rejected transition does NOT write to status_history (rollback implicit)', async () => {
+    // El test de S.5.3: si la transición es inválida, no se ejecuta
+    // UPDATE ni INSERT a status_history. La primera llamada al query
+    // es el SELECT FOR UPDATE, que es de sólo lectura. La maquina
+    // rechaza antes de cualquier escritura.
+    const inProgressRow = {
+      id: 'inc-1',
+      title: 'Pothole',
+      status: 'resolved',
+      priority: 'medium',
+      claimed_by: null,
+      organization_id: 'org-X',
+      updated_at: new Date(),
+    };
+    const queryMock = jest.fn().mockResolvedValueOnce([inProgressRow]);
+    const transactionSpy = jest.fn(async (cb: (manager: unknown) => unknown) =>
+      cb({ query: queryMock, queryRunner: { query: queryMock } }),
+    );
+    const dataSource = { transaction: transactionSpy } as unknown as DataSource;
+
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: dataSource },
+      ],
+    }).compile();
+    const svc = module.get(IncidentWorkflowService);
+
+    await expect(
+      svc.changeStatus({
+        incidentId: 'inc-1',
+        to: 'in_progress', // resolved → in_progress: inválido
+        actorId: 'user-1',
+        actorPermissions: ['UPDATE incidents'],
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    // Solo el SELECT FOR UPDATE, ningún UPDATE ni INSERT.
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    // La única llamada fue un SELECT (verificable por el SQL: el primer
+    // argumento es la string del query y empieza con SELECT).
+    expect(queryMock.mock.calls[0][0]).toMatch(/^SELECT/);
   });
 });

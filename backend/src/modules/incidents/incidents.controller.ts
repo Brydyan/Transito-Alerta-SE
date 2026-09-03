@@ -36,6 +36,7 @@ import { IncidentAnalyticsService } from './incident-analytics.service';
 import { IncidentFeedService } from './incident-feed.service';
 import { IncidentExportService } from './incident-export.service';
 import { FeedRecoveryService } from './feed-recovery.service';
+import { IncidentWorkflowService } from './incident-workflow.service';
 
 /**
  * IncidentsController (R2) — calibration slice. Anonymous devices hold
@@ -55,6 +56,10 @@ export class IncidentsController {
     private readonly feedService: IncidentFeedService,
     private readonly exportService: IncidentExportService,
     private readonly feedRecoveryService: FeedRecoveryService,
+    // sc-315 — PATCH /incidents/:id/status ahora delega al workflow
+    // service para que la transición pase por la máquina de estados y
+    // la escritura de `status_history` sea atómica (S.5.1).
+    private readonly workflow: IncidentWorkflowService,
   ) {}
 
   @Post()
@@ -152,15 +157,28 @@ export class IncidentsController {
     return this.incidentsService.findOne(id, req.user!.scope);
   }
 
+  // sc-315 — la ruta de cambio de estado pasa por la máquina de estados
+  // (validación 409) y exige `CLOSE incidents` cuando el destino es
+  // `closed` (D8). El decorador declara `UPDATE` como mínimo: el
+  // workflow service verifica el permiso específico para `closed`
+  // dentro de la transacción, así un operador con UPDATE pero sin
+  // CLOSE obtiene 403 sin que el controller tenga que bifurcar.
   @Patch(':id/status')
   @RequirePermission('UPDATE')
   @HttpCode(HttpStatus.OK)
-  updateStatus(
+  async updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateIncidentStatusDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<IncidentRow> {
-    return this.incidentsService.updateStatus(id, dto.status, req.user!.userId, req.user!.scope);
+    const user = req.user!;
+    return this.workflow.changeStatus({
+      incidentId: id,
+      to: dto.status,
+      actorId: user.userId,
+      actorPermissions: user.permissions ?? [],
+      closedReason: dto.closed_reason,
+    });
   }
 
   // ---- T5.6 PATCH/DELETE — declared AFTER `:id/status` to keep the
