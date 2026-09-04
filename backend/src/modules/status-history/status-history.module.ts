@@ -10,9 +10,13 @@ import { StatusHistoryService } from './status-history.service';
 /**
  * StatusHistoryModule (design D7 — "zero import edges" toward Incidents'
  * behaviour). `IncidentEntity` is imported flat, for the parent-existence
- * 404 check only; `STATUS_HISTORY_EVENTS_BLOCKING_CLIENT` is a `@Global()`
- * CoreModule provider, injected by token with no module import. No
- * exports: nothing in the system depends on this module.
+ * 404 check only. No exports: nothing in the system depends on this module.
+ *
+ * Desde sc-315 este módulo es sólo LECTURA. La escritura del historial vive
+ * en `IncidentWorkflowService.changeStatus()`, en la misma transacción que el
+ * cambio de estado. El consumidor que lo escribía desde el stream —y su
+ * conexión Redis bloqueante dedicada— se retiraron: convivían con esa
+ * escritura y producían dos filas por transición.
  */
 @Module({
   imports: [TypeOrmModule.forFeature([StatusHistoryEntity, IncidentEntity])],

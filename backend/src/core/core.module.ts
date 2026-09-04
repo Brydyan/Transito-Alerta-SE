@@ -55,23 +55,6 @@ export const MAIL_BLOCKING_CLIENT = 'MAIL_BLOCKING_CLIENT';
 export const MAIL_EVENTS_BLOCKING_CLIENT = 'MAIL_EVENTS_BLOCKING_CLIENT';
 
 /**
- * HUÉRFANO desde sc-315 — su único consumidor, `IncidentStatusHistoryListener`,
- * se retiró: convivía con la escritura transaccional de `status_history` y
- * producía dos filas por transición. La conexión sigue declarada y no la usa
- * nadie salvo el arnés de tests para su teardown. Retirarla es trabajo
- * pendiente, anotado en el ROADMAP; se deja declarada para no mezclar la
- * limpieza de DI con el arreglo de los e2e.
- *
- * Era la conexión bloqueante dedicada del listener (T3.4 design D1) —
- * XREADGROUP on `incidents:events`, consumer group
- * `status-history`. This is the 5th such connection; same reasoning as
- * MAIL_EVENTS_BLOCKING_CLIENT: ioredis serialises commands per connection
- * and `XREADGROUP ... BLOCK` holds one for the whole window, so sharing
- * would put every sweep XPENDING/XCLAIM behind another consumer's block.
- */
-export const STATUS_HISTORY_EVENTS_BLOCKING_CLIENT = 'STATUS_HISTORY_EVENTS_BLOCKING_CLIENT';
-
-/**
  * DI token for the Sessions module's denylist + grace-buffer Redis client
  * (T3.9 design §2). Lives on `cacheConf.streamsUrl` — DB 0, alongside
  * Streams — deliberately NOT the cache-manager database (see the
@@ -174,19 +157,6 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
       },
     },
     {
-      provide: STATUS_HISTORY_EVENTS_BLOCKING_CLIENT,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const cacheConf = config.get<CacheConfig>('cache')!;
-        return new Redis(cacheConf.streamsUrl, {
-          lazyConnect: true,
-          maxRetriesPerRequest: null,
-          enableReadyCheck: true,
-          retryStrategy: (times) => Math.min(times * 200, 5000),
-        });
-      },
-    },
-    {
       provide: SESSION_REDIS_CLIENT,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
@@ -211,7 +181,6 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
     REDIS_BLOCKING_CLIENT,
     MAIL_BLOCKING_CLIENT,
     MAIL_EVENTS_BLOCKING_CLIENT,
-    STATUS_HISTORY_EVENTS_BLOCKING_CLIENT,
     SESSION_REDIS_CLIENT,
   ],
 })
