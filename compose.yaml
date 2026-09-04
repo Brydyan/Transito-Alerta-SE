@@ -115,7 +115,25 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:80 || exit 1']
+      # 127.0.0.1 y NO `localhost`. Docker escribe las dos entradas en el
+      # /etc/hosts del contenedor (`127.0.0.1 localhost` y `::1 localhost`),
+      # mientras que nginx.conf declara `listen 80;` a secas — que bindea
+      # únicamente 0.0.0.0, no [::]. busybox wget resolvía `localhost` a ::1,
+      # se comía un "Connection refused" y marcaba el contenedor unhealthy
+      # aunque nginx estuviera sirviendo tráfico real sin un solo error.
+      #
+      # No era intermitente: FailingStreak 368 sobre un contenedor de 3 horas,
+      # o sea desde el primer deploy con este Dockerfile. Pasó inadvertido
+      # porque `docker compose up -d` no espera healthchecks y el health check
+      # del workflow consulta el puerto publicado DESDE EL HOST, donde
+      # docker-proxy sí traduce IPv6 → IPv4 y responde 200: el deploy daba
+      # verde con el contenedor enfermo.
+      #
+      # Se arregla acá y no con `listen [::]:80;` en nginx.conf a propósito:
+      # en un contenedor sin IPv6 ese bind falla al arrancar
+      # ("Address family not supported by protocol") y nginx no levanta. El
+      # tráfico IPv6 externo ya funciona vía docker-proxy.
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:80/ > /dev/null || exit 1']
       interval: 30s
       timeout: 5s
       retries: 3
