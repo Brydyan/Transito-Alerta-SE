@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/node';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { LogLevel, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -16,7 +16,24 @@ async function bootstrap(): Promise<void> {
     });
   }
 
-  const app = await NestFactory.create(AppModule);
+  // `LOG_LEVEL` explícito, NO inferido de `NODE_ENV`. Los contenedores de
+  // staging corren con `NODE_ENV=production` igual que los de producción, así
+  // que inferirlo callaría los logs justo en el entorno donde se depura.
+  //
+  // Formato: lista separada por comas, en orden de severidad decreciente.
+  //   staging     LOG_LEVEL=error,warn,log,debug,verbose
+  //   producción  LOG_LEVEL=error,warn,log
+  //
+  // El default es el conservador: sin la variable, no se emite `debug` ni
+  // `verbose`. Un entorno que nadie configuró no debería ser el más ruidoso.
+  const DEFAULT_LOG_LEVELS: LogLevel[] = ['error', 'warn', 'log'];
+  const logger = process.env.LOG_LEVEL
+    ? (process.env.LOG_LEVEL.split(',')
+        .map((l) => l.trim())
+        .filter(Boolean) as LogLevel[])
+    : DEFAULT_LOG_LEVELS;
+
+  const app = await NestFactory.create(AppModule, { logger });
 
   // Design D5 — socket.io Redis adapter for cross-instance room broadcast.
   app.useWebSocketAdapter(new RedisIoAdapter(app));
