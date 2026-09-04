@@ -44,8 +44,13 @@ UPDATE roles
 --    failure mode that bit us on the `UPDATE incidents` grant; documented
 --    in the builder guide ("toda migración que conceda permisos toca
 --    roles.permissions Y users.permissions").
+--    `u.permissions`, calificada: `FROM roles r` mete `roles.permissions` en
+--    alcance y las dos tablas tienen esa columna, así que un `permissions`
+--    pelado no resuelve ("column reference is ambiguous", exit 3). El `WHERE`
+--    de abajo sí la calificaba — la regla aplicada en un sitio y no en su
+--    vecino, dentro de la misma sentencia.
 UPDATE users u
-   SET permissions = permissions || jsonb_build_array('CLOSE incidents')
+   SET permissions = u.permissions || jsonb_build_array('CLOSE incidents')
   FROM roles r
  WHERE u.role_id = r.id
    AND r.name IN ('master', 'admin_org')
