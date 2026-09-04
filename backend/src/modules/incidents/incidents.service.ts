@@ -10,6 +10,7 @@ import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.servi
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SubjectScope } from '../../common/authz/subject-scope';
 import { scopeCacheKey } from '../../common/authz/scope-sql';
+import { ALLOWED_STATUSES } from './incident-state-machine';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { IncidentRow, IncidentsRepository } from './incidents.repository';
 
@@ -35,27 +36,16 @@ function isLeafCategoryViolation(error: unknown): boolean {
 export { ALL_ZONES_TAG };
 
 /**
- * Legal forward-only transitions (spec R2: pending -> in_progress ->
- * resolved). Anything else — including same-status no-ops and backward
- * moves — is rejected.
- */
-// `closed` is the terminal state reached only through the admin
-// approve flow (T5.6). It is intentionally absent from this map:
-// `PATCH /incidents/:id/status` MUST NOT let an operator reach `closed`
-// directly — the only path to `closed` is the dedicated approve path in
-// IncidentApprovalService, which writes the row inside a transaction
-// and stamps `approved_by/at` in the same statement.
-const LEGAL_TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
-  pending: ['in_progress'],
-  in_progress: ['resolved'],
-  resolved: [],
-  closed: [],
-};
-
-/**
  * IncidentsService (T2.1) — calibration slice; establishes the
  * create -> resolve-zone -> persist -> purge-cache -> emit convention that
  * Comments/Assignments/Realtime follow.
+ *
+ * sc-315 C4 (ronda 2) — el viejo `LEGAL_TRANSITIONS` y `updateStatus()`
+ * se eliminaron. La transición de estado pasa por
+ * `IncidentWorkflowService.changeStatus()` (vía PATCH /incidents/:id/status
+ * en el controller), que es la única fuente de verdad contra la máquina
+ * de estados. Dejar el gemelo aquí reintroducía el defecto 1 con
+ * cobertura falsa — exactamente la trampa que motivó este change.
  */
 @Injectable()
 export class IncidentsService {
@@ -157,39 +147,6 @@ export class IncidentsService {
     return row;
   }
 
-  async updateStatus(
-    id: string,
-    nextStatus: IncidentStatus,
-    actorId: string,
-    scope: SubjectScope,
-  ): Promise<IncidentRow> {
-    const current = await this.incidentsRepository.findOne(id, scope);
-    if (!current) {
-      throw new NotFoundException(`Incident ${id} not found`);
-    }
-
-    const allowed = LEGAL_TRANSITIONS[current.status] ?? [];
-    if (!allowed.includes(nextStatus)) {
-      throw new BadRequestException(
-        `Illegal status transition: ${current.status} -> ${nextStatus}`,
-      );
-    }
-
-    const updated = await this.incidentsRepository.updateStatus(id, nextStatus);
-    if (!updated) {
-      throw new NotFoundException(`Incident ${id} not found`);
-    }
-
-    await this.purgeListCaches(updated.zone_id);
-    await this.publish('incident.status_changed', {
-      ...updated,
-      actor_id: actorId,
-      previous_status: current.status,
-    });
-
-    return updated;
-  }
-
   private async publish(type: string, data: unknown): Promise<void> {
     this.eventEmitter.emit(type, data);
     await this.redis.xadd(INCIDENTS_STREAM_KEY, '*', 'type', type, 'data', JSON.stringify(data));
@@ -264,13 +221,28 @@ export class IncidentsService {
   /**
    * T6.8.A4 — return the catalog of valid incident statuses.
    * Exposed as GET /incidents/statuses and aliased at GET /estados.
+   *
+   * sc-315 C2 (ronda 2) — los `id` se derivan de `ALLOWED_STATUSES`
+   * (que a su vez viene de `Object.keys(TRANSITIONS)`). Las etiquetas
+   * en español siguen siendo un mapa aparte (no derivable), pero
+   * `Record<IncidentStatus, string>` falla en `tsc` si una nueva
+   * clave del grafo no tiene label — fail-loud en compilación, no en
+   * runtime.
    */
   getStatuses(): { id: IncidentStatus; label: string }[] {
-    return [
-      { id: 'pending', label: 'Pendiente' },
-      { id: 'in_progress', label: 'En progreso' },
-      { id: 'resolved', label: 'Resuelto' },
-      { id: 'closed', label: 'Cerrado' },
-    ];
+    return ALLOWED_STATUSES.map((id) => ({ id, label: STATUS_LABELS[id] }));
   }
 }
+
+// sc-315 C2 (ronda 2) — mapa de etiquetas, exhaustivo sobre el tipo
+// `IncidentStatus`. Si la máquina gana un quinto estado, este mapa
+// falla en compilación con TS2741 ("property missing") — fail-loud
+// en `tsc`, no en runtime. Es la única forma de mantener el contrato
+// "todas las claves del grafo tienen label" sin rezar para que nadie
+// agregue un estado y olvide la etiqueta.
+const STATUS_LABELS: Record<IncidentStatus, string> = {
+  pending: 'Pendiente',
+  in_progress: 'En progreso',
+  resolved: 'Resuelto',
+  closed: 'Cerrado',
+};

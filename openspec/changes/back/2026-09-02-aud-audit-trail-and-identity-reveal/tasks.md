@@ -7,9 +7,9 @@
 
 ## A · Auditoría genérica
 
-- [ ] **A.1** — Migración `0043_audit_events.sql`: tabla según `design.md` D3, con
+- [ ] **A.1** — Migración `0045_audit_events.sql`: tabla según `design.md` D3, con
   índices `(resource_type, resource_id, created_at DESC)` y `(actor_id, created_at DESC)`.
-  Rollback en `database/rollback/0043_audit_events.DOWN.sql` — el proyecto lo exige para
+  Rollback en `database/rollback/0045_audit_events.DOWN.sql` — el proyecto lo exige para
   toda migración.
 - [ ] **A.2** — Entidad TypeORM `AuditEvent`. `justification` anulable en el esquema; la
   obligatoriedad es por acción, en el servicio (D3), para que la excepción al tope de F7
@@ -24,7 +24,7 @@
 
 ## B · Autoría sellada
 
-- [ ] **B.1** — Migración `0044_incident_reporters.sql`: tabla `incident_reporters`
+- [ ] **B.1** — Migración `0046_incident_reporters.sql`: tabla `incident_reporters`
   (D1) y columna `incidents.is_anonymous boolean NOT NULL DEFAULT false`. Rollback.
 - [ ] **B.2** — Entidad `IncidentReporter` y relación desde `Incident`. La relación
   **no** se carga por defecto: `eager: false`, y ningún `find` del módulo de incidencias
@@ -44,7 +44,7 @@
 
 ## C · Permiso y revelación
 
-- [ ] **C.1** — Migración `0045_reveal_permission.sql`: extender el `CHECK` de
+- [ ] **C.1** — Migración `0047_reveal_permission.sql`: extender el `CHECK` de
   `permissions.action` con `REVEAL`. **Va primero**: sin esto el `INSERT` del permiso
   falla. Es la misma trampa que dejó `CLOSE` fuera del catálogo.
 - [ ] **C.2** — En la misma migración: insertar `('incidents', 'REVEAL')` en

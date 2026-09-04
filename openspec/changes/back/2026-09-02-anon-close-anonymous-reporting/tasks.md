@@ -21,7 +21,7 @@
 ## B · Vaciar el techo
 
 - [ ] **B.1** — `anonymousPermissions: []` en `auth.config.ts`.
-- [ ] **B.2** — Migración `0046_close_anonymous_ceiling.sql`: vaciar
+- [ ] **B.2** — Migración `0048_close_anonymous_ceiling.sql`: vaciar
   `users.permissions` de la fila `device_uuid = 'anonymous'`. **La fila NO se borra** —
   AUD la necesita. Rollback en `database/rollback/`.
 - [ ] **B.3** — La migración anula el efecto de `0008_anonymous_read_comments.sql` con una

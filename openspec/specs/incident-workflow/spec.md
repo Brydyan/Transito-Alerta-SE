@@ -15,6 +15,61 @@ All existing incident endpoints MUST behave identically before and after T5.1.
 
 ## Requirements
 
+### State Machine (Added by sc-315: Fix máquina de estados)
+
+#### R0.1 — Los cuatro estados son alcanzables
+
+The workflow service MUST recognize all four states that the database and `IncidentStatus` enum support: `pending`, `in_progress`, `resolved`, and `closed`.
+
+- Scenario: `getStatuses()` returns all four states. GIVEN a call to retrieve available statuses, THEN the list includes `['pending', 'in_progress', 'resolved', 'closed']`.
+- Scenario: Internal type completeness. GIVEN the internal type of `status` in the workflow service, THEN it includes `'closed'`, equivalent to `incident.entity.ts`.
+- Scenario: Transition to `closed` is possible. GIVEN an incident in `in_progress` with a user holding `CLOSE incidents` permission, WHEN closed due to impossibility, THEN the transition persists instead of being rejected as an unknown state.
+
+#### R0.2 — Máquina de estados declarada
+
+Valid state transitions MUST be declared in a single location, and all undeclared transitions MUST be rejected with 409.
+
+- Scenario: Assign operator. GIVEN an incident in `pending`, WHEN an operator is assigned, THEN the status transitions to `in_progress`.
+- Scenario: Resolve. GIVEN an incident in `in_progress`, WHEN the operator resolves it, THEN the status transitions to `resolved`.
+- Scenario: Close without resolution. GIVEN an incident in `in_progress` that cannot be resolved, WHEN closed, THEN it transitions to `closed`.
+- Scenario: Mutually exclusive terminals. GIVEN an incident in `resolved`, WHEN attempting to transition to `closed`, THEN the request fails with 409: they are alternative outcomes, not sequential.
+- Scenario: No transitions from terminal states. GIVEN an incident in `resolved` or `closed`, WHEN attempting any transition, THEN the request fails with 409.
+- Scenario: No state skipping. GIVEN an incident in `pending`, WHEN attempting a direct transition to `resolved`, THEN the request fails with 409: an incident requires an assigned operator before resolution.
+- Scenario: Discard invalid report. GIVEN a `pending` incident that is duplicate or invalid, WHEN an `admin_org` user closes it with a reason, THEN it transitions to `closed` without passing through `in_progress`.
+- Scenario: Critical incidents don't skip states. GIVEN an incident created with `priority = 'critical'`, THEN it is born in `pending` like any other: urgency is expressed via priority and notifications, not by skipping workflow states.
+- Scenario: Single source of truth. GIVEN the transition table, THEN it is the only source governing what is valid; no consumer replicates the rule with independent conditionals.
+
+#### R0.3 — Only `master` and `admin_org` can close
+
+Closing (marking as unable to resolve) MUST require the `CLOSE incidents` permission, distinct from the permission to resolve.
+
+- Scenario: Admin can close. GIVEN a user with `CLOSE incidents` permission, THEN they can close an incident and provide a reason.
+- Scenario: Operator cannot close. GIVEN an `operador_org` with `UPDATE incidents` but without `CLOSE incidents` permission, WHEN they attempt to close, THEN the response is 403.
+- Scenario: Operator can resolve. GIVEN the same `operador_org`, WHEN they resolve an incident assigned to them, THEN the transition is accepted: resolution does not require `CLOSE`.
+- Scenario: Permission propagated. GIVEN the migration is applied, THEN `CLOSE incidents` exists in `roles.permissions` and in `users.permissions` for all existing `master` and `admin_org` users, and `perm:v3:uid:*` is invalidated.
+
+#### R0.4 — Close without resolution requires a reason
+
+Closing an incident that could not be resolved MUST record why.
+
+- Scenario: Reason mandatory. GIVEN a transition to `closed` without a reason, THEN the request fails with 422.
+- Scenario: Reason persisted. GIVEN a transition to `closed` with a reason, THEN the text is associated with the incident and visible in its history.
+- Scenario: Resolution doesn't require reason. GIVEN a transition to `resolved`, THEN no reason is requested: success is self-explanatory.
+
+#### R0.5 — All transitions recorded in history
+
+Each state change MUST be recorded with who changed it and when.
+
+- Scenario: Transition recorded. GIVEN any accepted transition, THEN an entry is added to the history with the prior state, new state, actor, and timestamp.
+- Scenario: Failed transition not recorded. GIVEN an invalid transition, THEN nothing is written to history: a failed attempt is not a change.
+
+#### R0.6 — Reconciliation with approval workflow
+
+The approval flow from T5.6 MUST continue operating under the unified semantics.
+
+- Scenario: Approval remains coherent. GIVEN `incident-approval.service.ts` operating after this change, THEN its behavior corresponds to the declared semantics and does not depend on `closed` meaning "archived after resolution".
+- Scenario: No regression. GIVEN the existing approval flow tests, THEN they either continue passing or their changes are justified in writing.
+
 ### R1 — Claim
 
 The system MUST allow an authenticated operator (role = `operador_organizacion` or
@@ -157,7 +212,7 @@ Then the response status is 200
 Given any authenticated user (any role)
 When GET /api/incidents/statuses is called
 Then the response status is 200
-  And the response body is {statuses: ["pending", "in_progress", "resolved"]}
+  And the response body is {statuses: ["pending", "in_progress", "resolved", "closed"]}
 ```
 
 **Scenario 2: Returns 401 for unauthenticated request**

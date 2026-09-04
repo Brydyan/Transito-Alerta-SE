@@ -5,6 +5,7 @@ import { IncidentAnalyticsService } from './incident-analytics.service';
 import { IncidentFeedService } from './incident-feed.service';
 import { IncidentExportService } from './incident-export.service';
 import { FeedRecoveryService } from './feed-recovery.service';
+import { IncidentWorkflowService } from './incident-workflow.service';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 
@@ -17,6 +18,7 @@ describe('IncidentsController', () => {
     findOne: jest.Mock;
     updateStatus: jest.Mock;
   };
+  let workflow: { changeStatus: jest.Mock };
   let controller: IncidentsController;
 
   beforeEach(() => {
@@ -26,12 +28,15 @@ describe('IncidentsController', () => {
       findOne: jest.fn(),
       updateStatus: jest.fn(),
     };
+    // sc-315 — el controller delega PATCH /:id/status al workflow service.
+    workflow = { changeStatus: jest.fn() };
     controller = new IncidentsController(
       service as unknown as IncidentsService,
       {} as IncidentAnalyticsService,
       {} as IncidentFeedService,
       {} as IncidentExportService,
       {} as FeedRecoveryService,
+      workflow as unknown as IncidentWorkflowService,
     );
   });
 
@@ -85,15 +90,54 @@ describe('IncidentsController', () => {
     expect(result).toEqual({ id: 'inc-1' });
   });
 
-  it('PATCH /:id/status delegates to service.updateStatus with the actor id and scope', async () => {
-    service.updateStatus.mockResolvedValue({ id: 'inc-1', status: 'in_progress' });
+  it('PATCH /:id/status delegates to workflow.changeStatus with the actor id, permissions, and closed_reason (sc-315)', async () => {
+    workflow.changeStatus.mockResolvedValue({ id: 'inc-1', status: 'in_progress' });
     const req = {
-      user: { userId: 'operator-1', permissions: [], scope: GLOBAL_SCOPE },
+      user: {
+        userId: 'operator-1',
+        permissions: ['UPDATE incidents'],
+        scope: GLOBAL_SCOPE,
+      },
     } as unknown as AuthenticatedRequest;
 
-    const result = await controller.updateStatus('inc-1', { status: 'in_progress' } as unknown as Parameters<typeof controller.updateStatus>[1], req);
+    const result = await controller.updateStatus(
+      'inc-1',
+      { status: 'in_progress' } as unknown as Parameters<typeof controller.updateStatus>[1],
+      req,
+    );
 
-    expect(service.updateStatus).toHaveBeenCalledWith('inc-1', 'in_progress', 'operator-1', GLOBAL_SCOPE);
+    expect(workflow.changeStatus).toHaveBeenCalledWith({
+      incidentId: 'inc-1',
+      to: 'in_progress',
+      actorId: 'operator-1',
+      actorPermissions: ['UPDATE incidents'],
+      closedReason: undefined,
+    });
     expect(result).toEqual({ id: 'inc-1', status: 'in_progress' });
+  });
+
+  it('PATCH /:id/status propagates closed_reason to workflow.changeStatus when target is closed (sc-315 D4)', async () => {
+    workflow.changeStatus.mockResolvedValue({ id: 'inc-2', status: 'closed' });
+    const req = {
+      user: {
+        userId: 'admin-1',
+        permissions: ['UPDATE incidents', 'CLOSE incidents'],
+        scope: GLOBAL_SCOPE,
+      },
+    } as unknown as AuthenticatedRequest;
+
+    await controller.updateStatus(
+      'inc-2',
+      { status: 'closed', closed_reason: 'duplicate' } as unknown as Parameters<typeof controller.updateStatus>[1],
+      req,
+    );
+
+    expect(workflow.changeStatus).toHaveBeenCalledWith({
+      incidentId: 'inc-2',
+      to: 'closed',
+      actorId: 'admin-1',
+      actorPermissions: ['UPDATE incidents', 'CLOSE incidents'],
+      closedReason: 'duplicate',
+    });
   });
 });

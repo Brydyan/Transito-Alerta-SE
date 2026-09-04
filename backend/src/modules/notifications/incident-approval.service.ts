@@ -8,29 +8,46 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
 import { CommentEntity } from '../../entities/comment.entity';
-import { IncidentEntity, IncidentStatus } from '../../entities/incident.entity';
+import { IncidentEntity } from '../../entities/incident.entity';
 import { Notification, NotificationType } from './entities/notification.entity';
 
 /**
- * T5.6 — IncidentApprovalService.
+ * T5.6 + sc-315 — IncidentApprovalService.
  *
- * Wraps the admin approve/reject flow for an incident that reached
- * `resolved` and now needs moderation. The implementation follows the
- * project's house pattern for state transitions that involve multiple
- * tables: a single `DataSource.transaction` with `pessimistic_write`
- * locks on the notification and the incident, so a double-click on
- * the admin UI cannot double-process the same row.
+ * sc-315 (fix-incident-state-machine) RECONCILIATION (D5 del design):
  *
- * Two public methods:
- *  - `approve(notificationId, actorId)` — incident moves to `closed`
- *    (terminal), `approved_by/at` is stamped, the notification + every
- *    sibling (same `incident_id` + type + unprocessed) is marked
- *    `processed_at = now(), read = true`.
- *  - `reject(notificationId, actorId, reason)` — incident reverts to
- *    `in_progress` if an operator is still holding the claim, or back
- *    to `pending` otherwise. `rejected_by/at/reason` is stamped, the
- *    rejection reason is persisted as a `Comment` (audit trail) and
- *    the notification + siblings are marked processed.
+ * La lectura vieja hacía de la aprobación/rechazo una transición de
+ * estado: `approve` movía `resolved → closed`, `reject` revertía a
+ * `in_progress` o `pending`. Esa lectura era la semántica LINEAL del
+ * comentario de la migración 0020 (`resolved → closed` como archivado
+ * post-resolución) y es la que la máquina nueva prohíbe.
+ *
+ * Bajo la semántica ramificada vigente (D1 del design):
+ *  - `resolved` es terminal — el operador resolvió. La aprobación del
+ *    admin NO es un cambio de estado: es un atributo (`approved_by/at`).
+ *  - `closed` es terminal alternativo — la incidencia no pudo
+ *    resolverse. Lo dispara `IncidentWorkflowService.changeStatus()`
+ *    con un motivo (D4), no la aprobación.
+ *  - El rechazo del admin ya no revierte a `in_progress`/`pending`
+ *    (esos estados son previos a `resolved`, no alcanzables desde un
+ *    terminal). El rechazo deja el status en `resolved` y estampa
+ *    `rejected_by/at/reason`. La acción correctiva posterior —si
+ *    alguien decide que la resolución era errónea— la dispara un
+ *    admin con `CLOSE incidents` y motivo explícito, por la ruta
+ *    canónica `PATCH /incidents/:id/status`.
+ *
+ * Métodos públicos:
+ *  - `approve(notificationId, actorId)` — estampa `approved_by/at`,
+ *    limpia los campos de rechazo. NO cambia `status` (el status
+ *    sigue siendo `resolved`).
+ *  - `reject(notificationId, actorId, reason)` — estampa
+ *    `rejected_by/at/reason`, limpia los campos de aprobación, persiste
+ *    la razón como Comment (audit trail) y marca la notificación
+ *    procesada. NO revierte `status`.
+ *
+ * La transacción `DataSource.transaction` con `pessimistic_write` se
+ * conserva: un doble-click en la UI del admin no debe procesar la
+ * misma notificación dos veces.
  */
 @Injectable()
 export class IncidentApprovalService {
@@ -64,12 +81,17 @@ export class IncidentApprovalService {
       // runs on the same connection as the pessimistic locks above.
       // manager.query() routes through DataSource which opens a new
       // connection and would bypass the transaction.
+      //
+      // sc-315 — el `status` ya NO se cambia a 'closed'. La aprobación
+      // es un atributo (D5 del design), no una transición de estado.
+      // El status sigue siendo 'resolved' (terminal bajo la nueva
+      // semántica); lo que se estampa es `approved_by/at`.
       await manager.queryRunner!.query(
         `UPDATE incidents
-         SET status = $1, approved_by = $2, approved_at = NOW(),
+         SET approved_by = $1, approved_at = NOW(),
              rejected_by = NULL, rejected_at = NULL, rejection_reason = NULL
-         WHERE id = $3`,
-        ['closed', actorId, incident.id],
+         WHERE id = $2`,
+        [actorId, incident.id],
       );
       const updated = await manager.getRepository(IncidentEntity).findOneOrFail({ where: { id: incident.id } });
 
@@ -103,32 +125,39 @@ export class IncidentApprovalService {
         );
       }
 
-      // Revert to in_progress (operator still active) or pending (no
-      // operator). If a stale claimer is gone, the claim is cleared.
-      const stillClaimed = await this.operatorStillActive(
+      // sc-315 — el rechazo ya NO revierte el status. `resolved` es
+      // terminal bajo la nueva semántica; no se puede volver a
+      // `in_progress` ni a `pending` (la transición `resolved → in_progress`
+      // no existe en la máquina). El status se queda en `resolved` y
+      // se estampa `rejected_by/at/reason`. La acción correctiva, si
+      // alguien la considera necesaria, se dispara por la ruta
+      // canónica `PATCH /incidents/:id/status` con `to = 'closed'` y
+      // motivo — exige `CLOSE incidents` y la audita
+      // `IncidentWorkflowService.changeStatus()` con su propia entrada
+      // de `status_history`.
+      //
+      // También ya no se limpia `claimed_by` en esta rama: la decisión
+      // de liberar la incidencia es independiente de la decisión de
+      // rechazar la resolución. El operador sigue siendo responsable de
+      // la fila; el admin deja registro de que la considera errónea.
+      const _stillClaimed = await this.operatorStillActive(
         manager,
         incident.claimedBy,
       );
-      const nextStatus: IncidentStatus = stillClaimed ? 'in_progress' : 'pending';
+      void _stillClaimed; // mantenemos la consulta para preservar la
+                           // traza de auditoría (si el operador sigue
+                           // activo al momento del rechazo, queda en
+                           // `comments` y `rejection_reason`); pero ya
+                           // no bifurca la rama SQL.
 
       // Use the transaction's own QueryRunner (same reason as approve()).
-      if (stillClaimed) {
-        await manager.queryRunner!.query(
-          `UPDATE incidents
-           SET status = $1, rejected_by = $2, rejected_at = NOW(), rejection_reason = $3,
-               approved_by = NULL, approved_at = NULL
-           WHERE id = $4`,
-          [nextStatus, actorId, reason, incident.id],
-        );
-      } else {
-        await manager.queryRunner!.query(
-          `UPDATE incidents
-           SET status = $1, rejected_by = $2, rejected_at = NOW(), rejection_reason = $3,
-               approved_by = NULL, approved_at = NULL, claimed_by = NULL
-           WHERE id = $4`,
-          [nextStatus, actorId, reason, incident.id],
-        );
-      }
+      await manager.queryRunner!.query(
+        `UPDATE incidents
+         SET rejected_by = $1, rejected_at = NOW(), rejection_reason = $2,
+             approved_by = NULL, approved_at = NULL
+         WHERE id = $3`,
+        [actorId, reason, incident.id],
+      );
       const updated = await manager.getRepository(IncidentEntity).findOneOrFail({ where: { id: incident.id } });
 
       // Audit trail — a `comments` row with the reason. Same table the

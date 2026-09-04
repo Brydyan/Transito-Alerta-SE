@@ -19,7 +19,6 @@ import {
   MAIL_EVENTS_BLOCKING_CLIENT,
   REDIS_CLIENT,
   SESSION_REDIS_CLIENT,
-  STATUS_HISTORY_EVENTS_BLOCKING_CLIENT,
 } from '../../src/core/core.module';
 import { applyMigrations } from './run-migrations';
 
@@ -82,7 +81,6 @@ export class TestEnvironment {
     private readonly cacheManager: Cache<RedisStore>,
     private readonly mailBlockingClient: Redis,
     private readonly mailEventsBlockingClient: Redis,
-    private readonly statusHistoryEventsBlockingClient: Redis,
     private readonly sessionRedisClient: Redis,
   ) {}
 
@@ -219,7 +217,6 @@ export class TestEnvironment {
     // wired in globally).
     const mailBlockingClient = app.get<Redis>(MAIL_BLOCKING_CLIENT);
     const mailEventsBlockingClient = app.get<Redis>(MAIL_EVENTS_BLOCKING_CLIENT);
-    const statusHistoryEventsBlockingClient = app.get<Redis>(STATUS_HISTORY_EVENTS_BLOCKING_CLIENT);
     // T3.9 — the denylist/grace-buffer client. Same DB (0) as REDIS_CLIENT,
     // but a SEPARATE connection (`enableOfflineQueue: false,
     // commandTimeout: 50`) — grabbed here only so teardown can quit it
@@ -255,7 +252,6 @@ export class TestEnvironment {
       cacheManager,
       mailBlockingClient,
       mailEventsBlockingClient,
-      statusHistoryEventsBlockingClient,
       sessionRedisClient,
     );
   }
@@ -508,7 +504,6 @@ export class TestEnvironment {
     this.appRedisClient.disconnect();
     this.mailBlockingClient.disconnect();
     this.mailEventsBlockingClient.disconnect();
-    this.statusHistoryEventsBlockingClient.disconnect();
     this.sessionRedisClient.disconnect();
 
     await this.redisContainer.stop();

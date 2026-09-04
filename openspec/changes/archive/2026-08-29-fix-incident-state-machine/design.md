@@ -84,6 +84,32 @@ Si su flujo de aprobación necesita distinguir «resuelta y aprobada» de «resu
 pendiente de aprobación», eso es un atributo aparte —una marca de aprobación— y no un
 estado del ciclo de vida. Mezclarlos fue el origen del conflicto.
 
+**D5.1 — `reject()` deja de revertir el estado.** *(Ratificado 2026-09-03, tras la
+segunda pasada de `sdd-verify`: la implementación ya lo hacía y el contrato no lo
+declaraba. Se ratifica en vez de revertirse porque es lo correcto, no porque ya esté
+escrito.)*
+
+Antes, rechazar una aprobación devolvía la incidencia a su estado anterior. Eso es
+exactamente la mezcla que D5 identifica como origen del conflicto: usa el ciclo de vida
+para representar un veredicto de aprobación.
+
+Con la semántica ramificada de D1, revertir es además ambiguo. Una incidencia en
+`resolved` cuya aprobación se rechaza no tiene un «anterior» único: pudo llegar desde
+`pending` o desde `in_progress`, y el grafo no obliga a un camino. Revertir obligaría a
+adivinar, o a leer el historial para reconstruirlo — y `design.md` D4 existe justamente
+para no tener que recorrer el historial.
+
+Rechazar pasa a ser lo que siempre fue conceptualmente: **una marca de aprobación
+negativa sobre una incidencia que sigue donde estaba**. Quien decida moverla lo hace con
+una transición explícita, que el grafo valida y que queda registrada como tal.
+
+*Alternativa rechazada — mantener la reversión.* Preserva el comportamiento observable y
+reintroduce el acoplamiento que este change desmonta: dos sistemas escribiendo la misma
+columna con semánticas distintas. Es la forma del defecto original.
+
+Cubierto por `backend/src/modules/notifications/incident-approval.service.spec.ts`, que
+no existía antes de la segunda pasada.
+
 **D6 — Inventariar antes de migrar datos.**
 Un `closed` ya escrito no dice bajo qué lectura se escribió. Primero se cuenta cuántas
 filas hay; si son cero —lo probable, dado que el servicio nunca pudo escribir ese
