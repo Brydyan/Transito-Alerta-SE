@@ -40,16 +40,16 @@ internamente — ver «Ciudadano» más abajo.
 | 1 | **F0** Design system ✅ | [300](https://app.shortcut.com/upse/story/300) | 5 | Tokens violeta, Outfit, Lucide, 6 primitivos — **completada y archivada 2026-09-02** |
 | 2 | **F1** Navegación ✅ | [303](https://app.shortcut.com/upse/story/303) | 2 | Arregla el 404 del sidebar — **completada y archivada 2026-09-02** |
 | — | **324** Test de contraste ✅ | [324](https://app.shortcut.com/upse/story/324) | 2 | Cierra el único requisito de `design-system` sin cobertura. **Completada y archivada 2026-09-02** |
-| 3 | **315** Fix estados | [315](https://app.shortcut.com/upse/story/315) | 3 | Habilita `closed`, declara la máquina |
-| 4 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
-| 5 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
+| — | **315** Fix máquina de estados ✅ | [315](https://app.shortcut.com/upse/story/315) | 3 | Habilita `closed`, declara la máquina. **Completada y archivada 2026-09-03** |
+| 3 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
+| 4 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
 | — | **REG** Auto-registro | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano puede crearse cuenta. **Hoy no puede** |
 | — | **ANON** Cerrar sin sesión | [326](https://app.shortcut.com/upse/story/326) | 3 | Retira el reporte anónimo sin cuenta |
 | — | **AUD** Auditoría y revelación | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría |
-| 6 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
-| 7 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
-| 8 | **F5** Menús dinámicos | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura |
-| 9 | **F6** Rediseño | [308](https://app.shortcut.com/upse/story/308) | 5 | Dashboard, Usuarios, Roles, Perfil |
+| 5 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
+| 6 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
+| 7 | **F5** Menús dinámicos | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura |
+| 8 | **F6** Rediseño | [308](https://app.shortcut.com/upse/story/308) | 5 | Dashboard, Usuarios, Roles, Perfil |
 
 **Empezar por F0 → F1. 315 antes de F3. REG antes de ANON, sin excepción.**
 
@@ -96,12 +96,19 @@ placeholders para destinos futuros, engancha el huérfano `citizen-report`.
 
 Entregable de fondo: **`menu-map.spec.ts`**, test que falla si rutas y menú divergen otra vez.
 
-### 315 — Fix máquina de estados · `back/2026-08-29-fix-incident-state-machine/`
+### 315 — Fix máquina de estados ✅ · `archive/2026-08-29-fix-incident-state-machine/`
 `closed` está en BD y en el tipo pero excluido de `ALLOWED_STATUSES`. Además conviven dos
-semánticas contradictorias. Declara el grafo en `incident-state-machine.ts`, deriva
-`ALLOWED_STATUSES` de él, añade permiso `CLOSE incidents`.
+semánticas contradictorias: una lectura lineal (`pending → in_progress → resolved → closed`)
+versus una ramificada (resolved y closed como terminales alternativos). Declara el grafo en
+`incident-state-machine.ts`, deriva `ALLOWED_STATUSES` de él, añade permiso `CLOSE incidents`,
+exige motivo al cerrar sin resolver, reconcilia `incident-approval.service.ts`.
 
-**Bloquea F3** — `workflow.util.ts` deriva de este grafo.
+**Completada y archivada** (2026-09-03, 2 pasadas de `sdd-verify`, 0 CRITICAL en pass 2,
+911/911 tests backend). Spec consolidado en `openspec/specs/incident-workflow/spec.md` con
+6 requisitos nuevos (Sección R0, State Machine).
+
+**Decisión ratificada D5.1**: `reject()` ya no revierte estado. Es una marca de aprobación
+sobre una incidencia que sigue donde estaba; quien decida moverla usa una transición explícita.
 
 ### F2 — Catálogos · `front/2026-08-29-f2-catalogs-crud/`
 Tres módulos con backend completo y cero frontend. Orden interno: Categorías (fija el
@@ -279,9 +286,9 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 
 | Defecto | Dónde | Cubierto en |
 |---|---|---|
-| ✅ `closed` inalcanzable desde el flujo | `incident-workflow.service.ts:31,46` | 315 (verify PASS 2026-09-03, pendiente archivar) |
+| ✅ `closed` inalcanzable desde el flujo | `incident-workflow.service.ts:31,46` | 315 ✅ archivada 2026-09-03 · `archive/2026-08-29-fix-incident-state-machine/` |
 | **Lista de estados a mano en analíticas** — `by_status` enumera los cuatro estados como literal, tercer origen de verdad tras eliminar `LEGAL_TRANSITIONS` | `incident-analytics.service.ts:125` | Sin ticket — fuera del alcance declarado de 315, detectado en su 2ª pasada |
-| ✅ **Inventario de filas `closed` preexistentes** — ejecutado contra staging el 2026-09-03: **0 filas**. Sin migración de datos que hacer, como preveía D6 (el servicio nunca pudo escribir ese estado) | `database/migrations/0043`, `0044` | 315 / D6 — cerrado |
+| ✅ **Inventario de filas `closed` preexistentes** — ejecutado contra staging el 2026-09-03: **0 filas**. Sin migración de datos que hacer, como preveía D6 (el servicio nunca pudo escribir ese estado) | `database/migrations/0043`, `0044` | 315 / D6 ✅ archivada 2026-09-03 |
 | `assign()` no valida el tope de carga | `assignments.service.ts:28-36` | F7 / A.2 |
 | Escrituras de asignación sin acotar por organización | `assignments.controller.ts` | F7 / A.5 |
 | ✅ Sidebar cae al 404 | `menu-map.ts` ↔ `app.routes.ts` | F1 (cerrada 2026-09-02) · `archive/2026-08-29-f1-menu-routing-alignment/` |
