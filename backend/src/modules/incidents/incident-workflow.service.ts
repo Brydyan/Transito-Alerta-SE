@@ -289,15 +289,23 @@ export class IncidentWorkflowService {
       //    respuesta del PATCH sin un GET extra.
       //    `resolution_date` se mantiene coherente con la semántica
       //    previa (T6.3): se setea en `resolved`, NULL en `closed`.
+      //    Las dos condiciones se resuelven en JS, no en SQL. Antes
+      //    `closed_reason` usaba `CASE WHEN $2 = 'closed'` mientras
+      //    `resolution_date` ya se decidía acá con `isResolution`: la misma
+      //    decisión tomada en dos lugares. Además Postgres deducía dos tipos
+      //    para `$2` —columna `status` en el SET, texto en la comparación— y
+      //    abortaba con "inconsistent types deduced for parameter $2", así que
+      //    TODO `PATCH /incidents/:id/status` devolvía 500.
       const isResolution = to === 'resolved';
+      const closedReasonValue = to === 'closed' ? (closedReason ?? null) : null;
       const updatedRows = await manager.query<IncidentRow[]>(
         `UPDATE incidents
             SET status = $2,
-                closed_reason = CASE WHEN $2 = 'closed' THEN $3 ELSE NULL END,
+                closed_reason = $3,
                 resolution_date = CASE WHEN $4 THEN NOW() ELSE NULL END
           WHERE id = $1
         RETURNING id, title, status, priority, claimed_by, organization_id, closed_reason`,
-        [incidentId, to, closedReason ?? null, isResolution],
+        [incidentId, to, closedReasonValue, isResolution],
       );
       const updated = updatedRows[0];
       if (!updated) {

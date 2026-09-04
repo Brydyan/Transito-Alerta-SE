@@ -4,8 +4,13 @@
 BEGIN;
 
 -- 1) Drop `CLOSE incidents` from users.permissions for affected users.
+--    `u.permissions`, calificada: `FROM roles r` mete `roles.permissions` en
+--    alcance y las dos tablas tienen esa columna. El UP tenía este mismo
+--    defecto y se arregló primero; el DOWN quedó sin tocar hasta que
+--    `t7-rollback-cycle` lo destapó. La regla aplicada en un archivo y no en
+--    su vecino, otra vez.
 UPDATE users u
-   SET permissions = permissions - 'CLOSE incidents'
+   SET permissions = u.permissions - 'CLOSE incidents'
   FROM roles r
  WHERE u.role_id = r.id
    AND r.name IN ('master', 'admin_org')

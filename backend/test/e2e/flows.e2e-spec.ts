@@ -191,11 +191,16 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
     expect(incident.body.status).toBe('pending');
 
     // Out-of-order: pending -> resolved skips in_progress.
+    // 409, no 400: sc-315 declaró la máquina de estados y el spec consolidado
+    // lo fija — «all undeclared transitions MUST be rejected with 409» y «No
+    // state skipping … THEN 409» (openspec/specs/incident-workflow/spec.md:30,37).
+    // Una transición ilegal no es una petición malformada: es un conflicto con
+    // el estado actual del recurso.
     await request(env.httpServer)
       .patch(`/api/incidents/${incident.body.id}/status`)
       .set(auth)
       .send({ status: 'resolved' })
-      .expect(400);
+      .expect(409);
 
     // Populate a status-filtered listing cache BEFORE the legal transition,
     // so the purge assertion below proves the write actually reached it —
