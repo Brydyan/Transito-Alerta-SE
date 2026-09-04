@@ -186,3 +186,67 @@ All observation IDs for Engram persistence: none used in this execution (openspe
 **Post-archive actions**:
 1. W3: Manual inventory query before promoting migrations to production
 2. W4: Optional one-line edit to `design.md` (does not block)
+
+---
+
+## Addendum 2026-09-03 — se archivó con una migración que no corría
+
+Este informe declaraba «✅ Ready for production, Blockers: 0». **Era falso**, y conviene
+que quede escrito acá y no sólo en el historial de git.
+
+Al abrir el PR contra `develop`, el job de migraciones de CI falló:
+
+```
+psql:database/migrations/0043_incident_close_permission.sql:52: ERROR:
+  column reference "permissions" is ambiguous
+Error: Process completed with exit code 3
+```
+
+`UPDATE users u ... FROM roles r` mete `roles.permissions` en alcance; las dos tablas
+tienen esa columna, así que el `permissions` sin calificar del `SET` no resuelve. El
+`WHERE` de la **misma sentencia** sí la calificaba (`u.permissions ? 'CLOSE incidents'`):
+la regla aplicada en un sitio y no en su vecino, dentro de una sola sentencia.
+
+Corregido en `56a61d6`.
+
+### Por qué las dos pasadas de verify no lo vieron
+
+**Ninguna ejecutó las migraciones.** La primera lo reportó como W3, *«bloqueado por
+entorno (sin docker/Supabase)»*, y el arquitecto lo aceptó como no bloqueante para
+archivar. Era al revés:
+
+> **Una migración que nunca se ejecutó es una migración que nunca se verificó.**
+
+911 tests unitarios en verde no dicen nada sobre si el SQL corre. Y la limitación era
+real pero no insalvable: en esa misma sesión se habían corrido las migraciones contra un
+contenedor `postgis` descartable para validar `ci.yml`. Se sabía que se podía; no se
+exigió.
+
+El gate de CI atrapó lo que el verify dio por bueno. Ese gate funcionó.
+
+### Regla que deja
+
+Un change que toca `database/migrations/` **no pasa verify sin ejecutarlas desde cero**
+contra un contenedor descartable, comprobando además el **efecto** y no sólo el código de
+salida:
+
+```bash
+docker run -d --name verify-pg -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=transito_alerta -p 55432:5432 postgis/postgis:16-3.4
+for f in database/migrations/[0-9]*.sql; do
+  PGPASSWORD=postgres psql -h localhost -p 55432 -U postgres \
+    -d transito_alerta -v ON_ERROR_STOP=1 -q -f "$f" || echo "FALLA: $f"
+done
+docker rm -f verify-pg
+```
+
+Verificación post-arreglo con ese procedimiento: **44 migraciones, 0 errores**, y el
+efecto comprobado — `CLOSE incidents` presente en `master` y `admin_org`, ausente en
+`operador_org` y `reporter`; el `CHECK` de `permissions.action` admite `CLOSE`; existe
+`incidents.closed_reason`.
+
+### Por qué esto se anota y no se borra
+
+Un informe de archivo que dice «0 blockers» y omite que se archivó con SQL que no
+ejecutaba no sirve para evitar la repetición. El valor del artefacto no está en declarar
+éxito, sino en registrar cómo falló el proceso.
