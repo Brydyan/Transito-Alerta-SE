@@ -3,13 +3,19 @@ import {
   ForbiddenException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
+import type Redis from 'ioredis';
 import { DataSource, Repository } from 'typeorm';
 
+import { REDIS_CLIENT } from '../../core/core.module';
+import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
+import { INCIDENTS_STREAM_KEY } from './incidents.service';
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { IncidentStatus } from '../../entities/incident.entity';
 import {
@@ -60,6 +66,15 @@ export class IncidentWorkflowService {
     private readonly dataSource: DataSource,
     @InjectRepository(OrganizationEntity)
     private readonly orgRepo: Repository<OrganizationEntity>,
+    // sc-315 — estas tres llegan porque `changeStatus()` absorbió el camino
+    // que antes recorría `IncidentsService.updateStatus()`. Retirar la fuente
+    // de verdad vieja fue correcto; lo que faltó fue portar lo que SÓLO ella
+    // hacía: purgar los listados cacheados y publicar el evento. Sin esto, un
+    // cambio de estado dejaba listados rancios y ningún consumidor se
+    // enteraba — cinco tests de integración lo destaparon.
+    private readonly geofencingService: GeofencingService,
+    private readonly eventEmitter: EventEmitter2,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   /**
@@ -226,7 +241,7 @@ export class IncidentWorkflowService {
   }): Promise<IncidentRow> {
     const { incidentId, to, actorId, actorPermissions, closedReason } = args;
 
-    return this.dataSource.transaction(async (manager) => {
+    const committed = await this.dataSource.transaction(async (manager) => {
       // 1) Bloquear la fila para evitar carreras con approve/reject o
       //    otro changeStatus en vuelo. SELECT ... FOR UPDATE.
       //    Traemos `closed_reason` porque si la fila ya está en `closed`
@@ -298,16 +313,26 @@ export class IncidentWorkflowService {
       //    TODO `PATCH /incidents/:id/status` devolvía 500.
       const isResolution = to === 'resolved';
       const closedReasonValue = to === 'closed' ? (closedReason ?? null) : null;
-      const updatedRows = await manager.query<IncidentRow[]>(
+      // `unwrapReturningRows`, no `result[0]`: TypeORM devuelve
+      // `[rows, affectedCount]` en un UPDATE … RETURNING, así que `result[0]`
+      // es el ARRAY de filas, no la fila. `claim()` y `release()` —dos
+      // métodos de este mismo archivo— ya usaban el helper; `changeStatus`
+      // no, y por eso el PATCH devolvía un array. Es el defecto 7284831, que
+      // tiene su propio test de regresión desde entonces.
+      //
+      // `zone_id` entra al RETURNING porque hace falta para purgar la caché
+      // de la zona, y porque ese mismo test afirma que la respuesta lo lleva.
+      const result = await manager.query(
         `UPDATE incidents
             SET status = $2,
                 closed_reason = $3,
                 resolution_date = CASE WHEN $4 THEN NOW() ELSE NULL END
           WHERE id = $1
-        RETURNING id, title, status, priority, claimed_by, organization_id, closed_reason`,
+        RETURNING id, title, status, priority, claimed_by, organization_id,
+                  zone_id, closed_reason`,
         [incidentId, to, closedReasonValue, isResolution],
       );
-      const updated = updatedRows[0];
+      const updated = unwrapReturningRows<IncidentRow>(result)[0];
       if (!updated) {
         // No debería pasar — la fila está bloqueada arriba.
         throw new NotFoundException(`Incident ${incidentId} not found`);
@@ -329,11 +354,62 @@ export class IncidentWorkflowService {
         [incidentId, actorId, from, to, historyNotes],
       );
 
-      return updated as IncidentRow;
+      return { updated: updated as IncidentRow, from };
     });
+
+    // ---- efectos secundarios, DESPUÉS del commit ------------------------
+    //
+    // Fuera de la transacción a propósito. Publicar adentro emitiría el
+    // evento aunque la transacción revierta después: los consumidores
+    // —`incident-mail.listener`, el stream de Redis— actuarían sobre un
+    // cambio que no ocurrió, y un evento no se puede des-emitir. La
+    // escritura en `status_history` sí va adentro porque debe revertirse
+    // con el UPDATE (S.5.1); el evento es lo contrario, sólo debe salir si
+    // el cambio quedó firme.
+    //
+    // Ambos comportamientos vivían en `IncidentsService.updateStatus()`, que
+    // sc-315 eliminó por ser una segunda fuente de verdad de las
+    // transiciones. Eliminarla fue correcto; no portar esto fue el defecto.
+    await this.purgeListCaches(committed.updated.zone_id);
+    await this.publish('incident.status_changed', {
+      id: committed.updated.id,
+      status: committed.updated.status,
+      previous_status: committed.from,
+      zone_id: committed.updated.zone_id,
+    });
+
+    return committed.updated;
   }
 
   // ---- private helpers ------------------------------------------------
+
+  /**
+   * Purga todo listado cacheado que la escritura invalida: los de la zona y
+   * los sin zona. Mismo contrato que el homónimo de `IncidentsService` — un
+   * listado no filtrado refleja todas las zonas, así que cualquier escritura
+   * lo ensucia.
+   */
+  private async purgeListCaches(zoneId: string | null): Promise<void> {
+    await this.geofencingService.purgeZoneCache(zoneId);
+    await this.geofencingService.purgeZoneCache(ALL_ZONES_TAG);
+  }
+
+  /**
+   * Emite por el bus en proceso y persiste en el stream de Redis. Las dos
+   * cosas: el bus sirve a los listeners del mismo proceso, el stream a los
+   * consumidores que arrancan después o se reconectan.
+   */
+  private async publish(type: string, data: unknown): Promise<void> {
+    this.eventEmitter.emit(type, data);
+    await this.redis.xadd(
+      INCIDENTS_STREAM_KEY,
+      '*',
+      'type',
+      type,
+      'data',
+      JSON.stringify(data),
+    );
+  }
 
   private async loadIncident(incidentId: string): Promise<IncidentRow> {
     const rows = await this.dataSource.query<IncidentRow[]>(

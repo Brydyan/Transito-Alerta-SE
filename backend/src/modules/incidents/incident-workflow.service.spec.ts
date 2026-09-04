@@ -10,8 +10,13 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
+import { EventEmitter2 } from '@nestjs/event-emitter';
+
+import { REDIS_CLIENT } from '../../core/core.module';
+import { GeofencingService } from '../geofencing/geofencing.service';
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { IncidentWorkflowService } from './incident-workflow.service';
+
 import {
   CLAIM_LIMIT_REACHED,
   INCIDENT_ALREADY_CLAIMED,
@@ -19,6 +24,26 @@ import {
   NOT_THE_CLAIMER,
   WRONG_ORGANIZATION,
 } from './incident-workflow.errors';
+
+/**
+ * sc-315 — `changeStatus()` publica el evento y purga los listados cacheados
+ * después del commit, porque absorbió el camino de
+ * `IncidentsService.updateStatus()`. Estas unidades no ejercitan esos efectos
+ * —los cubren los e2e, que sí tienen Redis— pero el módulo tiene que poder
+ * construirse, así que se declaran como dobles inertes en un solo lugar.
+ *
+ * Inertes a propósito: un doble que devuelve algo invita a afirmar sobre él
+ * acá, y afirmar sobre una purga de caché sin caché real es afirmar sobre el
+ * doble, no sobre el sistema.
+ */
+const SIDE_EFFECT_DOUBLES = [
+  {
+    provide: GeofencingService,
+    useValue: { purgeZoneCache: jest.fn().mockResolvedValue(undefined) },
+  },
+  { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+  { provide: REDIS_CLIENT, useValue: { xadd: jest.fn().mockResolvedValue('1-0') } },
+];
 
 // ---------- helpers ----------------------------------------------------------
 
@@ -65,6 +90,7 @@ async function buildService(
   const module = await Test.createTestingModule({
     providers: [
       IncidentWorkflowService,
+      ...SIDE_EFFECT_DOUBLES,
       { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(org) },
       { provide: DataSource, useValue: makeDataSource(makeQueuedQuery(queryAnswers)) },
     ],
@@ -137,6 +163,7 @@ describe('IncidentWorkflowService.claim', () => {
     const module = await Test.createTestingModule({
       providers: [
         IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
         { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
         { provide: DataSource, useValue: makeDataSource(queryMock) },
       ],
@@ -193,6 +220,7 @@ describe('IncidentWorkflowService.release', () => {
     const module = await Test.createTestingModule({
       providers: [
         IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
         { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
         { provide: DataSource, useValue: makeDataSource(queryMock) },
       ],
@@ -295,6 +323,7 @@ describe('IncidentWorkflowService.changeStatus (sc-315)', () => {
     const module = await Test.createTestingModule({
       providers: [
         IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
         { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
         { provide: DataSource, useValue: dataSource },
       ],
@@ -340,6 +369,7 @@ describe('IncidentWorkflowService.changeStatus (sc-315)', () => {
     const module = await Test.createTestingModule({
       providers: [
         IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
         { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
         { provide: DataSource, useValue: dataSource },
       ],
@@ -385,6 +415,7 @@ describe('IncidentWorkflowService.changeStatus (sc-315)', () => {
     const module = await Test.createTestingModule({
       providers: [
         IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
         { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
         { provide: DataSource, useValue: dataSource },
       ],
@@ -435,6 +466,7 @@ describe('IncidentWorkflowService.changeStatus (sc-315)', () => {
     const module = await Test.createTestingModule({
       providers: [
         IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
         { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
         { provide: DataSource, useValue: dataSource },
       ],
@@ -487,6 +519,7 @@ describe('IncidentWorkflowService.changeStatus (sc-315)', () => {
     const module = await Test.createTestingModule({
       providers: [
         IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
         { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
         { provide: DataSource, useValue: dataSource },
       ],

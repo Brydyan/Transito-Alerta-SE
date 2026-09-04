@@ -240,11 +240,15 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
     expect(await env.redisCache.get(inProgressListKey)).toBeNull();
 
     // resolved is terminal — nothing legally follows it.
+    // 409 por el mismo motivo que arriba: spec R0.2, «No transitions from
+    // terminal states … THEN 409». Es la segunda ocurrencia en este archivo;
+    // la primera se corrigió sola y ésta quedó — la regla aplicada en un
+    // sitio y no en su vecino, dentro del mismo test.
     await request(env.httpServer)
       .patch(`/api/incidents/${incident.body.id}/status`)
       .set(auth)
       .send({ status: 'in_progress' })
-      .expect(400);
+      .expect(409);
 
     const entries = await env.redisStreams.xrevrange(INCIDENTS_STREAM_KEY, '+', '-', 'COUNT', 10);
     const statusChangedCount = entries

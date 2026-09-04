@@ -3,7 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { IncidentEntity } from '../../entities/incident.entity';
 import { StatusHistoryEntity } from '../../entities/status-history.entity';
-import { IncidentStatusHistoryListener } from './incident-status-history.listener';
 import { StatusHistoryController } from './status-history.controller';
 import { StatusHistoryRepository } from './status-history.repository';
 import { StatusHistoryService } from './status-history.service';
@@ -18,6 +17,6 @@ import { StatusHistoryService } from './status-history.service';
 @Module({
   imports: [TypeOrmModule.forFeature([StatusHistoryEntity, IncidentEntity])],
   controllers: [StatusHistoryController],
-  providers: [IncidentStatusHistoryListener, StatusHistoryService, StatusHistoryRepository],
+  providers: [StatusHistoryService, StatusHistoryRepository],
 })
 export class StatusHistoryModule {}

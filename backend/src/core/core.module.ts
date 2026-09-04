@@ -55,8 +55,15 @@ export const MAIL_BLOCKING_CLIENT = 'MAIL_BLOCKING_CLIENT';
 export const MAIL_EVENTS_BLOCKING_CLIENT = 'MAIL_EVENTS_BLOCKING_CLIENT';
 
 /**
- * Dedicated blocking connection for IncidentStatusHistoryListener (T3.4
- * design D1) — XREADGROUP on `incidents:events`, consumer group
+ * HUÉRFANO desde sc-315 — su único consumidor, `IncidentStatusHistoryListener`,
+ * se retiró: convivía con la escritura transaccional de `status_history` y
+ * producía dos filas por transición. La conexión sigue declarada y no la usa
+ * nadie salvo el arnés de tests para su teardown. Retirarla es trabajo
+ * pendiente, anotado en el ROADMAP; se deja declarada para no mezclar la
+ * limpieza de DI con el arreglo de los e2e.
+ *
+ * Era la conexión bloqueante dedicada del listener (T3.4 design D1) —
+ * XREADGROUP on `incidents:events`, consumer group
  * `status-history`. This is the 5th such connection; same reasoning as
  * MAIL_EVENTS_BLOCKING_CLIENT: ioredis serialises commands per connection
  * and `XREADGROUP ... BLOCK` holds one for the whole window, so sharing
