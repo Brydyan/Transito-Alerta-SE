@@ -39,7 +39,7 @@ Valid state transitions MUST be declared in a single location, and all undeclare
 - Scenario: Critical incidents don't skip states. GIVEN an incident created with `priority = 'critical'`, THEN it is born in `pending` like any other: urgency is expressed via priority and notifications, not by skipping workflow states.
 - Scenario: Single source of truth. GIVEN the transition table, THEN it is the only source governing what is valid; no consumer replicates the rule with independent conditionals.
 
-#### R0.3 — Only `admin_org` can close
+#### R0.3 — Only `master` and `admin_org` can close
 
 Closing (marking as unable to resolve) MUST require the `CLOSE incidents` permission, distinct from the permission to resolve.
 
