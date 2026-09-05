@@ -148,14 +148,32 @@ export const routes: Routes = [
           ),
         // PLACEHOLDER F4
       },
+      // F3 (sc-303) — Incidencias: listado + detalle. El placeholder
+      // de F1 se sustituye por el componente real. El `:id` del
+      // detalle va DESPUÉS del listado literal (orden importante en
+      // Angular Router: las rutas con segmentos estáticos ganan a
+      // las dinámicas).
       {
         path: 'incidencias',
-        data: { breadcrumb: 'Lista de Incidencias', title: 'Lista de Incidencias', phase: 'F3' },
-        loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
-          ),
-        // PLACEHOLDER F3
+        data: { breadcrumb: 'Incidencias' },
+        children: [
+          {
+            path: '',
+            data: { breadcrumb: 'Listado' },
+            loadComponent: () =>
+              import('./features/incidents/incident-list/incident-list.component').then(
+                (m) => m.IncidentListComponent,
+              ),
+          },
+          {
+            path: ':id',
+            data: { breadcrumb: 'Detalle' },
+            loadComponent: () =>
+              import('./features/incidents/incident-detail/incident-detail.component').then(
+                (m) => m.IncidentDetailComponent,
+              ),
+          },
+        ],
       },
       {
         path: 'mapa',
