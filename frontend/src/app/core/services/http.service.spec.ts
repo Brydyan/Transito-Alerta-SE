@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { HttpService } from './http.service';
+import { environment } from '../../../environments/environment';
 
 describe('HttpService', () => {
   let service: HttpService;
@@ -27,7 +28,7 @@ describe('HttpService', () => {
       expect(res).toEqual(dummyData);
     });
 
-    const req = httpMock.expectOne(req => req.url === 'http://localhost:3001/api/test' && req.params.get('page') === '1');
+    const req = httpMock.expectOne(req => req.url === `${environment.apiUrl}/test` && req.params.get('page') === '1');
     expect(req.request.method).toBe('GET');
     req.flush(dummyData);
   });
@@ -40,7 +41,7 @@ describe('HttpService', () => {
       expect(res).toEqual(dummyData);
     });
 
-    const req = httpMock.expectOne('http://localhost:3001/api/test');
+    const req = httpMock.expectOne(`${environment.apiUrl}/test`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual(body);
     req.flush(dummyData);

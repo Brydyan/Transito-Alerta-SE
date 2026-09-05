@@ -1,0 +1,116 @@
+<div class="p-4">
+  <!-- Page Header -->
+  <ui-page-header
+    kicker="CATALOGS / CATEGORIES"
+    title="Categories"
+    subtitle="Manage incident categories for classification and reporting."
+  >
+    <button
+      page-header-actions
+      uiButton
+      variant="primary"
+      *hasPermission="'CREATE incident-categories'"
+      (click)="navigateToCreate()"
+    >
+      <ui-icon uiButtonIcon name="plus" [size]="16" />
+      New Category
+    </button>
+  </ui-page-header>
+
+  <div class="border-none shadow-sm rounded-lg overflow-hidden">
+    <!-- Card Header (Search) -->
+    <div class="bg-bg-secondary border-b-0 pt-6 pb-4 px-6 flex justify-end items-center">
+      <div class="relative max-w-sm w-72">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+          <ui-icon name="search" [size]="16" />
+        </span>
+        <input
+          type="text"
+          class="w-full pl-9 pr-3 py-2 text-sm border border-border-subtle rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
+          placeholder="Search categories..."
+          [value]="searchInput()"
+          (input)="onSearchInput($event)"
+          aria-label="Search categories"
+        />
+      </div>
+    </div>
+
+    <!-- Loading skeleton -->
+    @if (isLoading()) {
+      <div class="px-6 pb-4">
+        <app-table-skeleton [rows]="5" [cols]="3" [showHeaders]="true" />
+      </div>
+    } @else if (categories().length === 0) {
+      <!-- Empty state -->
+      <app-empty-state
+        icon="folder-open"
+        title="No categories found"
+        description="No categories match your search, or no categories have been created yet."
+        [actionLabel]="searchInput() ? '' : 'Create Category'"
+        actionIcon="plus"
+        (actionClicked)="navigateToCreate()"
+      />
+    } @else {
+      <!-- Data Table -->
+      <ui-table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Creado el</th>
+            <th class="ui-table-cell-actions">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (category of categories(); track category.id) {
+            <tr>
+              <td>
+                <span class="ui-table-title">{{ category.name }}</span>
+              </td>
+              <td class="text-slate-500 text-sm">
+                {{ category.created_at | date:'mediumDate' }}
+              </td>
+              <td class="ui-table-cell-actions">
+                <button
+                  uiButton
+                  variant="ghost"
+                  size="sm"
+                  *hasPermission="'UPDATE incident-categories'"
+                  (click)="navigateToEdit(category)"
+                  aria-label="Edit category"
+                >
+                  <ui-icon name="pencil" [size]="14" />
+                  Edit
+                </button>
+                <button
+                  uiButton
+                  variant="ghost"
+                  size="sm"
+                  *hasPermission="'DELETE incident-categories'"
+                  (click)="deleteCategory(category)"
+                  aria-label="Delete category"
+                >
+                  <ui-icon name="trash-2" [size]="14" class="text-red-500" />
+                  Delete
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </ui-table>
+
+      <!-- Pagination -->
+      <div class="bg-bg-secondary border-t border-border-subtle px-6 py-4">
+        <app-pagination
+          [totalItems]="totalItems()"
+          [currentPage]="currentPage()"
+          [pageSize]="pageSize()"
+          [pageSizeOptions]="pageSizeOptions"
+          itemNameSingular="category"
+          itemNamePlural="categories"
+          (pageChange)="onPageChange($event)"
+          (pageSizeChange)="onPageSizeChange($event)"
+        />
+      </div>
+    }
+  </div>
+</div>

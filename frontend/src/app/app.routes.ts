@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/guards/auth.guard';
+import { permissionGuard } from './core/guards/permission.guard';
 import { menuResolver } from './core/guards/menu.resolver';
 
 export const routes: Routes = [
@@ -180,29 +181,98 @@ export const routes: Routes = [
       {
         path: 'organizaciones',
         data: { breadcrumb: 'Organizaciones', title: 'Organizaciones', phase: 'F2' },
-        loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
-          ),
-        // PLACEHOLDER F2
+        children: [
+          {
+            path: '',
+            data: { breadcrumb: 'Organizaciones' },
+            loadComponent: () =>
+              import('./features/catalogs/organizations/organization-list/organization-list.component').then(
+                (m) => m.OrganizationListComponent,
+              ),
+          },
+          {
+            path: 'new',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Nueva Organización', permission: 'CREATE organizations' },
+            loadComponent: () =>
+              import('./features/catalogs/organizations/organization-form/organization-form.component').then(
+                (m) => m.OrganizationFormComponent,
+              ),
+          },
+          {
+            path: ':id/edit',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Editar Organización', permission: 'UPDATE organizations' },
+            loadComponent: () =>
+              import('./features/catalogs/organizations/organization-form/organization-form.component').then(
+                (m) => m.OrganizationFormComponent,
+              ),
+          },
+        ],
       },
       {
         path: 'categorias',
         data: { breadcrumb: 'Categorías', title: 'Categorías', phase: 'F2' },
-        loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
-          ),
-        // PLACEHOLDER F2
+        children: [
+          {
+            path: '',
+            data: { breadcrumb: 'Categorías' },
+            loadComponent: () =>
+              import('./features/catalogs/incident-categories/category-list/category-list.component').then(
+                (m) => m.CategoryListComponent,
+              ),
+          },
+          {
+            path: 'new',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Nueva Categoría', permission: 'CREATE incident-categories' },
+            loadComponent: () =>
+              import('./features/catalogs/incident-categories/category-form/category-form.component').then(
+                (m) => m.CategoryFormComponent,
+              ),
+          },
+          {
+            path: ':id/edit',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Editar Categoría', permission: 'UPDATE incident-categories' },
+            loadComponent: () =>
+              import('./features/catalogs/incident-categories/category-form/category-form.component').then(
+                (m) => m.CategoryFormComponent,
+              ),
+          },
+        ],
       },
       {
         path: 'ubicaciones',
         data: { breadcrumb: 'Ubicaciones', title: 'Ubicaciones', phase: 'F2' },
-        loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
-          ),
-        // PLACEHOLDER F2
+        children: [
+          {
+            path: '',
+            data: { breadcrumb: 'Ubicaciones' },
+            loadComponent: () =>
+              import('./features/catalogs/locations/location-list/location-list.component').then(
+                (m) => m.LocationListComponent,
+              ),
+          },
+          {
+            path: 'new',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Nueva Ubicación', permission: 'CREATE geo-zones' },
+            loadComponent: () =>
+              import('./features/catalogs/locations/location-form/location-form.component').then(
+                (m) => m.LocationFormComponent,
+              ),
+          },
+          {
+            path: ':id/edit',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Editar Ubicación', permission: 'UPDATE geo-zones' },
+            loadComponent: () =>
+              import('./features/catalogs/locations/location-form/location-form.component').then(
+                (m) => m.LocationFormComponent,
+              ),
+          },
+        ],
       },
 
       {

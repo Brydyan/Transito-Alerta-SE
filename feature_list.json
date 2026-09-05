@@ -181,6 +181,21 @@
         ],
         "sdd": true,
         "status": "done"
+      },
+      {
+        "id": 12,
+        "name": "catalogos_crud_frontend",
+        "title": "F2 — Catálogos: CRUD de Categorías, Organizaciones y Ubicaciones",
+        "description": "Implementar los tres catálogos principales (Categorías, Organizaciones, Ubicaciones) con listado paginado, búsqueda, alta/edición/borrado, permisos por UI, y árbol jerárquico para Ubicaciones.",
+        "acceptance": [
+          "Las tres pantallas listan, crean, editan y borran contra el backend real",
+          "Ubicaciones renderiza el árbol de cuatro niveles con expansión y sangría",
+          "Modelos derivados del wire snake_case, no del DTO camelCase",
+          "Acciones de escritura ocultas sin permiso y bloqueadas por permissionGuard",
+          "Búsqueda con debounce en Categorías y Organizaciones; búsqueda en cliente para Ubicaciones"
+        ],
+        "sdd": true,
+        "status": "done"
       }
     ]
   ]
