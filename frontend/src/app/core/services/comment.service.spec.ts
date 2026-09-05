@@ -3,19 +3,19 @@ import { HttpClientTestingModule, HttpTestingController } from '@angular/common/
 import { CommentService } from './comment.service';
 import { HttpService } from './http.service';
 import { Comment } from '../models/comment.model';
+import { environment } from '../../../environments/environment';
 
 /**
  * E2 — comment.service.spec.ts (full coverage).
  * Change `2026-08-28-sc-203-auth-comments-backend-integration`.
  *
- * Hard-codes the base URL `http://localhost:3001/api` (from
- * `HttpService`) so the assertions are stable regardless of
- * `environment.apiUrl`.
+ * Uses base URL from `environment.apiUrl` (from
+ * `HttpService`) so the assertions match HttpService requests.
  */
 describe('CommentService', () => {
   let service: CommentService;
   let http: HttpTestingController;
-  const base = 'http://localhost:3001/api';
+  const base = environment.apiUrl;
 
   const fixture: Comment = {
     id: 'c-1',
