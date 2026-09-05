@@ -33,9 +33,3 @@ export const EMAIL_VERIFICATION_REQUIRED = 'EMAIL_VERIFICATION_REQUIRED';
 // `code` es lo que el cliente switchea.
 export const REGISTRATION_RATE_LIMITED = 'REGISTRATION_RATE_LIMITED';
 
-// ANON (sc-327) — `ANONYMOUS_IDENTITY_CLOSED` lo emite el rechazo
-// de `device_uuid = 'anonymous'` en `AuthService.login`. Es
-// distinguible de `INVALID_CREDENTIALS` (un cliente antiguo debe
-// poder mostrarle al usuario que la ruta del reporte sin sesión
-// se cerró, no que las credenciales son inválidas).
-export const ANONYMOUS_IDENTITY_CLOSED = 'ANONYMOUS_IDENTITY_CLOSED';

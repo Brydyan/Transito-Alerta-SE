@@ -50,54 +50,41 @@ describe('authConfig — sessionRefreshTtlSeconds/sessionRefreshGraceSeconds (T3
   });
 });
 
-describe('authConfig — anonymous permission ceiling (ANON sc-327)', () => {
-  // ANON (sc-327) — la capacidad «reporte sin sesión» se cerró por
-  // decisión de producto 2026-09-02. Los tests que afirmaban lo
-  // contrario (los tres primeros: «lets an anonymous device…»)
-  // INVIRTIERON su tesis. No se borran: la regla del fix B.6
-  // es que la capacidad retirada tiene que seguir documentada
-  // como retirada, no silenciada.
+describe('authConfig — anonymous permission ceiling', () => {
   const anonymous = () => authConfig().anonymousPermissions;
 
-  it('ANON: the ceiling is empty — no anonymous login path', () => {
-    // B.1 — `anonymousPermissions` se vacía. La identidad
-    // anónima ya no concede nada: la ruta del reporte sin
-    // sesión se cerró (decisión 2026-09-02). La fila máscara
-    // queda en BD con `permissions = []` (migración 0048, B.2).
-    expect(anonymous()).toEqual([]);
+  it('lets an anonymous device report an emergency without logging in', () => {
+    expect(anonymous()).toContain('CREATE incidents');
   });
 
-  it('ANON: the ceiling grants no permission of any kind (READ, CREATE, UPDATE, DELETE, ASSIGN, CLAIM, RELEASE, CLOSE)', () => {
-    // La lista es la lista vacía. Cualquier permiso que se
-    // añada al array rompe este test — fail-loud en compilación
-    // sería mejor, pero `expect([]).toEqual([])` ya es fail-loud
-    // en CI: si alguien cambia el array, el test cae.
-    const all = anonymous();
-    expect(all).toHaveLength(0);
+  it('lets an anonymous device read what the public posted', () => {
+    expect(anonymous()).toEqual(
+      expect.arrayContaining(['READ incidents', 'READ comments']),
+    );
   });
 
-  it('ANON: the four previously-agreed permissions are explicitly absent', () => {
-    // B.6 — los tests del round 0 afirmaban que `READ/CREATE
-    // incidents` y `READ/CREATE comments` estaban. ANON los
-    // retira. Este test fija la propiedad «ausentes» de manera
-    // explícita para que un futuro refactor que los re-introduzca
-    // caiga aquí antes de que llegue a producción.
-    const all = anonymous();
-    expect(all).not.toContain('READ incidents');
-    expect(all).not.toContain('CREATE incidents');
-    expect(all).not.toContain('READ comments');
-    expect(all).not.toContain('CREATE comments');
+  it('lets an anonymous device comment on public reports', () => {
+    expect(anonymous()).toContain('CREATE comments');
   });
 
-  it('grants no UPDATE, DELETE or ASSIGN permission of any kind (kept from round 0 for symmetry)', () => {
-    // El test del round 0 sigue siendo válido: la identidad
-    // anónima nunca concedió UPDATE/DELETE/ASSIGN. La
-    // afirmación es trivial con la lista vacía, pero la
-    // mantenemos para que un cambio futuro que añada un
-    // UPDATE explícito lo nombre como error.
+  // The ceiling is read-and-contribute, never modify: an unauthenticated
+  // device must not be able to alter or remove anything, its own included.
+  it('grants no UPDATE, DELETE or ASSIGN permission of any kind', () => {
     const forbidden = anonymous().filter((permission) =>
       /^(UPDATE|DELETE|ASSIGN) /.test(permission),
     );
+
     expect(forbidden).toEqual([]);
+  });
+
+  it('grants exactly the four agreed permissions and nothing more', () => {
+    expect(anonymous().sort()).toEqual(
+      [
+        'CREATE comments',
+        'CREATE incidents',
+        'READ comments',
+        'READ incidents',
+      ].sort(),
+    );
   });
 });
