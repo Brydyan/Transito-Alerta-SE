@@ -1,6 +1,7 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  computed,
   inject,
   signal,
   OnInit,
@@ -61,7 +62,56 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
 
   readonly pageSizeOptions = [5, 10, 20];
 
+  /**
+   * Catálogo completo. Las tarjetas del mock 08-01 se calculan sobre todas
+   * las organizaciones, no sobre la página visible: «5 Cantones» con 10 filas
+   * en pantalla sería un número distinto según la paginación.
+   */
+  private readonly allOrganizations = signal<IOrganization[]>([]);
+
+  /** `zone_id` → nombre, resuelto vía `GET /organizations/form-data`. */
+  private readonly zoneNames = signal<Map<string, string>>(new Map());
+
+  /** Tarjeta «TOTAL ORGANIZACIONES». */
+  readonly totalCount = computed(() => this.allOrganizations().length);
+
+  /**
+   * Tarjeta «CIUDADES ALCANZADAS»: zonas **distintas** con al menos una
+   * organización. En el mock, once entidades cubren cinco cantones — es el
+   * conteo de zonas, no de filas. Las organizaciones sin zona no cuentan.
+   */
+  readonly citiesReached = computed(() => {
+    const zones = new Set<string>();
+    for (const organization of this.allOrganizations()) {
+      if (organization.zone_id) {
+        zones.add(organization.zone_id);
+      }
+    }
+    return zones.size;
+  });
+
+  /** Tarjeta «NUEVAS (ESTE MES)». */
+  readonly monthCount = computed(() => {
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    return this.allOrganizations().filter((organization) => {
+      const created = new Date(organization.created_at);
+      return created.getMonth() === month && created.getFullYear() === year;
+    }).length;
+  });
+
+  /** Nombre de la zona para la columna «LOCALIZACIÓN». */
+  zoneName(zoneId: string | null): string {
+    if (!zoneId) {
+      return '—';
+    }
+    return this.zoneNames().get(zoneId) ?? '—';
+  }
+
   ngOnInit(): void {
+    this.loadSummary();
+
     this.subscriptions.add(
       this.search$
         .pipe(
@@ -136,6 +186,7 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
               next: () => {
                 this.toastService.success('Organization deleted successfully');
                 this.loadPage();
+                this.loadSummary();
               },
               error: (err: { error?: { message?: string } }) => {
                 const msg = err.error?.message ?? 'Failed to delete organization.';
@@ -145,6 +196,28 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
           );
         }
       });
+  }
+
+  /**
+   * Carga el catálogo completo y el mapa de zonas para las tarjetas y la
+   * columna «LOCALIZACIÓN». Se vuelve a pedir tras cada borrado para que los
+   * conteos no queden desfasados.
+   */
+  private loadSummary(): void {
+    this.subscriptions.add(
+      this.organizationService.listAll().subscribe({
+        next: (items) => this.allOrganizations.set(items),
+        error: () => this.allOrganizations.set([]),
+      }),
+    );
+
+    this.subscriptions.add(
+      this.organizationService.formData().subscribe({
+        next: (data) =>
+          this.zoneNames.set(new Map(data.geo_zones.map((z) => [z.id, z.name]))),
+        error: () => this.zoneNames.set(new Map()),
+      }),
+    );
   }
 
   private loadPage(): void {

@@ -45,12 +45,33 @@ export class OrganizationFormComponent implements OnInit {
   readonly serverErrors = signal<Record<string, string>>({});
   readonly integrityError = signal(false);
 
+  /** Zonas disponibles para el selector, vía `GET /organizations/form-data`. */
+  readonly zoneOptions = signal<Array<{ id: string; name: string }>>([]);
+
+  /**
+   * Organizaciones que pueden ser madre. Se excluye la propia al editar: el
+   * backend rechaza el ciclo, pero ofrecerlo en el desplegable es invitar a un
+   * 400 evitable.
+   */
+  readonly parentOptions = signal<Array<{ id: string; name: string }>>([]);
+
   readonly form: FormGroup = this.fb.group({
     name: ['', Validators.required],
+    zone_id: [''],
+    parent_id: [''],
   });
 
   get nameControl() {
     return this.form.get('name')!;
+  }
+
+  /**
+   * Un `<option value="">` nativo entrega `''`, que el backend rechazaría con
+   * 422 por no ser un UUID. `null` es lo que significa «sin asignar», y es
+   * además el valor con el que `UpdateOrganizationDto` desvincula.
+   */
+  private nullIfEmpty(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() !== '' ? value : null;
   }
 
   fieldInvalid(field: string): boolean {
@@ -73,9 +94,34 @@ export class OrganizationFormComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.loadZones();
+    this.loadParents();
+
     if (this.isEditing()) {
       this.loadOrganization(this.id!);
     }
+  }
+
+  private loadZones(): void {
+    this.organizationService.formData().subscribe({
+      next: (data) => this.zoneOptions.set(data.geo_zones),
+      error: () => this.zoneOptions.set([]),
+    });
+  }
+
+  private loadParents(): void {
+    this.organizationService.listAll().subscribe({
+      next: (organizations) =>
+        this.parentOptions.set(
+          organizations
+            .filter((organization) => organization.id !== this.id)
+            .map((organization) => ({
+              id: organization.id,
+              name: organization.name,
+            })),
+        ),
+      error: () => this.parentOptions.set([]),
+    });
   }
 
   onSubmit(): void {
@@ -89,9 +135,11 @@ export class OrganizationFormComponent implements OnInit {
     this.integrityError.set(false);
 
     const name = this.form.value.name as string;
+    const zone_id = this.nullIfEmpty(this.form.value.zone_id);
+    const parent_id = this.nullIfEmpty(this.form.value.parent_id);
 
     if (this.isEditing()) {
-      this.organizationService.update(this.id!, { name }).subscribe({
+      this.organizationService.update(this.id!, { name, zone_id, parent_id }).subscribe({
         next: () => {
           this.toastService.success('Organization updated successfully');
           this.isSaving.set(false);
@@ -106,7 +154,7 @@ export class OrganizationFormComponent implements OnInit {
         },
       });
     } else {
-      this.organizationService.create({ name }).subscribe({
+      this.organizationService.create({ name, zone_id, parent_id }).subscribe({
         next: () => {
           this.toastService.success('Organization created successfully');
           this.isSaving.set(false);
@@ -150,7 +198,11 @@ export class OrganizationFormComponent implements OnInit {
     this.isLoading.set(true);
     this.organizationService.getById(id).subscribe({
       next: (organization) => {
-        this.form.patchValue({ name: organization.name });
+        this.form.patchValue({
+          name: organization.name,
+          zone_id: organization.zone_id ?? '',
+          parent_id: organization.parent_id ?? '',
+        });
         this.isLoading.set(false);
       },
       error: () => {

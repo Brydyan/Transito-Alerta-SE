@@ -37,6 +37,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Inbox,
+  MapPin,
 } from 'lucide-angular';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
@@ -79,6 +80,7 @@ const LUCIDE_ICONS = {
   ChevronLeft,
   ChevronRight,
   Inbox,
+  MapPin,
 };
 
 export const appConfig: ApplicationConfig = {

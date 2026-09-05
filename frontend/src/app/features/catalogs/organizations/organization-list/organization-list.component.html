@@ -38,7 +38,7 @@
     <!-- Loading skeleton -->
     @if (isLoading()) {
       <div class="px-6 pb-4">
-        <app-table-skeleton [rows]="5" [cols]="3" [showHeaders]="true" />
+        <app-table-skeleton [rows]="5" [cols]="4" [showHeaders]="true" />
       </div>
     } @else if (organizations().length === 0) {
       <!-- Empty state -->
@@ -56,6 +56,7 @@
         <thead>
           <tr>
             <th>Name</th>
+            <th>Localización</th>
             <th>Created</th>
             <th class="ui-table-cell-actions">Actions</th>
           </tr>
@@ -65,6 +66,12 @@
             <tr>
               <td>
                 <span class="ui-table-title">{{ organization.name }}</span>
+              </td>
+              <td class="text-slate-500 text-sm">
+                <span class="inline-flex items-center gap-1.5">
+                  <ui-icon name="map-pin" [size]="14" class="text-slate-400" />
+                  {{ zoneName(organization.zone_id) }}
+                </span>
               </td>
               <td class="text-slate-500 text-sm">
                 {{ organization.created_at | date:'mediumDate' }}
@@ -112,5 +119,60 @@
         />
       </div>
     }
+  </div>
+
+  <!-- Tarjetas de resumen (mock 08-01). Se calculan sobre el catálogo
+       completo, no sobre la página visible. -->
+  <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="bg-bg-secondary border border-border-subtle rounded-lg p-5">
+      <div class="flex items-start justify-between">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">
+          Total organizaciones
+        </p>
+        <span
+          class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700"
+        >
+          Activo
+        </span>
+      </div>
+      <p class="mt-2 text-3xl font-bold text-slate-800">{{ totalCount() }}</p>
+      <p class="mt-1 text-xs text-slate-500">
+        {{ totalCount() === 1 ? 'Entidad registrada' : 'Entidades registradas' }}
+      </p>
+    </div>
+
+    <div class="bg-bg-secondary border border-border-subtle rounded-lg p-5">
+      <div class="flex items-start justify-between">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">
+          Ciudades alcanzadas
+        </p>
+        <span
+          class="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-700"
+        >
+          Cobertura
+        </span>
+      </div>
+      <p class="mt-2 text-3xl font-bold text-slate-800">{{ citiesReached() }}</p>
+      <p class="mt-1 text-xs text-slate-500">
+        Zonas distintas con al menos una organización asignada.
+      </p>
+    </div>
+
+    <div class="bg-bg-secondary border border-border-subtle rounded-lg p-5">
+      <div class="flex items-start justify-between">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">
+          Nuevas (este mes)
+        </p>
+        <span
+          class="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700"
+        >
+          Crecimiento
+        </span>
+      </div>
+      <p class="mt-2 text-3xl font-bold text-slate-800">{{ monthCount() }}</p>
+      <p class="mt-1 text-xs text-slate-500">
+        {{ monthCount() === 1 ? 'Registro nuevo' : 'Registros nuevos' }}
+      </p>
+    </div>
   </div>
 </div>
