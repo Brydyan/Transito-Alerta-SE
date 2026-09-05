@@ -60,7 +60,116 @@ controladores de `backend/src/modules/{geo-zones,incident-categories,organizatio
 - [x] **F2.4.1** — e2e Playwright por catálogo: alta → búsqueda → edición → borrado. Para Ubicaciones, además: expandir hasta `Parroquia` y verificar la sangría.
 - [x] **F2.4.2** — e2e de permisos: con `operador-org-1@tase.local` (15 permisos), las acciones de escritura no están en el DOM y el acceso directo a `/app/categorias/new` queda bloqueado por el guard.
 - [x] **F2.4.3** — Verificar que no queda ningún `// PLACEHOLDER F2` en `app.routes.ts`.
-- [x] **F2.4.4** — `pnpm lint && pnpm test && pnpm build` desde `frontend/`, y `pnpm test:e2e`.
+- [~] **F2.4.4** — `pnpm test && pnpm build` desde `frontend/` en verde (285 tests, 47 suites).
+
+  Lo que esta task declaraba y **no le corresponde a F2 arreglar** (ver §F2.6):
+  - `pnpm lint` nunca se ejecutó ni puede ejecutarse — no existe script `lint` en
+    `frontend/package.json` (sólo `ng`, `start`, `build`, `watch`, `test`, `test:e2e`).
+    Marcarlo como hecho era incorrecto. **Dueño: `front/2026-09-03-tool-ci-gates`.**
+  - Cualquier `tsc --noEmit` que esta fase haya dado por bueno tampoco verificó nada:
+    `frontend/tsconfig.json` es de tipo *solution* (`"files": []`), así que sin `-b`
+    compila la lista vacía y sale 0. **Dueño: `front/2026-09-03-tool-ci-gates`.**
+  - `pnpm test:e2e` pasa por omisión en local: `catalogs-crud.e2e.ts` y
+    `catalogs-permissions.e2e.ts` hacen `test.skip(!process.env['BASE_URL'])`. **En CI sí
+    corren** — `.github/workflows/ci.yml:456` pasa `BASE_URL: ${{ vars.STAGING_BASE_URL }}`.
+    El patrón «se salta con motivo declarado si no está configurado, falla si lo está» es
+    el D4 de `front/2026-09-03-e2e-test-user-and-credentials`, así que F2 lo está
+    cumpliendo. Lo que sigue sin evidencia es la **ejecución**: F2.4.1 y F2.4.2 se marcaron
+    hechas sin que nadie las viera correr en verde contra un backend real.
+
+## F2.5 — Correcciones post-revisión (2026-09-05)
+
+- [x] **F2.5.1** — `listAll()` paginaba mal: pedía `per_page: 10000` contra un backend que
+  capa a `MAX_PAGE_SIZE = 100`, devolvía 200 con las primeras 100 filas y `buildTree`
+  promovía a raíz los nodos huérfanos → jerarquía incorrecta sin error. Ahora pagina con
+  `expand`/`reduce` usando `total`. Cubierto por `geo-zone.service.spec.ts` (nuevo).
+- [x] **F2.5.2** — `updated_at` no existe en el wire de `geo-zones` ni de `organizations`
+  (ningún `SELECT` lo proyecta). Estaba declarado como requerido en `IGeoZone` e
+  `IOrganization`, y la tarjeta «last sync» comparaba `undefined > null` → siempre `—`.
+  Campo eliminado de ambas interfaces y de los fixtures; la tarjeta pasa a `lastCreated`
+  derivada de `created_at` («Última alta»).
+- [x] **F2.5.3** — `permissionGuard` leía `currentUser()` de forma síncrona, pero
+  `AuthService.user` arranca `null` y se hidrata con un `GET /auth/me` asíncrono: en cada
+  refresh o deep link a una ruta protegida los permisos eran `[]` y rebotaba al dashboard.
+  Ahora espera a que la sesión resuelva antes de decidir. `AuthService` no se tocó (es de
+  F1/auth). Cubierto por 5 casos nuevos en `permission.guard.spec.ts`.
+- [x] **F2.5.4** — Specs faltantes de F2.3 añadidos: `geo-zone.service.spec.ts` y
+  `location-list.component.spec.ts`.
+
+### Traspaso (2026-09-05)
+
+Lo de esta tanda queda commiteado y verificado (`sdd-verify` pass 2: 0 CRITICAL,
+303 tests / 47 suites en verde, `npm run build` OK). **Lo que sigue abierto queda para
+el siguiente que tome la fase** — son tres items independientes entre sí, se pueden
+tomar en cualquier orden y ninguno bloquea a los otros:
+
+| Item | Qué es | Dónde empezar |
+|---|---|---|
+| F2.5.5 | Falta el spec del formulario de Ubicaciones | `location-list.component.spec.ts` sirve de plantilla (mismos mocks) |
+| F2.5.6 | Copy en inglés en Ubicaciones y Organizaciones | `category-list.component.html`, ya traducido en `9907294`, marca el estilo |
+| F2.5.8 | `spec.md` y `design.md` describen un nivel `pais` que no existe | La corrección ya está escrita en `apply-progress.md` §«Corrección de rutas documentadas» |
+
+Contexto útil antes de tocar nada: los defectos de esta fase se colaron porque los specs
+afirmaban sobre fixtures inventados en vez de derivar la forma del **controlador**
+(D2/R1, precedente SC-209). Al escribir F2.5.5, derivar los datos del wire real, no de lo
+que parezca razonable.
+
+### Pendiente y **sí** es de F2
+
+- [ ] **F2.5.5** — `location-form.component.spec.ts` no existe. El formulario de
+  Ubicaciones no tiene cobertura unitaria directa: ni el acotado del selector de padre al
+  nivel inmediatamente superior (F2.3.7), ni la regla de padre obligatorio por nivel, ni
+  el mapeo del 422. Hoy sólo lo toca el e2e, que en local se salta.
+- [ ] **F2.5.6** — Copy de UI en inglés en Ubicaciones y Organizaciones (encabezados
+  `Name/Code/Level/Created/Actions`, `All levels`, `Filter by level`, `Create Location`,
+  toasts y confirm dialogs) dentro de un producto en español. Sólo se tradujeron los
+  encabezados de Categorías (commit 9907294). **Es de F2**: F6 sólo cubre Dashboard,
+  Usuarios, Roles y Perfil — las pantallas de catálogos son de esta fase, y ninguna otra
+  fase reclama i18n.
+- [x] **F2.5.7** — Organizaciones ya no descarta `zone_id` ni `parent_id`.
+  `ICreateOrganizationDto` sólo mandaba `name`, pero `CreateOrganizationDto` del backend
+  acepta ambos, y **`zone_id` es lo que dirige el ruteo de incidencias a organizaciones**.
+  **Era de F2**: se buscó `zone_id` y «organizations» en F3, F4, F5 y F6 y no aparece en
+  ninguna, y el proposal de F2 incluye Organizaciones con el mock 08-01.
+  - Ambos campos añadidos a `ICreateOrganizationDto` / `IUpdateOrganizationDto`, con la
+    convención `undefined` = no tocar / `null` = desvincular del backend.
+  - `OrganizationService.formData()` nuevo sobre `GET /organizations/form-data`. El
+    backend declara `geoZones`, pero `SnakeCaseResponseInterceptor` reescribe toda clave:
+    en el wire llega `geo_zones` (D2 — el modelo se deriva del wire, no de la clase).
+  - `OrganizationService.listAll()` nuevo, paginado: `organizations.repository.ts` clava
+    el mismo `MAX_PAGE_SIZE = 100` que `geo-zones`, y las tarjetas se calculan sobre el
+    catálogo completo, no sobre la página visible.
+  - Listado: columna «Localización» resolviendo `zone_id` → nombre, y las tres tarjetas
+    del mock (total, ciudades alcanzadas = zonas **distintas**, altas del mes).
+  - Formulario: selector de zona y de organización madre. La propia organización se
+    excluye de los padres al editar, y «sin selección» se traduce a `null` en vez de la
+    cadena vacía que un `<select>` nativo entrega y que el backend rechazaría con 422.
+  - `MapPin` registrado en `app.config.ts` — `ui-icon` cae a `circle-dot` con nombres no
+    registrados, así que el pin del mock salía como un punto genérico.
+  - 15 casos nuevos entre los specs de servicio, listado y formulario.
+- [ ] **F2.5.8** — Retropropagar a `spec.md` y `design.md` las correcciones que hoy sólo
+  viven en `apply-progress.md`: el nivel `pais` no existe (el wire real es
+  `provincia|canton|parroquia|zona`) y las rutas reales son
+  `features/catalogs/<dominio>/{interfaces,services}/`, no `core/models/` ni
+  `core/services/`. Quien lea sólo el diseño hoy lee algo falso.
+
+### Pendiente pero **no** es de F2 — reasignado
+
+Se deja anotado para trazabilidad; F2 no debe arrastrar deuda ajena ni bloquear su
+archive por esto.
+
+- [→] **F2.5.9** — Polígono placeholder fijo en el alta de Ubicaciones (caja de 1°×1°
+  cerca de Quito) que corrompe el geofencing vía `ST_Contains(...) LIMIT 1` sin
+  `ORDER BY`. Necesita el mapa de F4 o un cambio de contrato. **Dueño:**
+  `back/2026-09-05-geo-zones-catalog-contract`.
+- [→] **F2.5.10** — Falta el script `lint`, y `tsc --noEmit` es un no-op desde siempre.
+  **Dueño:** `front/2026-09-03-tool-ci-gates`.
+- [→] **F2.5.11** — Los e2e de catálogos llevan la contraseña literal en el repo
+  (`const PASSWORD = 'ChangeMe!Demo2026'` en `catalogs-crud.e2e.ts` y
+  `catalogs-permissions.e2e.ts`), contra la regla «la contraseña llega por variable de
+  entorno, nunca literal en el repo». El scope de esa fase nombra sólo `auth-flow`,
+  `comment-flow` y `menu-navigation` porque los de catálogos son posteriores: **hay que
+  sumarlos a su scope**. **Dueño:** `front/2026-09-03-e2e-test-user-and-credentials`.
 
 ---
 

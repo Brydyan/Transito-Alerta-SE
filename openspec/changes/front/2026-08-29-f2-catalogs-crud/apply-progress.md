@@ -61,3 +61,52 @@ Se implementaron todos los specs unitarios y end-to-end pendientes para cerrar l
   - `placeholder.component.spec.ts`: se ajustó la aserción original de 6 placeholders a 3, ya que F2 reemplazó sus `// PLACEHOLDER F2` en `app.routes.ts` (F2.4.3).
 
 **Status Actualizado**: F2 está 100% implementada y probada (tasks F2.0.3 a F2.4.4 completadas).
+
+---
+
+## Corrección de rutas documentadas (2026-09-05)
+
+Las tablas de arriba y el `File Changes` de `design.md` listan rutas que **no** son las
+que quedaron en el árbol. El layout real agrupa por dominio dentro de la feature y
+prefija las interfaces con `I`:
+
+| Documentado | Real |
+|---|---|
+| `core/models/geo-zone.model.ts` | `features/catalogs/locations/interfaces/igeo-zone.interface.ts` |
+| `core/models/incident-category.model.ts` | `features/catalogs/incident-categories/interfaces/iincident-category.interface.ts` |
+| `core/models/organization.model.ts` | `features/catalogs/organizations/interfaces/iorganization.interface.ts` |
+| `core/services/geo-zone.service.ts` | `features/catalogs/locations/services/geo-zone.service.ts` |
+| `core/services/incident-category.service.ts` | `features/catalogs/incident-categories/services/incident-category.service.ts` |
+| `core/services/organization.service.ts` | `features/catalogs/organizations/services/organization.service.ts` |
+| `features/catalogs/categories/` | `features/catalogs/incident-categories/` |
+
+Además, `design.md` D2 sigue mostrando `GeoZoneLevel` con un nivel `'pais'` que **no
+existe**. El wire real es `'provincia' | 'canton' | 'parroquia' | 'zona'`, confirmado en
+`backend/src/entities/geo-zone.entity.ts` (`GEO_ZONE_LEVELS`). La implementación usa el
+valor correcto; lo que quedó desactualizado es el diseño.
+
+## Revisión y correcciones (2026-09-05)
+
+Revisión de la rama contra el backend real. Suite previa: 261 tests en verde — ninguno
+cubría los defectos de abajo, porque los fixtures inventaban la forma del wire en lugar de
+derivarla del controlador (exactamente el modo de fallo de SC-209 que D2/R1 buscaba
+evitar). Ver `tasks.md` §F2.5.
+
+**Corregido dentro de F2** (suite: 285 tests, 47 suites, en verde; `ng build` OK):
+
+1. **Árbol capado a 100 nodos** — `listAll()` pedía `per_page: 10000` contra
+   `Math.min(perPage, MAX_PAGE_SIZE = 100)`. Latente hoy (~26 zonas sembradas), rompe al
+   superar 100, que es el volumen objetivo de la Q1 del diseño. Ahora pagina con `total`.
+2. **`updated_at` inexistente** en el wire de `geo-zones` y `organizations`. Eliminado de
+   las interfaces; la tarjeta pasa a `lastCreated` sobre `created_at`.
+3. **`permissionGuard` rebotaba en cada refresh** — decidía antes de que
+   `GET /auth/me` hidratara la sesión. Ahora espera. `AuthService` no se tocó (F1/auth).
+4. Specs nuevos: `geo-zone.service.spec.ts`, `location-list.component.spec.ts`.
+
+**Derivado a un change de backend** (fuera del alcance que el proposal fija para F2):
+el alta manda un polígono placeholder fijo de 1°×1° cerca de Quito, y
+`GeofencingRepository.findZoneByPoint` resuelve con `ST_Contains(...) LIMIT 1` sin
+`ORDER BY` — toda incidencia dentro de esa caja se rutea a una zona arbitraria. También
+queda ahí el hecho de que ningún endpoint sirve {todas las zonas + `code` + sin
+`polygon`}, que es lo que obligó al paginado. Ver
+`openspec/changes/back/2026-09-05-geo-zones-catalog-contract/proposal.md`.
