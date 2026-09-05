@@ -45,9 +45,11 @@
   `@UseGuards(EmailVerifiedGuard)` method-level (no a la clase — el guard sólo
   bloquea creación, no lectura).
 - [x] **A.7** — Specs de verificación. **HECHO** — dos niveles:
-  `backend/src/common/guards/email-verified.guard.spec.ts` (8 tests,
+  `backend/src/common/guards/email-verified.guard.spec.ts` (7 tests,
   unitario) prueba que el guard DECIDE bien: cada rol de staff, `reporter`
-  con y sin verificar, `roleName` nulo, usuario ausente.
+  con y sin verificar, `roleName` nulo, usuario ausente, y el caso
+  de seguridad (Fix 5): un `roleName` renombrado a `'civic_hero'`
+  sigue exigiendo verificación (fail-closed).
   `backend/test/e2e/email-verified-guard.e2e-spec.ts` (6 tests) prueba que
   está ENCHUFADO, contra la app real: sin él, borrar el `@UseGuards` del
   controlador deja el unitario en verde porque la función que examina no
