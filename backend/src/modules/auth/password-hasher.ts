@@ -40,4 +40,29 @@ export class PasswordHasher {
   async verify(password: string, hash: string): Promise<boolean> {
     return bcrypt.compare(password, hash);
   }
+
+  /**
+   * REG (sc-325) — política de complejidad de contraseña. La
+   * misma regla que aplica el DTO del alta, centralizada acá
+   * para que el `AuthService.changePassword` y el reset de
+   * contraseña también la exijan. 12+ chars, mayúscula, minúscula,
+   * dígito, símbolo.
+   */
+  assertStrongEnough(password: string): void {
+    if (password.length < 12) {
+      throw new Error('Password must be at least 12 characters');
+    }
+    if (!/[a-z]/.test(password)) {
+      throw new Error('Password must contain a lowercase letter');
+    }
+    if (!/[A-Z]/.test(password)) {
+      throw new Error('Password must contain an uppercase letter');
+    }
+    if (!/\d/.test(password)) {
+      throw new Error('Password must contain a digit');
+    }
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
+      throw new Error('Password must contain a symbol');
+    }
+  }
 }

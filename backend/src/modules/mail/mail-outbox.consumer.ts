@@ -96,11 +96,12 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
         if (response) {
           const entries = (response as unknown as [string, [string, string[]][]][]);
           const entryCount = entries[0]?.[1]?.length || 0;
-          this.logger.log(`[loop] XREADGROUP returned ${entryCount} entries`);
+          this.logger.debug(`[loop] XREADGROUP returned ${entryCount} entries`);
           await this.processResponse(entries);
-        } else {
-          this.logger.log(`[loop] XREADGROUP returned null (timeout or no new entries)`);
         }
+        // El caso `null` (timeout del BLOCK sin entradas nuevas) NO se loguea:
+        // con BLOCK de 5s era una línea cada 5 segundos, para siempre, diciendo
+        // que no pasó nada. Un log que siempre aparece no informa de nada.
       } catch (err) {
         // A rejection during shutdown is the connection closing under a
         // blocked XREADGROUP, not a fault (mirrors streams.consumer.ts).
@@ -119,9 +120,9 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
 
   async processResponse(response: [string, [string, string[]][]][]): Promise<void> {
     for (const [, entries] of response) {
-      this.logger.log(`[processResponse] Processing ${entries.length} entries from XREADGROUP`);
+      this.logger.debug(`[processResponse] Processing ${entries.length} entries from XREADGROUP`);
       for (const [entryId, fields] of entries) {
-        this.logger.log(`[processResponse] Calling processEntry for ${entryId}`);
+        this.logger.debug(`[processResponse] Calling processEntry for ${entryId}`);
         await this.processEntry(entryId, fields);
       }
     }
@@ -145,9 +146,9 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      this.logger.error(`[processEntry] ${entryId} attempting deliver(to=${map.to})`);
+      this.logger.debug(`[processEntry] ${entryId} attempting deliver(to=${map.to})`);
       await this.mailService.deliver(map.to, map.subject, map.template as TemplateName, data);
-      this.logger.error(`[processEntry] ${entryId} SUCCESS, ACKing`);
+      this.logger.debug(`[processEntry] ${entryId} SUCCESS, ACKing`);
       await this.redis.xack(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, entryId);
     } catch (err) {
       if ((err as Error).message?.startsWith('Unknown mail template')) {
@@ -216,14 +217,14 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     if (!pending || pending.length === 0) {
-      this.logger.log(`[sweep] No pending entries (idle > ${mailConfig.claimIdleMs}ms)`);
+      this.logger.debug(`[sweep] No pending entries (idle > ${mailConfig.claimIdleMs}ms)`);
       return;
     }
 
-    this.logger.log(`[sweep] Found ${pending.length} pending entries`);
+    this.logger.debug(`[sweep] Found ${pending.length} pending entries`);
 
     for (const [entryId, , , deliveryCount] of pending) {
-      this.logger.log(`[sweep] Entry ${entryId}: deliveryCount=${deliveryCount}, maxAttempts=${mailConfig.maxAttempts}`);
+      this.logger.debug(`[sweep] Entry ${entryId}: deliveryCount=${deliveryCount}, maxAttempts=${mailConfig.maxAttempts}`);
       if (deliveryCount >= mailConfig.maxAttempts) {
         this.logger.warn(`[sweep] Entry ${entryId} exhausted (deliveryCount ${deliveryCount} >= ${mailConfig.maxAttempts})`);
         try {
@@ -235,7 +236,7 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
       }
 
       try {
-        this.logger.log(`[sweep] Claiming ${entryId} (idle > ${mailConfig.claimIdleMs}ms) for retry`);
+        this.logger.debug(`[sweep] Claiming ${entryId} (idle > ${mailConfig.claimIdleMs}ms) for retry`);
         const claimed = (await this.redis.xclaim(
           MAIL_OUTBOX_STREAM_KEY,
           MAIL_OUTBOX_CONSUMER_GROUP,
@@ -245,7 +246,7 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
         )) as unknown as XClaimEntry[];
         if (claimed && claimed.length > 0) {
           const [, fields] = claimed[0];
-          this.logger.log(`[sweep] Claimed successfully, calling processEntry`);
+          this.logger.debug(`[sweep] Claimed successfully, calling processEntry`);
           await this.processEntry(entryId, fields);
         }
       } catch (err) {
@@ -255,7 +256,7 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
   }
 
   private async deadLetterById(entryId: string): Promise<void> {
-    this.logger.log(`[deadLetterById] Processing ${entryId} for dead letter`);
+    this.logger.debug(`[deadLetterById] Processing ${entryId} for dead letter`);
     const range = (await this.redis.xrange(MAIL_OUTBOX_STREAM_KEY, entryId, entryId)) as unknown as XClaimEntry[];
     if (range.length === 0) {
       this.logger.warn(`[deadLetterById] ${entryId} not found in stream (already removed?)`);
@@ -277,7 +278,7 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
     // again when it looks at which entries exist, even if XACK below fails.
     try {
       const delResult = await this.redis.xdel(MAIL_OUTBOX_STREAM_KEY, entryId);
-      this.logger.error(`[deadLetterById] XDEL returned ${delResult} for ${entryId}`);
+      this.logger.debug(`[deadLetterById] XDEL returned ${delResult} for ${entryId}`);
     } catch (err) {
       this.logger.error(`[deadLetterById] XDEL failed for ${entryId}: ${(err as Error).message}`);
     }
@@ -286,7 +287,7 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
     // dead letter, so best-effort (don't fail if this returns 0 or throws).
     try {
       const ackResult = await this.redis.xack(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, entryId);
-      this.logger.error(`[deadLetterById] XACK returned ${ackResult} for ${entryId}`);
+      this.logger.debug(`[deadLetterById] XACK returned ${ackResult} for ${entryId}`);
     } catch (err) {
       const errMsg = (err as Error).message;
       // Connection closed during shutdown: expected, don't fail.

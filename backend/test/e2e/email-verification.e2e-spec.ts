@@ -33,9 +33,22 @@ describe('E2E T6 email verification OTP (T6.5.D3)', () => {
     return createHash('sha256').update(otp).digest('hex');
   }
 
+  /**
+   * `emailVerified: false` EXPLÍCITO, y no por omisión.
+   *
+   * REG (sc-325) cambió el default de `provisionUser()` a cuenta ya
+   * verificada, porque es lo que necesitan los otros 47 archivos e2e desde
+   * que existe `EmailVerifiedGuard`. Este archivo es el único que prueba el
+   * camino contrario —pedir el OTP, canjearlo, agotarlo, repetirlo— y con el
+   * default nuevo sus cuatro casos empezaron a recibir 422 "ya verificado"
+   * en vez del 202/200 que afirman.
+   *
+   * Los seis `it` de acá arrancan de una cuenta SIN verificar: el que la
+   * verifica lo hace como parte de lo que mide.
+   */
   async function provisionEmailUser(): Promise<{ userId: string; accessToken: string; email: string }> {
     const email = `user-${randomUUID()}@example.com`;
-    const user = await env.provisionUser([], { email });
+    const user = await env.provisionUser([], { email, emailVerified: false });
     return { userId: user.userId, accessToken: user.accessToken, email };
   }
 

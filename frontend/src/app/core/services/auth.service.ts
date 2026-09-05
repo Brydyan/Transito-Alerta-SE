@@ -82,6 +82,23 @@ export class AuthService {
       );
   }
 
+  // REG (sc-325) — alta pública de ciudadano. D1 (design.md): el
+  // DTO del backend es correo, contraseña, nombre y apellido —
+  // nada de rol, organización ni permisos. D3: la respuesta es
+  // indistinguible para correos nuevos y existentes. La pantalla
+  // de registro navega al `verify-email` en ambos casos; el
+  // backend ya envió el OTP (o el aviso al titular) por su cuenta.
+  register(input: {
+    email: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+  }): Observable<{ message: string }> {
+    return this.http
+      .post<{ message: string }>(`${this.API_URL}/register`, input)
+      .pipe(catchError((err) => this.handleError(err)));
+  }
+
   // ───── A.3 — Refresh (single-flight, body-based per backend contract) ─────
   refresh(): Observable<AuthTokens> {
     if (this.refreshInProgress$) {

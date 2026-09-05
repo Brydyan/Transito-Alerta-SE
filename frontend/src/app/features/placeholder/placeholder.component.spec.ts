@@ -83,9 +83,14 @@ describe('PlaceholderComponent (F1, D2)', () => {
     const routesPath = path.resolve(here, '../../app.routes.ts');
     const routesSrc = fs.readFileSync(routesPath, 'utf8');
 
-    // 1. Existen al menos 6 placeholders.
+    // 1. Existen al menos 5 placeholders restantes. F3 retiró
+    //    `incidencias` (que era su propio placeholder) cuando llegó
+    //    la pantalla real; el conteo baja de 6 a 5. La convención
+    //    sigue: cada placeholder real (F2, F4…) lleva el comentario
+    //    `// PLACEHOLDER F<n>` para que sea identificable y se
+    //    retire sin ambigüedad.
     const placeholderComments = routesSrc.match(/\/\/\s*PLACEHOLDER\s+F\d+/g) ?? [];
-    expect(placeholderComments.length).toBeGreaterThanOrEqual(6);
+    expect(placeholderComments.length).toBeGreaterThanOrEqual(5);
 
     // 2. Para cada placeholder, encontramos el bloque `{ ... }` que
     //    termina en su comentario y validamos el data.

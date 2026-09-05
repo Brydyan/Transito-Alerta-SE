@@ -32,6 +32,34 @@ export class EmailVerificationService {
     private readonly mailService: MailService,
   ) {}
 
+  /**
+   * REG (sc-325) — D3 (design.md): cuando un correo ya registrado
+   * recibe un intento de alta, NO se manda un OTP. Se manda un
+   * aviso al titular informándole del intento (con la IP y el
+   * user-agent si están disponibles). El OTP no es el canal — el
+   * OTP lo pidió el titular cuando quiso verificar SU cuenta, no
+   * un extraño. Mandar un OTP aquí confundiría al titular y
+   * revelaría a un tercero que el correo existe.
+   */
+  async notifyExistingAccountAttempt(
+    userId: string,
+    ip: string | null,
+    userAgent: string | null,
+  ): Promise<void> {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user || !user.email) return;
+
+    await this.mailService.enqueue({
+      to: user.email,
+      subject: 'Se intentó crear una cuenta con tu correo',
+      template: 'existing_account_attempt' as never,
+      data: {
+        ip: ip ?? 'desconocida',
+        userAgent: userAgent ?? 'desconocido',
+      },
+    });
+  }
+
   /** Rate limit: reject if current OTP was issued less than 60 seconds ago. */
   private assertRateLimit(user: UserEntity): void {
     if (user.verificationOtpExpiresAt) {

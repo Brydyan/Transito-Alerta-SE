@@ -14,6 +14,39 @@ export const routes: Routes = [
       import('./features/auth/login/login.component').then((m) => m.LoginComponent),
     canActivate: [guestGuard],
   },
+  // REG (sc-325) — primera ruta alcanzable sin sesión (D5).
+  // `guestGuard` redirige al dashboard si el visitante ya tiene
+  // sesión, igual que la ruta de login. Vive FUERA del árbol
+  // `/app` (que está bajo `authGuard`).
+  {
+    path: 'registro',
+    loadComponent: () =>
+      import('./features/auth/register/register.component').then(
+        (m) => m.RegisterComponent,
+      ),
+    canActivate: [guestGuard],
+  },
+  // REG (sc-325) — Fix 9 (ronda 6): destino de la navegación de
+  // `register.component.ts:onSubmit` al alta exitosa. Sin esta
+  // ruta, el ciudadano cae en el comodín `path: '**'` y termina
+  // en una página de error 404 con la cuenta creada y el OTP
+  // enviado. La propia existencia de esta ruta la cubre el spec
+  // de la próxima sección (defensa contra el defecto B.6 que
+  // verificó el cambio como hecho cuando en realidad no
+  // existía el componente, sólo un `.html` heredado de sc-117).
+  //
+  // guestGuard (no authGuard): un visitante sin sesión debe poder
+  // ver esta pantalla; un usuario con sesión queda en el
+  // dashboard (esto último es decisión consciente del round 0,
+  // no se cambia en este fix).
+  {
+    path: 'verify-email',
+    loadComponent: () =>
+      import('./features/auth/verify-email/verify-email.component').then(
+        (m) => m.VerifyEmailComponent,
+      ),
+    canActivate: [guestGuard],
+  },
   // SC-207 — invitation token acceptance (replaces the dead
   // /auth/register flow). Token arrives out-of-band (typically via
   // email) as `?token=…`. Deliberately NO guestGuard: an already
@@ -148,14 +181,32 @@ export const routes: Routes = [
           ),
         // PLACEHOLDER F4
       },
+      // F3 (sc-303) — Incidencias: listado + detalle. El placeholder
+      // de F1 se sustituye por el componente real. El `:id` del
+      // detalle va DESPUÉS del listado literal (orden importante en
+      // Angular Router: las rutas con segmentos estáticos ganan a
+      // las dinámicas).
       {
         path: 'incidencias',
-        data: { breadcrumb: 'Lista de Incidencias', title: 'Lista de Incidencias', phase: 'F3' },
-        loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
-          ),
-        // PLACEHOLDER F3
+        data: { breadcrumb: 'Incidencias' },
+        children: [
+          {
+            path: '',
+            data: { breadcrumb: 'Listado' },
+            loadComponent: () =>
+              import('./features/incidents/incident-list/incident-list.component').then(
+                (m) => m.IncidentListComponent,
+              ),
+          },
+          {
+            path: ':id',
+            data: { breadcrumb: 'Detalle' },
+            loadComponent: () =>
+              import('./features/incidents/incident-detail/incident-detail.component').then(
+                (m) => m.IncidentDetailComponent,
+              ),
+          },
+        ],
       },
       {
         path: 'mapa',

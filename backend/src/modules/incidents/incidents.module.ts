@@ -5,6 +5,15 @@ import { GeofencingModule } from '../geofencing/geofencing.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { IncidentImageEntity } from '../../entities/incident-image.entity';
+// REG (sc-325) — `EmailVerifiedGuard` consulta `email_verified_at`
+// directamente del `UserEntity` (no del JWT) para evitar
+// depender de un cache de permisos desactualizado. Esto
+// requiere que el repositorio de `UserEntity` esté disponible
+// en este módulo; lo agregamos vía `TypeOrmModule.forFeature`
+// local — importar `AuthModule` o `UsersModule` enteros
+// arrastraría su grafo completo (JWT, sessions, storage)
+// sólo para conseguir un repositorio.
+import { UserEntity } from '../../entities/user.entity';
 import { IncidentsController } from './incidents.controller';
 import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService } from './incidents.service';
@@ -35,7 +44,11 @@ import { FeedRecoveryService } from './feed-recovery.service';
  * IncidentImageStorageService for image attachments to incidents.
  */
 @Module({
-  imports: [GeofencingModule, OrganizationsModule, TypeOrmModule.forFeature([OrganizationEntity, IncidentImageEntity])],
+  imports: [
+    GeofencingModule,
+    OrganizationsModule,
+    TypeOrmModule.forFeature([OrganizationEntity, IncidentImageEntity, UserEntity]),
+  ],
   controllers: [IncidentWorkflowController, IncidentsController, IncidentImagesController],
   providers: [IncidentsRepository, IncidentsService, IncidentWorkflowService, IncidentAnalyticsService, IncidentFeedService, IncidentExportService, IncidentImagesService, IncidentImageStorageService, FeedRecoveryService],
   // IncidentsRepository is exported too (T3.2 D3) — Comments/Assignments

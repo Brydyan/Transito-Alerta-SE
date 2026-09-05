@@ -41,6 +41,7 @@ describe('AuthController', () => {
     passwordResetService = { requestReset: jest.fn(), confirmReset: jest.fn() };
     controller = new AuthController(
       authService as unknown as AuthService,
+      { register: jest.fn() } as never, // AuthRegisterService — el spec del controller no la ejercita
       invitationsService as unknown as InvitationsService,
       passwordResetService as unknown as PasswordResetService,
     );

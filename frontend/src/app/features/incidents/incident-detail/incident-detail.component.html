@@ -1,0 +1,169 @@
+<ui-page-header
+  kicker="INCIDENCIA"
+  [title]="incident()?.title || '—'"
+  [subtitle]="incident()?.created_at ? ('Reportada el ' + (incident()!.created_at | date: 'medium')) : ''"
+>
+  <button
+    page-header-actions
+    type="button"
+    class="btn btn-ghost"
+    (click)="goBack()"
+    data-testid="back-button"
+  >
+    <ui-icon name="arrow-left" [size]="16" />
+    Volver al listado
+  </button>
+</ui-page-header>
+
+@if (loading()) {
+  <ui-card><p class="text-sm text-slate-500">Cargando…</p></ui-card>
+} @else if (notFound()) {
+  <!-- F3.4.4 — id inexistente: estado local de no encontrado,
+       no la página de error global. -->
+  <ui-card>
+    <app-empty-state
+      icon="search-x"
+      title="Incidencia no encontrada"
+      description="La incidencia solicitada no existe o no es visible bajo tu scope."
+      actionLabel="Volver al listado"
+      actionIcon="arrow-left"
+      (actionClicked)="goBack()"
+    />
+  </ui-card>
+} @else if (incident(); as inc) {
+  <!-- Encabezado con acciones (D4 — derivan de la matriz) -->
+  <ui-card>
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div class="min-w-0 flex-1">
+        <p class="text-sm text-slate-500">
+          <ui-icon name="user" [size]="14" />
+          Reportada por {{ inc.citizen_id }}
+        </p>
+        <div class="mt-2 flex items-center gap-2 flex-wrap">
+          <ui-badge [variant]="badgeStatusFor(inc.status)" />
+          <ui-badge [variant]="badgePriorityFor(inc.priority)" />
+          @if (inc.closed_reason) {
+            <span class="text-xs text-slate-500 italic" data-testid="closed-reason">
+              "{{ inc.closed_reason }}"
+            </span>
+          }
+        </div>
+      </div>
+
+      <!-- F3.4.7 — botones de acción según `availableActions()` -->
+      <div class="flex items-center gap-2 flex-wrap" data-testid="action-row">
+        @for (action of actions(); track action) {
+          <button
+            type="button"
+            class="btn"
+            [class.btn-primary]="action === 'resolve' || action === 'claim'"
+            [class.btn-secondary]="action === 'assign'"
+            [class.btn-ghost]="action === 'close' || action === 'release'"
+            (click)="onAction(action)"
+            [attr.data-testid]="'action-' + action"
+          >
+            <ui-icon [name]="actionIcon(action)" [size]="16" />
+            {{ actionLabel(action) }}
+          </button>
+        }
+        @if (actions().length === 0) {
+          <p class="text-xs text-slate-500 italic">
+            Sin acciones disponibles para tu rol sobre esta incidencia.
+          </p>
+        }
+      </div>
+    </div>
+
+    <p class="mt-4 text-slate-700 whitespace-pre-wrap">
+      {{ inc.description || 'Sin descripción.' }}
+    </p>
+  </ui-card>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+    <!-- Datos y ubicación -->
+    <ui-card>
+      <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+        Ubicación
+      </h3>
+      @if (hasCoordinates()) {
+        <div class="text-sm text-slate-700 space-y-1">
+          <p>
+            <ui-icon name="map-pin" [size]="14" />
+            Lat {{ inc.lat.toFixed(5) }}, Lng {{ inc.lng.toFixed(5) }}
+          </p>
+          @if (inc.zone_id) {
+            <p class="text-xs text-slate-500">Zona: {{ inc.zone_id }}</p>
+          }
+          <!-- F3.4.3 — el mini-mapa con Leaflet es follow-up;
+               el bloque no se renderiza vacío. -->
+          <p class="mt-3 text-xs text-slate-500 italic">
+            Vista de mapa pendiente (Leaflet) — sigue F3.6.
+          </p>
+        </div>
+      } @else {
+        <p class="text-sm text-slate-500 italic">
+          Sin coordenadas registradas.
+        </p>
+      }
+    </ui-card>
+
+    <!-- Status-timeline (F3.4.5) -->
+    <ui-card>
+      <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+        Historial
+      </h3>
+      @if (history().length === 0) {
+        <p class="text-sm text-slate-500 italic">Sin cambios de estado registrados.</p>
+      } @else {
+        <ol class="space-y-3" data-testid="status-timeline">
+          @for (entry of history(); track entry.id) {
+            <li class="flex gap-3">
+              <div
+                class="w-2 h-2 rounded-full bg-violet-500 mt-2 shrink-0"
+                aria-hidden="true"
+              ></div>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm text-slate-800">
+                  <span class="font-medium">{{ entry.previous_status }}</span>
+                  <ui-icon name="arrow-right" [size]="12" />
+                  <span class="font-medium">{{ entry.new_status }}</span>
+                </p>
+                <p class="text-xs text-slate-500">
+                  {{ entry.changed_by_user_id || 'sistema' }}
+                  · {{ entry.created_at | date: 'short' }}
+                </p>
+                @if (entry.notes) {
+                  <p class="mt-1 text-xs text-slate-600 italic">{{ entry.notes }}</p>
+                }
+              </div>
+            </li>
+          }
+        </ol>
+      }
+    </ui-card>
+
+    <!-- Galería placeholder (F3.4.6 — pendiente) -->
+    <ui-card>
+      <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+        Galería
+      </h3>
+      <p class="text-sm text-slate-500 italic" data-testid="gallery-placeholder">
+        Vista de galería pendiente (endpoint incident-images). Sigue F3.6.
+      </p>
+    </ui-card>
+  </div>
+
+  <!-- F3.4.7 — el hilo de comentarios se carga en paralelo (F3.4.2) -->
+  <ui-card class="mt-4">
+    <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+      Comentarios
+    </h3>
+    <app-comment-thread
+      [incidentId]="inc.id"
+      [comments]="comments()"
+      [currentUserId]="currentUserId()"
+      [permissions]="permissions()"
+      (commentsChanged)="onCommentsChanged($event)"
+    />
+  </ui-card>
+}
