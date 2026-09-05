@@ -147,4 +147,19 @@ describe('EmailVerifiedGuard (REG sc-325)', () => {
       ForbiddenException,
     );
   });
+
+  // REG (sc-325) — Fix 10 (ronda 6): el dispositivo anónimo no
+  // tiene correo que verificar. Esta rama es la que cierra los
+  // 13 fallos 403 de la suite e2e que aparecieron tras revertir
+  // ANON. La exención vive acá; cuando ANON aterrice, se borra.
+  it('Fix 10: el dispositivo anónimo (isAnonymous=true) pasa sin exigir verificación', async () => {
+    const user = {
+      userId: 'anon',
+      roleName: null,
+      permissions: ['CREATE incidents'],
+      isAnonymous: true,
+    };
+    await expect(guard.canActivate(ctxFor(user))).resolves.toBe(true);
+    expect(userRepo.findOne).not.toHaveBeenCalled();
+  });
 });

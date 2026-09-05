@@ -73,6 +73,25 @@ export class EmailVerifiedGuard implements CanActivate {
       });
     }
 
+    // REG (sc-325) — Fix 10 (ronda 6): el dispositivo anónimo
+    // no tiene correo que verificar. Eximirlo acá cierra 13
+    // fallos 403 de la suite e2e que aparecieron tras revertir
+    // ANON. El guard sigue aplicando la política de D2 al resto:
+    // sólo los staff (allow-list) y el dispositivo anónimo
+    // publican sin verificar. La verificación del correo la
+    // gobierna el techo de permisos (`anonymousPermissions`),
+    // no este guard.
+    //
+    // **Cuando ANON aterrice (sc-326)**, el dispositivo anónimo
+    // deja de existir como identidad autenticable: el login
+    // `device_uuid = 'anonymous'` se rechaza con 401. La rama
+    // `isAnonymous` se vuelve inalcanzable y este bloque se
+    // borra junto con ANON. El comentario vive para que
+    // quien implemente ANON sepa que esta exención le pertenece.
+    if (user.isAnonymous === true) {
+      return true;
+    }
+
     // D2 (design.md) — los 4 staff roles están exentos. La lista
     // es exhaustiva: cualquier `roleName` que no esté acá (incluido
     // `null` y `'reporter'`) exige verificación. Esto es

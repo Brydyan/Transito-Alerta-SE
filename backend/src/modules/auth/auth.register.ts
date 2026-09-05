@@ -40,6 +40,30 @@ export class RegistrationRateLimited extends Error {
 }
 
 /**
+ * REG (sc-325) — Fix 12 (ronda 8): el `publicMessage` que el controller
+ * expone DEBE ser el mismo string en los tres caminos del
+ * `AuthRegisterService.register()` ("correo nuevo", "correo
+ * existente", "rol `reporter` no encontrado"). D3 del design
+ * (`design.md:61-65`) prohíbe que la respuesta filtre cuál de los
+ * tres caminos corrió: un cliente que vea la diferencia puede
+ * enumerar qué correos están registrados.
+ *
+ * El commit `fa005b8` de la ronda 1 divergió este string entre
+ * los caminos por error, y los 6 rounds de verify que siguieron
+ * no lo cazaron porque `auth.register.spec.ts:155,172` afirma
+ * sólo una subcadena común. El e2e que se agregó en la ronda 6
+ * (`registration-flow.e2e-spec.ts:REG.2`) usa `toEqual` sobre
+ * la respuesta completa y lo destapó.
+ *
+ * Por qué una constante: si alguien reintroduce texto distinto
+ * en uno de los caminos, el `toEqual` de REG.2 lo nombra. La
+ * constante es la única referencia que necesita el código de los
+ * tres retornos.
+ */
+export const REGISTRATION_INDISTINGUISHABLE_MESSAGE =
+  'Si el correo no estaba registrado, te enviamos un mensaje para verificar tu cuenta.';
+
+/**
  * REG (sc-325) — service del alta pública de ciudadanos.
  *
  * Por qué un service separado de `AuthService`:
@@ -157,8 +181,7 @@ export class AuthRegisterService {
         success: true,
         userId: existing.id,
         publicMessage: {
-          message:
-            'Si el correo no estaba registrado, te enviamos un mensaje para verificar tu cuenta. Si ya lo estaba, te enviamos un aviso al titular.',
+          message: REGISTRATION_INDISTINGUISHABLE_MESSAGE,
         },
       };
     }
@@ -179,8 +202,7 @@ export class AuthRegisterService {
         success: true,
         userId: '',
         publicMessage: {
-          message:
-            'Si el correo no estaba registrado, te enviamos un mensaje para verificar tu cuenta.',
+          message: REGISTRATION_INDISTINGUISHABLE_MESSAGE,
         },
       };
     }
@@ -231,8 +253,7 @@ export class AuthRegisterService {
       success: true,
       userId: created.id,
       publicMessage: {
-        message:
-          'Si el correo no estaba registrado, te enviamos un mensaje para verificar tu cuenta.',
+        message: REGISTRATION_INDISTINGUISHABLE_MESSAGE,
       },
     };
   }

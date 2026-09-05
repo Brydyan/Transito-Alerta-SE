@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 
-import { AuthRegisterService, RegistrationRateLimited } from './auth.register';
+import { AuthRegisterService, RegistrationRateLimited, REGISTRATION_INDISTINGUISHABLE_MESSAGE } from './auth.register';
 import { UserEntity } from '../../entities/user.entity';
 import { RoleEntity } from '../../entities/role.entity';
 import { PasswordHasher } from './password-hasher';
@@ -152,7 +152,10 @@ describe('AuthRegisterService (sc-325)', () => {
 
     const result = await service.register(validInput);
 
-    expect(result.publicMessage.message).toMatch(/te enviamos un mensaje para verificar tu cuenta/);
+    // Fix 12: comparación contra la constante, no regex parcial.
+    // El round 1 usaba `toMatch(/te enviamos.../)` y el bug
+    // sobrevivió 6 rounds porque el regex matcheaba ambos strings.
+    expect(result.publicMessage.message).toBe(REGISTRATION_INDISTINGUISHABLE_MESSAGE);
     expect(userRepo.save).toHaveBeenCalled();
     expect(emailVerification.generateAndSendOtp).toHaveBeenCalled();
     // El aviso al titular NO se manda en el caso "correo nuevo".
@@ -168,8 +171,9 @@ describe('AuthRegisterService (sc-325)', () => {
 
     const result = await service.register(validInput);
 
-    // Misma forma — el body es estructuralmente idéntico.
-    expect(result.publicMessage.message).toMatch(/te enviamos un mensaje para verificar tu cuenta/);
+    // Fix 12: misma comparación contra la constante. Si el
+    // camino "existente" divergiera al texto, este test cae.
+    expect(result.publicMessage.message).toBe(REGISTRATION_INDISTINGUISHABLE_MESSAGE);
     expect(result.success).toBe(true);
     // No se crea cuenta ni se manda OTP.
     expect(userRepo.save).not.toHaveBeenCalled();

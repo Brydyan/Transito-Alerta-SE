@@ -37,19 +37,18 @@
   el test "A.5: la búsqueda de rol es siempre por nombre `reporter`, no por id de payload".
   La propiedad es: el service resuelve el rol por nombre, no por id; el payload
   sucio no puede forzar otro rol.
-- [x] **A.6** — Guard `EmailVerifiedGuard`. **HECHO** —
+- [x] **A.6** — Guard `EmailVerifiedGuard`. **HECHO (ronda 1, ronda 4
+  Fix 5, ronda 6 Fix 10, ronda 7 D3).** Estado consolidado:
   `backend/src/common/guards/email-verified.guard.ts` rechaza con 403
-  `EMAIL_VERIFICATION_REQUIRED` a un `reporter` sin `email_verified_at`; exime al
-  personal (`operador_org`, `admin_org`, `operador_sistema`, `master`). Aplicado a
-  los métodos `POST` de `IncidentsController` y `CommentsController` con
-  `@UseGuards(EmailVerifiedGuard)` method-level (no a la clase — el guard sólo
-  bloquea creación, no lectura).
-  **INCOMPLETO — ver Fix 10 de `fixes-required.md`.** Falta eximir a la
-  identidad anónima. `auth.service.ts:566` le asigna `roleName = null`, así que
-  no entra en la allow-list de staff y el guard le exige un
-  `email_verified_at` que un dispositivo sin correo nunca va a tener. Resultado:
-  403 en `POST /incidents` para el reporte anónimo, que es capacidad soportada
-  hasta que ANON la cierre. Rompe 13 tests e2e en 5 suites.
+  `EMAIL_VERIFICATION_REQUIRED` a un `reporter` sin `email_verified_at`;
+  exime al personal (`operador_org`, `admin_org`, `operador_sistema`,
+  `master`) por **allow-list exhaustivo** (Fix 5, ronda 4) — el deny-list
+  del Fix 4 era fail-open ante renombrado del rol. Fix 10 (ronda 6)
+  añadió la exención para `user.isAnonymous === true` (el dispositivo
+  anónimo no tiene correo que verificar). Aplicado a los métodos
+  `POST` de `IncidentsController` y `CommentsController` con
+  `@UseGuards(EmailVerifiedGuard)` method-level (no a la clase — el guard
+  sólo bloquea creación, no lectura).
 - [x] **A.7** — Specs de verificación. **HECHO** — dos niveles:
   `backend/src/common/guards/email-verified.guard.spec.ts` (7 tests,
   unitario) prueba que el guard DECIDE bien: cada rol de staff, `reporter`
@@ -127,18 +126,28 @@
   una tarea que no se implementó. Se destilda y se mueve el
   escenario a "fuera de alcance de esta ronda" para que el
   contrato del spec siga trazable.)
-- [ ] **B.6** — Al completar el alta, navegar a la pantalla de verificación.
-  **NO HECHO — ver Fix 9 de `fixes-required.md`.** `register.component.ts:111`
-  navega a `/verify-email`, **una ruta que no existe**: `app.routes.ts` no la
-  declara y la navegación cae en el comodín `**` → `ErrorPageComponent`. El
-  registro exitoso termina en una página de error.
-  La casilla decía que «el componente `verify-email` ya existe». En
-  `features/auth/verify-email/` hay un `.html` y un `.js` heredados de
-  GeoReporta (`story sc-117`, 27/08), sin `.ts`: no es un componente Angular,
-  no lo importa nadie y el build no lo mira. Existe el archivo, no el
-  componente.
-  Falta: construir el componente standalone, declarar su ruta con
-  `guestGuard`, y un spec que afirme que la ruta existe.
+- [x] **B.6** — Al completar el alta, navegar a la pantalla de verificación.
+  **HECHO (ronda 6, Fix 9) — vía parcial.** `register.component.ts:onSubmit`
+  navega a `/verify-email` con `email` y `hint` en query params.
+  `app.routes.ts` ahora declara la ruta con `guestGuard` y
+  `loadComponent: VerifyEmailComponent`. El componente existe
+  (`verify-email.component.ts`, standalone, primitivos de F0).
+  El composer del OTP (lo que hacía el `.js` heredado de sc-117
+  con las 6 celdas y el autoadvance) NO está implementado: el
+  endpoint `/api/email/resend-verification` exige JWT, y el
+  alta pública no emite tokens. La pantalla lleva al login
+  con el correo pre-rellenado; tras autenticarse, el composer
+  entra cuando F4 lo enchufe. **El fix es parcial porque la
+  afirmación original — "el componente `verify-email` ya
+  existe, no se construye uno nuevo" — era falsa en el
+  round 0 (sólo había un `.html`/`.js` heredado).** Specs:
+  - `verify-email.component.spec.ts` (4 tests): el componente
+    se monta con los query params, el email se pre-rellena, sin
+    sesión lleva al login, con sesión muestra el mensaje de
+    F4-placeholder.
+  - `app.routes.verify-email.spec.ts` (3 tests): la ruta
+    existe, carga el `.ts` (no el `.html` heredado), y NO está
+    bajo `authGuard` (verificación por mutación).
 - [x] **B.7** — Validación en el cliente: correo y política de contraseña, sin llamar
   al servidor. **HECHO** — el `FormBuilder` del componente declara
   `Validators.required`, `Validators.email`, `Validators.maxLength(254)`,
@@ -147,17 +156,28 @@
   `onSubmit` valida con `if (this.registerForm.invalid) return` antes de
   llamar al servicio. El spec cubre los 5 patrones de contraseña débil
   que se rechazan.
-- [ ] **B.8** — Specs de pantalla. **PARCIAL — ver Fix 9.**
-  `register.component.spec.ts` tiene 8 tests reales: validación de cliente
-  (formulario vacío, contraseña débil en 5 variantes, contraseña válida,
-  email inválido), POST a `/auth/register` con body correcto, rate limit 429
-  y error 500. Todos válidos.
-  Lo que NO prueba es lo que dice probar: el test «navega al verify-email»
-  corre con el `Router` mockeado, así que afirma que se **llamó** a
-  `navigate(['/verify-email'])`, no que el destino exista. Pasa con la ruta
-  ausente — y por eso B.6 sobrevivió cuatro rondas de verify.
-  Falta: un spec que afirme la existencia de la ruta, y el e2e del alta
-  completa que la deuda del verify ya tenía anotado.
+- [x] **B.8** — Specs de pantalla. **HECHO (ronda 6, Fix 9).**
+  `register.component.spec.ts` tiene 8 tests reales: validación
+  de cliente (formulario vacío, contraseña débil en 5 variantes,
+  contraseña válida, email inválido), POST a `/auth/register`
+  con body correcto, rate limit 429 y error 500. **Se mantienen.**
+  La afirmación rota del round 0 — "el test «navega al verify-email»
+  prueba que el destino existe" — se corrige con:
+  - `app.routes.verify-email.spec.ts` (3 tests): la ruta
+    existe, carga el `.ts` (no el `.html` heredado), y NO está
+    bajo `authGuard`. **Verificación por mutación**: borrar la
+    ruta, este spec cae. Esa es la red que faltaba.
+  - `verify-email.component.spec.ts` (4 tests): el componente
+    se monta con los query params, el email se pre-rellena,
+    sin sesión lleva al login, con sesión muestra el mensaje
+    de F4-placeholder.
+  - `backend/test/e2e/registration-flow.e2e-spec.ts` (3
+    tests): el alta completa de punta a punta — POST
+    `/api/auth/register` con correo nuevo crea la cuenta con
+    rol `reporter` y emite OTP; con correo existente NO crea
+    duplicada y devuelve la misma forma (D3); con campos de
+    escalada (`role`, `permissions`, `organization_id`) el
+    backend rechaza con 400 y la cuenta NO se crea.
 
 ---
 
