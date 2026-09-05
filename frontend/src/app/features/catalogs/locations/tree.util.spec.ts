@@ -14,7 +14,6 @@ describe('tree.util', () => {
           parent_id: '2',
           active: true,
           created_at: '',
-          updated_at: '',
         },
         {
           id: '1',
@@ -24,7 +23,6 @@ describe('tree.util', () => {
           parent_id: null,
           active: true,
           created_at: '',
-          updated_at: '',
         },
         {
           id: '4',
@@ -34,7 +32,6 @@ describe('tree.util', () => {
           parent_id: '3',
           active: true,
           created_at: '',
-          updated_at: '',
         },
         {
           id: '2',
@@ -44,7 +41,6 @@ describe('tree.util', () => {
           parent_id: '1',
           active: true,
           created_at: '',
-          updated_at: '',
         },
       ];
 
@@ -77,7 +73,6 @@ describe('tree.util', () => {
           parent_id: 'nonexistent',
           active: true,
           created_at: '',
-          updated_at: '',
         },
       ];
       const tree = buildTree(rows);
@@ -103,7 +98,6 @@ describe('tree.util', () => {
           parent_id: null,
           active: true,
           created_at: '',
-          updated_at: '',
           depth: 0,
           children: [
             {
@@ -114,7 +108,6 @@ describe('tree.util', () => {
               parent_id: '1',
               active: true,
               created_at: '',
-              updated_at: '',
               depth: 1,
               children: [
                 {
@@ -125,7 +118,6 @@ describe('tree.util', () => {
                   parent_id: '2',
                   active: true,
                   created_at: '',
-                  updated_at: '',
                   depth: 2,
                   children: [],
                 },
@@ -141,7 +133,6 @@ describe('tree.util', () => {
           parent_id: null,
           active: true,
           created_at: '',
-          updated_at: '',
           depth: 0,
           children: [],
         },

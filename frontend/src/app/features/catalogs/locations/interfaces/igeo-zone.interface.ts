@@ -23,7 +23,13 @@ export interface IGeoZone {
   parent_id: string | null;
   active: boolean;
   created_at: string;
-  updated_at: string;
+  /**
+   * NO `updated_at` here on purpose. `GeoZoneDetailRow`
+   * (`geo-zones.repository.ts`) selects `id, name, parent_id, level, active,
+   * polygon, code, created_at` — the column exists in the table but is never
+   * projected, so declaring it produced a field that was always `undefined`
+   * at runtime while type-checking clean. Derive recency from `created_at`.
+   */
   /** PostGIS geometry, not needed by the frontend tree. Optional. */
   polygon?: unknown;
 }

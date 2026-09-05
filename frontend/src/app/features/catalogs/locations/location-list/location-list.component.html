@@ -168,12 +168,12 @@
         }
       </div>
       <div class="bg-bg-secondary border border-border-subtle rounded-lg p-5">
-        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Last sync</p>
-        @if (lastSync()) {
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Última alta</p>
+        @if (lastCreated()) {
           <p class="mt-2 text-3xl font-bold text-slate-800">
-            {{ lastSync() | date:'MMM d' }}
+            {{ lastCreated() | date:'d MMM' }}
           </p>
-          <p class="mt-1 text-xs text-slate-500">{{ lastSync() | date:'shortTime' }}</p>
+          <p class="mt-1 text-xs text-slate-500">{{ lastCreated() | date:'shortTime' }}</p>
         } @else {
           <p class="mt-2 text-3xl font-bold text-slate-300">—</p>
         }

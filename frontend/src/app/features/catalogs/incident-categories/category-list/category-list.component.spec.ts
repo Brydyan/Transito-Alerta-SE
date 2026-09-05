@@ -34,8 +34,8 @@ describe('CategoryListComponent', () => {
     mockCategoryService.list.mockReturnValue(
       of({
         items: [
-          { id: '1', name: 'Cat 1', created_at: '', updated_at: '', parent_id: null },
-          { id: '2', name: 'Cat 2', created_at: '', updated_at: '', parent_id: null },
+          { id: '1', name: 'Cat 1', created_at: '', parent_id: null },
+          { id: '2', name: 'Cat 2', created_at: '', parent_id: null },
         ],
         total: 2,
       }),

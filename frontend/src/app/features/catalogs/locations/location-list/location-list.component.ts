@@ -171,13 +171,19 @@ export class LocationListComponent implements OnInit, OnDestroy {
     return best && best.count > 0 ? best : null;
   });
 
-  /** Summary card: last synchronization time, derived from the newest
-   *  `updated_at` across the catalog. `null` when empty. */
-  readonly lastSync = computed<Date | null>(() => {
+  /**
+   * Summary card: the most recent zone creation, derived from the newest
+   * `created_at` across the catalog. `null` when empty.
+   *
+   * This used to read `updated_at`, which the geo-zones wire does not carry
+   * (see `IGeoZone`), so the comparison was always `undefined > null` —
+   * false — and the card rendered "—" no matter what the catalog held.
+   */
+  readonly lastCreated = computed<Date | null>(() => {
     let latest: string | null = null;
     for (const row of this.rows()) {
-      if (latest === null || row.updated_at > latest) {
-        latest = row.updated_at;
+      if (latest === null || row.created_at > latest) {
+        latest = row.created_at;
       }
     }
     return latest ? new Date(latest) : null;
