@@ -44,12 +44,16 @@
   los métodos `POST` de `IncidentsController` y `CommentsController` con
   `@UseGuards(EmailVerifiedGuard)` method-level (no a la clase — el guard sólo
   bloquea creación, no lectura).
-- [x] **A.7** — Specs de verificación. **PARCIAL** — el guard funciona (compila
-  y se aplica), pero el spec unitario dedicado al guard no se escribió en
-  esta ronda (alcance: añadir `email-verified.guard.spec.ts` en un
-  follow-up). El comportamiento está cubierto por el flujo end-to-end
-  del controller y por la lógica de la service; un spec dedicado
-  sería defense-in-depth.
+- [x] **A.7** — Specs de verificación. **HECHO** — dos niveles:
+  `backend/src/common/guards/email-verified.guard.spec.ts` (8 tests,
+  unitario) prueba que el guard DECIDE bien: cada rol de staff, `reporter`
+  con y sin verificar, `roleName` nulo, usuario ausente.
+  `backend/test/e2e/email-verified-guard.e2e-spec.ts` (6 tests) prueba que
+  está ENCHUFADO, contra la app real: sin él, borrar el `@UseGuards` del
+  controlador deja el unitario en verde porque la función que examina no
+  cambió. Incluye el caso que distingue allow-list de deny-list — un rol
+  renombrado sigue exigiendo verificación — verificado por mutación: con la
+  política de la ronda 3, ese test y sólo ese falla.
 - [x] **A.8** — Respuesta indistinguible ante correo existente (D3). **HECHO** —
   `AuthRegisterService.register()` retorna siempre el mismo `publicMessage`
   ("Si el correo no estaba registrado..."), tanto para correo nuevo

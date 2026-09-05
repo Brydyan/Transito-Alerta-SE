@@ -163,3 +163,90 @@ el verificador documentó.
    tener un entorno con esas dependencias. La unit suite ya
    cubre el grafo de DI con un smoke test; el boot real es
    opcional como smoke final.
+
+---
+
+# Ronda 3 — el guard cambia de dirección (y vuelve)
+
+> El punto 4 de la recomendación de arriba estaba equivocado y conviene
+> dejarlo escrito, no borrarlo. **El arranque real no era opcional: era lo
+> único que podía detectar el CRITICAL de la ronda 1** — `EmailVerifiedGuard`
+> inyectaba `Repository<UserEntity>` sin que `IncidentsModule` ni
+> `CommentsModule` lo expusieran en su `forFeature`, así que Nest no podía
+> construir el grafo y el proceso no levantaba en ningún entorno. Los tests
+> unitarios pasaban porque sobreescriben los guards y nunca construyen el
+> grafo real. 19 de 19 casillas marcadas, todas las compuertas en verde, y
+> la aplicación sin arrancar.
+
+## Lo que pasó en la ronda 3
+
+El verify de la ronda 2 encontró que el guard, con allow-list de roles de
+staff, devolvía 403 a las cuentas con permisos explícitos y `role_id` NULL —
+el patrón de `provisionUser()` en los fixtures. Rompía 7 de 12 tests de
+`regressions.e2e-spec.ts`, incluidos los de inyección SQL y XSS, que pasaron
+a fallar en su propio setup y por lo tanto a no probar nada.
+
+La ronda 3 lo resolvió invirtiendo la política a deny-list:
+`roleName !== 'reporter' → pasa`. Eso desbloqueó los fixtures y cambió la
+dirección del fallo: de cerrado a **abierto**.
+
+El verify de la ronda 3 lo marcó como CRITICAL. Renombrar el rol `reporter`
+desde el panel administrativo —`PATCH /api/roles/:id`, un cambio cosmético—
+dejaba de exigir verificación a toda la base de ciudadanos: los permisos
+intactos, `role_deleted_at` en null, y lo único distinto el nombre. Sin
+error, sin log, y con `RolesService.update()` sin invalidar el cache de
+permisos, el efecto entraba por goteo a medida que expiraba el TTL.
+
+**Nota sobre el reporte de esa ronda:** listaba el *borrado* del rol junto al
+renombrado como vía de explotación. No lo es. `auth.service.ts:596-601` hace
+`permissions = roleDeleted ? [] : …`, así que un rol borrado deja al usuario
+sin permisos y el `PermissionGuard` lo rechaza antes de que el fail-open
+importe. La corrección está en `fixes-required.md`. Importa porque un test
+escrito con borrado pasaría con el guard roto.
+
+# Ronda 4 — vuelta a allow-list, y la causa raíz
+
+El guard volvió a allow-list de los cuatro roles de staff. La lista es
+exhaustiva contra `0015_organizations_scoping.sql` y `0040_rename_roles.sql`,
+y el `UNIQUE` de `roles.name` (`0001_initial_schema.sql:18`) cierra además el
+vector de renombrar `reporter` al nombre de un rol de staff existente.
+
+La causa raíz de los 7 fallos de la ronda 2 se arregló donde estaba: en
+`test/support/test-environment.ts`, dando a `provisionUser()` el default
+`emailVerified: true`. Es un cambio aditivo a una función que sólo usan los
+tests, en vez de invertir una política de seguridad de producción.
+
+Ese default, a su vez, apagó en silencio los cuatro casos de
+`email-verification.e2e-spec.ts` — los únicos que ejercitan el camino
+contrario—, que empezaron a recibir 422 "ya verificado". El verify de la
+ronda 4 lo encontró corriendo los 48 archivos e2e completos.
+
+# Cierre — lo que hizo el orquestador
+
+- `email-verification.e2e-spec.ts` pide `emailVerified: false` de forma
+  explícita. 6/6.
+- `email-verified-guard.e2e-spec.ts`, nuevo: la regla que sostiene este
+  change no tenía cobertura end-to-end. Seis casos que afirman sobre el
+  CÓDIGO de error y no sólo sobre el 403, porque un rechazo del
+  `PermissionGuard` también es 403.
+- Verificado por mutación, dos veces: quitándole el `@UseGuards` al
+  controlador falla el primer caso; volviendo el guard a deny-list falla el
+  del renombrado, y sólo ese.
+- El caso del renombrado restaura el nombre del rol en un `finally`.
+  `reset()` trunca usuarios e incidencias pero **no `roles`**, así que sin
+  eso el renombrado sobrevivía al test y contaminaba el siguiente — que
+  pasaba, pero por el motivo equivocado.
+
+**e2e: 48 archivos, 15 fallos, todos de `device_uuid:'anonymous'` y
+pertenecientes al change ANON, que aún no se commitea.** Antes eran 18.
+
+## Deuda que queda, conocida y sin cerrar
+
+- Ningún e2e ejercita `POST /auth/register` de punta a punta. La cobertura
+  del alta es unitaria (`auth.register.spec.ts`).
+- `AuthController.register()` no tiene test directo.
+- Las rutas de subida de imágenes (incidencias y comentarios) no llevan
+  `EmailVerifiedGuard`. Hoy no es explotable, pero es una regla aplicada en
+  un sitio y no en su vecino.
+- No hay test de regresión dedicado al arranque de la aplicación. Lo que
+  cubre ese hueco hoy es que los 48 archivos e2e levantan la app real.

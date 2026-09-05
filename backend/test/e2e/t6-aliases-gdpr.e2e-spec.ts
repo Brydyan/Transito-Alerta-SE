@@ -14,8 +14,11 @@ import { MailService } from '../../src/modules/mail/mail.service';
  * tarea A.2 ronda 1): `POST /api/auth/register` ahora crea un
  * `reporter` con el flujo real. El spec se borró junto con el
  * bullet del comentario de cabecera (REG ronda 4, Fix 6 del verify).
- * El coverage del endpoint real vive en `auth.register.spec.ts` (unit)
- * y en el spec e2e que REG agregó.
+ * El coverage del endpoint real vive en `auth.register.spec.ts` (unit).
+ * NO hay ningún e2e que ejercite `POST /api/auth/register` de punta a
+ * punta — deuda conocida de REG, anotada en su verify-report. El e2e que
+ * REG sí agregó (`email-verified-guard.e2e-spec.ts`) cubre la barrera de
+ * verificación al publicar, no el alta.
  */
 describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1)', () => {
   let env: TestEnvironment;

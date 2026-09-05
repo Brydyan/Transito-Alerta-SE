@@ -1,146 +1,102 @@
-# Fixes Required — REG: Auto-registro del ciudadano (sc-325) — actualizado tras verify ronda 3
+# Fixes Required — REG: Auto-registro del ciudadano (sc-325) — actualizado tras verify ronda 4
 
-Los fixes 1-4 de rondas 1-2 (boot, lint, timing, 7/12 fallos de `regressions.e2e-spec.ts`) están
-**cerrados y re-verificados por ejecución real** en esta ronda (100/100 suites backend, 12/12
-`regressions.e2e-spec.ts`, incluidos SQLi y XSS). No requieren más acción — quedan como referencia
-histórica al final.
+Los Fixes 5, 6 y 7 de la ronda 3 (allow-list del `EmailVerifiedGuard`, test 410 Gone
+contradictorio, casilla B.5 falsa) están **cerrados y re-verificados por ejecución real**
+en esta ronda. No requieren más acción — quedan como referencia histórica al final.
 
-Ronda 3 introdujo un fix nuevo (deny-list en `EmailVerifiedGuard`) que cierra el problema anterior pero
-abre uno nuevo, y dejó dos hallazgos abiertos sin cerrar. **3 CRITICAL nuevos**, ninguno relacionado con
-lo ya cerrado. No los apliqué — soy auditor.
+La propia corrección del Fix 5 introdujo **1 CRITICAL nuevo**, no detectado antes de esta
+ronda. No lo apliqué — soy auditor.
 
 ---
 
-## Fix 5 (nuevo, el más importante) — El deny-list del guard es fail-open ante borrado/renombrado del rol `reporter`
+## Fix 8 (nuevo, bloquea archivar) — El default de `provisionUser()` rompe `email-verification.e2e-spec.ts`
 
-**Archivo**: `backend/src/common/guards/email-verified.guard.ts:70-90`
-
-**Síntoma** (no reproducible con un test existente — es un análisis de código, no un test roto):
-un `admin_org`/`master` que **renombra** el rol `reporter` (`PATCH /api/roles/:id`, ruta
-administrativa normal) hace que TODA la base de ciudadanos con ese rol deje de necesitar
-`email_verified_at` para publicar, de forma permanente y silenciosa.
-
-**Corrección del orquestador — el borrado NO es la vía.** El reporte de verify listaba el
-soft-delete junto al renombrado; verificado contra el código, no lo es.
-`auth.service.ts:596-601` hace `permissions = roleDeleted ? [] : (row.permissions ?? [])`,
-así que un rol borrado deja al ciudadano **sin permisos**, y el `PermissionGuard` de clase
-(`incidents.controller.ts:52`) lo rechaza en `@RequirePermission('CREATE')` antes de que el
-fail-open del `EmailVerifiedGuard` sirva de algo: no publica sin verificar, no publica nunca.
-
-El **renombrado** sí funciona, y es peor justamente porque no rompe nada visible:
-`role_deleted_at` sigue en `null`, los permisos se conservan íntegros, y lo único que cambia
-es que `roleName` deja de ser `'reporter'`. Un cambio cosmético en el panel de administración
-desactiva un control de seguridad, sin error, sin log y sin usuarios bloqueados que avisen.
-Encima `RolesService.update()` (`roles.service.ts:125-134`) no invalida el cache de permisos
-—a diferencia de `delete()`, que sí lo hace—, así que el efecto entra por goteo a medida que
-expira el TTL, lo que lo vuelve aún más difícil de correlacionar con su causa.
-
-**Por qué pasa**: `user.roleName` en el guard viene de `AuthService.getAuthContextByUserId()`
-(`auth.service.ts:544-620`), que colapsa a `null` tanto "nunca tuvo rol" (patrón legítimo de
-`UsersService.adminCreate()` y de los fixtures de test) como "tenía un rol que ahora está
-soft-deleted" (`role_deleted_at`, ya consultado en `auth.service.ts:569-573` pero descartado). El guard
-no puede distinguir ambos casos con la información que recibe hoy.
-
-**Opción recomendada (menor riesgo, consistente con D1 del propio design.md — fail-closed sobre
-imposibilidad, no sobre validación)**:
-
-1. Revertir el guard a allow-list explícito de los 4 roles de staff (`operador_org`, `admin_org`,
-   `operador_sistema`, `master`); cualquier otra cosa (incluido `null`) vuelve a exigir verificación.
-2. Arreglar la causa raíz real de los 7 fallos que motivaron el cambio en ronda 3: agregar un default
-   `email_verified_at = now()` (o un flag `overrides.emailVerified`) a
-   `test/support/test-environment.ts::provisionUser()` cuando no se pide explícitamente lo contrario.
-   Es un cambio aditivo a una función usada sólo por tests — menor blast radius real que invertir una
-   política de seguridad de producción para toda la base de usuarios.
-
-**Alternativa** (si el equipo prefiere conservar el deny-list): agregar `roleWasDeleted: boolean` (o
-similar) a `AuthContext`, poblado desde el `role_deleted_at` que la query ya trae, y hacer que el guard
-exija verificación cuando `roleName === null && roleWasDeleted === true` — eximiendo sólo el caso
-"nunca tuvo rol". Además arreglar `RolesService.update()` (`roles.service.ts:125-134`) para que
-invalide el cache al renombrar un rol, igual que ya hace `delete()`.
-
-**Test que debería existir tras el fix** (falta hoy en ambas direcciones):
-```ts
-it('un reporter sin verificar sigue bloqueado aunque su rol se renombre', async () => {
-  // Provisionar un reporter SIN `email_verified_at`, renombrar el rol `reporter`
-  // (PATCH /api/roles/:id), invalidar el cache de permisos, y confirmar que
-  // POST /incidents SIGUE devolviendo 403 EMAIL_VERIFICATION_REQUIRED.
-  //
-  // Es el test que separa las dos políticas: con allow-list pasa, con el
-  // deny-list actual falla. No sirve escribirlo con soft-delete en vez de
-  // renombrado: ahí el PermissionGuard devuelve 403 por permisos vacíos y el
-  // test pasaría sin ejercitar el EmailVerifiedGuard — verde por el motivo
-  // equivocado, que es el defecto que este change ya cometió cuatro veces.
-});
-```
-
----
-
-## Fix 6 (nuevo) — Test e2e propio de REG en rojo por contrato contradictorio
-
-**Archivo**: `backend/test/e2e/t6-aliases-gdpr.e2e-spec.ts:217-224`
+**Archivo causa**: `backend/test/support/test-environment.ts:344`
+**Archivo síntoma**: `backend/test/e2e/email-verification.e2e-spec.ts:36-39`
 
 **Síntoma reproducible**:
 ```bash
 cd backend
-npx jest --config ./test/jest-e2e.json --testPathPattern='t6-aliases-gdpr'
-# "T6.8.D2: POST /api/auth/register → 410 Gone" — expected 410 "Gone", got 400 "Bad Request"
+npx jest --config ./test/jest-e2e.json --testPathPattern='email-verification'
+# T6.5.D3a: expected 202 "Accepted", got 422 "Unprocessable Entity"
+# T6.5.D3b: expected 202 "Accepted", got 422 "Unprocessable Entity"
+# T6.5.D3d: expected 202 "Accepted", got 422 "Unprocessable Entity"
 ```
 
-**Causa**: este test afirma el contrato de la lápida T6.8.C1, que la tarea A.2 de este mismo change
-revirtió intencionalmente en la ronda 1. Nadie actualizó ni borró el test en 3 rondas.
+**Causa**: la ronda 4 agregó `emailVerified = overrides.emailVerified ?? true` a
+`provisionUser()`, con default `true` (cuenta ya verificada) salvo que un test pida
+explícitamente lo contrario. `provisionEmailUser()` en `email-verification.e2e-spec.ts:38`
+llama `env.provisionUser([], { email })` sin `emailVerified: false`, así que ahora las
+cuentas de ese archivo nacen YA verificadas. `EmailVerificationService.resendVerification()`
+(`email-verification.service.ts:89-90`) rechaza con 422 "Email is already verified" a una
+cuenta que ya lo está — comportamiento preexistente y correcto; lo nuevo es que este archivo
+ahora SIEMPRE cae en esa rama.
 
-**Qué cambiar**: borrar este `it()` (y el bullet `T6.8.D2` del comentario de cabecera del `describe`,
-línea ~10) — el contrato que describía ya no existe por decisión explícita de este change. Si se
-quiere mantener cobertura de que la ruta responde razonablemente a un body vacío/malformado, un test
-nuevo que afirme el contrato ACTUAL (200 con OTP enviado / 400 por validación / 429 por rate limit,
-según el caso) sería el reemplazo correcto — pero eso es una mejora, no un requisito de este fix.
+**Por qué bloquea archivar**: `pnpm run test:e2e` (el comando exacto del job `integration` de
+`ci.yml`) termina con exit code 1 por esta causa. Es 100% atribuible a REG: el archivo que
+cambió es `test-environment.ts` (tocado sólo por este change), y `email-verification.e2e-spec.ts`
+no depende de nada del change hermano ANON.
+
+**Qué cambiar**: en `email-verification.e2e-spec.ts:38`, pasar `{ email, emailVerified: false }`
+a `provisionUser()`. Cambio de una línea. **Después del fix, correr los 48 archivos e2e
+completos de nuevo** (no sólo este archivo) — el objetivo es confirmar que no hay otro
+archivo con el mismo patrón (`provisionUser()` sin `emailVerified: false` esperando la rama
+"no verificado") que este verify no haya encontrado por casualidad del orden de ejecución de
+Jest. `grep -rn "emailVerified" backend/test/e2e/*.ts` da 0 resultados hoy — ningún otro
+archivo pide explícitamente el override, así que vale la pena revisar uno por uno cuáles
+dependen de un estado "no verificado" que el nuevo default pudo haber apagado en silencio.
 
 ---
 
-## Fix 7 (nuevo) — `tasks.md` B.5: casilla marcada sobre un escenario del spec sin implementar
+## Recomendados (no bloquean archivar, pero el equipo debería decidir conscientemente)
 
-**Archivo**: `openspec/changes/front/2026-09-02-reg-citizen-self-registration/tasks.md:102-109`
+- **W1** — Escribir el test e2e que el Fix 5 original pedía y que sigue sin existir: un
+  `reporter` provisionado con `emailVerified: false`, cuyo rol se renombra vía
+  `PATCH /api/roles/:id` (ruta real, no soft-delete), sigue recibiendo 403
+  `EMAIL_VERIFICATION_REQUIRED` en `POST /incidents`. Hoy sólo hay una versión unitaria con
+  un objeto de usuario armado a mano (`email-verified.guard.spec.ts:75-89`).
+- **W2** — Corregir el comentario de `t6-aliases-gdpr.e2e-spec.ts:17-18`: afirma que existe
+  "el spec e2e que REG agregó" para `/auth/register`. No existe ninguno — sólo
+  `auth.register.spec.ts` (unit).
+- **W3** — Actualizar `apply-progress.md`: sigue congelado en el estado de la ronda 2; no
+  documenta nada de las rondas 3 ni 4.
+- **W4** — Corregir `tasks.md` A.7: dice "el spec unitario dedicado al guard no se escribió
+  en esta ronda", pero `email-verified.guard.spec.ts` sí existe (8 tests, ronda 4).
+- **W5** — Corregir el docstring de cabecera de `email-verified.guard.spec.ts:10-19`: describe
+  la política vieja (deny-list, ronda 3) que el propio archivo ya no testea.
 
-**Síntoma**: la casilla es `[x]` pero el texto que la acompaña dice *"NO HECHO en esta ronda"*. El
-escenario correspondiente SÍ existe en `specs/citizen-registration/spec.md`
-("Scenario: Enlace tras reportar — cierra F4/B.2.12") y no está implementado — confirmado por grep en
-`frontend/src/app/features/citizen-report/` (sin ninguna referencia a "registro"/"register").
-
-**Qué hacer** (dos caminos válidos, a elección del equipo):
-1. Implementar el enlace al final del asistente de reporte ciudadano (la pantalla `citizen-report`
-   existe; falta la transición post-envío que ofrezca "registrate o iniciá sesión"), o
-2. Si se decide diferir a F4 como dice el texto, **destildar la casilla** (`[ ]`) y mover el escenario
-   correspondiente del spec a un "Fuera de alcance de esta ronda, cerrado por F4" explícito — no
-   dejarla marcada como hecha.
-
-Lo que no es aceptable es el estado actual: casilla en verde, texto y código en rojo.
+Ver `verify-report.md` (ronda 4) para el detalle completo, incluyendo SUGGESTION S1/S2 y el
+análisis de por qué el allow-list del Fix 5 es exhaustivo y correcto (confirmado contra
+`0009_roles_permissions.sql` + `0040_rename_roles.sql`, y reforzado por el `UNIQUE` en
+`roles.name` de `0001_initial_schema.sql:18`, que cierra el vector de colisión de nombres).
 
 ---
 
 ## Orden sugerido
 
-1. Fix 5 primero — es la decisión de seguridad con mayor impacto y la más costosa de revertir después
-   de archivar (agujero permanente, sin restore).
-2. Fix 6 — mecánico, un test a borrar/actualizar.
-3. Fix 7 — mecánico, una casilla a destildar o un enlace a implementar.
-4. Correr de nuevo la suite completa de 48 archivos e2e (no una muestra) para confirmar que Fix 5 no
-   introduce una regresión nueva sobre los tests de la ronda 2 (`regressions.e2e-spec.ts` 12/12).
-5. Actualizar `tasks.md` (A.6/A.7) y `apply-progress.md` para que documenten la ronda 3 real, en vez de
-   quedar congelados en el estado de ronda 2.
-6. Recién ahí pedir un nuevo `sdd-verify`.
+1. Fix 8 primero — es lo único que bloquea archivar (compuerta de CI en rojo).
+2. Correr de nuevo la suite completa de 48 archivos e2e (no una muestra) tras el Fix 8.
+3. W1-W5 a discreción del equipo — ninguno reabre el agujero de seguridad ya cerrado; son
+   deuda de cobertura y de higiene documental.
+4. Recién ahí pedir un nuevo `sdd-verify` (o archivar directamente si el equipo decide que
+   W1-W5 son aceptables como deuda conocida y documentada).
 
 ---
 
-## Referencia histórica — Fixes 1-4 (rondas 1-2, CERRADOS, no requieren acción)
+## Referencia histórica — Fixes 1-7 (rondas 1-3, CERRADOS, no requieren acción)
 
-- ~~Fix 1 — boot roto por `UserEntity` faltante en `forFeature`~~ — cerrado y re-verificado: `nest build`
-  exit 0, 100/100 suites unitarias pasan (el DI graph se ejercita indirectamente). Sigue pendiente el
-  test de regresión de boot dedicado (`*.module.boot.spec.ts`) — ver WARNING W3 en `verify-report.md`.
-- ~~Fix 2 — lint (código muerto)~~ — cerrado, re-verificado: `pnpm run lint` → 0 errors, 19 warnings
-  preexistentes sin relación con REG.
-- ~~Fix 3 — canal lateral de tiempo~~ — cerrado, re-verificado vía el test de timing en
-  `auth.register.spec.ts`.
-- ~~Fix 4 — `EmailVerifiedGuard` bloqueaba cuentas con `role_id` NULL~~ — cerrado, re-verificado:
-  `regressions.e2e-spec.ts` 12/12, incluidos los tests de inyección SQL y XSS. **Pero el mecanismo
-  elegido para cerrarlo (deny-list) es el Fix 5 de esta ronda** — no es un cierre limpio, cambió la
-  naturaleza del problema.
+- ~~Fix 1 — boot roto por `UserEntity` faltante en `forFeature`~~ — cerrado, re-verificado en
+  ronda 4 además: los 48 archivos e2e arrancan la app real (Nest + Postgres + Redis) sin
+  fallos de boot.
+- ~~Fix 2 — lint (código muerto)~~ — cerrado, re-verificado: `pnpm run lint` → 0 errors, 19
+  warnings preexistentes sin relación con REG.
+- ~~Fix 3 — canal lateral de tiempo~~ — cerrado, re-verificado.
+- ~~Fix 4 — `EmailVerifiedGuard` bloqueaba cuentas con `role_id` NULL~~ — cerrado; el mecanismo
+  final (allow-list, Fix 5) reemplazó el deny-list que lo cerraba en la ronda 3.
+- ~~Fix 5 — deny-list fail-open ante renombrado del rol `reporter`~~ — cerrado con allow-list
+  exhaustivo, re-verificado contra las migraciones reales de roles.
+- ~~Fix 6 — test e2e propio de REG en rojo por contrato contradictorio (410 Gone)~~ — cerrado,
+  el test se borró y el comentario documenta por qué (aunque con una afirmación falsa sobre
+  cobertura de reemplazo — ver W2 arriba).
+- ~~Fix 7 — `tasks.md` B.5 marcada `[x]` sobre un escenario sin implementar~~ — cerrado,
+  casilla destildada y consistente con el spec.

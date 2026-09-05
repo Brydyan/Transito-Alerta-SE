@@ -120,6 +120,68 @@ describe('E2E REG — EmailVerifiedGuard conectado (sc-325)', () => {
   });
 
   /**
+   * El caso que separa una política de la otra.
+   *
+   * La ronda 3 de este change invirtió el guard a lista negra
+   * (`roleName !== 'reporter' → pasa`). Con esa forma, renombrar el rol
+   * `reporter` desde el panel de administración —un cambio cosmético, sin
+   * error y sin log— desactivaba la verificación para toda la base de
+   * ciudadanos: los permisos quedaban intactos, `role_deleted_at` seguía en
+   * `null`, y lo único que cambiaba era el nombre.
+   *
+   * Con la lista blanca actual, un nombre desconocido cae del lado de
+   * exigencia. Este test es el que lo distingue: pasa con allow-list, falla
+   * con deny-list.
+   *
+   * Se renombra ANTES de provisionar al ciudadano a propósito.
+   * `RolesService.update()` no invalida el cache de permisos —a diferencia
+   * de `delete()`, que sí lo hace—, así que renombrar con una sesión ya
+   * abierta devolvería 403 por el contexto viejo en Redis: verde por el
+   * motivo equivocado. Provisionar después fuerza un contexto fresco y deja
+   * que el 403 venga de donde tiene que venir.
+   */
+  it('un rol renombrado NO entra a la allow-list: el ciudadano sigue necesitando verificar', async () => {
+    const admin = await env.provisionUser(['READ roles', 'UPDATE roles'], {
+      email: `admin-${randomUUID()}@example.com`,
+      roleName: 'master',
+    });
+
+    const { rows } = await env.pg.query<{ id: string }>(
+      'SELECT id FROM roles WHERE name = $1',
+      ['reporter'],
+    );
+    const roleId = rows[0].id;
+
+    // `reset()` trunca usuarios, incidencias y comentarios, pero NO `roles`:
+    // el renombrado sobrevive al test y el siguiente encontraría `reporter`
+    // inexistente, provisionaría sin rol, y pasaría o fallaría por una razón
+    // que no tiene nada que ver con lo que mide. Se restaura sí o sí.
+    try {
+      await request(env.httpServer)
+        .patch(`/api/roles/${roleId}`)
+        .set(authHeader(admin))
+        .send({ name: 'ciudadano' })
+        .expect(200);
+
+      const renombrado = await env.provisionUser(['CREATE incidents'], {
+        email: `ciudadano-${randomUUID()}@example.com`,
+        roleName: 'ciudadano',
+        emailVerified: false,
+      });
+
+      const res = await request(env.httpServer)
+        .post('/api/incidents')
+        .set(authHeader(renombrado))
+        .send(newIncident())
+        .expect(403);
+
+      expect(res.body.code).toBe('EMAIL_VERIFICATION_REQUIRED');
+    } finally {
+      await env.pg.query('UPDATE roles SET name = $1 WHERE id = $2', ['reporter', roleId]);
+    }
+  });
+
+  /**
    * El defecto recurrente de este proyecto es una regla aplicada en un sitio
    * y no en su vecino. `POST /comments` lleva el mismo guard que
    * `POST /incidents`; si alguien lo quita de uno solo, esto lo dice.

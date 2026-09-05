@@ -10,12 +10,20 @@ import { EMAIL_VERIFICATION_REQUIRED } from '../../modules/auth/auth-errors';
 /**
  * REG (sc-325) — spec unitario de `EmailVerifiedGuard`.
  *
- * Cubre las decisiones de la ronda 3 (Fix 4): la política
- * es **deny-list puntual** sobre `reporter`, no allow-list
- * de staff. Esto evita que cuentas con `role_id = NULL` y
- * permisos otorgados directamente (fixtures de test, accesos
- * de servicio) caigan en la trampa de "no es staff → es
- * reporter → exige verificación" del round 0.
+ * La política es **allow-list de staff**: sólo los cuatro roles de personal
+ * publican sin verificar el correo. Todo lo demás —`reporter`, un nombre
+ * desconocido, o ningún rol— cae en la rama de exigencia. Falla cerrado.
+ *
+ * La ronda 3 la había invertido a deny-list puntual sobre `reporter`, para
+ * desbloquear cuentas con `role_id = NULL` y permisos directos (el patrón de
+ * los fixtures e2e). Eso resolvía el síntoma abriendo la puerta: renombrar
+ * `reporter` desde el panel administrativo dejaba de exigir verificación a
+ * toda la base de ciudadanos, sin error y sin log. La ronda 4 volvió a
+ * allow-list y arregló los fixtures, que era donde estaba el problema.
+ *
+ * Este spec prueba que la función DECIDE bien. Que el guard esté enchufado a
+ * los controladores lo prueba `test/e2e/email-verified-guard.e2e-spec.ts`:
+ * si alguien borra el `@UseGuards`, este archivo sigue en verde.
  */
 describe('EmailVerifiedGuard (REG sc-325)', () => {
   let guard: EmailVerifiedGuard;
