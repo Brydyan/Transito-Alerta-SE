@@ -83,3 +83,35 @@ el ciudadano la necesita.
   muestra el mismo mensaje que ante uno nuevo
 - Scenario: Errores de validación — GIVEN correo inválido o contraseña que no cumple la
   política THEN el formulario los señala sin llamar al servidor
+
+### Requirement: El ciudadano puede verificar su correo desde la aplicación
+La aplicación DEBE ofrecer una pantalla donde el ciudadano ingrese el código que recibió,
+y DEBE llevarlo hasta ella sin que tenga que buscarla.
+
+Sin esto el auto-registro no sirve de nada: la cuenta se crea, el código llega al correo,
+y no hay dónde escribirlo. El ciudadano queda registrado y sin poder publicar — que es
+para lo que quería la cuenta.
+
+El backend expone los dos endpoints del OTP detrás de `JwtAuthGuard`
+(`email-verification.controller.ts`), así que la verificación ocurre **después** de
+iniciar sesión. Esto es coherente con la decisión D2: se puede entrar sin verificar, lo
+que no se puede es publicar.
+
+- Scenario: Saber si falta verificar — GIVEN una sesión iniciada THEN `GET /auth/me`
+  informa si el correo está verificado
+- Scenario: Llegar sin buscar — GIVEN un `reporter` sin verificar que inicia sesión
+  THEN se lo lleva a la pantalla de verificación
+- Scenario: El personal no pasa por ahí — GIVEN un `operador_org`, `admin_org`,
+  `operador_sistema` o `master` que inicia sesión THEN entra al panel como siempre
+- Scenario: Código correcto — GIVEN el código que llegó al correo THEN se acepta,
+  `email_verified_at` queda establecido, y el ciudadano puede publicar
+- Scenario: Código vencido o equivocado — GIVEN un código que no corresponde THEN la
+  pantalla lo señala y permite reintentar, sin cerrar la sesión
+- Scenario: Reenviar — GIVEN un ciudadano que no recibió el código THEN puede pedir uno
+  nuevo
+- Scenario: Reenviar demasiado pronto — GIVEN un reenvío dentro de los 60 segundos
+  THEN la pantalla lo dice y no lo presenta como un fallo
+- Scenario: Ya verificado — GIVEN un ciudadano que llega a la pantalla con el correo ya
+  verificado THEN no se lo deja en un callejón: se lo lleva a la aplicación
+- Scenario: El ciclo completo — GIVEN un ciudadano que se registra, entra, verifica y
+  publica THEN cada paso lo habilita el anterior, sin intervención manual

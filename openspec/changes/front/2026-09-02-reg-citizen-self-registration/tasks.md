@@ -179,6 +179,85 @@
     escalada (`role`, `permissions`, `organization_id`) el
     backend rechaza con 400 y la cuenta NO se crea.
 
+## C · Cerrar el círculo de verificación
+
+> **Por qué existe este grupo.** Hasta la ronda 8, REG creaba la cuenta, el backend
+> emitía el OTP al correo… y no había dónde escribirlo. `verify-email` sólo informaba y
+> mandaba al login. El ciudadano quedaba registrado y sin poder publicar, que es
+> exactamente para lo que quería la cuenta.
+>
+> **Decisión de producto (2026-09-05): se verifica DESPUÉS de iniciar sesión.** Los dos
+> endpoints del OTP viven detrás de `JwtAuthGuard`
+> (`email-verification.controller.ts`, guard a nivel de clase) y el alta pública no emite
+> token. Abrir un endpoint sin sesión era la alternativa, y se descartó: agrega
+> superficie anónima nueva y con ella otro oráculo de enumeración — el defecto que este
+> mismo change acaba de cerrar en el Fix 12. Verificar tras el login no necesita ningún
+> endpoint nuevo, y encaja con D2: se puede entrar sin verificar, no se puede publicar.
+
+- [ ] **C.1** — `GET /auth/me` informa si el correo está verificado.
+  Hoy devuelve `{ user_id, device_uuid, permissions }` (`auth.controller.ts:166-173`).
+  El frontend **no tiene forma de saberlo**: ni el login ni `/auth/me` lo exponen, y el
+  guard sólo lo revela negando un 403 cuando ya intentaste publicar.
+  Agregar un booleano derivado de `email_verified_at`. Es el único cambio de backend de
+  este grupo, y va en un endpoint que ya exige sesión: sin superficie nueva.
+  Nombre en snake_case — `SnakeCaseResponseInterceptor` reescribe la respuesta, así que
+  verificá la forma que **emite el controlador**, no la del tipo TypeScript. Es la
+  trampa de A.11 y la que produjo cuatro defectos en el change hermano sc-303.
+
+- [ ] **C.2** — Spec de C.1 en `auth.controller.spec.ts`: un usuario verificado y uno
+  sin verificar devuelven valores distintos. Afirmar sobre la **respuesta**, no sobre la
+  llamada al service.
+
+- [ ] **C.3** — Pantalla del OTP, detrás de `authGuard`.
+  Contrato real, leído del controlador — **no del `.js` heredado, que ya no existe**:
+  - `POST /api/email/verify-otp`, body `{ otp: string }` → **200** `{ verified: true }`
+  - `POST /api/email/resend-verification`, sin body → **202** `{ queued: true }`
+  - **422** código inválido o vencido, y también correo ya verificado
+  - **429** reenvío dentro de los 60 segundos
+  - **401** sin token
+  Los cuatro códigos tienen que distinguirse en pantalla. El 429 **no es un fallo**: es
+  «esperá un minuto», y presentarlo como error rojo enseña a desconfiar de la pantalla.
+  El 422 tiene dos causas distintas y el mensaje debe separarlas: código equivocado se
+  reintenta, correo ya verificado significa que terminaste.
+  Primitivos de F0, como el resto de `features/auth/`.
+
+- [ ] **C.4** — Tras iniciar sesión, el `reporter` sin verificar llega a la pantalla de
+  C.3 sin buscarla. El personal (`operador_org`, `admin_org`, `operador_sistema`,
+  `master`) entra al panel como siempre — la verificación no le aplica, igual que en
+  `EmailVerifiedGuard`.
+  **La regla vive en un solo lugar.** Si la decisión se duplica entre el login y un
+  guard de ruta, una de las dos copias se va a quedar vieja: es el defecto recurrente de
+  este proyecto, una regla aplicada en un sitio y no en su vecino.
+
+- [ ] **C.5** — `verify-email` (la pantalla pública que ya existe) sigue siendo el
+  destino tras el alta, pero deja de ser un callejón: enlaza al login explicando que hay
+  que entrar para ingresar el código. Actualizar su JSDoc, que hoy dice que el composer
+  «entra cuando F4 lo enchufe» — F4 ya no es el dueño de esto.
+
+- [ ] **C.6** — Spec del componente de C.3: los cuatro códigos (200, 422 × 2 causas,
+  429), el estado inicial, y que un código vencido **no** cierra la sesión.
+  Aserciones de igualdad donde el contrato exige igualdad. `.toMatch(/parcial/)` sobre
+  una respuesta que el spec declara idéntica es una aserción que no puede fallar cuando
+  importa: así sobrevivió el Fix 12 durante seis rondas.
+
+- [ ] **C.7** — Spec de ruta, como `app.routes.verify-email.spec.ts`: la ruta de C.3
+  existe y **está** bajo `authGuard`. **Verificación por mutación**: borrala y este spec
+  tiene que caer. Si no cae, no prueba nada — es lo que dejó pasar el Fix 9.
+
+- [ ] **C.8** — e2e del ciclo completo, en `backend/test/e2e/`: registrar → iniciar
+  sesión → `POST /incidents` **rechazado con 403** → verificar el OTP → `POST /incidents`
+  **aceptado con 201**.
+  **Es la tarea más importante del grupo.** Los cuatro defectos que obligaron a
+  desarchivar este change vivían en el tramo que ningún e2e recorría. Este lo recorre
+  entero. Afirmá sobre el **código** de error y no sólo sobre el estado: un 403 del
+  `PermissionGuard` y uno del `EmailVerifiedGuard` son indistinguibles por número.
+  El OTP se lee de la BD (`users.verification_otp`), como ya hace
+  `email-verification.e2e-spec.ts`.
+
+- [ ] **C.9** — Actualizar `apply-progress.md`, que sigue congelado en la ronda 2 y no
+  documenta las rondas 5 a 8. Y la sección «Estado de gates» del final de este archivo,
+  con números de la ronda 2.
+
 ---
 
 ## Compuerta

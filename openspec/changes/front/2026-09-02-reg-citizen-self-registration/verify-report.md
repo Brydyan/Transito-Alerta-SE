@@ -1,252 +1,222 @@
-# Verify Report — REG: Auto-registro del ciudadano (sc-325) — Ronda 7
+# Verify Report — Ronda 8 — REG: Auto-registro del ciudadano (sc-325)
 
-**Change**: `2026-09-02-reg-citizen-self-registration`
+**Change**: `2026-09-02-reg-citizen-self-registration` (front)
+**Commit auditado**: `66afee7` (árbol limpio salvo ANON, fuera de alcance)
+**Modo**: Strict TDD activo
 **Fecha**: 2026-09-05
-**Auditor**: sdd-verify (ronda 7, post-desarchivo)
-**Modo**: Standard (Strict TDD activo per tasks.md; verificado vía ejecución real + mutación)
 
 ---
 
 ## Veredicto
 
-**FAIL — 1 CRITICAL nuevo.** Fix 11 (el e2e que no compilaba) está **cerrado
-correctamente**: el genérico de `env.pg.query<...>` ahora declara `role_name`, `pnpm run
-typecheck` sale en 0, y las 3 aserciones REG.1/REG.2/REG.3 **corrieron por primera vez en la
-historia de este change**. El total de la suite e2e subió de 437 a **440**, la señal exacta
-que la ronda 6 pedía.
-
-Pero al correr de verdad, **REG.2 falla**: el endpoint `POST /auth/register` devuelve un
-`message` distinto según el correo ya exista o no, violando D3 (design.md) y el requirement
-"El alta no revela si un correo ya está registrado" de `specs/citizen-registration/spec.md`
-("la respuesta es idéntica en código de estado, **cuerpo** y forma"). Es un canal lateral de
-enumeración de cuentas real, presente desde el primer commit de este change (`fa005b8`,
-ronda 1), enmascarado en las 6 rondas anteriores porque el único unit test que afirmaba sobre
-esto (`auth.register.spec.ts`) usa `.toMatch(/regex parcial/)` en vez de comparar el mensaje
-completo, y porque hasta ahora ningún e2e ejercitaba el endpoint de punta a punta. Las tareas
-A.8, A.9 y A.11 de `tasks.md` están marcadas `[x]` afirmando exactamente la propiedad que el
-código viola. Es la **séptima** vez que este change marca trabajo como hecho sobre una
-afirmación que no se sostenía al ejecutarla.
-
-**No listo para archivar.**
+**PASS WITH WARNINGS.** No queda ningún CRITICAL. `fixes-required.md` se borra en esta
+ronda porque **Fix 12 está cerrado de verdad** — código y test, no sólo código como
+afirmaba el brief de esta ronda. La afirmación de que ":206 y :258 seguían con el literal
+duplicado" y que "el unitario no lo cazaría" es **falsa contra el código commiteado**: la
+verifiqué carácter por carácter, por `git diff` de la commit que lo introdujo, y por
+mutación real ejecutada por mí. Quedan 3 WARNING de deuda documental/cobertura, ninguno
+bloqueante.
 
 ---
 
-## Qué se ejecutó (compuertas reales, números reales — mismas que `ci.yml`)
+## 1. Fix 12 — auditoría carácter por carácter
 
-| Compuerta | Comando | Resultado |
+### Los tres `return` de `AuthRegisterService.register()` (estado real, no el afirmado)
+
+| Camino | Línea | Valor |
 |---|---|---|
-| Backend install | `pnpm install --frozen-lockfile` | exit 0 (already up to date) |
-| Backend lint | `pnpm run lint` | exit 0 — 0 errors, 19 warnings (preexistentes, ninguno en archivos de REG) |
-| **Backend typecheck** | `pnpm run typecheck` (`tsc --noEmit -p tsconfig.json`) | **exit 0** — Fix 11 cerrado |
-| Backend build | `pnpm run build` (`nest build`) | exit 0 |
-| Backend unit test | `npx jest` | exit 0 — **100 suites / 911 tests** PASS |
-| Frontend install | `pnpm install --frozen-lockfile` | exit 0 (already up to date) |
-| Frontend test | `npx jest` | exit 0 — **44 suites / 305 tests** PASS |
-| Frontend build | `pnpm run build` (`ng build`) | exit 0, 4.4 s |
-| Frontend lint | condicional (ci.yml) | sin config eslint en `frontend/` → se salta por diseño, no es responsabilidad de REG |
-| Frontend `tsc -b --noEmit` | trampa conocida, no es gate de CI | **19** — sin cambio vs ronda 6 (14 preexistentes + 5 de `app.routes.verify-email.spec.ts`, sin crecer) — WARNING persistente |
-| **Integration e2e completo** | `npx jest --config ./test/jest-e2e.json` (50 archivos) | **1 failed, 49 passed, 50 total suites — 439 passed, 1 failed, 440 total tests** — CRITICAL 1 |
+| Correo existente | `auth.register.ts:184` | `message: REGISTRATION_INDISTINGUISHABLE_MESSAGE` |
+| Rol `reporter` no encontrado | `auth.register.ts:205` | `message: REGISTRATION_INDISTINGUISHABLE_MESSAGE` |
+| Correo nuevo (alta exitosa) | `auth.register.ts:256` | `message: REGISTRATION_INDISTINGUISHABLE_MESSAGE` |
 
-El total subió de 437 a 440 (+3), confirmando que el archivo compila y las 3 pruebas
-corren. De esas 3, 2 pasan y **1 falla de verdad**, no por error de compilación.
+`grep -n "REGISTRATION_INDISTINGUISHABLE_MESSAGE" backend/src/modules/auth/auth.register.ts`
+devuelve exactamente esas tres líneas más la declaración de la constante (`:63-64`). **No
+hay ningún literal duplicado en `:206` ni en `:258`** — esas líneas hoy son `},` y `},`
+respectivamente (llaves de cierre), no asignaciones de string. La afirmación del brief de
+esta ronda sobre esos números de línea no corresponde al código commiteado en `66afee7`;
+la reviso con `git diff fa005b8 66afee7 -- backend/src/modules/auth/auth.register.ts` y
+confirmo que los TRES retornos se migraron a la constante en el mismo commit que la
+introdujo, no en dos de tres.
 
----
+No hay ningún otro punto del código que construya este mensaje: `auth.controller.ts:91`
+sólo hace `return result.publicMessage` sin tocarlo; no hay interceptor ni pipe que lo
+reescriba (`SnakeCaseResponseInterceptor` opera sobre claves, no sobre valores).
 
-## Fix 11 — verificado por ejecución y por mutación
+### El spec unitario — también hardened, no sólo el código
 
-1. `pnpm run typecheck` → exit 0. El tipo agregado es exactamente el que pedía
-   `fixes-required.md`:
-   ```ts
-   const { rows } = await env.pg.query<{
-     role_id: string;
-     role_name: string;
-     email_verified_at: Date | null;
-     verification_otp: string | null;
-   }>(...)
-   ```
-2. `npx jest --config ./test/jest-e2e.json --testPathPattern=registration-flow --verbose`:
-   ```
-   ✓ REG.1: POST /auth/register con correo nuevo crea la cuenta con rol `reporter` y emite OTP (42 ms)
-   ✕ REG.2: D3 — POST /auth/register con correo existente devuelve la misma forma y NO crea cuenta duplicada (20 ms)
-   ✓ REG.3: D1 — el body no acepta `role`/`roleName`/`permissions`/`organization_id` (falla con 400) (3 ms)
-   ```
-3. **Mutación real, ejecutada por el verificador**: en `backend/src/modules/auth/auth.register.ts:170`
-   se cambió `where: { name: 'reporter' }` por `where: { name: 'operador_org' }` (el rol
-   `reporter` deja de ser el asignado al alta pública). Resultado:
-   ```
-   Tests: 2 failed, 1 passed, 3 total
-   ```
-   REG.1 cayó (esperaba `role_name = 'reporter'` contra la BD), confirmando que la
-   aserción SÍ depende de la BD, no de la respuesta HTTP opaca (D3). Se restauró el
-   archivo original desde una copia (`cp` a scratchpad, no `git checkout`, porque el
-   árbol no tenía cambios sin commitear en ese archivo — se verificó con `git status
-   --short` antes y después). `git diff --stat backend/src/modules/auth/auth.register.ts`
-   vacío tras restaurar: el árbol quedó igual.
-4. REG.1 verifica contra la BD real (`SELECT ... FROM users u LEFT JOIN roles r`), no
-   contra el cuerpo de la respuesta HTTP — cumple exactamente lo que pedía
-   `fixes-required.md` ("no verificable sólo contra la respuesta, que es opaca por D3").
-5. REG.3 verifica con `.expect(400)` y además contra la BD (`COUNT(*) = '0'`) que la
-   cuenta no se creó — cubre el escenario de escalada de privilegios (D1) del spec.
-   No distingue código de error porque en este endpoint sólo hay una fuente posible de
-   403/400 (el `ValidationPipe` con `forbidNonWhitelisted`); la ambigüedad de código de
-   error que preocupaba a la ronda 6 aplica a `EmailVerifiedGuard` vs `PermissionGuard`
-   (ver A.7 abajo), no a este endpoint.
+`auth.register.spec.ts:158` y `:176` (no `:155,172` — el archivo creció por los comentarios
+del fix): ambos usan `expect(result.publicMessage.message).toBe(REGISTRATION_INDISTINGUISHABLE_MESSAGE)`.
+El `.toMatch(/subcadena parcial/)` que sobrevivió 6 rondas **ya no existe en el archivo**.
+Confirmado por `git diff fa005b8 66afee7 -- backend/src/modules/auth/auth.register.spec.ts`:
+el diff muestra el cambio literal de `toMatch(regex)` a `toBe(CONSTANTE)` en ambos tests, con
+un comentario explícito citando el Fix 12.
 
-**Conclusión sobre Fix 11**: el archivo compila, las 3 pruebas corren, y una de ellas
-**detecta un defecto real preexistente**. Fix 11 cumplió exactamente el propósito para el
-que se escribió — cerrar el hueco de cobertura — y al hacerlo destapó lo que ese hueco
-venía ocultando.
+### Verificación por mutación — ejecutada por mí, no leída
 
----
+Con el árbol limpio confirmado (`git status --short` sin cambios en el archivo antes de
+mutar), reintroduje la frase divergente **sólo** en el camino "correo existente"
+(`auth.register.ts:184`, agregando `+ ' Si ya lo estaba, te enviamos un aviso al titular.'`)
+y corrí:
 
-## CRITICAL
-
-### CRITICAL 1 — D3 violado: el `message` de la respuesta revela si el correo ya existía
-
-**Archivo**: `backend/src/modules/auth/auth.register.ts:156-163` (camino "correo existente")
-vs `:230-237` (camino "correo nuevo")
-
-```ts
-// Camino "existente" (auth.register.ts:159-162):
-message: 'Si el correo no estaba registrado, te enviamos un mensaje para verificar tu
-cuenta. Si ya lo estaba, te enviamos un aviso al titular.',
-
-// Camino "nuevo" (auth.register.ts:234-236) y camino "rol reporter no encontrado" (:182-184):
-message: 'Si el correo no estaba registrado, te enviamos un mensaje para verificar tu
-cuenta.',
+```
+$ npx jest --config package.json auth.register.spec.ts
+✕ D3: con correo existente, NO crea cuenta, manda aviso al titular y devuelve la MISMA forma de respuesta
+  Expected: "Si el correo no estaba registrado, te enviamos un mensaje para verificar tu cuenta."
+  Received: "Si el correo no estaba registrado, te enviamos un mensaje para verificar tu cuenta. Si ya lo estaba, te enviamos un aviso al titular."
+Tests: 1 failed, 9 passed, 10 total
 ```
 
-Son literalmente dos strings distintos. Un cliente HTTP puede distinguir "correo existente"
-de "correo nuevo" leyendo `response.body.message` — exactamente el oráculo de existencia de
-cuentas que D3 (`design.md:61-65`) dice que se rechazó explícitamente a cambio de un 409:
-> "Ante un correo ya registrado, la respuesta es **la misma** que ante uno nuevo."
+**El UNITARIO lo cazó**, no sólo el e2e — al revés de lo que planteaba el brief de esta
+ronda ("el e2e REG.2 debería cazarlo; el unitario, no"). Esto es la evidencia directa de que
+el endurecimiento de la aserción (Sección 2) ya se aplicó, y que efectivamente cierra la
+clase de regresión, no sólo la instancia. Restauré el archivo desde el respaldo (`.bak`)
+inmediatamente después y confirmé `git status --short` y `git diff --stat` vacíos para
+`auth.register.ts`.
 
-Y el requirement de `specs/citizen-registration/spec.md:46-53`:
-> "La respuesta a un correo ya existente DEBE ser indistinguible de la respuesta a uno
-> nuevo... la respuesta es idéntica en código de estado, **cuerpo** y forma a la del correo
-> nuevo."
-
-Confirmado por ejecución real: `registration-flow.e2e-spec.ts:86` (`expect(second.body).toEqual(first.body)`) falla mostrando el diff exacto de arriba (ver log completo en la sección Fix 11).
-
-**Por qué las 6 rondas anteriores no lo vieron**: `auth.register.spec.ts:155,172` afirma
-sobre el mensaje con `.toMatch(/te enviamos un mensaje para verificar tu cuenta/)` — una
-subcadena presente en **ambos** mensajes. El test pasa siempre, sin importar si el resto del
-string difiere. Las tareas `tasks.md` A.8 (línea 64-70), A.9 (línea 71-76) y A.11 (línea
-83-87) afirman "mismo `publicMessage`" / "respuesta indistinguible en cuerpo y código" citando
-estos mismos tests como evidencia — la afirmación es falsa desde el primer commit
-(`fa005b8`, verificado con `git log -p --follow`).
-
-**Antigüedad**: presente desde la implementación original (ronda 1), no introducida en esta
-ronda. `git log -p --follow -- backend/src/modules/auth/auth.register.ts` muestra las dos
-strings distintas ya en `fa005b8`.
-
-**Severidad**: CRITICAL — viola un requirement de seguridad explícito del spec (prevención de
-enumeración de cuentas), no un detalle cosmético. El endpoint es público y no requiere
-autenticación.
-
-**Qué hacer** (no lo hago yo, soy auditor): unificar el `message` de los tres retornos de
-`register()` a un único string constante. Después, cambiar la aserción de
-`auth.register.spec.ts` de `.toMatch(regex parcial)` a comparar el mensaje completo (o mejor,
-a un `toEqual` contra una constante exportada), para que una futura divergencia textual
-vuelva a fallar en el unitario y no dependa exclusivamente del e2e.
+**Conclusión de la Sección 1: Fix 12 está cerrado en código Y en defensa de test. No es
+CRITICAL ni WARNING — es un cierre completo.** El hallazgo de mayor valor de esta ronda es
+que el propio brief de auditoría contenía una afirmación desactualizada o incorrecta sobre
+el estado del código; verificarla en vez de heredarla es precisamente el punto de esta
+ronda 8.
 
 ---
 
-## Deuda D1–D5 (heredada de la ronda 6) — estado en la ronda 7
+## 2. La clase de defecto — aserciones parciales donde el contrato exige igualdad
 
-| # | Descripción | Estado |
-|---|---|---|
-| D1 | Test e2e dedicado del caso anónimo en `email-verified-guard.e2e-spec.ts` | **Sigue sin cerrar**, no bloqueante (igual que ronda 6). Sólo existe el unitario en `email-verified.guard.spec.ts` (`Fix 10: el dispositivo anónimo... pasa sin exigir verificación`, agregado esta ronda). La cobertura e2e del camino anónimo sigue siendo incidental vía `regressions.e2e-spec.ts`, no el caso explícito pedido. |
-| D2 | `.js` heredado de sc-117 en `verify-email/` | **Cerrado.** `ls frontend/src/app/features/auth/verify-email/` ya no lista ningún `.js`; sólo `.ts`, `.html`, `.css`, `.spec.ts`. |
-| D3 | `tasks.md` A.6 con texto contradictorio (`[x]` + "INCOMPLETO") | **Cerrado.** A.6 ahora dice "HECHO (ronda 1, ronda 4 Fix 5, ronda 6 Fix 10, ronda 7 D3)" y describe el estado consolidado sin contradicción. |
-| D4 | `apply-progress.md` sin entrada de la ronda 6 | **Sigue sin cerrar, y tampoco tiene entrada de la ronda 7.** El archivo termina en la narrativa de la "Ronda 4" (líneas 169-253); no hay sección para rondas 5, 6 ni 7, aunque en esas rondas se aplicaron Fix 9, Fix 10 y Fix 11. Rompe la cadena de auditoría — WARNING, no bloqueante por sí solo, pero acumulándose. |
-| D5 | Composer del OTP diferido a F4 | **Sigue anotado con claridad.** `email-verification.controller.ts` mantiene `@UseGuards(JwtAuthGuard)` a nivel de clase; el alta pública no emite JWT. `tasks.md` B.6 y el JSDoc de `verify-email.component.ts` documentan la redirección a `/login` como decisión de scope. No bloqueante. |
+Barrido de `toMatch`, `toContain`, `objectContaining`, `expect.any`, `toMatchObject` en los
+specs del change:
 
----
-
-## Casillas vs código
-
-Revisadas `tasks.md` A.1–A.11 y B.1–B.8 contra el código fuente. Sin `TODO`/`stub`/
-`placeholder`/`pendiente`/`not implemented` reales en los archivos del change (dos falsos
-positivos del grep: "Todo lo demás" en un comentario y "intente inyectar" no son marcadores
-de trabajo pendiente).
-
-- A.1–A.7, A.10: verificado el código, coincide con lo descrito.
-- **A.8, A.9, A.11: marcadas `[x]` afirmando D3 cerrado — CRITICAL 1 arriba muestra que no lo
-  está.** Esta es la casilla incorrecta de esta ronda; ninguna otra se encontró marcada sobre
-  trabajo no hecho.
-- B.1–B.8: verificado, coincide (B.5 correctamente destildada y marcada como diferida a F4,
-  consistente con la ronda 4).
-
----
-
-## Spec Compliance Matrix
-
-| Requirement | Scenario | Test | Result |
+| Archivo:línea | Aserción | Contrato exige igualdad? | Veredicto |
 |---|---|---|---|
-| El alta no revela si un correo ya está registrado | Correo nuevo | `registration-flow.e2e-spec.ts > REG.1` | ✅ COMPLIANT |
-| El alta no revela si un correo ya está registrado | Correo existente — respuesta idéntica en cuerpo | `registration-flow.e2e-spec.ts > REG.2` | ❌ **FAILING** |
-| El alta no revela si un correo ya está registrado | Sin cuenta duplicada | `registration-flow.e2e-spec.ts > REG.2` (parte de conteo) | ✅ COMPLIANT (esta sub-aserción pasa) |
-| El alta no revela si un correo ya está registrado | Aviso al titular | `auth.register.spec.ts` (unitario, mockea `notifyExistingAccountAttempt`) | ⚠️ PARTIAL (sólo unitario, sin e2e que confirme el envío real) |
-| El alta no revela si un correo ya está registrado | Tiempos comparables | `auth.register.spec.ts > D3: el camino "correo existente" también invoca passwordHasher.hash` | ✅ COMPLIANT |
-| El alta está limitada en tasa | Ráfaga por IP / por correo / aislada | `auth.register.spec.ts` (unitario, clock fake) | ⚠️ PARTIAL (sin e2e dedicado, no bloqueante — fuera del alcance de esta ronda) |
-| El rol es constante del servidor (D1) | Payload con `role`/`permissions`/`organization_id` | `registration-flow.e2e-spec.ts > REG.3` | ✅ COMPLIANT |
-| `EmailVerifiedGuard` exige verificación salvo staff/anónimo | Todos los casos | `email-verified-guard.e2e-spec.ts` (6 tests) + `email-verified.guard.spec.ts` (8 tests, incluye Fix 10) | ✅ COMPLIANT |
+| `auth.register.spec.ts:158,176` | ~~`toMatch`~~ → ahora `toBe(CONSTANTE)` | Sí (D3, mensaje indistinguible) | ✅ Corregida, ya no es parcial |
+| `auth.register.spec.ts:99,135` | `objectContaining({...})` sobre el payload de `userRepo.save` | No — el test verifica sólo `roleId`/`permissions`/`email`, complementado en la misma prueba con `.mock.calls[0][0].roleId` y `.not.toContain('*')` puntuales | Legítima — no hay contrato de igualdad total sobre el objeto guardado |
+| `auth.register.spec.ts:235` | `toMatchObject({ success: true })` | No — el test es "una alta aislada no se ve afectada" por rate limit, sólo le importa `success` | Legítima |
+| `auth.register.spec.ts:249` | `toThrow(/12 characters/)` | No — mensaje de error de terceros (password policy), no un contrato de D3 | Legítima |
+| `backend/test/e2e/registration-flow.e2e-spec.ts:43` | `toMatch(/te enviamos un mensaje/)` (REG.1) | No — REG.1 es el camino feliz; el contrato de igualdad D3 lo exige el **otro** test | Legítima — REG.2 (`:86`, `toEqual(first.body)`) es el que sí impone igualdad total, y lo hace correctamente |
+| `email-verified.guard.spec.ts:78,94,126,137` | `toMatchObject({...})` sobre excepciones HTTP | No — el contrato del guard exige código+razón de error, cubiertos explícitamente por campo, no forma completa de la excepción | Legítima |
+| `register.component.spec.ts:140` | `toMatch(/Demasiados intentos/)` | No — mensaje de UI para 429, sin contrato de igualdad en el spec | Legítima |
+| `verify-email.component.spec.ts:65,70` | `toContain('...')` sobre `textContent` | No — verificación de contenido visible, no de forma de respuesta HTTP | Legítima |
+| `auth.controller.spec.ts` | (sin hallazgos de `toMatch`/`toContain`/`objectContaining` relevantes) | — | — |
 
-**Compliance summary**: 5/8 escenarios listados plenamente compliant, 1 failing (bloqueante), 2 parciales (no bloqueantes).
+**Conclusión de la Sección 2**: la única aserción parcial que masking-eaba un contrato de
+igualdad explícito del spec (D3) era exactamente `auth.register.spec.ts:155,172` en su
+versión pre-Fix-12, y ya se corrigió. El resto de coincidencias de patrón son legítimas:
+verifican subconjuntos de datos donde el requirement correspondiente no exige igualdad
+total. No encontré una nueva instancia de "la clase de defecto" sin cerrar.
 
 ---
 
-### Coherence (Design)
+## 3. Deuda D1–D5
 
-| Decisión | ¿Seguida? | Notas |
+| Ítem | Estado | Evidencia |
 |---|---|---|
-| D1 — rol constante del servidor | ✅ Sí | Verificado por e2e real (REG.1, REG.3) y mutación. |
-| D2 — verificación no bloquea login, sólo publicar | ✅ Sí | `EmailVerifiedGuard` sólo en métodos POST de incidents/comments. |
-| D3 — respuesta indistinguible | ❌ **No** | CRITICAL 1. El código implementa la intención en el status HTTP y en la ausencia de cuenta duplicada, pero no en el texto del `message`. |
-| D4 — rate limit por IP y correo | ✅ Sí | Verificado por unitarios con clock fake; sin e2e dedicado (no bloqueante). |
-| D9 — igualación de tiempo | ✅ Sí | `DUMMY_PASSWORD_FOR_TIMING`, verificado por TDD en ronda 2. |
+| **D1** — e2e dedicado del caso anónimo en `email-verified-guard.e2e-spec.ts` | **Sigue abierto.** No se agregó. | `grep -n "it("` sobre el archivo lista 7 tests; ninguno menciona `isAnonymous` ni dispositivo anónimo. No bloqueante — la regresión real la cubre el unitario `email-verified.guard.spec.ts` (rama `isAnonymous`). |
+| **D2** (`.js` heredado) | **Cerrado, confirmado.** | `find frontend/src -iname "*verify-email*"` sólo devuelve `.ts/.html/.css/.spec.ts`; no hay `.js` heredado. |
+| **D3** (casilla A.6, guard) | **Cerrado, confirmado.** | `email-verified.guard.ts` mantiene el allow-list exhaustivo (Fix 5) + exención `isAnonymous` (Fix 10); `email-verified.guard.spec.ts` 7/7 y `email-verified-guard.e2e-spec.ts` 7/7 PASS en la corrida de esta ronda. |
+| **D4** — `apply-progress.md` sin entradas de rondas 5-8 | **Sigue abierto.** | El archivo (252 líneas) termina en la narrativa de "Ronda 4"; nada documenta Fix 9, 10, 11 ni 12. Deuda de trazabilidad que se acumula en un change que ya se archivó por error una vez — WARNING, no bloqueante por sí solo. |
+| **D5** — composer del OTP diferido a F4 | **Sigue anotado con claridad.** | `tasks.md` B.6 documenta explícitamente que `verify-otp`/`resend-verification` exigen JWT y el alta pública no lo emite; `verify-email.component.spec.ts:68` etiqueta el mensaje de sesión activa como "composer queda como placeholder F4". |
+
+---
+
+## 4. Casillas de `tasks.md` contra el código
+
+- **A.8, A.9, A.11** — afirman que la respuesta es indistinguible. **Ahora es cierto** (ver
+  Sección 1): los tres `return` usan la misma constante, y los dos specs unitarios lo
+  verifican con `toBe`, no con regex parcial. No hace falta destildar nada.
+- Búsqueda de `TODO|stub|placeholder|pendiente|not implemented` en el árbol del change:
+  sólo aparecen menciones documentales legítimas ("F4-placeholder" en B.6, un comentario en
+  el guard que no es marcador de trabajo pendiente). No hay trabajo sin hacer marcado como
+  hecho.
+- El bloque **"Estado de gates"** al final de `tasks.md` (líneas 201-208) sigue con los
+  números de la **ronda 2** (99/99 suites backend, 902 tests; 42/42 frontend, 298 tests) —
+  no se actualizaron tras las rondas 6-8, que subieron a 100/100 · 911 y 44/44 · 305
+  respectivamente. No es un defecto funcional, pero en un change auditado bajo la hipótesis
+  de "se marcó hecho sin haber corrido", una sección de gates desactualizada es exactamente
+  el tipo de dato que invita a confiar sin verificar. **WARNING**, no bloqueante.
+
+---
+
+## 5. Compuertas ejecutadas (evidencia real, no leída)
+
+### Backend (`backend/`)
+| Compuerta | Resultado |
+|---|---|
+| `pnpm install --frozen-lockfile` | exit 0 |
+| `pnpm run lint` | exit 0 — **0 errores, 19 warnings** (preexistentes, `no-explicit-any` en specs no tocados por REG) |
+| `pnpm run typecheck` (`tsc --noEmit -p tsconfig.json`) | exit 0 |
+| `pnpm run build` (`nest build`) | exit 0 |
+| `pnpm test` (unitarios, `npx jest`) | **100/100 suites, 911/911 tests** PASS |
+| e2e completo (`npx jest --config ./test/jest-e2e.json --runInBand`, 50 archivos) | **50/50 suites, 440/440 tests** PASS, **0 fallos** (bajó de 1 fallo en ronda 7 a 0) |
+| `registration-flow.e2e-spec.ts` aislado | 3/3 PASS (REG.1, REG.2, REG.3) — incluido en la corrida completa |
+| `email-verified-guard.e2e-spec.ts` | 7/7 PASS — incluido en la corrida completa |
+
+### Frontend (`frontend/`)
+| Compuerta | Resultado |
+|---|---|
+| `pnpm install --frozen-lockfile` | exit 0 |
+| `pnpm test` | **44/44 suites, 305/305 tests** PASS |
+| `pnpm run build` | exit 0, bundle ~4.4s |
+| `npx tsc -b --noEmit` | **19 errores** — mismos archivos y códigos que la ronda 7 (déficit sistémico de tipos Node en specs: `fs`, `path`, `__dirname`, `__filename` no declarados para el entorno de test), **no creció** |
+| `pnpm run lint` | No existe (gap preexistente documentado en `tasks.md:208`, no de REG) |
+
+### Árbol de trabajo
+`git status --short` antes y después de todas las corridas: sin cambios en archivos del
+change REG. El único archivo mutado (`auth.register.ts`, para la Sección 1) se restauró
+desde `.bak` y se confirmó `git diff --stat` vacío antes de continuar.
+
+**Ninguna compuerta se leyó sin correr.**
+
+---
+
+## 6. Compliance Matrix (extracto — requirement de no-revelación)
+
+| Requirement | Scenario | Test | Resultado |
+|---|---|---|---|
+| El alta no revela si un correo ya está registrado | Correo nuevo | `auth.register.spec.ts > D3: con correo nuevo...` (unit) + `registration-flow.e2e-spec.ts > REG.1` (e2e) | ✅ COMPLIANT |
+| El alta no revela si un correo ya está registrado | Correo existente, misma forma | `auth.register.spec.ts > D3: con correo existente...` (unit, `toBe`) + `registration-flow.e2e-spec.ts > REG.2` (e2e, `toEqual(first.body)`) | ✅ COMPLIANT |
+| El alta no revela si un correo ya está registrado | Sin cuenta duplicada | `registration-flow.e2e-spec.ts > REG.2` (conteo en BD) | ✅ COMPLIANT |
+| El alta no revela si un correo ya está registrado | Aviso al titular | `auth.register.spec.ts > D3: con correo existente...` (`notifyExistingAccountAttempt` llamado) | ✅ COMPLIANT |
+| El alta no revela si un correo ya está registrado | Tiempos comparables | `auth.register.spec.ts > D3: el camino "correo existente" también invoca passwordHasher.hash` | ✅ COMPLIANT (estructural — no hay medición de latencia real, aceptado desde ronda 1) |
+| El rol es constante del servidor (D1) | Payload sucio no escala privilegios | `auth.register.spec.ts > A.5` + `registration-flow.e2e-spec.ts > REG.3` (400) | ✅ COMPLIANT |
+| Verificación de correo requerida para publicar | Publicar sin verificar → 403 | `email-verified.guard.spec.ts` + `email-verified-guard.e2e-spec.ts` | ✅ COMPLIANT |
+| Verificación de correo requerida para publicar | Dispositivo anónimo exento | `email-verified.guard.spec.ts` (unit, rama `isAnonymous`) | ⚠️ PARTIAL — sin e2e dedicado (D1, no bloqueante) |
 
 ---
 
 ## Issues Found
 
-**CRITICAL** (must fix before archive):
-1. CRITICAL 1 — `backend/src/modules/auth/auth.register.ts:159-162` vs `:234-236`/`:182-184`
-   — el `message` de la respuesta distingue correo existente de correo nuevo, violando D3 y
-   el requirement de no-revelación de `specs/citizen-registration/spec.md:46-53`. Confirmado
-   por ejecución real (`registration-flow.e2e-spec.ts > REG.2` falla). `tasks.md` A.8/A.9/A.11
-   afirman lo contrario.
+**CRITICAL** (must fix before archive): **None.**
 
-**WARNING** (should fix):
-1. `apply-progress.md` sin entradas de las rondas 5, 6 y 7 (D4, arrastrada). Rompe la cadena
-   de auditoría de un change que ya se archivó por error una vez.
-2. `frontend`: `npx tsc -b --noEmit` en 19 errores (sin crecer desde la ronda 6), 5 de ellos
-   en `app.routes.verify-email.spec.ts` por falta de tipos de Node (`fs`/`path`/`__dirname`).
-   No es gate de CI pero es deuda de REG, documentada, no creciente.
-3. `auth.register.spec.ts:155,172` usa `.toMatch(regex parcial)` en vez de comparar el
-   mensaje completo — es el mecanismo que enmascaró CRITICAL 1 durante 6 rondas. Aun después
-   de corregir el mensaje, esta aserción débil debería reforzarse para no volver a enmascarar
-   una futura regresión del mismo tipo.
-4. D1 (ronda 5/6) sigue sin su test e2e dedicado en `email-verified-guard.e2e-spec.ts`; la
-   cobertura del camino anónimo sigue siendo incidental.
+**WARNING** (should fix, no bloqueante):
+1. `tasks.md:201-208` — sección "Estado de gates" con números de la ronda 2, no
+   actualizados tras las rondas 6-8. Riesgo: invita a confiar en un dato desactualizado en
+   un change ya marcado por auditar-antes-de-confiar.
+2. `apply-progress.md` (D4) — sin entradas para las rondas 5, 6, 7 y 8 (Fix 9-12). Rompe la
+   cadena de auditoría de un change que ya se archivó por error una vez.
+3. `email-verified-guard.e2e-spec.ts` (D1) — falta el caso e2e dedicado al dispositivo
+   anónimo. La regresión real está cubierta por unitario; el hueco es de cobertura e2e
+   explícita, no de comportamiento.
 
 **SUGGESTION** (nice to have):
-1. Tipar los parámetros `(l) => …` en `app.routes.verify-email.spec.ts` como `string` para
-   eliminar 2 de los 19 errores de `tsc -b`.
-2. Considerar `@types/node` en el tsconfig de test del frontend para no seguir acumulando
-   este patrón en specs nuevos.
-3. Cuando F4 implemente el composer real del OTP, revisar si el mensaje único post-fix de
-   CRITICAL 1 sigue siendo apropiado para la UX (D3 acepta el costo de UX a cambio de no
-   revelar cuentas — el mensaje unificado debería mantener ese balance).
+1. Los 19 errores de `tsc -b --noEmit` en frontend (déficit de tipos Node en archivos de
+   test) son un gap sistémico preexistente, no de REG, pero sería razonable abrir un ticket
+   aparte para agregar `@types/node` a `tsconfig.spec.json` y bajar el ceiling en vez de
+   mantenerlo como línea base aceptada.
 
 ---
 
-## Verdict
+## ¿Se puede archivar?
 
-**FAIL**
+**Sí.** Con evidencia ejecutada, no leída:
+- Fix 12 cerrado en código (3/3 retornos con la constante) y en test (2/2 unitarios con
+  `toBe`, más el e2e con `toEqual` de cuerpo completo) — confirmado por `git diff` de la
+  commit y por mutación real que el propio unitario detecta la regresión.
+- Backend: lint 0 errores, typecheck exit 0, build exit 0, 100/100 unit suites (911 tests),
+  **50/50 e2e suites (440/440 tests, 0 fallos)** — el fallo de la ronda 7 desapareció.
+- Frontend: 44/44 suites (305 tests), build exit 0, tsc -b 19 errores sin crecer.
+- Deuda D1 y D4 sigue abierta pero es no-bloqueante y estaba ya así clasificada en rondas
+  previas; no hay evidencia de que oculte un defecto de comportamiento.
+- Árbol de trabajo verificado limpio antes y después de la auditoría (sólo archivos de ANON,
+  fuera de alcance, permanecen sin commitear).
 
-Fix 11 se cerró correctamente y cumplió su propósito: destapó un defecto de seguridad real
-(D3 violado) que las 6 rondas anteriores no vieron porque nada corría la prueba correcta.
-El change no puede archivarse hasta que CRITICAL 1 se corrija y se reverifique por ejecución
-real (no basta con leer que el mensaje "se ve" igual).
+No queda ningún CRITICAL abierto. `fixes-required.md` se elimina en esta ronda.
