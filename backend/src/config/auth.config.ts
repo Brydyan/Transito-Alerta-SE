@@ -57,7 +57,12 @@ export function parseDurationSeconds(value: string): number {
  *
  * - Dual JWT secrets (access/refresh) per design D2.
  * - Anonymous identity ceiling (device_uuid='anonymous') per blocker
- *   resolution #4: read what the public posted and contribute to it, never
+ * - Anonymous identity ceiling (device_uuid='anonymous'). ANON (sc-327):
+ *   la identidad anónima NO concede nada. El reporte sin sesión se cerró
+ *   por decisión de producto del 2026-09-02 (ver
+ *   `openspec/changes/back/2026-09-02-anon-close-anonymous-reporting`).
+ *   La lista queda vacía: el getter en `AuthService` la retorna tal
+ *   cual, y `getAuthContextByUserId` la usa para la fila máscara.
  *   modify. READ/CREATE incidents, READ/CREATE comments — no UPDATE, DELETE
  *   or ASSIGN, not even over its own rows.
  */
@@ -72,12 +77,11 @@ export default registerAs('auth', (): AuthConfig => {
       ? parseInt(process.env.PERMISSION_CACHE_TTL_SECONDS, 10)
       : 3600,
     anonymousDeviceUuid: 'anonymous',
-    anonymousPermissions: [
-      'READ incidents',
-      'CREATE incidents',
-      'READ comments',
-      'CREATE comments',
-    ],
+    // ANON (sc-327) — la lista está VACÍA. La identidad anónima ya
+    // no concede nada; cualquier ruta que la use devuelve `[]` y
+    // falla el `PermissionGuard`. La invariante la cubre el spec
+    // `auth.config.spec.ts` (B.5 + B.6): el techo está cerrado.
+    anonymousPermissions: [],
     sessionRefreshGraceSeconds: process.env.SESSION_REFRESH_GRACE_SECONDS
       ? parseInt(process.env.SESSION_REFRESH_GRACE_SECONDS, 10)
       : 30,

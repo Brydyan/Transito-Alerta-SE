@@ -18,6 +18,7 @@ import {
 import type { Response } from 'express';
 
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { EmailVerifiedGuard } from '../../common/guards/email-verified.guard';
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -63,6 +64,7 @@ export class IncidentsController {
   ) {}
 
   @Post()
+  @UseGuards(EmailVerifiedGuard)
   @RequirePermission('CREATE')
   create(
     @Body() dto: CreateIncidentDto,

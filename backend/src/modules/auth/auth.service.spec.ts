@@ -21,12 +21,11 @@ function makeAuthConfig() {
     jwtRefreshExpiresIn: '7d',
     permissionCacheTtlSeconds: 3600,
     anonymousDeviceUuid: 'anonymous',
-    anonymousPermissions: [
-      'READ incidents',
-      'CREATE incidents',
-      'READ comments',
-      'CREATE comments',
-    ],
+    // ANON (sc-327) — la lista está vacía. El reporte sin sesión
+    // se cerró. Si la mock no se actualizara, los tests que pasan
+    // por la rama "anonymous device" verían un techo obsoleto y
+    // falsearían verde la rama crítica.
+    anonymousPermissions: [],
     sessionRefreshGraceSeconds: 30,
     sessionRefreshTtlSeconds: 604800,
   };
@@ -151,35 +150,45 @@ describe('AuthService', () => {
       await expect(service.login('device-abc')).rejects.toThrow('DB down');
     });
 
-    it('grants the anonymous permission ceiling for device_uuid="anonymous" (triangulation)', async () => {
-      const anonUser: Partial<UserEntity> = { id: 'anon-id', deviceUuid: 'anonymous', permissions: [] };
-      userRepo.findOne.mockResolvedValue(anonUser);
-      cache.get.mockResolvedValue(undefined);
-      jwtService.sign.mockReturnValueOnce('access2').mockReturnValueOnce('refresh2');
-
-      const result = await service.login('anonymous');
-
-      expect(result.permissions).toEqual([
-        'READ incidents',
-        'CREATE incidents',
-        'READ comments',
-        'CREATE comments',
-      ]);
+    // ANON (sc-327) — la identidad anónima ya no puede iniciar
+    // sesión. El reporte requiere `reporter` autenticado con
+    // verificación de email (REG sc-325). El login con
+    // `device_uuid = 'anonymous'` se rechaza con 401
+    // `ANONYMOUS_IDENTITY_CLOSED` antes de tocar la BD. La rama
+    // completa de "anonymous grants" del round 0 desaparece
+    // porque la capacidad se retiró a propósito.
+    it('ANON: rejects device_uuid="anonymous" with 401 ANONYMOUS_IDENTITY_CLOSED (no BD, no token)', async () => {
+      await expect(service.login('anonymous')).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'ANONYMOUS_IDENTITY_CLOSED' },
+      });
+      // La BD NO se toca (no se busca ni se crea la fila
+      // anónima — el rechazo es anterior).
+      expect(userRepo.findOne).not.toHaveBeenCalled();
+      expect(userRepo.save).not.toHaveBeenCalled();
+      // No se emite token de acceso ni de refresco.
+      expect(jwtService.sign).not.toHaveBeenCalled();
     });
 
-    it('an anonymous login mints tokens with no sid and creates no session row', async () => {
-      const anonUser: Partial<UserEntity> = { id: 'anon-id', deviceUuid: 'anonymous', permissions: [] };
-      userRepo.findOne.mockResolvedValue(anonUser);
+    it('ANON: device_uuid no anónimo sigue su camino habitual (no se rompe la rama de device-identity)', async () => {
+      // Distinción quirúrgica del proposal §"Alcance quirúrgico":
+      // la decisión cierra `device_uuid === 'anonymous'`, NO la
+      // forma de credencial `{device_uuid}` ni los demás
+      // dispositivos. Este test afirma que el resto del flujo
+      // device-uuid no se ve afectado.
+      const realDeviceUser: Partial<UserEntity> = {
+        id: 'device-user',
+        deviceUuid: 'device-abc',
+        permissions: [],
+        isActive: true,
+      };
+      userRepo.findOne.mockResolvedValue(realDeviceUser);
       cache.get.mockResolvedValue(undefined);
-      jwtService.sign.mockReturnValueOnce('access2').mockReturnValueOnce('refresh2');
+      jwtService.sign.mockReturnValueOnce('access-x').mockReturnValueOnce('refresh-x');
 
-      await service.login('anonymous');
-
-      expect(sessionsRepository.create).not.toHaveBeenCalled();
-      const accessPayload = jwtService.sign.mock.calls[0][0];
-      const refreshPayload = jwtService.sign.mock.calls[1][0];
-      expect(accessPayload.sid).toBeUndefined();
-      expect(refreshPayload.sid).toBeUndefined();
+      const result = await service.login('device-abc');
+      expect(result.access_token).toBe('access-x');
+      expect(result.refresh_token).toBe('refresh-x');
     });
   });
 
@@ -615,14 +624,28 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
     });
   });
 
-  // The anonymous branch cannot short-circuit BEFORE the query on the uid
-  // path (design "Correction to the proposal's wording") — userId alone
-  // does not reveal the device. device_uuid is loaded, THEN checked.
-  it('anonymous device_uuid forces the anonymous ceiling, public scope, and isAnonymous=true', async () => {
+  // ANON (sc-327) — la rama "anonymous grants" del round 0
+  // desaparece. La decisión de producto cierra la identidad
+  // anónima: un usuario con `device_uuid = 'anonymous'` no puede
+  // iniciar sesión, y `getAuthContextByUserId` con un id que
+  // pertenece a la fila máscara ya no devuelve permisos — el
+  // `anonymousPermissions` queda vacío (B.1) y la fila máscara
+  // tiene `permissions = []` en BD (B.2).
+  //
+  // Mantener un test que afirma el viejo comportamiento sería
+  // mentir sobre el estado del código. La regla del round 0
+  // ("el anonymous grants el ceiling público") se invierte a
+  // ("el anonymous grants la lista vacía") — el spec cambia de
+  // forma paralela al código.
+  it('ANON: getAuthContextByUserId for the anonymous row now returns an empty permission set', async () => {
     cache.get.mockResolvedValue(undefined);
     dataSource.query.mockResolvedValue([
       {
-        permissions: ['UPDATE incidents'], // ignored for anonymous — DB row's own permissions never apply
+        // ANON B.2 — la fila máscara tiene `permissions = []` en BD
+        // (la migración 0048 vacía la denormalización que 0008 había
+        // populado). El cache hit en producción debería reflejar
+        // el mismo estado; el test pasa por la rama sin cache.
+        permissions: [],
         organization_id: null,
         device_uuid: 'anonymous',
         role_name: null,
@@ -631,12 +654,12 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
 
     const ctx = await service.getAuthContextByUserId('anon-row-id');
 
-    expect(ctx.permissions).toEqual([
-      'READ incidents',
-      'CREATE incidents',
-      'READ comments',
-      'CREATE comments',
-    ]);
+    // Sin permisos. El resto del shape (organizationId, roleName,
+    // scope, isAnonymous, sessionId) se mantiene porque otras
+    // rutas (AUD) leen la fila para distinguir el autor anónimo
+    // de un `reporter` autenticado. El comportamiento de
+    // ANON es quitar GRANT, no ELIMINAR la identidad.
+    expect(ctx.permissions).toEqual([]);
     expect(ctx.organizationId).toBeNull();
     expect(ctx.roleName).toBeNull();
     expect(ctx.scope).toEqual({ kind: 'public' });
@@ -748,7 +771,12 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
     expect(permissions).toEqual(['READ incidents', 'UPDATE incidents']);
   });
 
-  it('grants the anonymous ceiling when the id resolves to the anonymous device', async () => {
+  // ANON (sc-327) — la decisión de producto cierra la identidad
+  // anónima. La fila máscara sigue existiendo (AUD la recicla
+  // como autoría de publicaciones), pero ya no concede permisos.
+  // Antes (round 0) este test afirmaba el techo de los 4 — la
+  // afirmación se invierte: la lista ahora es vacía.
+  it('ANON: getPermissionsByUserId for the anonymous row returns [] (the ceiling is empty)', async () => {
     cache.get.mockResolvedValue(undefined);
     dataSource.query.mockResolvedValue([
       { permissions: [], organization_id: null, device_uuid: 'anonymous', role_name: null },
@@ -756,12 +784,13 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
 
     const permissions = await service.getPermissionsByUserId('anon-row-id');
 
-    expect(permissions).toEqual([
-      'READ incidents',
-      'CREATE incidents',
-      'READ comments',
-      'CREATE comments',
-    ]);
+    // Lista vacía. La fila máscara sigue en BD (migración 0048
+    // NO la borra — AUD la necesita). El "ceiling" es ahora
+    // un piso en el suelo: `getAuthContextByUserId` para el
+    // anonymous row retorna un `AuthContext` con `permissions: []`
+    // y `isAnonymous: true` (la firma del isAnonymous se mantiene
+    // porque AUD la usa para distinguir la autoría).
+    expect(permissions).toEqual([]);
   });
 
   it('returns no permissions for an unknown user id', async () => {

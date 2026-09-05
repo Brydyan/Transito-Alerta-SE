@@ -38,6 +38,15 @@ export interface ProvisionUserOverrides {
   email?: string;
   organizationId?: string | null;
   roleName?: string;
+  /**
+   * REG (sc-325) ronda 4 (Fix 5) — la cuenta provisionada lleva
+   * `email_verified_at` por default para que la suite e2e no se
+   * rompa con la nueva política fail-closed del `EmailVerifiedGuard`
+   * (allow-list de staff; cualquier `roleName` no-staff exige
+   * verificación). El test que SÍ quiere ejercitar el camino
+   * "no verificado" lo setea explícitamente en `false`.
+   */
+  emailVerified?: boolean;
 }
 
 const ANONYMOUS_PERMISSIONS_JSON =
@@ -326,15 +335,26 @@ export class TestEnvironment {
       roleId = rows[0]?.id ?? null;
     }
 
+    // REG (sc-325) ronda 4 (Fix 5) — default a `email_verified_at = now()`
+    // para que la nueva política fail-closed del guard no rompa
+    // los 48 archivos e2e que usan `provisionUser()`. La
+    // convención es: si un test quiere el camino "no verificado"
+    // (rara vez), lo pide explícitamente con
+    // `overrides.emailVerified = false`.
+    const emailVerified = overrides.emailVerified ?? true;
+    const emailVerifiedAt = emailVerified ? new Date() : null;
+
     await this.pg.query(
-      `INSERT INTO users (device_uuid, permissions, is_active, email, organization_id, role_id)
-       VALUES ($1, $2::jsonb, true, $3, $4, $5)`,
+      `INSERT INTO users
+         (device_uuid, permissions, is_active, email, organization_id, role_id, email_verified_at)
+       VALUES ($1, $2::jsonb, true, $3, $4, $5, $6)`,
       [
         deviceUuid,
         JSON.stringify(permissions),
         overrides.email ?? null,
         overrides.organizationId ?? null,
         roleId,
+        emailVerifiedAt,
       ],
     );
 

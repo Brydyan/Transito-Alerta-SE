@@ -5,12 +5,14 @@ import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { UserEntity } from '../../entities/user.entity';
+import { RoleEntity } from '../../entities/role.entity';
 import { AuthConfig } from '../../config/auth.config';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { MailModule } from '../mail/mail.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AuthRegisterService } from './auth.register';
 import { EmailVerificationController } from './email-verification.controller';
 import { EmailVerificationService } from './email-verification.service';
 import { JwtStrategy } from './jwt.strategy';
@@ -39,7 +41,10 @@ import { PasswordResetService } from './password-reset.service';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity]),
+    // REG (sc-325) — el alta pública busca el rol `reporter` en
+    // `roles` por nombre. La entidad `RoleEntity` ya se importa
+    // en otros módulos; añadirla acá es explícito.
+    TypeOrmModule.forFeature([UserEntity, RoleEntity]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -56,9 +61,17 @@ import { PasswordResetService } from './password-reset.service';
     MailModule,
   ],
   controllers: [AuthController, EmailVerificationController],
-  providers: [AuthService, JwtStrategy, PasswordHasher, PasswordResetRepository, PasswordResetService, EmailVerificationService],
+  providers: [
+    AuthService,
+    AuthRegisterService,
+    JwtStrategy,
+    PasswordHasher,
+    PasswordResetRepository,
+    PasswordResetService,
+    EmailVerificationService,
+  ],
   // JwtModule is exported so the globally-registered RateLimiterGuard can
   // verify access tokens and key limits per authenticated user.
-  exports: [AuthService, JwtModule],
+  exports: [AuthService, AuthRegisterService, JwtModule],
 })
 export class AuthModule {}

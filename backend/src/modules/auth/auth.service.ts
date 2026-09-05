@@ -81,6 +81,27 @@ function invalidCredentialsError(): UnauthorizedException {
 }
 
 /**
+ * ANON (sc-327) — error específico del rechazo del device_uuid
+ * anónimo. Distinguible del `INVALID_CREDENTIALS` genérico:
+ *  - código: `ANONYMOUS_IDENTITY_CLOSED`.
+ *  - mensaje: «El reporte anónimo sin sesión ya no está disponible.
+ *    Registrate primero para reportar.» — accionable para un
+ *    cliente antiguo.
+ *
+ * El cliente antiguo puede mostrarle al usuario un mensaje útil
+ * en vez de un «credenciales inválidas» que lo deja sin pista.
+ * La constante se reexporta en `auth-errors.ts` (al final de este
+ * archivo) para que controller y specs la consuman.
+ */
+function anonymousIdentityClosedError(): UnauthorizedException {
+  return new UnauthorizedException({
+    code: ANONYMOUS_IDENTITY_CLOSED,
+    message:
+      'El reporte anónimo sin sesión ya no está disponible. Registrate primero para reportar.',
+  });
+}
+
+/**
  * AuthService — device-UUID identity + email/password identity (T3.6) +
  * dual JWT + Redis-cached permissions + session lifecycle (T3.9).
  * Implements D1 (identity spectrum), D2 (permissions in Redis, not JWT
@@ -132,6 +153,22 @@ export class AuthService {
   async login(deviceUuid: string, meta: RequestMeta = { ip: null, userAgent: null }): Promise<AuthTokens> {
     if (!deviceUuid || !deviceUuid.trim()) {
       throw new UnauthorizedException('device_uuid is required');
+    }
+
+    // ANON (sc-327) — decisión de producto 2026-09-02: la identidad
+    // anónima ya no puede iniciar sesión. Se rechaza con 401
+    // explícito ANTES de tocar la BD (no se crea fila, no se
+    // emite token, no se crea sesión). Distinguible del error
+    // genérico de credenciales: un cliente antiguo debe poder
+    // mostrarle al usuario que la ruta del reporte sin sesión se
+    // cerró, no que las credenciales son inválidas.
+    //
+    // El rechazo es quirúrgico (proposal §"Alcance quirúrgico"):
+    // sólo `device_uuid === 'anonymous'` se cierra. Otros
+    // device_uuid autenticados siguen su camino habitual
+    // (rama `else` que crea la fila si no existe y emite sesión).
+    if (deviceUuid === this.authConfig.anonymousDeviceUuid) {
+      throw anonymousIdentityClosedError();
     }
 
     let user = await this.userRepo.findOne({ where: { deviceUuid } });
@@ -630,3 +667,35 @@ export class AuthService {
     });
   }
 }
+
+/**
+ * REG (sc-325) — D1 del design: el alta pública es el único
+ * camino que NO va por invitación. Devuelve SIEMPRE el mismo
+ * body para correos nuevos y existentes (D3 del design — sin
+ * oráculo de existencia), y fija el rol `reporter` en el
+ * servidor. El DTO no acepta campos de rol; si el cliente los
+ * manda, se ignoran (class-validator con `whitelist: true` +
+ * `forbidNonWhitelisted` los rechazaría antes de llegar acá,
+ * pero la defense-in-depth sigue aplicando: el método
+ * resuelve el rol por nombre, no por lo que diga el DTO).
+ *
+ * `RequestMeta` se usa para audit; no es relevante para la
+ * decisión de éxito/error (D3: indistinguible).
+ *
+ * El bloque de tipos `RegisterInput`/`RegisterResult`/`RegisterDeps`
+ * que estaba aquí fue el scaffold de un primer intento de meter el
+ * alta dentro de `AuthService`. Fue reemplazado por
+ * `AuthRegisterService` en `auth.register.ts` (REG, sc-325). El
+ * controller importa las clases desde el service nuevo; nada en
+ * el código vivo depende de estas declaraciones. Se eliminaron
+ * en la ronda 2 del fix (W2 del verify) porque el lint las marcaba
+ * como `no-unused-vars`.
+ */
+
+/**
+ * ANON (sc-327) — código de error que `anonymousIdentityClosedError()`
+ * emite. Reexportado para que controller, specs y clientes no
+ * repitan el string literal (mismo patrón que las otras constantes
+ * de `auth-errors.ts`).
+ */
+const ANONYMOUS_IDENTITY_CLOSED = 'ANONYMOUS_IDENTITY_CLOSED';

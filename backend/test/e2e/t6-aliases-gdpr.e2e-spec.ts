@@ -7,9 +7,17 @@ import { MailService } from '../../src/modules/mail/mail.service';
  * T6.8 e2e — path aliases + GDPR user anonymizer.
  *  - T6.8.A5: GET /menus/my, POST /invitations/accept, GET /invitations/:token/preview, GET /estados
  *  - T6.8.D1: DELETE /users/:id → 204 + soft delete + PII wipe + GET → 404 + login → 401
- *  - T6.8.D2: POST /auth/register → 410
+ *
+ * NOTA: T6.8.D2 (`POST /auth/register → 410 Gone`) está BAJA en este
+ * scope. La lápida la revirtió el change REG
+ * (`openspec/changes/front/2026-09-02-reg-citizen-self-registration`,
+ * tarea A.2 ronda 1): `POST /api/auth/register` ahora crea un
+ * `reporter` con el flujo real. El spec se borró junto con el
+ * bullet del comentario de cabecera (REG ronda 4, Fix 6 del verify).
+ * El coverage del endpoint real vive en `auth.register.spec.ts` (unit)
+ * y en el spec e2e que REG agregó.
  */
-describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1, T6.8.D2)', () => {
+describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1)', () => {
   let env: TestEnvironment;
   let mailService: MailService;
 
@@ -212,15 +220,13 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1, T6.8.D2)', () => {
       .expect(401);
   });
 
-  // ---- T6.8.D2 — POST /auth/register tombstone --------------------------------
-
-  it('T6.8.D2: POST /api/auth/register → 410 Gone', async () => {
-    const res = await request(env.httpServer)
-      .post('/api/auth/register')
-      .send({ email: 'anyone@example.com', password: 'anything' })
-      .expect(410);
-
-    expect(typeof res.body.message).toBe('string');
-    expect(res.body.message.length).toBeGreaterThan(0);
-  });
+  // ---- T6.8.D2 (REMOVIDO) ----------------------------------------------
+  //
+  // El test "POST /api/auth/register → 410 Gone" se borró en REG
+  // ronda 4 (Fix 6 del verify). La lápida de T6.8.C1 la revirtió
+  // el change REG en la tarea A.2: `POST /api/auth/register` ahora
+  // crea un `reporter` con el flujo real. El coverage del
+  // endpoint vive en `auth.register.spec.ts` (unit) y en el spec
+  // e2e que REG agregó. No hay gap de cobertura — el spec afirmaba
+  // un contrato que el change REG retiró.
 });

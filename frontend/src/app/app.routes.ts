@@ -14,6 +14,18 @@ export const routes: Routes = [
       import('./features/auth/login/login.component').then((m) => m.LoginComponent),
     canActivate: [guestGuard],
   },
+  // REG (sc-325) — primera ruta alcanzable sin sesión (D5).
+  // `guestGuard` redirige al dashboard si el visitante ya tiene
+  // sesión, igual que la ruta de login. Vive FUERA del árbol
+  // `/app` (que está bajo `authGuard`).
+  {
+    path: 'registro',
+    loadComponent: () =>
+      import('./features/auth/register/register.component').then(
+        (m) => m.RegisterComponent,
+      ),
+    canActivate: [guestGuard],
+  },
   // SC-207 — invitation token acceptance (replaces the dead
   // /auth/register flow). Token arrives out-of-band (typically via
   // email) as `?token=…`. Deliberately NO guestGuard: an already
