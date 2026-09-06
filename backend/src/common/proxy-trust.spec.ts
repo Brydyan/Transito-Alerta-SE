@@ -72,6 +72,22 @@ describe('isTrustedProxyAddress (MAIL G.1/G.2/G.3)', () => {
       expect(isTrustedProxyAddress('::1')).toBe(false);
       expect(isTrustedProxyAddress('2001:db8::1')).toBe(false);
     });
+
+    it('IPv4-mapped IPv6 (::ffff:127.0.0.1) SÍ es de confianza (G.4 — Node dual-stack)', () => {
+      // Node resuelve una conexión TCP entrante en
+      // `::ffff:127.0.0.1` cuando el socket está en modo
+      // dual-stack. Sin el strip del prefijo, la función
+      // devolvería `false` y el `trust proxy` quedaría
+      // inactivo — todos los clientes compartirían la
+      // misma IP para el rate limit. La defensa está en
+      // `isTrustedProxyAddress`.
+      expect(isTrustedProxyAddress('::ffff:127.0.0.1')).toBe(true);
+      expect(isTrustedProxyAddress('::ffff:10.0.0.5')).toBe(true);
+      expect(isTrustedProxyAddress('::ffff:192.168.1.1')).toBe(true);
+      // IPv4-mapped de una IP pública sigue siendo
+      // pública: el strip no cambia la política.
+      expect(isTrustedProxyAddress('::ffff:1.2.3.4')).toBe(false);
+    });
   });
 });
 

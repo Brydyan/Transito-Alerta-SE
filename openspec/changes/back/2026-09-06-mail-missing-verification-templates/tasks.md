@@ -10,10 +10,10 @@ existan deja el proyecto sin compilar.
 
 ## A · Las dos plantillas
 
-- [ ] **A.1** — Añadir `'email_verification'` y `'existing_account_attempt'` a la unión
+- [x] **A.1** — Añadir `'email_verification'` y `'existing_account_attempt'` a la unión
   `TemplateName` en `backend/src/modules/mail/templates/mail-templates.ts`.
 
-- [ ] **A.2** — Añadir sus dos funciones al registro `TEMPLATES`, en el mismo archivo.
+- [x] **A.2** — Añadir sus dos funciones al registro `TEMPLATES`, en el mismo archivo.
 
   `email_verification` recibe `{ otp, expiresMinutes }`. El cuerpo muestra el código y los
   minutos de vigencia.
@@ -36,7 +36,7 @@ existan deja el proyecto sin compilar.
   de plantillas de cadena con datos crudos: es el requisito R13 y la razón por la que este
   módulo no usa un motor de plantillas.
 
-- [ ] **A.3** — Ayudantes de formato para el aviso, en el módulo de correo. Sin
+- [x] **A.3** — Ayudantes de formato para el aviso, en el módulo de correo. Sin
   dependencias nuevas (D9):
 
   - **`maskIp`** — IPv4 conserva los dos primeros octetos (`190.15.142.87` → `190.15.x.x`);
@@ -46,13 +46,13 @@ existan deja el proyecto sin compilar.
   - **`formatAttemptTime`** — fecha legible en hora de Ecuador (`America/Guayaquil`), no
     UTC.
 
-- [ ] **A.4** — `notifyExistingAccountAttempt` pasa también `attemptedAt` (el momento del
+- [x] **A.4** — `notifyExistingAccountAttempt` pasa también `attemptedAt` (el momento del
   intento).
 
   Motivo: el outbox es asíncrono. La hora de entrega no es la del intento, y la que le
   importa al titular es la segunda. Calcularla al renderizar daría la hora equivocada.
 
-- [ ] **A.5** — Tests de renderizado, uno por plantilla:
+- [x] **A.5** — Tests de renderizado, uno por plantilla:
   - el cuerpo contiene el dato esperado (el OTP; la IP enmascarada)
   - un dato con marcado HTML sale **escapado**, no interpretado
   - el aviso de intento **no** contiene el OTP ni un `href` de acción
@@ -63,13 +63,13 @@ existan deja el proyecto sin compilar.
 
 ## B · Retirar los `as never`
 
-- [ ] **B.1** — Quitar el cast de `email-verification.service.ts:56`
+- [x] **B.1** — Quitar el cast de `email-verification.service.ts:56`
   (`'existing_account_attempt' as never` → `'existing_account_attempt'`).
 
-- [ ] **B.2** — Quitar el cast de `email-verification.service.ts:115`
+- [x] **B.2** — Quitar el cast de `email-verification.service.ts:115`
   (`'email_verification' as never` → `'email_verification'`).
 
-- [ ] **B.3** — `npx tsc --noEmit -p backend/tsconfig.json` en exit 0.
+- [x] **B.3** — `npx tsc --noEmit -p backend/tsconfig.json` en exit 0.
 
   **Trampa**: `nest build` usa `tsconfig.build.json`, que **excluye `test/`**. El build
   puede pasar con un test roto. Correr el typecheck, no sólo el build.
@@ -78,7 +78,7 @@ existan deja el proyecto sin compilar.
 
 ## C · La cobertura que faltaba
 
-- [ ] **C.1** — Reforzar `email-verification.service.spec.ts:99`: la aserción pasa a
+- [x] **C.1** — Reforzar `email-verification.service.spec.ts:99`: la aserción pasa a
   incluir **la plantilla**, igual que hace su vecino en
   `password-reset.service.spec.ts:58`.
 
@@ -88,7 +88,7 @@ existan deja el proyecto sin compilar.
 
   Hacer lo mismo con el test del aviso de intento, si existe; si no existe, escribirlo.
 
-- [ ] **C.2** — **El test que recorre la costura**. Nuevo, y es el entregable de fondo de
+- [x] **C.2** — **El test que recorre la costura**. Nuevo, y es el entregable de fondo de
   esta fase: por cada nombre de plantilla que los servicios encolan, `renderMailTemplate`
   lo acepta sin lanzar.
 
@@ -96,13 +96,13 @@ existan deja el proyecto sin compilar.
   Derivarlos de la propia unión `TemplateName` y comprobar que el registro `TEMPLATES` los
   cubre todos.
 
-- [ ] **C.3** — **Verificación por mutación, ejecutada por quien implementa.** Quitar
+- [x] **C.3** — **Verificación por mutación, ejecutada por quien implementa.** Quitar
   `email_verification` del registro `TEMPLATES` y comprobar que **cae C.2**. Restaurar.
 
   Anotar en `apply-progress.md` **el nombre del test que cayó**. Si no cae ninguno, C.2 es
   decorativo y hay que rehacerlo antes de seguir.
 
-- [ ] **C.4** — Test de integración del camino completo, contra Redis real: encolar una
+- [x] **C.4** — Test de integración del camino completo, contra Redis real: encolar una
   verificación, dejar que el consumidor la procese, y comprobar que **no** aparece en
   `mail:dead`. Es la prueba que habría detectado el defecto el primer día.
 
@@ -113,7 +113,7 @@ existan deja el proyecto sin compilar.
 
 ## D · Higiene de `mail:dead`
 
-- [ ] **D.1** — Acotar el crecimiento del stream de entradas muertas (`XADD` con `MAXLEN ~`
+- [x] **D.1** — Acotar el crecimiento del stream de entradas muertas (`XADD` con `MAXLEN ~`
   o equivalente) en `mail-outbox.consumer.ts`.
 
   Motivo: las entradas guardan el cuerpo, y en la verificación eso incluye **el OTP en
@@ -122,7 +122,7 @@ existan deja el proyecto sin compilar.
   **No** vaciarlo al arrancar: es la única evidencia de que un correo falló, y borrarla
   convierte un fallo silencioso en uno invisible (D6).
 
-- [ ] **D.2** — Documentar en el `apply-progress.md` el comando de limpieza manual
+- [x] **D.2** — Documentar en el `apply-progress.md` el comando de limpieza manual
   (`redis-cli DEL mail:dead`) y por qué no es automático.
 
 ---
@@ -131,17 +131,17 @@ existan deja el proyecto sin compilar.
 
 Todo en `frontend/src/app/features/auth/register/`.
 
-- [ ] **E.1** — Añadir el control `email_confirm` al `FormGroup` de
+- [x] **E.1** — Añadir el control `email_confirm` al `FormGroup` de
   `register.component.ts`, con `Validators.required` y `Validators.email`.
 
-- [ ] **E.2** — Validador **de grupo** (no de campo) que compara `email` con
+- [x] **E.2** — Validador **de grupo** (no de campo) que compara `email` con
   `email_confirm`.
 
   Tiene que ser de grupo: un validador de campo no ve el valor del otro. Y si se engancha
   sólo al segundo, editar el primero después de haber confirmado deja el formulario válido
   con dos valores distintos (escenario explícito del spec).
 
-- [ ] **E.3** — Marcado en `register.component.html`, debajo del campo de correo actual:
+- [x] **E.3** — Marcado en `register.component.html`, debajo del campo de correo actual:
 
   ```
   Correo                 → el campo que ya existe
@@ -152,7 +152,7 @@ Todo en `frontend/src/app/features/auth/register/`.
   Mismo patrón `@if (...touched && ...errors)` y misma clase `form-error` que los campos
   existentes. Poner `data-testid` como tienen los demás.
 
-- [ ] **E.4** — **Comprobar que el campo NO viaja al servidor.**
+- [x] **E.4** — **Comprobar que el campo NO viaja al servidor.**
 
   `onSubmit` ya desestructura campo por campo
   (`const { email, password, first_name, last_name } = this.registerForm.value`), así que
@@ -168,59 +168,59 @@ Todo en `frontend/src/app/features/auth/register/`.
   Test que lo fija: espiar la llamada a `authService.register` y assertar que el objeto
   tiene **exactamente** esas cuatro claves.
 
-- [ ] **E.5** — Tests del componente:
+- [x] **E.5** — Tests del componente:
   - dos correos distintos → formulario inválido, mensaje visible, `register` no se llama
   - dos correos iguales → `register` se llama
   - coinciden y luego se edita el primero → vuelve a inválido
   - el cuerpo enviado tiene exactamente cuatro claves (E.4)
 
-- [ ] **E.6** — **Verificación por mutación.** Quitar el validador de grupo y comprobar que
+- [x] **E.6** — **Verificación por mutación.** Quitar el validador de grupo y comprobar que
   **caen** los tests de E.5. Anotar cuál cayó, por nombre.
 
 ---
 
 ## F · El mensaje de éxito, en un solo sitio
 
-- [ ] **F.1** — `register.component.ts:64` deja de tener su propia copia. El componente
+- [x] **F.1** — `register.component.ts:64` deja de tener su propia copia. El componente
   muestra el mensaje que devuelve el backend en la respuesta del alta.
 
   La copia actual conserva la frase *«Si ya lo estaba, te enviamos un aviso al titular»*,
   que REG quitó del backend en su ronda 12 y que aquí quedó viva. La que el usuario ve es
   ésta.
 
-- [ ] **F.2** — Test: la pantalla de verificación recibe como `hint` el texto de la
+- [x] **F.2** — Test: la pantalla de verificación recibe como `hint` el texto de la
   respuesta, no una constante del cliente.
 
-- [ ] **F.3** — Comprobar que no queda ninguna otra copia literal de ese mensaje en
+- [x] **F.3** — Comprobar que no queda ninguna otra copia literal de ese mensaje en
   `frontend/src`.
 
 ---
 
 ## G · Que `req.ip` sea la IP del cliente
 
-- [ ] **G.1** — Habilitar la confianza en el proxy en `main.ts`, **acotada por dirección** a
+- [x] **G.1** — Habilitar la confianza en el proxy en `main.ts`, **acotada por dirección** a
   la red interna de Docker. No `true` (confía en cualquiera) ni un número de saltos (supone
   que siempre hay exactamente un proxy delante y falla en silencio hacia el lado inseguro).
   Ver D10.
 
-- [ ] **G.2** — Test: una petición con `X-Forwarded-For` que llega **desde la red de
+- [x] **G.2** — Test: una petición con `X-Forwarded-For` que llega **desde la red de
   confianza** resuelve la IP del cliente.
 
-- [ ] **G.3** — Test: una petición con `X-Forwarded-For` que llega **desde fuera** de esa
+- [x] **G.3** — Test: una petición con `X-Forwarded-For` que llega **desde fuera** de esa
   red **no** se hace pasar por la IP declarada.
 
   Es el que importa: `APP_PORT=3004` está publicado en el host, así que el backend es
   alcanzable sin pasar por nginx. Sin este test, la configuración podría estar abierta y
   parecer correcta.
 
-- [ ] **G.4** — Test del efecto real: dos clientes con IPs distintas cuentan por separado
+- [x] **G.4** — Test del efecto real: dos clientes con IPs distintas cuentan por separado
   en el límite de tasa del alta. Hoy comparten llave, así que `IP_MAX = 5` se aplica al
   tráfico entero.
 
-- [ ] **G.5** — **Verificación por mutación.** Quitar el ajuste de confianza y comprobar que
+- [x] **G.5** — **Verificación por mutación.** Quitar el ajuste de confianza y comprobar que
   **caen** G.2 y G.4. Anotar cuál cayó, por nombre.
 
-- [ ] **G.6** — Anotar en `apply-progress.md` la deuda de infraestructura: publicar
+- [x] **G.6** — Anotar en `apply-progress.md` la deuda de infraestructura: publicar
   `APP_PORT` en el host no hace falta si todo entra por nginx, y cerrarlo reduce la
   superficie. Es cambio de despliegue, no de código — no se hace en esta fase.
 
@@ -228,39 +228,39 @@ Todo en `frontend/src/app/features/auth/register/`.
 
 ## H · De parte de GeoReporta, con un solo nombre
 
-- [ ] **H.1** — Constante única con el nombre del producto (**`GeoReporta`**) en el módulo
+- [x] **H.1** — Constante única con el nombre del producto (**`GeoReporta`**) en el módulo
   de correo. Es la fuente para todo lo demás de este bloque.
 
-- [ ] **H.2** — El remitente lleva nombre visible. Hoy `mail.service.ts:104` manda
+- [x] **H.2** — El remitente lleva nombre visible. Hoy `mail.service.ts:104` manda
   `from: mailConfig.smtpFrom`, la dirección pelada, y en la bandeja se lee
   `no-reply@georeporta.twintailcs.xyz`.
 
   Pasa a enviarse con el nombre delante de la dirección. Es lo primero que ve quien recibe
   y lo que decide si abre o marca como no deseado.
 
-- [ ] **H.3** — Pie común en las plantillas, tomando el nombre de H.1. Las dos nuevas y las
+- [x] **H.3** — Pie común en las plantillas, tomando el nombre de H.1. Las dos nuevas y las
   seis existentes: si sólo se aplica a las nuevas, el mismo ciudadano recibe el código de
   verificación de un remitente y la recuperación de contraseña de otro.
 
-- [ ] **H.4** — Retirar los literales sueltos de los sitios que el usuario **ve**:
+- [x] **H.4** — Retirar los literales sueltos de los sitios que el usuario **ve**:
   - `password-reset.service.ts:56` — `'Reset your Transito Alerta SE password'`
   - `mail-templates.ts` — el respaldo `'Transito Alerta SE'` de la plantilla `invitation`
 
   **No** tocar `main.ts:77` (título de Swagger, que no se sirve en producción).
 
-- [ ] **H.5** — Test: el nombre del producto **no** aparece escrito a mano en ninguna
+- [x] **H.5** — Test: el nombre del producto **no** aparece escrito a mano en ninguna
   plantilla; todas lo toman de la constante. Es el test que impide que el próximo correo
   vuelva a traer su propia copia.
 
-- [ ] **H.6** — Test: el `from` que llega al transporte incluye el nombre visible.
+- [x] **H.6** — Test: el `from` que llega al transporte incluye el nombre visible.
 
-- [ ] **H.7** — `frontend/src/index.html:5` — el título es `TransitoAlertaSEFrontend`, el
+- [x] **H.7** — `frontend/src/index.html:5` — el título es `TransitoAlertaSEFrontend`, el
   nombre que generó el andamio de Angular y que nunca se cambió. Pasa a ser el nombre de la
   aplicación.
 
   Es lo que se lee en la pestaña del navegador mientras el ciudadano se registra.
 
-- [ ] **H.8** — **No** tocar la marca del sidebar (`sidebar.component.html:3-5`: el logo
+- [x] **H.8** — **No** tocar la marca del sidebar (`sidebar.component.html:3-5`: el logo
   `assets/logo.svg` y el texto «Tránsito Alerta»). Lleva un activo gráfico nuevo, así que
   es trabajo de diseño y pertenece a F6. Anotarlo en `apply-progress.md`.
 
