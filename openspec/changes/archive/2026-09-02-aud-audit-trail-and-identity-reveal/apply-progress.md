@@ -367,3 +367,143 @@ tabla `permissions` mantiene su `CHECK` extendido
 correctamente vía `DROP CONSTRAINT + ADD CONSTRAINT` (la
 misma trampa que dejó CLOSE fuera del catálogo en 0043 está
 evitada).
+
+---
+
+# Ronda 11 — los 4 CRITICAL + 3 WARNING del primer verify (FIX-1/2/3/4 + WARNING-1/2/4)
+
+`sdd-verify` detectó que la ronda 1 se había archivado con
+casillas marcadas pero código no aplicado (el bug
+pre-FIX-1: `repo.create()` corría la query contra
+`this.dataSource`, fuera de la transacción — los inserts
+de `incidents` y `incident_reporters` no compartían tx, y
+una falla del segundo dejaba la fila huérfana del primero).
+El unit test que lo cubría mockeaba `repo.create`, así que
+nunca tocaba la BD real y no detectaba la clase de bug.
+
+**FIX-1**: `IncidentsRepository.create(input, manager?)` con
+`runner = manager ?? dataSource`; el service pasa el
+`manager` de la transacción en la rama `is_anonymous=true`.
+Unidad (`repo.create` con `expect.anything()` en la 2ª
+posición) + e2e con trigger `BEFORE INSERT` sobre
+`incident_reporters` que fuerza la falla y confirma
+rollback real contra la BD (3 files nuevos, 9 tests).
+
+**FIX-2**: `audit-trail-reveal.e2e-spec.ts` con 9 escenarios
+end-to-end (registro, no-filtra, revelar, 403, 400, 404,
+historial). Cubre las superficies que el unit-test del
+service no probaba.
+
+**FIX-3**: lint cleanup (4 imports no usados).
+
+**FIX-4**: borrados los artefactos de archivado prematuros
+(`archive-report.md`, `state.yaml`, spec en
+`openspec/specs/audit-trail/`).
+
+**WARNING-1**: `RolesService.syncPermissions` rechaza
+`REVEAL incidents` para todo rol ≠ `master` con
+`BadRequestException({code: 'REVEAL_NOT_GRANTABLE'})`.
+
+**WARNING-2**: `RevealIncidentDto.justification`: `@Transform`
+para trim + `@Matches(/[A-Za-z0-9]/)` para exigir al menos
+un carácter alfanumérico.
+
+**WARNING-4**: `RevealService.reveal` lanza
+`InternalServerErrorException({code:
+'ANONYMOUS_AUTHORSHIP_MISSING'})` en vez de `new Error()`
+plano.
+
+**Coexistencia verificada**: REG Fix A (role_name) sigue
+funcionando; el e2e de REG C.8 no se rompió. ANON sc-326
+no se tocó.
+
+---
+
+# Ronda 12 — los 2 CRITICAL + 3 WARNING del segundo verify (FIX-5/6 + WARNING-A/B/C)
+
+`sdd-verify` detectó dos bypasses del guard de `REVEAL`:
+
+- **FIX-5** (verify de mutación): `assertRevealOnlyForMaster`
+  vivía sólo en `syncPermissions`. `create()` y `update()`
+  aceptaban un `permissions: ['REVEAL incidents']` en un
+  rol no-master. Refactor: la aserción toma `(roleName,
+  permissions)`, no `(RoleEntity, permissions)`, y se usa
+  en los 3 puntos de mutación. 9 specs nuevos en
+  `roles.service.spec.ts`.
+
+- **FIX-6** (verify de mutación, doble bypass): el guard
+  se apoyaba en `role.name`, pero `update()` permitía
+  renombrar. Camino de ataque de 2 pasos:
+  PATCH /admin/roles/:id {name: 'master'} (acepta, sin guard
+  de rename) + PUT /admin/roles/:id/permissions
+  ['REVEAL incidents'] (acepta porque role.name ahora es
+  'master'). Doble fix: el guard evalúa con el nombre
+  RESULTANTE (`dto.name ?? role.name`), y se añade
+  `assertSeededNameNotRenamed` que rechaza renombrar
+  hacia o desde los nombres sembrados (`master`, `admin_org`,
+  `operador_org`, `operador_sistema`, `reporter`).
+  Consecuencia esperada: el test de
+  `email-verified-guard.e2e-spec.ts` "un rol renombrado
+  NO entra a la allow-list" se rompió (su setup **era**
+  el camino de privilege-escalation que FIX-6 cierra).
+  Reescrito con CREATE de un rol nuevo en vez de rename.
+
+- **WARNING-A**: 6 e2e nuevos cubriendo las 3 superficies
+  de no-filtración (GET /incidents, /feed, /export) +
+  operador_org y operador_sistema 403 al reveal + walk
+  post-migración que confirma sólo master tiene REVEAL.
+
+- **WARNING-B**: el docstring del spec B.6
+  ("incidents.service.anonymous.spec.ts") se suavizó: el
+  test hardcodea la respuesta del mock, NO cazaba "regla
+  a medias" por sí solo. Añadido
+  `expect(repo.create).toHaveBeenCalledWith(..., {isAnonymous:
+  true, citizenId: MASK_ID}, expect.anything())` que SÍ lo
+  caza por mutación.
+
+- **WARNING-C**: 2 e2e nuevos — "filtrar por author_id no
+  devuelve las publicaciones anónimas" y "el reporter ve
+  su propia anónima con `is_anonymous: true` y `citizen_id
+  = mask`".
+
+**Defensa contra la mutación (lo único que cuenta)**:
+
+| Mutación | Test que la caza |
+|---|---|
+| Quitar `assertRevealOnlyForMaster` de `create()` | "rechaza REVEAL incidents en un rol no-master" |
+| Evaluar guard con `role.name` (no `dto.name ?? role.name`) | "rechaza el PATCH atómico (rename a master + añadir REVEAL)" |
+| Quitar `assertSeededNameNotRenamed` | "rechaza renombrar un rol sembrado (reporter → master) por sí solo" |
+| Omitir `isAnonymous: true` en `repo.create` | `expect.objectContaining({isAnonymous: true, ...})` |
+
+---
+
+# Ronda 13 — direct cache-invalidation test (recomendado, no bloqueante)
+
+El `fixes-required.md` de la ronda 3 pidió un test runtime
+de la invalidación de `perm:v3:uid:*` que la migración 0047
+bombea con `permission_version = permission_version + 1`.
+Antes, la afirmación era estructural (leer el SQL de la
+migración); ahora hay 2 e2e directos:
+
+- `ronda-13: un master tiene REVEAL en users.permissions
+  tras la migración 0047` — confirma la denormalización
+  contra la BD.
+- `ronda-13: el master provisionado puede ejecutar POST
+  /reveal-reporter sin re-login` — confirma que la cache
+  de permisos está sincronizada con `users.permissions`
+  (la red por mutación: si la migración no denormaliza,
+  el primer hit a la cache sirve `[]` y el master recibe
+  403).
+
+---
+
+# Estado de gates (medido, ronda 13)
+
+| Gate | Resultado |
+|---|---|
+| `npx jest` (backend, unit) | **109/109 suites, 989/989 tests** |
+| `npx jest --config test/jest-e2e.json` (e2e completo) | **53/53 suites, 467/467 tests** |
+| `tsc -p tsconfig.json --noEmit` (backend) | exit 0 |
+| `pnpm run lint` (backend) | 0 errors, 24 warnings (preexistentes) |
+| Frontend | 48/48 suites, 329/329 tests |
+| Compuerta `ci.yml` (migrations en MIGRATION_LOG) | no imprime nada |
