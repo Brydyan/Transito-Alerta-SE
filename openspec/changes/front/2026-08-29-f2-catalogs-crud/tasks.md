@@ -62,7 +62,8 @@ controladores de `backend/src/modules/{geo-zones,incident-categories,organizatio
 - [x] **F2.4.3** — Verificar que no queda ningún `// PLACEHOLDER F2` en `app.routes.ts`.
 - [~] **F2.4.4** — `pnpm test && pnpm build` desde `frontend/` en verde (285 tests, 47 suites).
 
-  Lo que esta task declaraba y **no le corresponde a F2 arreglar** (ver §F2.6):
+  Lo que esta task declaraba y **no le corresponde a F2 arreglar** (ver §F2.5,
+  «Pendiente pero no es de F2 — reasignado», items F2.5.9–F2.5.11):
   - `pnpm lint` nunca se ejecutó ni puede ejecutarse — no existe script `lint` en
     `frontend/package.json` (sólo `ng`, `start`, `build`, `watch`, `test`, `test:e2e`).
     Marcarlo como hecho era incorrecto. **Dueño: `front/2026-09-03-tool-ci-gates`.**
@@ -70,8 +71,9 @@ controladores de `backend/src/modules/{geo-zones,incident-categories,organizatio
     `frontend/tsconfig.json` es de tipo *solution* (`"files": []`), así que sin `-b`
     compila la lista vacía y sale 0. **Dueño: `front/2026-09-03-tool-ci-gates`.**
   - `pnpm test:e2e` pasa por omisión en local: `catalogs-crud.e2e.ts` y
-    `catalogs-permissions.e2e.ts` hacen `test.skip(!process.env['BASE_URL'])`. **En CI sí
-    corren** — `.github/workflows/ci.yml:456` pasa `BASE_URL: ${{ vars.STAGING_BASE_URL }}`.
+    `catalogs-permissions.e2e.ts` hacen `test.skip(!BACKEND_URL, …)` con
+    `BACKEND_URL = process.env['BASE_URL']?.trim()`. **En CI sí corren** —
+    `.github/workflows/ci.yml:456` pasa `BASE_URL: ${{ vars.STAGING_BASE_URL }}`.
     El patrón «se salta con motivo declarado si no está configurado, falla si lo está» es
     el D4 de `front/2026-09-03-e2e-test-user-and-credentials`, así que F2 lo está
     cumpliendo. Lo que sigue sin evidencia es la **ejecución**: F2.4.1 y F2.4.2 se marcaron
@@ -100,13 +102,14 @@ controladores de `backend/src/modules/{geo-zones,incident-categories,organizatio
 
 Lo de esta tanda queda commiteado y verificado (`sdd-verify` pass 2: 0 CRITICAL,
 303 tests / 47 suites en verde, `npm run build` OK). **Lo que sigue abierto queda para
-el siguiente que tome la fase** — son tres items independientes entre sí, se pueden
-tomar en cualquier orden y ninguno bloquea a los otros:
+el siguiente que tome la fase** — son dos items independientes entre sí (F2.5.6 se cerró
+el 2026-09-05 con la traducción completa de la UI), se pueden tomar en cualquier orden y
+ninguno bloquea al otro:
 
 | Item | Qué es | Dónde empezar |
 |---|---|---|
 | F2.5.5 | Falta el spec del formulario de Ubicaciones | `location-list.component.spec.ts` sirve de plantilla (mismos mocks) |
-| F2.5.6 | Copy en inglés en Ubicaciones y Organizaciones | `category-list.component.html`, ya traducido en `9907294`, marca el estilo |
+| F2.5.6 | Copy en inglés en Ubicaciones y Organizaciones | ✅ **CERRADO** — traducción completa de la UI de catálogos (2026-09-05), ver `apply-progress.md` |
 | F2.5.8 | `spec.md` y `design.md` describen un nivel `pais` que no existe | La corrección ya está escrita en `apply-progress.md` §«Corrección de rutas documentadas» |
 
 Contexto útil antes de tocar nada: los defectos de esta fase se colaron porque los specs
@@ -120,12 +123,16 @@ que parezca razonable.
   Ubicaciones no tiene cobertura unitaria directa: ni el acotado del selector de padre al
   nivel inmediatamente superior (F2.3.7), ni la regla de padre obligatorio por nivel, ni
   el mapeo del 422. Hoy sólo lo toca el e2e, que en local se salta.
-- [ ] **F2.5.6** — Copy de UI en inglés en Ubicaciones y Organizaciones (encabezados
+- [x] **F2.5.6** — Copy de UI en inglés en Ubicaciones y Organizaciones (encabezados
   `Name/Code/Level/Created/Actions`, `All levels`, `Filter by level`, `Create Location`,
   toasts y confirm dialogs) dentro de un producto en español. Sólo se tradujeron los
   encabezados de Categorías (commit 9907294). **Es de F2**: F6 sólo cubre Dashboard,
   Usuarios, Roles y Perfil — las pantallas de catálogos son de esta fase, y ninguna otra
-  fase reclama i18n.
+  fase reclama i18n. **CERRADO (2026-09-05)**: se tradujo la totalidad del copy visible de
+  los 6 componentes (listas + formularios de Categorías, Organizaciones y Ubicaciones):
+  kickers, títulos, botones, buscadores, empty-states, labels, placeholders, toasts y
+  confirm dialogs (~90 strings). Registro imitado de `user-management`/`system-config`.
+  Ver `apply-progress.md` §«Traducción del copy de UI a español».
 - [x] **F2.5.7** — Organizaciones ya no descarta `zone_id` ni `parent_id`.
   `ICreateOrganizationDto` sólo mandaba `name`, pero `CreateOrganizationDto` del backend
   acepta ambos, y **`zone_id` es lo que dirige el ruteo de incidencias a organizaciones**.

@@ -28,8 +28,11 @@ filas**, sin señal alguna de truncamiento.
 Eso no es "faltan filas". `buildTree` promueve a raíz todo nodo cuyo padre quedó fuera de
 la ventana, así que el árbol renderiza una **jerarquía incorrecta sin ningún error**.
 
-**Estado actual**: latente, no activo. Hoy hay ~26 zonas sembradas (4 + 11 + 11 entre
-`0003_seed_geo_zones`, `0004_seed_parroquias` y `0041`). Rompe al pasar de 100 — que es
+**Estado actual**: latente, no activo. Hoy hay ~15 zonas sembradas: 4 en
+`0003_seed_geo_zones` (provincia + 3 cantones) y 11 parroquias en
+`0041_geography_organizations_seed` (la copia generada
+`database/seeds/0004_seed_parroquias.generated.sql` es la fuente de esas mismas 11, no
+una migración aparte — la `0004` es `0004_incidents.sql`). Rompe al pasar de 100 — que es
 justo el volumen objetivo según la Q1 del diseño de F2 (24 provincias + cantones +
 parroquias del Ecuador, ~1.700 nodos).
 

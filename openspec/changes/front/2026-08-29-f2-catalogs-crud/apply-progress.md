@@ -60,7 +60,15 @@ Se implementaron todos los specs unitarios y end-to-end pendientes para cerrar l
 - **Correcciones transversales**:
   - `placeholder.component.spec.ts`: se ajustó la aserción original de 6 placeholders a 3, ya que F2 reemplazó sus `// PLACEHOLDER F2` en `app.routes.ts` (F2.4.3).
 
-**Status Actualizado**: F2 está 100% implementada y probada (tasks F2.0.3 a F2.4.4 completadas).
+**Status Actualizado (2026-09-05)**: F2 no cierra al 100%: F2.4.4 quedó **parcial** `[~]`
+(ver `tasks.md` §F2.4.4 — `pnpm lint` no existe y `tsc --noEmit` es no-op, ambos
+reasignados), y quedan abiertos F2.5.5 (spec de `location-form`), F2.5.6 (copy en
+español) y F2.5.8 (retropropagar correcciones a `spec.md`/`design.md`). Los items
+F2.5.9–F2.5.11 se reasignaron a sus changes dueños.
+
+> **Actualización (2026-09-05, cierre de F2.5.6)**: F2.5.6 quedó **cerrado** — la
+> traducción completa del copy de UI se documenta en la sección al final del archivo.
+> Quedan abiertos F2.5.5 y F2.5.8.
 
 ---
 
@@ -92,16 +100,22 @@ cubría los defectos de abajo, porque los fixtures inventaban la forma del wire 
 derivarla del controlador (exactamente el modo de fallo de SC-209 que D2/R1 buscaba
 evitar). Ver `tasks.md` §F2.5.
 
-**Corregido dentro de F2** (suite: 285 tests, 47 suites, en verde; `ng build` OK):
+**Corregido dentro de F2** (suite al cierre: 303 tests, 47 suites, en verde — 285 tras
+esta primera tanda + 18 de F2.5.7; `ng build` OK):
 
 1. **Árbol capado a 100 nodos** — `listAll()` pedía `per_page: 10000` contra
-   `Math.min(perPage, MAX_PAGE_SIZE = 100)`. Latente hoy (~26 zonas sembradas), rompe al
+   `Math.min(perPage, MAX_PAGE_SIZE = 100)`. Latente hoy (~15 zonas sembradas), rompe al
    superar 100, que es el volumen objetivo de la Q1 del diseño. Ahora pagina con `total`.
 2. **`updated_at` inexistente** en el wire de `geo-zones` y `organizations`. Eliminado de
    las interfaces; la tarjeta pasa a `lastCreated` sobre `created_at`.
 3. **`permissionGuard` rebotaba en cada refresh** — decidía antes de que
    `GET /auth/me` hidratara la sesión. Ahora espera. `AuthService` no se tocó (F1/auth).
 4. Specs nuevos: `geo-zone.service.spec.ts`, `location-list.component.spec.ts`.
+5. **F2.5.7 — Organizaciones ya no descarta `zone_id` ni `parent_id`** (`listAll()`
+   paginado, columnas `Localización` y tarjetas del mock, formulario con zona y
+   organización madre, `null` en vez de `''` para "sin selección", `MapPin` registrado en
+   `app.config.ts`). 15 casos nuevos entre specs de servicio, listado y formulario. Ver
+   `tasks.md` §F2.5.7 y el análisis adversarial en `verify-report.md`.
 
 **Derivado a un change de backend** (fuera del alcance que el proposal fija para F2):
 el alta manda un polígono placeholder fijo de 1°×1° cerca de Quito, y
@@ -110,3 +124,43 @@ el alta manda un polígono placeholder fijo de 1°×1° cerca de Quito, y
 queda ahí el hecho de que ningún endpoint sirve {todas las zonas + `code` + sin
 `polygon`}, que es lo que obligó al paginado. Ver
 `openspec/changes/back/2026-09-05-geo-zones-catalog-contract/proposal.md`.
+
+---
+
+## Traducción del copy de UI a español (2026-09-05) — cierra F2.5.6
+
+**Qué**: Traducción de la totalidad del copy visible en inglés del módulo de catálogos →
+español, en los 6 componentes (listas + formularios de Categorías, Organizaciones y
+Ubicaciones). ~90 strings.
+
+**Alcance**: kickers de `ui-page-header` (`CATALOGS / CATEGORIES` →
+`CATÁLOGOS / CATEGORÍAS`), títulos/subtítulos, botones de acción, placeholders y
+aria-labels de buscadores, empty-states, encabezados de tabla (`Name/Code/Level/Created/
+Actions` → `Nombre/Código/Nivel/Creado el/Acciones`), botones `Edit/Delete` → `Editar/
+Eliminar`, labels y placeholders de formularios, `<option>` `No parent` → `Sin padre`,
+botones `Cancel/Save Changes` → `Cancelar/Guardar cambios`, toasts
+(`...deleted/created/updated successfully` → `...eliminada/creada/actualizada
+correctamente`, `Failed to load ...` → `No se pudieron cargar ...`) y confirm dialogs
+(`Confirm deletion` → `Confirmar eliminación`, `Are you sure you want to delete "..."?`
+→ `¿Estás seguro de que deseas eliminar "..."?`).
+
+**Registro imitado (no inventado)**: encabezados ya traducidos de `category-list`
+(`Nombre/Creado el/Acciones`), labels de `organization-form` (`Localización`,
+`Organización madre`, `Sin zona asignada`, `Sin organización madre`), niveles de
+`igeo-zone.interface.ts` (`Provincia/Cantón/Parroquia/Zona`), y tono de toasts/dialogs
+de `user-management` / `system-config`.
+
+**Archivos (12)**: `catalogs/{incident-categories,organizations,locations}/*/{category,
+organization,location}-{list,form}.component.{html,ts}`.
+
+**Sin efectos laterales**: no se tocó lógica, rutas, variables, clases CSS ni estilos
+(el módulo ya es 100% Tailwind v4 — Bootstrap eliminado del proyecto en `styles.css`).
+Ningún `*.spec.ts` asertaba los strings traducidos (verificado), y los e2e asertan datos
+de prueba (`Test Category E2E`), no copy — por eso no hubo que actualizarlos. Niveles
+(`GEO_ZONE_LEVEL_LABELS`) ya estaban en español.
+
+**Verificación real ejecutada**: `npm test` → 303/303 tests, 47/47 suites en verde;
+`npm run build` OK.
+
+**Estado**: F2.5.6 `[x]` en `tasks.md`. Quedan abiertos F2.5.5 (spec de `location-form`)
+y F2.5.8 (retropropagar a `spec.md`/`design.md`, incluido el nivel `pais`).
