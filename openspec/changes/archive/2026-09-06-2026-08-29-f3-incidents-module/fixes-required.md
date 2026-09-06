@@ -90,3 +90,15 @@ Sólo C2 bloquea. W1 y W2 pueden resolverse en un follow-up o quedar documentado
 aceptada al archivar, a criterio del builder. Después de resolver C2, correr de nuevo
 `pnpm test && pnpm run build` y pedir una ronda 5 de `sdd-verify` (acotada a C2) antes de
 `sdd-archive`.
+
+---
+
+## Ronda 5 — Resolución verificada (2026-09-06, sdd-verify)
+
+**Veredicto**: C2, W1 y W2 cerrados de verdad — verificación contra código y gates en vivo (no contra prosa).
+
+- **C2**: `ClaimReleaseResult` (7 campos snake_case) + `releaseIncident(): Observable<ClaimReleaseResult>` con merge parcial en servicio y `this.incident.update(cur => cur ? { ...cur, ...released } : cur)` en el detail; tests con shape slim y aserciones de preservación (habrían fallado pre-fix); cobertura de servicio con POST/URL/body y aserciones pos/neg. Ver `verify-report.md` Ronda 5 §C2.
+- **W1**: `specs/frontend-incidents/spec.md` anotado como capacidad diferida (C1 ronda 4) y conteo `Mostrando N de N`; permisos de flujo alineados en el spec.
+- **W2**: `workflow.util.ts` gates por acción (`CLAIM`/`RELEASE`/`UPDATE`/`CLOSE`/`ASSIGN`) cruzados contra `incident-workflow.controller.ts:36,46` y `incidents.controller.ts:195`; `workflow.util.spec.ts` y `incident-detail.component.spec.ts` reflejan la matriz real; `operador_sistema` desbloqueado.
+
+Gates ronda 5: `pnpm test` 60/60 suites, 412/412 tests PASS; `pnpm run build` exit 0; `tsc -b --noEmit` 0 errores en archivos F3. Listo para `sdd-archive`.

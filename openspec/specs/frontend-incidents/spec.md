@@ -3,20 +3,17 @@
 ## Domain: frontend-incidents (NEW)
 
 ### Requirement: Listado con filtros combinables
-El listado DEBE permitir filtrar por texto, estado y prioridad, y los filtros DEBEN
-combinarse entre sí.
+El listado DEBE permitir filtrar por estado y reflejar los filtros en la URL (búsqueda libre por texto y filtro por prioridad diferidos — ver C1 ronda 4).
 
-- Scenario: Filtros combinados — GIVEN estado `en_proceso` y prioridad `alta`
-  WHEN se aplican THEN sólo se listan incidencias que cumplen ambas condiciones
-- Scenario: Búsqueda por texto — GIVEN un término WHEN el usuario deja de escribir
-  THEN se consulta por título o descripción, con debounce, y la paginación vuelve a
-  la primera página
+- Scenario: Filtros combinados — GIVEN estado `in_progress`
+  WHEN se aplica THEN sólo se listan incidencias que cumplen dicha condición (combinación con prioridad diferida — ver C1 ronda 4)
+- Scenario: Búsqueda por texto — [Capacidad diferida — ver C1 ronda 4] GIVEN la ausencia de soporte de texto libre en GET /incidents del backend
+  THEN la búsqueda por texto se difiere para no mantener controles decorativos
 - Scenario: Limpiar — GIVEN filtros activos WHEN se pulsa limpiar THEN todos se
   restablecen y se recarga el listado completo
 - Scenario: Filtros en la URL — GIVEN un listado filtrado WHEN se copia la URL y se
   abre en otra pestaña THEN se restauran los mismos filtros y página
-- Scenario: Conteo — GIVEN una página de resultados THEN el pie indica el rango y el
-  total, con la forma «Mostrando 1-10 de 14 incidencias»
+- Scenario: Conteo — GIVEN una página de resultados THEN el pie indica el total, con la forma «Mostrando N de N»
 
 ### Requirement: Filtro por categoría y subcategoría
 El listado DEBE permitir filtrar por categoría y por subcategoría, de forma jerárquica.
@@ -65,17 +62,19 @@ y el hilo de comentarios.
 
 ### Requirement: Acciones de flujo de trabajo
 El detalle DEBE ofrecer las acciones de flujo que el backend expone, condicionadas al
-estado actual y a los permisos.
+estado actual y a los permisos específicos.
 
-- Scenario: Reclamar — GIVEN una incidencia disponible y permiso `UPDATE incidents`
+- Scenario: Reclamar — GIVEN una incidencia disponible y permiso `CLAIM incidents`
   WHEN se reclama THEN queda asignada al usuario actual y el estado se refleja sin recargar
-- Scenario: Liberar — GIVEN una incidencia reclamada por el usuario actual WHEN se
-  libera THEN vuelve a disponible
+- Scenario: Liberar — GIVEN una incidencia reclamada por el usuario actual y permiso `RELEASE incidents`
+  WHEN se libera THEN vuelve a disponible
+- Scenario: Resolver — GIVEN una incidencia en proceso reclamada por el usuario actual y permiso `UPDATE incidents`
+  WHEN se resuelve THEN pasa a resuelta
 - Scenario: Transición inválida — GIVEN un estado desde el que la transición no está
   permitida THEN la acción no se ofrece; si el backend responde 409 se muestra el
   motivo y el estado mostrado se resincroniza
-- Scenario: Sin permiso — GIVEN un usuario sin `UPDATE incidents` THEN no se renderiza
-  ninguna acción de flujo
+- Scenario: Sin permiso — GIVEN un usuario sin los permisos específicos de cada acción
+  THEN no se renderizan las acciones respectivas
 - Scenario: Asignar — GIVEN permiso `ASSIGN assignments` THEN puede asignarse la
   incidencia a un operador de la organización
 

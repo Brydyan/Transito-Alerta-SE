@@ -332,3 +332,90 @@ de defecto que ya había costado una ronda completa en este mismo change, en el 
 llamada (una acción de flujo de trabajo del detalle). Requiere una ronda 5 acotada: corregir el
 tipo de `releaseIncident()`, el manejo en el componente, y el mock del test — no requiere
 revisitar C1 ni C3.
+
+---
+
+## Ronda 5 — Auditoría independiente (2026-09-06)
+
+**Auditor**: sdd-verify, ronda 5 (fresh context, sin participación en la implementación — rol exclusivo: auditar).
+**Mandato**: `fixes-required.md` (C2 CRITICAL + W1 + W2) y `ronda-5-handoff.md`. Verificación contra código y gates en vivo, nunca contra la prosa de `apply-progress.md`.
+**Resultado**: **PASS** — los tres hallazgos de la ronda 4 cierran de verdad. Sin regresión en las 8 deudas externas declaradas.
+
+### Resumen ejecutivo (ronda 5)
+
+C2, W1 y W2 verificados campo por campo contra el backend real. Gates ejecutados en vivo desde `frontend/`:
+
+- `pnpm test`: **60/60 suites, 412/412 tests PASS** (ronda 4: 41/41, 290/290 — el salto NO es regresión del fix: el squash merge `f4886d1` trajo suites de `develop`, verificado por `git log --oneline`).
+- `pnpm run build` (`ng build`): **exit 0**, bundle en ~9.7s.
+- `npx tsc -b --noEmit`: **9 errores en 3 archivos, todos preexistentes y ajenos a F3** (`auth.service.spec.ts`, `placeholder.component.spec.ts`, `layout-tokens.regression.spec.ts` — deuda `@types/node`). **Ningún archivo tocado en la ronda 5 aparece en la lista** (`incident.model.ts`, `incident.service.ts`, `incident-detail.component.ts`, `workflow.util.ts` y sus specs: 0 errores). No hay regresión.
+- `pnpm lint`: no existe en `frontend/` (correctamente omitido, igual que rondas previas).
+- `pnpm test:e2e`: no corrido (requiere `BASE_URL` + backend; skip por convención del repo).
+
+C2 habría fallado contra el código pre-ronda-5: el test nuevo de `incident-detail` afirma que `description` se preserva tras el release slim, condición que el `set(released)` anterior violaba silenciosamente.
+
+### C2 — release corrupting detail: CERRADO de verdad
+
+Verificado contra el código, no contra la prosa — cada afirmación cruzada con el backend real:
+
+1. **Tipo `ClaimReleaseResult` (`incident.model.ts:97-105`)**: 7 campos exactos del wire tras `SnakeCaseResponseInterceptor` — `id, title, status, priority, claimed_by, organization_id, updated_at` — espejo de `ClaimReleaseResponseDto` (`backend/src/modules/incidents/dto/claim-release-response.dto.ts:8-15`: `id, title, status, priority, claimedBy, organizationId, updatedAt`). Sin campos inventados; `updated_at: Date` coincide con el DTO; snake_case es correcto porque el interceptor global (`backend/src/common/interceptors/snake-case-response.interceptor.ts:28-30` + `main.ts:62`) convierte el camelCase del DTO antes de llegar al cliente. No hay `description`, `lat`, `citizen_id` ni ningún otro campo del `Incident` de 25 campos.
+
+2. **Servicio (`incident.service.ts:120-131`)**: `releaseIncident(id: string): Observable<ClaimReleaseResult>` — ya NO `Observable<Incident>`. `post<ClaimReleaseResult>(\`/incidents/\${id}/release\`, {})` tipado honesto. El `tap` hace merge parcial `inc.id === id ? { ...inc, ...released } : inc` — NO reemplazo completo `released`. El cache `incidents$` preserva los 18 campos restantes.
+
+3. **Componente (`incident-detail.component.ts:164-187`)**: `onAction('release')` next usa `this.incident.update(cur => cur ? { ...cur, ...released } : cur)` — NO `this.incident.set(released)`. Camino de error intacto: `toast.show(message, 'error')` + `getIncident(inc.id).subscribe(next => this.incident.set(refreshed))` (líneas 179-185). Camino de éxito recarga historial (`getStatusHistory`).
+
+4. **Test de detail (`incident-detail.component.spec.ts:222-259`)**: mock `released` construido como objeto slim de 7 campos (`id, title, status, priority, claimed_by, organization_id, updated_at`), NO `{ ...claimedIncident, claimed_by: null }`. Aserciones: `description` ("Big crater") se preserva, `claimed_by` pasa a `null`, `status` a `pending`, toast "Incidencia liberada.". **Este test habría FALLADO contra el código pre-ronda-5**: con `this.incident.set(released)`, `incident().description` sería `undefined` y la aserción `toBe('Big crater')` fallaría — exactamente la red de regresión que `fixes-required.md` exigía. El test de error 409 (`NOT_THE_CLAIMER` + recarga) también verificado.
+
+5. **Cobertura del servicio (`incident.service.spec.ts:236-282`)**: test `releaseIncident POSTs /incidents/:id/release with {} and updates cache partially` afirma método `POST`, URL `/incidents/inc-1/release`, body `{}`, aserciones positivas de los 7 campos, aserciones negativas (`description/lat/lng/citizen_id/category_id === undefined` en la respuesta), y preservación en cache (`description` original, `lat: -2.2`, `claimed_by: null`, `status: pending`). Cubre el estilo positivo+negativo exigido (análogo a `incident.service.spec.ts:70-88` de C1).
+
+6. **Cruce backend**: `ClaimReleaseResponseDto` es slim a propósito (7 campos). `SnakeCaseResponseInterceptor` es global y convierte `claimedBy→claimed_by` etc. El shape del frontend coincide campo por campo con el wire real — no con una ficción de test.
+
+### W1 — spec.md honesto: CERRADO
+
+`specs/frontend-incidents/spec.md` reescrito:
+
+- "Listado con filtros combinables": escenario "Filtros combinados" ahora aclara "(combinación con prioridad diferida — ver C1 ronda 4)" (línea 9); "Búsqueda por texto" anotado explícitamente como `[Capacidad diferida — ver C1 ronda 4] GIVEN la ausencia de soporte de texto libre en GET /incidents del backend THEN la búsqueda por texto se difiere` (líneas 10-11); "Conteo" con forma implementada `Mostrando N de N` (línea 16), no `1-10 de 14`.
+- "Acciones de flujo de trabajo": escenarios con permisos reales (`CLAIM incidents` para reclamar, `RELEASE incidents` para liberar, `UPDATE incidents` para resolver — líneas 67-72), alineados con el backend.
+
+El spec ya no describe capacidades inexistentes sin anotación. Un lector futuro no es engañado.
+
+### W2 — permisos alineados con el backend: CERRADO
+
+`workflow.util.ts:49-54` ahora distingue 5 gates:
+
+- `claim`: `CLAIM incidents` — coincide con `incident-workflow.controller.ts:36` (`@RequirePermission('CLAIM', 'incidents')`).
+- `release`: `RELEASE incidents` — coincide con `incident-workflow.controller.ts:46` (`@RequirePermission('RELEASE', 'incidents')`).
+- `resolve`: `UPDATE incidents` — coincide con `incidents.controller.ts:195` (`@RequirePermission('UPDATE')` en `PATCH /:id/status` con `to: 'resolved'`).
+- `close`: `UPDATE incidents` + `CLOSE incidents` — coincide con `PATCH /:id/status` (`UPDATE` mínimo) + check interno `actorPermissions.includes('CLOSE incidents')` cuando `to === 'closed'`.
+- `assign`: `ASSIGN assignments` — coincide con `assignments.controller.ts:35` (`@RequirePermission('ASSIGN')`).
+
+`operador_sistema` (seeds `0015_organizations_scoping.sql` + `0019_incident_claim.sql`: tiene `CLAIM`/`RELEASE` sin `UPDATE`) ahora ve `claim`/`release` pero no `resolve` — corregido; antes quedaba sin botones por mirar `UPDATE incidents` para las tres acciones. `workflow.util.spec.ts` cubre la matriz con `CLAIM_ONLY`, `RELEASE_ONLY`, `OPERATOR_PERMS` y casos `RELEASE only → release only (operador_sistema)` y `UPDATE only → resolve only`. `incident-detail.component.spec.ts` setups de claim/release usan permisos reales (`CLAIM incidents`/`RELEASE incidents`).
+
+### Sanity de las 8 pendientes (deuda externa honesta — sin re-auditoría completa)
+
+Verificadas contra `tasks.md` y código (no contra su prosa):
+
+| Tarea | Estado | Verificación ronda 5 |
+|---|---|---|
+| F3.2.2b/c | `[ ]` PENDIENTE — componente compartido con F4 | Sigue sin existir `shared/components/category-filter/` — deuda F4 honesta |
+| F3.4.3 | `[ ]` Mini-mapa Leaflet pendiente | `incident-detail.component.html` muestra placeholder "Vista de mapa pendiente", `hasCoordinates` omite bloque si no hay coords — sin contenedor Leaflet a medias |
+| F3.4.6 | `[ ]` Galería pendiente | `data-testid="gallery-placeholder"` textual, endpoint fuera de alcance F3 |
+| F3.4.8/9 | `[ ]` Asignación real pendiente | `onAction('assign')` sólo toast "requiere integración con módulo assignments" |
+| F3.4.10 | `[ ]` Bloqueado por 316/D1 backend | `availableOperators()` filtra ocupados en backend — frontend no puede mostrar lo contrario sin ese cambio |
+| DoD detalle | `[ ]` parcial (timeline+thread sí, mapa/galería no) | Consistente con lo anterior |
+
+Ninguna de las 8 fue marcada `[x]` prematuramente; todas siguen como deuda declarada, no archivado prematuro.
+
+### Compuertas — comparación de rondas
+
+| Gate | Ronda 4 | Ronda 5 (esta auditoría, en vivo) |
+|---|---|---|
+| Suites | 41 | **60 passed, 60 total** |
+| Tests | 290 | **412 passed, 412 total** |
+| `pnpm run build` | exit 0 | **exit 0** |
+| `tsc -b --noEmit` | 14 errores preexistentes (5 archivos) | **9 errores en 3 archivos, 0 en archivos F3** |
+
+El salto 41→60 suites y 290→412 tests NO es regresión del fix — es el squash merge `f4886d1` (develop → `brydyan/sc-305/f3-incidencias-listado-con-filtros-detalle`) que trajo suites preexistentes de otras ramas. Verificado: `git log --oneline` muestra `f4886d1 Squash merge develop into brydyan/...` entre ambas rondas.
+
+### Verdict (ronda 5)
+
+**PASS** — C2, W1 y W2 cierran de verdad, contra el código y los gates en vivo. Las 8 deudas externas siguen como cierre honesto de alcance. Listo para `sdd-archive` (sin re-auditar C1/C3, que ya cerraron en ronda 4).

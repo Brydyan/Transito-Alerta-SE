@@ -218,3 +218,61 @@ un change de backend que extienda `findAll` los restaura
 descomentando tres líneas.
 
 **Listo para `sdd-verify` ronda 4.**
+
+---
+
+# Ronda 5 — Remediación de hallazgos de verify ronda 4 (C2 + W1 + W2)
+
+**Fecha**: 2026-09-06
+**Objetivo**: Resolver el CRITICAL C2 (tipo slim en `releaseIncident`, merge parcial en cache y en detail component, cobertura unitaria completa), actualizar `spec.md` al alcance real de C1 (W1) y sincronizar los gates de permisos en `workflow.util.ts` con los permisos reales del backend (W2).
+
+## C2 — releaseIncident tipado honesto y merge parcial (cerrado)
+
+- **Modelo**: se definió `ClaimReleaseResult` en `frontend/src/app/core/models/incident.model.ts` con los 7 campos exactos devueltos por `POST /incidents/:id/release` tras `SnakeCaseResponseInterceptor` (`id`, `title`, `status`, `priority`, `claimed_by`, `organization_id`, `updated_at`).
+- **Servicio**: `releaseIncident()` en `frontend/src/app/core/services/incident.service.ts` se tipó como `Observable<ClaimReleaseResult>`. En el pipe `tap()`, la actualización del cache `incidents$` se realiza mediante merge parcial `{ ...inc, ...released }` para no sobreescribir los 18 campos restantes del modelo.
+- **Componente**: `IncidentDetailComponent` (`onAction('release')`) actualiza el signal `incident` usando `this.incident.update(cur => cur ? { ...cur, ...released } : cur)`, preservando campos como `description`, coordenadas y autoría.
+- **Tests**:
+  - `incident-detail.component.spec.ts`: el mock devuelve estrictamente el shape slim de 7 campos y se afirma que los campos no devueltos (`description`, etc.) se conservan íntegros.
+  - `incident.service.spec.ts`: se añadió test exhaustivo para `releaseIncident` afirmando método `POST`, endpoint, body `{}`, aserciones positivas de los 7 campos devueltos, aserciones negativas de campos omitidos por el wire, y preservación íntegra de los campos originales en la caché `incidents$`.
+
+## W1 — Alineación honesta de spec.md
+
+- `specs/frontend-incidents/spec.md`:
+  - Se actualizaron los escenarios de "Listado con filtros combinables" documentando explícitamente como capacidades diferidas (C1 ronda 4) la búsqueda por texto y el filtro por prioridad.
+  - El escenario de conteo se ajustó a la forma implementada «Mostrando N de N».
+  - Se actualizaron los escenarios de "Acciones de flujo de trabajo" para reflejar los permisos reales (`CLAIM incidents`, `RELEASE incidents`, `UPDATE incidents`).
+
+## W2 — Permisos en workflow.util alineados con el backend
+
+- `workflow.util.ts`:
+  - `claim`: requiere `CLAIM incidents`.
+  - `release`: requiere `RELEASE incidents`.
+  - `resolve`: requiere `UPDATE incidents` (coincidiendo con `@RequirePermission('UPDATE')` en `PATCH /incidents/:id/status`).
+  - `close`: requiere `UPDATE incidents` y `CLOSE incidents`.
+  - `assign`: requiere `ASSIGN assignments`.
+  Corregida la trampa donde `resolve` se ataba erróneamente a `hasRelease`. `operador_sistema` puede reclamar y liberar según seeds (0015+0019), pero no resolver sin `UPDATE incidents`.
+- `workflow.util.spec.ts`: suite actualizada cubriendo toda la matriz de permisos individuales y combinados.
+- `incident-detail.component.spec.ts`: setups de tests de claim/release actualizados a los permisos reales.
+
+## Archivos modificados en la ronda 5
+
+- `frontend/src/app/core/models/incident.model.ts`
+- `frontend/src/app/core/services/incident.service.ts`
+- `frontend/src/app/core/services/incident.service.spec.ts`
+- `frontend/src/app/features/incidents/workflow.util.ts`
+- `frontend/src/app/features/incidents/workflow.util.spec.ts`
+- `frontend/src/app/features/incidents/incident-detail/incident-detail.component.ts`
+- `frontend/src/app/features/incidents/incident-detail/incident-detail.component.spec.ts`
+- `openspec/changes/front/2026-08-29-f3-incidents-module/specs/frontend-incidents/spec.md`
+- `openspec/changes/front/2026-08-29-f3-incidents-module/tasks.md`
+- `openspec/changes/front/2026-08-29-f3-incidents-module/apply-progress.md`
+
+## Estado de gates (ronda 5)
+
+| Gate | Resultado |
+|---|---|
+| Suites unitarias | 60 passed, 60 total |
+| Tests unitarios | 412 passed, 412 total (100%) |
+| `pnpm run build` | exit 0 |
+
+**Listo para `sdd-verify` ronda 5.**
