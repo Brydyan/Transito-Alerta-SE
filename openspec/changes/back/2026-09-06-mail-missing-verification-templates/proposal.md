@@ -1,5 +1,9 @@
 # Proposal: MAIL — Las plantillas de verificación que nunca existieron
 
+**Historia**: [sc-330](https://app.shortcut.com/upse/story/330) · épica 192 «⚠️ GeoReporta»
+**Bloquea**: [sc-306](https://app.shortcut.com/upse/story/306) (F4) — declarado como enlace
+«blocks» en Shortcut, no sólo aquí
+
 ## Intent
 
 El correo de verificación de cuenta **nunca se ha podido enviar**. Ni una vez, desde
