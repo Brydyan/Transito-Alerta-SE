@@ -191,7 +191,7 @@ describe('E2E admin panel + CRUD gaps (T5.6)', () => {
     expect([400, 404, 409]).toContain(res.status);
   });
 
-  it('POST /api/notifications/:id/approve happy path: incident -> closed, decision columns set', async () => {
+  it('POST /api/notifications/:id/approve happy path: incident stays `resolved`, decision columns set', async () => {
     const admin = await env.provisionUser(['UPDATE notifications', 'CREATE incidents'], { roleName: 'master' });
     const incident = await request(env.httpServer)
       .post('/api/incidents')
@@ -216,13 +216,22 @@ describe('E2E admin panel + CRUD gaps (T5.6)', () => {
       .set('Authorization', `Bearer ${admin.accessToken}`)
       .expect(201);
 
-    expect((res.body as { status: string }).status).toBe('closed');
+    // `resolved`, no `closed`. sc-315 declaró terminales ALTERNATIVOS:
+    // `resolved` es «se resolvió con éxito» y `closed` es «no se pudo
+    // resolver» (spec R0.2, R0.4 — cerrar exige motivo o 422). Aprobar una
+    // resolución exitosa y marcarla «no se pudo resolver» se contradice.
+    //
+    // La aprobación es una MARCA, no una transición: estampa `approved_by/at`
+    // y deja el estado donde estaba. Este test esperaba `closed` porque
+    // arrastraba la lectura lineal (`resolved` intermedio, `closed` final)
+    // que 315 vino a eliminar.
+    expect((res.body as { status: string }).status).toBe('resolved');
     const rowRes = await env.pg.query<{ status: string; approved_by: string }>(
       'SELECT status, approved_by FROM incidents WHERE id = $1',
       [incident.body.id],
     );
     const row = rowRes.rows[0];
-    expect(row.status).toBe('closed');
+    expect(row.status).toBe('resolved');
     expect(row.approved_by).toBe(admin.userId);
   });
 });

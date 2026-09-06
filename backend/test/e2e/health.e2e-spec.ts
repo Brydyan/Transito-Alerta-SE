@@ -27,19 +27,29 @@ describe('E2E harness smoke test', () => {
     expect(typeof response.body.timestamp).toBe('string');
   });
 
-  it('anonymous login returns tokens and the four-permission reporter ceiling', async () => {
+  it('ANON: anonymous device_uuid is rejected at login with 401 ANONYMOUS_IDENTITY_CLOSED', async () => {
+    // Inversión del round 0 ("anonymous login returns tokens
+    // and the four-permission reporter ceiling"). El reporte
+    // sin sesión se cerró por decisión de producto 2026-09-02
+    // (ver `back/2026-09-02-anon-close-anonymous-reporting`).
+    // La identidad anónima ya no concede tokens ni permisos.
     const response = await request(env.httpServer)
       .post('/api/auth/login')
       .send({ device_uuid: 'anonymous' })
-      .expect(200);
+      .expect(401);
 
-    expect(typeof response.body.access_token).toBe('string');
-    expect(typeof response.body.refresh_token).toBe('string');
-    expect(response.body.permissions).toEqual([
-      'READ incidents',
-      'CREATE incidents',
-      'READ comments',
-      'CREATE comments',
-    ]);
+    // La forma del body es la del proyecto: NestJS serializa
+    // el objeto pasado a UnauthorizedException como
+    // { code, message } — `statusCode` lo agrega el filtro
+    // HTTP al responder, no está en el body crudo.
+    expect(response.body).toMatchObject({
+      code: 'ANONYMOUS_IDENTITY_CLOSED',
+      message: expect.stringContaining('Registrate primero para reportar'),
+    });
+    expect(response.status).toBe(401);
+    // Sin tokens, sin permisos concedidos.
+    expect(response.body.access_token).toBeUndefined();
+    expect(response.body.refresh_token).toBeUndefined();
+    expect(response.body.permissions).toBeUndefined();
   });
 });

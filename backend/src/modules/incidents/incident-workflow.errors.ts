@@ -8,3 +8,6 @@ export const INCIDENT_NOT_CLAIMED = 'INCIDENT_NOT_CLAIMED';
 export const WRONG_ORGANIZATION = 'WRONG_ORGANIZATION';
 export const CLAIM_LIMIT_REACHED = 'CLAIM_LIMIT_REACHED';
 export const NOT_THE_CLAIMER = 'NOT_THE_CLAIMER';
+// sc-315 — emitted by IncidentWorkflowService.changeStatus() when the
+// requested `from -> to` transition is not declared in the state machine.
+export const INCIDENT_INVALID_TRANSITION = 'INCIDENT_INVALID_TRANSITION';

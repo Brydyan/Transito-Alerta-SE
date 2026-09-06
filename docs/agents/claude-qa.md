@@ -79,6 +79,69 @@ Quien lo lea después tiene que saber que la independencia era parcial.
 
 ---
 
+## Compuertas: qué corre `sdd-verify`, y no es «los tests»
+
+> **Cómo se aprendió esto.** sc-315 se archivó con veredicto PASS y 911 tests unitarios
+> en verde. Traía **cinco defectos vivos**: una migración que no ejecutaba, su DOWN con
+> el mismo bug, `PATCH /incidents/:id/status` devolviendo 500 en toda transición, y dos
+> contratos sin reconciliar. Los atrapó CI y la suite de integración. Ninguno lo vio
+> `sdd-verify`, porque `sdd-verify` corría `npm test` y nada más.
+
+### Regla 1 — se corren TODOS los jobs de `ci.yml` de las capas que el change toca
+
+No «los tests». `ci.yml` declara ocho jobs y `npm test` es uno.
+
+| Toca | Jobs obligatorios |
+|---|---|
+| `backend/src` | `lint`, `typecheck`, `build`, `test`, **`test:e2e`** (integración) |
+| `frontend/src` | `test`, `build`, typecheck con **`-b`** |
+| `database/migrations` | el job `migrations` **completo** — ver Regla 2 |
+| workflows | `actionlint` |
+
+**`test:e2e` es un job aparte y tarda ~9 min con Testcontainers.** Esa es la razón por la
+que se saltaba, y también por la que los defectos llegaron a `develop`. El costo del job
+es menor que el de un archivado falso.
+
+Si un job no se puede correr —Docker caído, Supabase inaccesible— **eso es un bloqueo del
+verify, no una nota al pie**. Se reporta como tal y el change no pasa a PASS.
+
+### Regla 2 — una migración no verificada es una migración no ejecutada
+
+Todo change que toque `database/migrations/` se verifica ejecutándolas **desde cero**
+contra un contenedor descartable:
+
+```bash
+docker run -d --name verify-pg -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=transito_alerta -p 55432:5432 postgis/postgis:16-3.4
+for f in database/migrations/[0-9]*.sql; do
+  PGPASSWORD=postgres psql -h localhost -p 55432 -U postgres \
+    -d transito_alerta -v ON_ERROR_STOP=1 -q -f "$f" || echo "FALLA: $f"
+done
+docker rm -f verify-pg
+```
+
+Con tres exigencias, y las tres nacieron de un defecto real:
+
+1. **Desde cero**, no incremental. Un esquema ya poblado esconde errores de orden.
+2. **El ciclo UP/DOWN completo.** El bug de `0043` se arregló en el UP y sobrevivió en su
+   DOWN hasta que `t7-rollback-cycle` lo destapó. Un rollback que no se probó no existe.
+3. **Se comprueba el efecto, no el código de salida.** Que `psql` salga 0 no dice que el
+   permiso quedó concedido en las dos tablas. Se consulta.
+
+### Regla 3 — «bloqueado por entorno» no es «no bloqueante»
+
+La primera pasada de sc-315 reportó el inventario de datos como *«bloqueado por entorno
+(sin docker)»* y se aceptó como no bloqueante. Fue el error que dejó pasar todo lo demás.
+
+Un check que no se pudo correr **no informa nada**. Tratarlo como si informara «está
+bien» es la misma falla que este proyecto tiene registrada tres veces en su roadmap:
+
+> **Un gate que no corre se lee igual que un gate que pasa.**
+
+Ante un check impedido: decir qué falta para correrlo, y **no** emitir PASS.
+
+---
+
 ## Misión
 
 Auditar y validar el código contra `openspec/changes/<change>/{specs/,design.md,tasks.md}`
@@ -215,3 +278,19 @@ completo — no sólo los ítems corregidos: una corrección puede romper algo q
 - Un literal hexadecimal de color en una plantilla o en la configuración de un
   gráfico → debe salir de los tokens de F0.
 - Un servicio nuevo sin ningún consumidor → contrato sin verificar.
+- **Un método corregido con cero llamadores** → el arreglo aterrizó en el objeto
+  equivocado. En sc-315 se arregló y testeó `IncidentWorkflowService.getStatuses()`
+  mientras los dos endpoints HTTP servían un literal escrito a mano; borrar `'closed'`
+  de ese literal dejaba 912 tests en verde. `grep` de llamadores antes de dar por bueno
+  un arreglo.
+- **Una fuente de verdad nueva conviviendo con la vieja** → crear el grafo, la tabla o
+  el parser no basta: hay que **retirar todo enumerador paralelo** (listas, `Record`,
+  `Set`, `switch`). Mientras el viejo exista, el nuevo es documentación. Le costó tres
+  pasadas a F1 y dos a sc-315.
+- **Una exención dentro de un gate** → preguntar si la guarda comprueba la condición que
+  la justifica, no si la exención es razonable. La de sc-315 decía cubrir rutas
+  parametrizadas y se aplicaba a todas.
+- **La misma regla aplicada en un sitio y no en su vecino** → el patrón que el roadmap
+  documenta como recurrente. Aparece entre archivos (UP arreglado, DOWN no), entre
+  sentencias, y **dentro de una misma sentencia**: en `0043` el `WHERE` calificaba
+  `u.permissions` y el `SET` de dos líneas arriba no.

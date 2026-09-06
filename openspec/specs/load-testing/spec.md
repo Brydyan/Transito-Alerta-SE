@@ -47,10 +47,16 @@
 
 ### Given / When / Then
 
-**LT-S2-01 — Lectura anónima bajo carga**
+**LT-S2-01 — Lectura bajo carga**
 - **Given** el backend está corriendo
 - **When** k6 ejecuta 25k VUs haciendo `GET /api/incidents`
 - **Then** `http_req_duration` p95 < 200ms AND `http_req_failed` rate < 0.1%
+
+> **ANON (sc-326), 2026-09-05:** este escenario se llamaba «Lectura anónima bajo carga» y
+> suponía que los 25k usuarios virtuales leían sin sesión. El login anónimo se cerró, así
+> que el guion de k6 tiene que autenticarse antes. **Eso todavía no se hizo**: el guion
+> vive fuera del alcance de ANON y queda como deuda de la fase de carga. Anotado acá para
+> que no se descubra el día que se corra la prueba.
 
 **LT-S2-02 — Sin autenticación requerida**
 - **Given** un VU ejecuta la función default

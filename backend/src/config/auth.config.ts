@@ -57,9 +57,12 @@ export function parseDurationSeconds(value: string): number {
  *
  * - Dual JWT secrets (access/refresh) per design D2.
  * - Anonymous identity ceiling (device_uuid='anonymous') per blocker
- *   resolution #4: read what the public posted and contribute to it, never
- *   modify. READ/CREATE incidents, READ/CREATE comments — no UPDATE, DELETE
- *   or ASSIGN, not even over its own rows.
+ *   resolution #4 (round 0) — REVOCADO por ANON (sc-326, ronda 1).
+ *   La identidad anónima ya no concede nada: ni lectura ni escritura.
+ *   La invariante la cubre el spec de `auth.config.spec.ts` (B.5 + B.6).
+ *   La fila máscara sigue presente en la BD porque AUD la recicla
+ *   como autoría de publicaciones; la migración 0048 vacía su
+ *   `permissions` para reflejar el nuevo estado.
  */
 export default registerAs('auth', (): AuthConfig => {
   const jwtRefreshExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN ?? '7d';
@@ -72,12 +75,15 @@ export default registerAs('auth', (): AuthConfig => {
       ? parseInt(process.env.PERMISSION_CACHE_TTL_SECONDS, 10)
       : 3600,
     anonymousDeviceUuid: 'anonymous',
-    anonymousPermissions: [
-      'READ incidents',
-      'CREATE incidents',
-      'READ comments',
-      'CREATE comments',
-    ],
+    // ANON (sc-326) — la lista está VACÍA. La identidad
+    // anónima ya no concede nada: ni lectura ni escritura.
+    // Mantener la lista no-vacía reintroduciría el techo
+    // que el round 0 tenía y que esta fase cierra. La
+    // invariante está cubierta por `auth.config.spec.ts`
+    // (B.5 + B.6) y por la rama `isAnonymous` en
+    // `getAuthContextByUserId`, que ahora siempre devuelve
+    // `permissions: []` para la fila máscara.
+    anonymousPermissions: [],
     sessionRefreshGraceSeconds: process.env.SESSION_REFRESH_GRACE_SECONDS
       ? parseInt(process.env.SESSION_REFRESH_GRACE_SECONDS, 10)
       : 30,

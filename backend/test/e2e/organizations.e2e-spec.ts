@@ -168,16 +168,27 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
       expect(orgIds.has(orgBId)).toBe(true);
     });
 
-    it('an incident created by an anonymous device inside Org A\'s zone is persisted with organization_id=A (D4 crux)', async () => {
-      const login = await request(env.httpServer)
-        .post('/api/auth/login')
-        .send({ device_uuid: 'anonymous' })
-        .expect(200);
+    it('an incident created by a reporter (post-ANON: no anonymous device path) inside Org A\'s zone is persisted with organization_id=A', async () => {
+      // Inversión del round 0 ("an incident created by an
+      // anonymous device…"). ANON cerró el camino del
+      // dispositivo anónimo: el reporte sin sesión ya no es
+      // una ruta válida. El escenario D4 (incidencia
+      // georreferenciada a la org correcta) sigue siendo
+      // cierto, pero el actor ahora es un `reporter`
+      // autenticado — no la máscara compartida.
+      const reporter = await env.provisionUser(
+        ['CREATE incidents', 'READ incidents'],
+        {
+          email: `reporter-${randomUUID()}@example.com`,
+          roleName: 'reporter',
+          emailVerified: true,
+        },
+      );
 
       const created = await request(env.httpServer)
         .post('/api/incidents')
-        .set({ Authorization: `Bearer ${login.body.access_token}` })
-        .send({ title: 'Reporte anonimo', ...INSIDE_SANTA_ELENA })
+        .set({ Authorization: `Bearer ${reporter.accessToken}` })
+        .send({ title: 'Reporte reporter', ...INSIDE_SANTA_ELENA })
         .expect(201);
 
       expect(created.body.organization_id).toBe(orgAId);
@@ -194,14 +205,22 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
     });
 
     it('an incident created outside every zone is still accepted 201 with organization_id=NULL (R2)', async () => {
-      const login = await request(env.httpServer)
-        .post('/api/auth/login')
-        .send({ device_uuid: 'anonymous' })
-        .expect(200);
+      // Inversión del round 0: la máscara compartida ya no
+      // puede crear contenido. La invariante R2 (no perder un
+      // reporte de emergencia por estar fuera de zona) sigue
+      // vigente, pero el actor es un `reporter` autenticado.
+      const reporter = await env.provisionUser(
+        ['CREATE incidents'],
+        {
+          email: `org-r2-reporter-${randomUUID()}@example.com`,
+          roleName: 'reporter',
+          emailVerified: true,
+        },
+      );
 
       const created = await request(env.httpServer)
         .post('/api/incidents')
-        .set({ Authorization: `Bearer ${login.body.access_token}` })
+        .set({ Authorization: `Bearer ${reporter.accessToken}` })
         .send({ title: 'Fuera de zona', lat: 0, lng: 0 })
         .expect(201);
 

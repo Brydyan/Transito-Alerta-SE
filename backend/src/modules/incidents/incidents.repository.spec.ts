@@ -119,48 +119,6 @@ describe('IncidentsRepository', () => {
     });
   });
 
-  describe('updateStatus', () => {
-    // The driver returns [rows, rowCount] for UPDATE — mocking bare rows here
-    // is what let the tuple bug reach production with a green suite.
-    it('returns the updated row from the [rows, count] tuple the driver really returns', async () => {
-      const row = { id: 'inc-1', status: 'in_progress', zone_id: 'z-1' };
-      dataSource.query.mockResolvedValue([[row], 1]);
-
-      const result = await repository.updateStatus('inc-1', 'in_progress');
-
-      const [, params] = dataSource.query.mock.calls[0];
-      // T6.3: third param is a boolean flag (status === 'resolved') driving
-      // resolution_date — avoids PostgreSQL "inconsistent types for $2" from
-      // reusing the enum-bound status param inside a text CASE comparison.
-      expect(params).toEqual(['inc-1', 'in_progress', false]);
-      expect(result).toEqual(row);
-    });
-
-    // zone_id drives cache purging and realtime room routing; if the row is
-    // array-wrapped both silently no-op.
-    it('exposes zone_id on the returned row', async () => {
-      dataSource.query.mockResolvedValue([[{ id: 'inc-1', zone_id: 'z-1' }], 1]);
-
-      const result = await repository.updateStatus('inc-1', 'in_progress');
-
-      expect(result?.zone_id).toBe('z-1');
-    });
-
-    it('returns null when no row matched', async () => {
-      dataSource.query.mockResolvedValue([[], 0]);
-
-      await expect(repository.updateStatus('ghost', 'resolved')).resolves.toBeNull();
-    });
-
-    it('does not manually write updated_at (trigger handles it)', async () => {
-      dataSource.query.mockResolvedValue([[{ id: 'inc-1' }], 1]);
-
-      await repository.updateStatus('inc-1', 'in_progress');
-
-      const [sql] = dataSource.query.mock.calls[0];
-      expect(sql).not.toContain('updated_at = ');
-    });
-  });
 
   describe('update', () => {
     it('does not manually write updated_at (trigger handles it)', async () => {

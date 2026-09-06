@@ -18,6 +18,7 @@ import {
 import type { Response } from 'express';
 
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { EmailVerifiedGuard } from '../../common/guards/email-verified.guard';
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -36,12 +37,23 @@ import { IncidentAnalyticsService } from './incident-analytics.service';
 import { IncidentFeedService } from './incident-feed.service';
 import { IncidentExportService } from './incident-export.service';
 import { FeedRecoveryService } from './feed-recovery.service';
+import { IncidentWorkflowService } from './incident-workflow.service';
 
 /**
- * IncidentsController (R2) — calibration slice. Anonymous devices hold
- * "CREATE incidents"/"READ incidents" on the anonymous permission ceiling
- * (auth.config.ts); status transitions require "UPDATE incidents", which
- * anonymous does NOT hold.
+ * IncidentsController (R2) — calibration slice.
+ *
+ * **ANON (sc-326)**: el techo anónimo está VACÍO. La identidad
+ * anónima (`device_uuid === 'anonymous'`) ya no puede
+ * autenticarse (ver `auth.service.ts:login()`), y aunque
+ * pudiera, no leería/crearía nada — la migración 0048 vacía
+ * el `permissions` denormalizado de la fila máscara y
+ * `auth.config.ts:anonymousPermissions` está en `[]`. Por
+ * seguridad, las guards a nivel de clase (`JwtAuthGuard`,
+ * `PermissionGuard`, `EmailVerifiedGuard`) rechazan cualquier
+ * request sin sesión/token con 401 o 403 antes de que la
+ * lógica de este controller corra. Ver
+ * `backend/test/e2e/anon-no-anonymous-creation.e2e-spec.ts`
+ * para la verificación e2e.
  *
  * Route order matters: literal routes (stats, weekly-stats, feed, export)
  * MUST be declared before the `:id` wildcard to avoid shadowing.
@@ -55,9 +67,14 @@ export class IncidentsController {
     private readonly feedService: IncidentFeedService,
     private readonly exportService: IncidentExportService,
     private readonly feedRecoveryService: FeedRecoveryService,
+    // sc-315 — PATCH /incidents/:id/status ahora delega al workflow
+    // service para que la transición pase por la máquina de estados y
+    // la escritura de `status_history` sea atómica (S.5.1).
+    private readonly workflow: IncidentWorkflowService,
   ) {}
 
   @Post()
+  @UseGuards(EmailVerifiedGuard)
   @RequirePermission('CREATE')
   create(
     @Body() dto: CreateIncidentDto,
@@ -152,15 +169,28 @@ export class IncidentsController {
     return this.incidentsService.findOne(id, req.user!.scope);
   }
 
+  // sc-315 — la ruta de cambio de estado pasa por la máquina de estados
+  // (validación 409) y exige `CLOSE incidents` cuando el destino es
+  // `closed` (D8). El decorador declara `UPDATE` como mínimo: el
+  // workflow service verifica el permiso específico para `closed`
+  // dentro de la transacción, así un operador con UPDATE pero sin
+  // CLOSE obtiene 403 sin que el controller tenga que bifurcar.
   @Patch(':id/status')
   @RequirePermission('UPDATE')
   @HttpCode(HttpStatus.OK)
-  updateStatus(
+  async updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateIncidentStatusDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<IncidentRow> {
-    return this.incidentsService.updateStatus(id, dto.status, req.user!.userId, req.user!.scope);
+    const user = req.user!;
+    return this.workflow.changeStatus({
+      incidentId: id,
+      to: dto.status,
+      actorId: user.userId,
+      actorPermissions: user.permissions ?? [],
+      closedReason: dto.closed_reason,
+    });
   }
 
   // ---- T5.6 PATCH/DELETE — declared AFTER `:id/status` to keep the

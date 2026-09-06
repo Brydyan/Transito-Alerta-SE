@@ -4,8 +4,14 @@ import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeor
  * status_history table (T3.4 — 0014_status_history.sql).
  *
  * Append-only audit trail of `incidents.status` transitions, written
- * exclusively by `IncidentStatusHistoryListener` (never by the read path —
- * D7). No `@UpdateDateColumn`: the table has no `updated_at` column by
+ * exclusively por `IncidentWorkflowService.changeStatus()`, en la MISMA
+ * transacción que el `UPDATE incidents` (sc-315: «un cambio sin registro es
+ * peor que no haber cambiado»). Nunca por el camino de lectura (D7).
+ *
+ * Hasta sc-315 lo escribía `IncidentStatusHistoryListener`, consumiendo
+ * `incident.status_changed` del stream. Ese listener se retiró: convivía con
+ * la escritura transaccional y producía dos filas por transición, y además
+ * dejaba el historial expuesto a perderse en silencio si el consumidor moría. No `@UpdateDateColumn`: the table has no `updated_at` column by
  * design (append-only), and no relations are declared here (D8 — this
  * module reads `IncidentEntity` directly, not through a TypeORM relation).
  */

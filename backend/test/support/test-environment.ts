@@ -19,7 +19,6 @@ import {
   MAIL_EVENTS_BLOCKING_CLIENT,
   REDIS_CLIENT,
   SESSION_REDIS_CLIENT,
-  STATUS_HISTORY_EVENTS_BLOCKING_CLIENT,
 } from '../../src/core/core.module';
 import { applyMigrations } from './run-migrations';
 
@@ -39,6 +38,15 @@ export interface ProvisionUserOverrides {
   email?: string;
   organizationId?: string | null;
   roleName?: string;
+  /**
+   * REG (sc-325) ronda 4 (Fix 5) — la cuenta provisionada lleva
+   * `email_verified_at` por default para que la suite e2e no se
+   * rompa con la nueva política fail-closed del `EmailVerifiedGuard`
+   * (allow-list de staff; cualquier `roleName` no-staff exige
+   * verificación). El test que SÍ quiere ejercitar el camino
+   * "no verificado" lo setea explícitamente en `false`.
+   */
+  emailVerified?: boolean;
 }
 
 const ANONYMOUS_PERMISSIONS_JSON =
@@ -82,7 +90,6 @@ export class TestEnvironment {
     private readonly cacheManager: Cache<RedisStore>,
     private readonly mailBlockingClient: Redis,
     private readonly mailEventsBlockingClient: Redis,
-    private readonly statusHistoryEventsBlockingClient: Redis,
     private readonly sessionRedisClient: Redis,
   ) {}
 
@@ -219,7 +226,6 @@ export class TestEnvironment {
     // wired in globally).
     const mailBlockingClient = app.get<Redis>(MAIL_BLOCKING_CLIENT);
     const mailEventsBlockingClient = app.get<Redis>(MAIL_EVENTS_BLOCKING_CLIENT);
-    const statusHistoryEventsBlockingClient = app.get<Redis>(STATUS_HISTORY_EVENTS_BLOCKING_CLIENT);
     // T3.9 — the denylist/grace-buffer client. Same DB (0) as REDIS_CLIENT,
     // but a SEPARATE connection (`enableOfflineQueue: false,
     // commandTimeout: 50`) — grabbed here only so teardown can quit it
@@ -255,7 +261,6 @@ export class TestEnvironment {
       cacheManager,
       mailBlockingClient,
       mailEventsBlockingClient,
-      statusHistoryEventsBlockingClient,
       sessionRedisClient,
     );
   }
@@ -330,15 +335,26 @@ export class TestEnvironment {
       roleId = rows[0]?.id ?? null;
     }
 
+    // REG (sc-325) ronda 4 (Fix 5) — default a `email_verified_at = now()`
+    // para que la nueva política fail-closed del guard no rompa
+    // los 48 archivos e2e que usan `provisionUser()`. La
+    // convención es: si un test quiere el camino "no verificado"
+    // (rara vez), lo pide explícitamente con
+    // `overrides.emailVerified = false`.
+    const emailVerified = overrides.emailVerified ?? true;
+    const emailVerifiedAt = emailVerified ? new Date() : null;
+
     await this.pg.query(
-      `INSERT INTO users (device_uuid, permissions, is_active, email, organization_id, role_id)
-       VALUES ($1, $2::jsonb, true, $3, $4, $5)`,
+      `INSERT INTO users
+         (device_uuid, permissions, is_active, email, organization_id, role_id, email_verified_at)
+       VALUES ($1, $2::jsonb, true, $3, $4, $5, $6)`,
       [
         deviceUuid,
         JSON.stringify(permissions),
         overrides.email ?? null,
         overrides.organizationId ?? null,
         roleId,
+        emailVerifiedAt,
       ],
     );
 
@@ -508,7 +524,6 @@ export class TestEnvironment {
     this.appRedisClient.disconnect();
     this.mailBlockingClient.disconnect();
     this.mailEventsBlockingClient.disconnect();
-    this.statusHistoryEventsBlockingClient.disconnect();
     this.sessionRedisClient.disconnect();
 
     await this.redisContainer.stop();

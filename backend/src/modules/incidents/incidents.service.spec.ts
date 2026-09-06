@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Cache } from 'cache-manager';
 import type { Redis } from 'ioredis';
@@ -32,11 +32,15 @@ function makeRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('IncidentsService', () => {
+  // sc-315 C4 (ronda 2) — `repo.updateStatus` se eliminó del repository.
+  // El mock ya no lo declara; la transición de estado pasa por el
+  // workflow service.
   let repo: {
     create: jest.Mock;
     findAll: jest.Mock;
     findOne: jest.Mock;
-    updateStatus: jest.Mock;
+    update: jest.Mock;
+    softDelete: jest.Mock;
   };
   let geofencing: { resolveZone: jest.Mock; purgeZoneCache: jest.Mock; tagCacheKey: jest.Mock };
   let organizations: { findNotifiedFor: jest.Mock };
@@ -50,7 +54,8 @@ describe('IncidentsService', () => {
       create: jest.fn(),
       findAll: jest.fn(),
       findOne: jest.fn(),
-      updateStatus: jest.fn(),
+      update: jest.fn(),
+      softDelete: jest.fn(),
     };
     geofencing = { resolveZone: jest.fn(), purgeZoneCache: jest.fn(), tagCacheKey: jest.fn() };
     organizations = { findNotifiedFor: jest.fn() };
@@ -133,6 +138,46 @@ describe('IncidentsService', () => {
       expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ organizationId: null }));
     });
 
+    // sc-315 W2 (ronda 2) — D9 del design: una incidencia con
+    // `priority: 'critical'` nace en `pending`, NO en `in_progress`.
+    // El test afirma que el input que `IncidentsService.create` pasa
+    // al repository NO incluye un campo `status` — el default
+    // `pending` lo aplica el INSERT de Postgres
+    // (`'pending'` en el SQL de `IncidentsRepository.create`).
+    //
+    // Si alguien agrega `status: 'in_progress'` al `CreateIncidentInput`
+    // "para que las críticas se muestren como activas", el aserto cae
+    // y la decisión D9 (F7 necesita un estado de parada) queda
+    // defendida.
+    it('does NOT auto-promote a critical-priority incident to in_progress (D9)', async () => {
+      geofencing.resolveZone.mockResolvedValue({ zone_id: 'zone-1', zone: { id: 'zone-1' } });
+      organizations.findNotifiedFor.mockResolvedValue([
+        { id: 'org-A', name: 'Org A', zone_id: 'zone-1', created_at: new Date() },
+      ]);
+      repo.create.mockResolvedValue(makeRow({ priority: 'critical' }));
+
+      await service.create(
+        {
+          title: 'Building collapse',
+          description: 'smoke visible',
+          lat: -2.2,
+          lng: -80.8,
+          priority: 'critical',
+        } as unknown as Parameters<typeof service.create>[0],
+        'user-1',
+      );
+
+      const callArg = repo.create.mock.calls[0][0];
+      // El input al repository NO debe tener `status`. Si lo tiene,
+      // alguien está forzando un estado de salida que la decisión D9
+      // prohíbe. La columna real recibe `'pending'` por default en el
+      // SQL de la fila 71 del repository (`'pending'` literal en el
+      // INSERT).
+      expect(callArg).not.toHaveProperty('status');
+      // Y la prioridad crítica sí viaja intacta al repository.
+      expect(callArg.priority).toBe('critical');
+    });
+
     it('T7.5.C4 — picks the first org when findNotifiedFor returns several (auto-assign matches is_claimable)', async () => {
       geofencing.resolveZone.mockResolvedValue({ zone_id: 'zone-1', zone: { id: 'zone-1' } });
       organizations.findNotifiedFor.mockResolvedValue([
@@ -208,70 +253,25 @@ describe('IncidentsService', () => {
     });
   });
 
-  describe('updateStatus', () => {
-    it('allows pending -> in_progress and emits incident.status_changed', async () => {
-      repo.findOne.mockResolvedValue(makeRow({ status: 'pending' }));
-      repo.updateStatus.mockResolvedValue(makeRow({ status: 'in_progress' }));
 
-      const result = await service.updateStatus('inc-1', 'in_progress', 'operator-1', GLOBAL_SCOPE);
-
-      expect(repo.findOne).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE);
-      expect(repo.updateStatus).toHaveBeenCalledWith('inc-1', 'in_progress');
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'incident.status_changed',
-        expect.any(Object),
-      );
-      expect(redis.xadd).toHaveBeenCalledWith(
-        INCIDENTS_STREAM_KEY,
-        '*',
-        'type',
-        'incident.status_changed',
-        'data',
-        expect.any(String),
-      );
-      expect(result.status).toBe('in_progress');
+  // sc-315 C2 (ronda 2) — la única ruta HTTP real que entrega el
+  // catálogo de estados (`GET /incidents/statuses` y `GET /estados`)
+  // pasa por acá. El test afirma que la respuesta sale del grafo
+  // declarado, no de un arreglo literal escrito a mano. Si alguien
+  // restaura la lista hardcoded, el test cae.
+  describe('getStatuses (sc-315 C2)', () => {
+    it('returns the four IncidentStatus values declared in the state machine', () => {
+      const result = service.getStatuses();
+      const ids = result.map((s) => s.id).sort();
+      expect(ids).toEqual(['closed', 'in_progress', 'pending', 'resolved']);
     });
 
-    it('allows in_progress -> resolved', async () => {
-      repo.findOne.mockResolvedValue(makeRow({ status: 'in_progress' }));
-      repo.updateStatus.mockResolvedValue(makeRow({ status: 'resolved' }));
-
-      const result = await service.updateStatus('inc-1', 'resolved', 'operator-1', GLOBAL_SCOPE);
-
-      expect(result.status).toBe('resolved');
-    });
-
-    it('rejects pending -> resolved (illegal transition, must go through in_progress)', async () => {
-      repo.findOne.mockResolvedValue(makeRow({ status: 'pending' }));
-
-      await expect(
-        service.updateStatus('inc-1', 'resolved', 'operator-1', GLOBAL_SCOPE),
-      ).rejects.toBeInstanceOf(BadRequestException);
-      expect(repo.updateStatus).not.toHaveBeenCalled();
-    });
-
-    it('rejects resolved -> pending (backward transition)', async () => {
-      repo.findOne.mockResolvedValue(makeRow({ status: 'resolved' }));
-
-      await expect(
-        service.updateStatus('inc-1', 'pending', 'operator-1', GLOBAL_SCOPE),
-      ).rejects.toBeInstanceOf(BadRequestException);
-    });
-
-    it('rejects a same-status no-op transition', async () => {
-      repo.findOne.mockResolvedValue(makeRow({ status: 'pending' }));
-
-      await expect(
-        service.updateStatus('inc-1', 'pending', 'operator-1', GLOBAL_SCOPE),
-      ).rejects.toBeInstanceOf(BadRequestException);
-    });
-
-    it('throws NotFoundException when the incident does not exist or is invisible under scope', async () => {
-      repo.findOne.mockResolvedValue(null);
-
-      await expect(
-        service.updateStatus('missing', 'in_progress', 'operator-1', ORG_A_SCOPE),
-      ).rejects.toBeInstanceOf(NotFoundException);
+    it('ships a non-empty label for every status (contract for the frontend)', () => {
+      const result = service.getStatuses();
+      for (const entry of result) {
+        expect(entry.label).toBeTruthy();
+        expect(entry.label.length).toBeGreaterThan(0);
+      }
     });
   });
 });

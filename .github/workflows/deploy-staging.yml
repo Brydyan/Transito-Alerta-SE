@@ -235,7 +235,12 @@ jobs:
       - name: Health check — frontend
         run: |
           set -a; source .env; set +a
-          FRONTEND_PORT=${FRONTEND_PORT:-80}
+          # El default tiene que ser el MISMO que el de compose.yaml (8083).
+          # Acá decía 80: mientras `.env` defina FRONTEND_PORT los dos
+          # coinciden, pero con un `.env` que no la declare, compose publica
+          # en 8083 y este paso consulta el 80 — y tumba en rojo un deploy que
+          # salió bien. Dos defaults para la misma variable, en dos archivos.
+          FRONTEND_PORT=${FRONTEND_PORT:-8083}
           echo "Health check → http://localhost:${FRONTEND_PORT}"
           for i in $(seq 1 10); do
             if curl -sf "http://localhost:${FRONTEND_PORT}" > /dev/null; then

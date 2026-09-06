@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import request from 'supertest';
 
 import { INCIDENTS_STREAM_KEY } from '../../src/modules/incidents/incidents.service';
@@ -34,12 +35,22 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
     return { Authorization: `Bearer ${user.accessToken}` };
   }
 
-  it('anonymous emergency report: inside Santa Elena, outside all zones (still accepted per R2), then read back', async () => {
-    const login = await request(env.httpServer)
-      .post('/api/auth/login')
-      .send({ device_uuid: 'anonymous' })
-      .expect(200);
-    const auth = { Authorization: `Bearer ${login.body.access_token}` };
+  it('reporter emergency report: inside Santa Elena, outside all zones (still accepted per R2), then read back', async () => {
+    // Inversión del round 0 ("anonymous emergency report…").
+    // El reporte sin sesión se cerró por decisión de producto
+    // 2026-09-02. El escenario R2 sigue vigente (no perder un
+    // reporte de emergencia por estar fuera de zona), pero el
+    // actor ya no es la máscara compartida: es un `reporter`
+    // autenticado.
+    const reporter = await env.provisionUser(
+      ['CREATE incidents', 'READ incidents'],
+      {
+        email: `flows-reporter-${randomUUID()}@example.com`,
+        roleName: 'reporter',
+        emailVerified: true,
+      },
+    );
+    const auth = { Authorization: `Bearer ${reporter.accessToken}` };
 
     const inside = await request(env.httpServer)
       .post('/api/incidents')
@@ -67,12 +78,21 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
     expect(readBack.body.title).toBe('Choque en via principal');
   });
 
-  it('anonymous ceiling (CC2): READ/CREATE succeed; UPDATE/DELETE/ASSIGN refused 403; unauthenticated refused 401', async () => {
-    const login = await request(env.httpServer)
-      .post('/api/auth/login')
-      .send({ device_uuid: 'anonymous' })
-      .expect(200);
-    const auth = { Authorization: `Bearer ${login.body.access_token}` };
+  it('reporter ceiling (CC2 post-ANON): READ/CREATE succeed; UPDATE/DELETE/ASSIGN refused 403; unauthenticated refused 401', async () => {
+    // Inversión del round 0 ("anonymous ceiling (CC2)…"). El
+    // camino anónimo se cerró; el reporter autenticado tiene
+    // las mismas capacidades que la máscara tenía (READ +
+    // CREATE de incidents y comments), pero ya no es
+    // compartido. La simetría de la prueba se mantiene.
+    const reporter = await env.provisionUser(
+      ['CREATE incidents', 'READ incidents', 'CREATE comments', 'READ comments'],
+      {
+        email: `ceiling-reporter-${randomUUID()}@example.com`,
+        roleName: 'reporter',
+        emailVerified: true,
+      },
+    );
+    const auth = { Authorization: `Bearer ${reporter.accessToken}` };
 
     const incident = await request(env.httpServer)
       .post('/api/incidents')
@@ -91,7 +111,11 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
       .set(auth)
       .expect(200);
 
-    // Not even over its own rows — the ceiling grants READ/CREATE only.
+    // El reporter no concede UPDATE/DELETE/ASSIGN. Esta parte
+    // no cambió con ANON: el `reporter` (post-REG) tiene sólo
+    // READ/CREATE. Verificar que las mutaciones se rechazan
+    // con 403 — sin eso, el reporter sería indistinguible de
+    // un rol de staff.
     await request(env.httpServer)
       .patch(`/api/incidents/${incident.body.id}/status`)
       .set(auth)
@@ -104,6 +128,10 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
       .send({ incident_id: incident.body.id, operator_id: incident.body.citizen_id })
       .expect(403);
 
+    // Sin token, el feed sigue siendo 401 (lectura tampoco es
+    // pública — el producto no expone feed público en esta
+    // etapa). Esta parte de la prueba se preserva del
+    // round 0.
     await request(env.httpServer).get('/api/incidents').expect(401);
   });
 
@@ -191,11 +219,16 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
     expect(incident.body.status).toBe('pending');
 
     // Out-of-order: pending -> resolved skips in_progress.
+    // 409, no 400: sc-315 declaró la máquina de estados y el spec consolidado
+    // lo fija — «all undeclared transitions MUST be rejected with 409» y «No
+    // state skipping … THEN 409» (openspec/specs/incident-workflow/spec.md:30,37).
+    // Una transición ilegal no es una petición malformada: es un conflicto con
+    // el estado actual del recurso.
     await request(env.httpServer)
       .patch(`/api/incidents/${incident.body.id}/status`)
       .set(auth)
       .send({ status: 'resolved' })
-      .expect(400);
+      .expect(409);
 
     // Populate a status-filtered listing cache BEFORE the legal transition,
     // so the purge assertion below proves the write actually reached it —
@@ -235,11 +268,15 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
     expect(await env.redisCache.get(inProgressListKey)).toBeNull();
 
     // resolved is terminal — nothing legally follows it.
+    // 409 por el mismo motivo que arriba: spec R0.2, «No transitions from
+    // terminal states … THEN 409». Es la segunda ocurrencia en este archivo;
+    // la primera se corrigió sola y ésta quedó — la regla aplicada en un
+    // sitio y no en su vecino, dentro del mismo test.
     await request(env.httpServer)
       .patch(`/api/incidents/${incident.body.id}/status`)
       .set(auth)
       .send({ status: 'in_progress' })
-      .expect(400);
+      .expect(409);
 
     const entries = await env.redisStreams.xrevrange(INCIDENTS_STREAM_KEY, '+', '-', 'COUNT', 10);
     const statusChangedCount = entries

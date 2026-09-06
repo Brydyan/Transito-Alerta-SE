@@ -12,7 +12,12 @@ export type PermissionAction =
   // permissions.action in migration 0019 extends the allowed set in lockstep
   // with this type; keep both in sync.
   | 'CLAIM'
-  | 'RELEASE';
+  | 'RELEASE'
+  // sc-315 — closing an incident without resolution. The CHECK constraint on
+  // permissions.action in migration 0043 extends the allowed set in lockstep
+  // with this type; keep both in sync. Distinct from `UPDATE` because resolving
+  // and closing are different outcomes (D8 del design).
+  | 'CLOSE';
 
 export interface RequiredPermission {
   action: PermissionAction;

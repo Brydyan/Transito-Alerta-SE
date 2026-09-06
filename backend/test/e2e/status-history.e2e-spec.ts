@@ -168,11 +168,14 @@ describe('StatusHistory module e2e (T3.4)', () => {
     const auth = authHeader(operator);
     const incidentId = await createIncident(auth);
 
+    // 409, no 400 — ver openspec/specs/incident-workflow/spec.md:30,37. sc-315
+    // declaró la máquina de estados: una transición no declarada es un
+    // conflicto con el estado del recurso, no una petición malformada.
     await request(env.httpServer)
       .patch(`/api/incidents/${incidentId}/status`)
       .set(auth)
       .send({ status: 'resolved' })
-      .expect(400);
+      .expect(409);
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
