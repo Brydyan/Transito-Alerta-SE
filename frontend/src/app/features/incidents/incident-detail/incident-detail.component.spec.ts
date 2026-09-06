@@ -142,14 +142,14 @@ describe('IncidentDetailComponent (F3.4)', () => {
   });
 
   it('D4 — availableActions se llama con (incident, permissions, currentUserId)', () => {
-    const { component } = setup({ permissions: ['UPDATE incidents'] });
-    // pending + UPDATE ⇒ claim
+    const { component } = setup({ permissions: ['CLAIM incidents'] });
+    // pending + CLAIM ⇒ claim
     expect(component.actions()).toContain('claim');
   });
 
   it('F3.4.7 — al ejecutar claim con éxito, el incident signal se actualiza y se muestra toast', () => {
     const { component, incidentSvc, toastSvc } = setup({
-      permissions: ['UPDATE incidents'],
+      permissions: ['CLAIM incidents'],
     });
     const updated = { ...baseIncident, status: 'in_progress' as const };
     incidentSvc.updateIncidentStatus.mockReturnValue(of(updated));
@@ -167,7 +167,7 @@ describe('IncidentDetailComponent (F3.4)', () => {
 
   it('F3.4.7 — al fallar el cambio de estado, el toast expone el mensaje del backend y se recarga la incidencia', () => {
     const { component, incidentSvc, toastSvc } = setup({
-      permissions: ['UPDATE incidents'],
+      permissions: ['CLAIM incidents'],
     });
     incidentSvc.updateIncidentStatus.mockReturnValue(
       throwError(() => ({ error: { message: 'INCIDENT_INVALID_TRANSITION' } })),
@@ -217,10 +217,9 @@ describe('IncidentDetailComponent (F3.4)', () => {
     promptSpy.mockRestore();
   });
 
-  // C2 (ronda 4) — el botón "release" antes era un no-op silencioso
-  // (sólo mostraba un toast de "pendiente"). Conectar al endpoint
-  // real `POST /incidents/:id/release`.
-  it('C2: onAction("release") llama al endpoint real y actualiza el incident', () => {
+  // C2 (ronda 5) — el botón "release" antes corrompía la UI
+  // porque pisaba el signal con un shape parcial. Fix: merge parcial.
+  it('C2: onAction("release") llama al endpoint real y actualiza el incident (merge parcial, no sobreescritura)', () => {
     // El usuario debe ser el `claimed_by` para que `release`
     // aparezca en `availableActions()`. Mocks:
     //   - incident.claimed_by = 'user-1' (mismo que currentUserId)
@@ -231,17 +230,31 @@ describe('IncidentDetailComponent (F3.4)', () => {
       claimed_by: 'user-1',
     };
     const { component, incidentSvc, toastSvc } = setup({
-      permissions: ['UPDATE incidents'],
+      permissions: ['RELEASE incidents'],
       userId: 'user-1',
       incident: claimedIncident,
     });
-    const released: Incident = { ...claimedIncident, claimed_by: null };
+    
+    // Wire real tras SnakeCaseResponseInterceptor (7 fields).
+    const released = {
+        id: 'inc-1',
+        title: 'Pothole on Main St',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+        claimed_by: null,
+        organization_id: 'org-A',
+        updated_at: new Date('2026-09-02'),
+    };
+    
     incidentSvc.releaseIncident = jest.fn().mockReturnValue(of(released));
 
     component.onAction('release');
 
     expect(incidentSvc.releaseIncident).toHaveBeenCalledWith('inc-1');
+    // Field preserved (not in the released partial object)
+    expect(component.incident()?.description).toBe('Big crater');
     expect(component.incident()?.claimed_by).toBeNull();
+    expect(component.incident()?.status).toBe('pending');
     expect(toastSvc.show).toHaveBeenCalledWith('Incidencia liberada.', 'success');
   });
 
@@ -252,7 +265,7 @@ describe('IncidentDetailComponent (F3.4)', () => {
       claimed_by: 'user-1',
     };
     const { component, incidentSvc, toastSvc } = setup({
-      permissions: ['UPDATE incidents'],
+      permissions: ['RELEASE incidents'],
       userId: 'user-1',
       incident: claimedIncident,
     });

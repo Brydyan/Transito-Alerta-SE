@@ -227,4 +227,57 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
     expect(req.request.method).toBe('DELETE');
     req.flush(null);
   });
+
+  // ───── F3 (sc-303) C2 (ronda 5) — POST /incidents/:id/release
+  // El endpoint devuelve ClaimReleaseResponseDto que tras el interceptor
+  // es un shape recortado de 7 campos snake_case.
+  // El servicio debe emitir ClaimReleaseResult, mandar body {},
+  // y actualizar el cache mediante un merge parcial sin perder campos.
+  it('releaseIncident POSTs /incidents/:id/release with {} and updates cache partially (C2)', (done) => {
+    // Seed the cache with a full fixture incident
+    service.getIncidents({}).subscribe();
+    http.expectOne((r) => r.url === `${base}/incidents`).flush([fixtureIncident]);
+
+    const slimResponse = {
+      id: 'inc-1',
+      title: 'Pothole on Main St',
+      status: 'pending' as const,
+      priority: 'medium' as const,
+      claimed_by: null,
+      organization_id: 'org-1',
+      updated_at: new Date('2026-09-02'),
+    };
+
+    service.releaseIncident('inc-1').subscribe((res) => {
+      // Positive assertions (7 fields of ClaimReleaseResult)
+      expect(res.id).toBe('inc-1');
+      expect(res.title).toBe('Pothole on Main St');
+      expect(res.status).toBe('pending');
+      expect(res.priority).toBe('medium');
+      expect(res.claimed_by).toBeNull();
+      expect(res.organization_id).toBe('org-1');
+      expect(res.updated_at).toBeDefined();
+
+      // Negative assertions: Wire does NOT return the full 25 fields
+      expect((res as any).description).toBeUndefined();
+      expect((res as any).lat).toBeUndefined();
+      expect((res as any).lng).toBeUndefined();
+      expect((res as any).citizen_id).toBeUndefined();
+      expect((res as any).category_id).toBeUndefined();
+
+      // Cache partial merge assertion: cache preserves full fields
+      const cached = (service as any).incidents$.value.find((i: Incident) => i.id === 'inc-1');
+      expect(cached?.description).toBe('Large crater blocking the right lane');
+      expect(cached?.lat).toBe(-2.2);
+      expect(cached?.claimed_by).toBeNull();
+      expect(cached?.status).toBe('pending');
+
+      done();
+    });
+
+    const req = http.expectOne(`${base}/incidents/inc-1/release`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush(slimResponse);
+  });
 });

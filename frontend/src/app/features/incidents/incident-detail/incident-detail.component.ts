@@ -162,14 +162,15 @@ export class IncidentDetailComponent implements OnInit {
         this.runStatusTransition(inc.id, 'in_progress');
         break;
       case 'release':
-        // F3 (sc-303) C2 (ronda 4) — `release` ya no es un no-op.
+        // F3 (sc-303) C2 (ronda 5) — `release` ya no es un no-op.
         // `IncidentWorkflowService.release()` en el backend
         // exige que el caller sea el `claimed_by` actual; si no,
         // devuelve 409 con código `NOT_THE_CLAIMER` o
         // `INCIDENT_NOT_CLAIMED`. El toast expone el motivo.
+        // F3.4.7 — Merge parcial para no corromper fields de Incident.
         this.incidentService.releaseIncident(inc.id).subscribe({
           next: (released) => {
-            this.incident.set(released);
+            this.incident.update((cur) => (cur ? { ...cur, ...released } : cur));
             this.toast.show('Incidencia liberada.', 'success');
             this.statusHistoryService.getStatusHistory(inc.id).subscribe({
               next: (r) => this.history.set(r.items),

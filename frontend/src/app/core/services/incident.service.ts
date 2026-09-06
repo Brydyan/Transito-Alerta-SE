@@ -7,6 +7,7 @@ import {
   IncidentListFilters,
   IncidentListResult,
   CreateIncidentDto,
+  ClaimReleaseResult,
 } from '../models/incident.model';
 
 /**
@@ -112,16 +113,17 @@ export class IncidentService {
    * exige que el caller sea el `claimed_by` actual, y devuelve 409
    * `INCIDENT_NOT_CLAIMED` / `NOT_THE_CLAIMER` si no se cumple.
    *
-   * F3 (sc-303) C2 (ronda 4): el botón "release" del detail estaba
-   * como no-op silencioso. Conectar al endpoint real.
+   * F3 (sc-303) C2 (ronda 5): el botón "release" del detail estaba
+   * como no-op silencioso y luego corrompía datos. Conectar al endpoint
+   * real y hacer merge parcial.
    */
-  releaseIncident(id: string): Observable<Incident> {
+  releaseIncident(id: string): Observable<ClaimReleaseResult> {
     return this.httpService
-      .post<Incident>(`/incidents/${id}/release`, {})
+      .post<ClaimReleaseResult>(`/incidents/${id}/release`, {})
       .pipe(
         tap((released) => {
           const current = this.incidents$.value.map((inc) =>
-            inc.id === id ? released : inc,
+            inc.id === id ? { ...inc, ...released } : inc,
           );
           this.incidents$.next(current);
         }),
