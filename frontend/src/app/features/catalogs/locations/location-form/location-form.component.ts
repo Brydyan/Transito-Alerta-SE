@@ -179,8 +179,8 @@ export class LocationFormComponent implements OnInit, OnDestroy {
     }
     if (control.errors['required']) {
       return field === 'parent_id'
-        ? 'This level requires a parent location.'
-        : 'This field is required.';
+        ? 'Este nivel requiere una ubicación padre.'
+        : 'Este campo es obligatorio.';
     }
     return null;
   }
@@ -214,7 +214,7 @@ export class LocationFormComponent implements OnInit, OnDestroy {
         })
         .subscribe({
           next: () => {
-            this.toastService.success('Location updated successfully');
+            this.toastService.success('Ubicación actualizada correctamente');
             this.isSaving.set(false);
             this.goBack();
           },
@@ -236,7 +236,7 @@ export class LocationFormComponent implements OnInit, OnDestroy {
         })
         .subscribe({
           next: () => {
-            this.toastService.success('Location created successfully');
+            this.toastService.success('Ubicación creada correctamente');
             this.isSaving.set(false);
             this.goBack();
           },
@@ -252,9 +252,10 @@ export class LocationFormComponent implements OnInit, OnDestroy {
     if (this.form.dirty) {
       this.dialogService
         .confirm({
-          title: 'Discard changes?',
-          message: 'You have unsaved changes. Are you sure you want to leave?',
-          confirmText: 'Discard',
+          title: '¿Descartar cambios?',
+          message: 'Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?',
+          confirmText: 'Descartar',
+          cancelText: 'Cancelar',
           isDanger: true,
         })
         .subscribe((confirmed) => {
@@ -289,7 +290,7 @@ export class LocationFormComponent implements OnInit, OnDestroy {
       next: (items) => this.allZones.set(items),
       error: () => {
         // Parent list is best-effort; the form can still be filled manually.
-        this.toastService.error('Failed to load locations for the parent selector.');
+        this.toastService.error('No se pudieron cargar las ubicaciones para el selector de padre.');
       },
     });
   }
@@ -307,7 +308,7 @@ export class LocationFormComponent implements OnInit, OnDestroy {
         this.isLoading.set(false);
       },
       error: () => {
-        this.toastService.error('Failed to load location data.');
+        this.toastService.error('No se pudieron cargar los datos de la ubicación.');
         this.isLoading.set(false);
       },
     });
@@ -322,7 +323,7 @@ export class LocationFormComponent implements OnInit, OnDestroy {
     } else if (err.status === 409) {
       this.integrityError.set(true);
     } else {
-      const msg = err.error?.message ?? 'An unexpected error occurred.';
+      const msg = err.error?.message ?? 'Ocurrió un error inesperado.';
       this.toastService.error(msg);
     }
   }

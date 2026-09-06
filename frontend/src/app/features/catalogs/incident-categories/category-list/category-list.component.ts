@@ -84,7 +84,7 @@ export class CategoryListComponent implements OnInit, OnDestroy {
             this.isLoading.set(false);
           },
           error: () => {
-            this.toastService.error('Failed to load categories.');
+            this.toastService.error('No se pudieron cargar las categorías.');
             this.isLoading.set(false);
           },
         }),
@@ -126,21 +126,22 @@ export class CategoryListComponent implements OnInit, OnDestroy {
   deleteCategory(category: IIncidentCategory): void {
     this.dialogService
       .confirm({
-        title: 'Confirm deletion',
-        message: `Are you sure you want to delete "${category.name}"? This action cannot be undone.`,
+        title: 'Confirmar eliminación',
+        message: `¿Estás seguro de que deseas eliminar "${category.name}"? Esta acción no se puede deshacer.`,
         isDanger: true,
-        confirmText: 'Delete',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
       })
       .subscribe((confirmed) => {
         if (confirmed) {
           this.subscriptions.add(
             this.categoryService.remove(category.id).subscribe({
               next: () => {
-                this.toastService.success('Category deleted successfully');
+                this.toastService.success('Categoría eliminada correctamente');
                 this.loadPage();
               },
               error: (err: { error?: { message?: string } }) => {
-                const msg = err.error?.message ?? 'Failed to delete category.';
+                const msg = err.error?.message ?? 'No se pudo eliminar la categoría.';
                 this.toastService.error(msg);
               },
             }),
@@ -165,7 +166,7 @@ export class CategoryListComponent implements OnInit, OnDestroy {
             this.isLoading.set(false);
           },
           error: () => {
-            this.toastService.error('Failed to load categories.');
+            this.toastService.error('No se pudieron cargar las categorías.');
             this.isLoading.set(false);
           },
         }),

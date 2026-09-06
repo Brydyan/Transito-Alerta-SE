@@ -68,7 +68,7 @@ export class CategoryFormComponent implements OnInit {
       return null;
     }
     if (control.errors['required']) {
-      return 'This field is required.';
+      return 'Este campo es obligatorio.';
     }
     return null;
   }
@@ -94,7 +94,7 @@ export class CategoryFormComponent implements OnInit {
     if (this.isEditing()) {
       this.categoryService.update(this.id!, { name }).subscribe({
         next: () => {
-          this.toastService.success('Category updated successfully');
+          this.toastService.success('Categoría actualizada correctamente');
           this.isSaving.set(false);
           this.goBack();
         },
@@ -109,7 +109,7 @@ export class CategoryFormComponent implements OnInit {
     } else {
       this.categoryService.create({ name }).subscribe({
         next: () => {
-          this.toastService.success('Category created successfully');
+          this.toastService.success('Categoría creada correctamente');
           this.isSaving.set(false);
           this.goBack();
         },
@@ -128,9 +128,10 @@ export class CategoryFormComponent implements OnInit {
     if (this.form.dirty) {
       this.dialogService
         .confirm({
-          title: 'Discard changes?',
-          message: 'You have unsaved changes. Are you sure you want to leave?',
-          confirmText: 'Discard',
+          title: '¿Descartar cambios?',
+          message: 'Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?',
+          confirmText: 'Descartar',
+          cancelText: 'Cancelar',
           isDanger: true,
         })
         .subscribe((confirmed) => {
@@ -155,7 +156,7 @@ export class CategoryFormComponent implements OnInit {
         this.isLoading.set(false);
       },
       error: () => {
-        this.toastService.error('Failed to load category data.');
+        this.toastService.error('No se pudieron cargar los datos de la categoría.');
         this.isLoading.set(false);
       },
     });
@@ -170,7 +171,7 @@ export class CategoryFormComponent implements OnInit {
     } else if (err.status === 409) {
       this.integrityError.set(true);
     } else {
-      const msg = err.error?.message ?? 'An unexpected error occurred.';
+      const msg = err.error?.message ?? 'Ocurrió un error inesperado.';
       this.toastService.error(msg);
     }
   }

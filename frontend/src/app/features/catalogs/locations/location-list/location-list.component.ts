@@ -255,26 +255,27 @@ export class LocationListComponent implements OnInit, OnDestroy {
   deleteLocation(location: IGeoZone): void {
     this.dialogService
       .confirm({
-        title: 'Confirm deletion',
-        message: `Are you sure you want to delete "${location.name}"? This action cannot be undone.`,
+        title: 'Confirmar eliminación',
+        message: `¿Estás seguro de que deseas eliminar "${location.name}"? Esta acción no se puede deshacer.`,
         isDanger: true,
-        confirmText: 'Delete',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
       })
       .subscribe((confirmed) => {
         if (confirmed) {
           this.subscriptions.add(
             this.geoZoneService.remove(location.id).subscribe({
               next: () => {
-                this.toastService.success('Location deleted successfully');
+                this.toastService.success('Ubicación eliminada correctamente');
                 this.loadAll();
               },
               error: (err: { status?: number; error?: { message?: string } }) => {
                 if (err.status === 409) {
                   this.toastService.error(
-                    'This location cannot be deleted because it has child locations.',
+                    'Esta ubicación no puede eliminarse porque tiene ubicaciones hijas.',
                   );
                 } else {
-                  const msg = err.error?.message ?? 'Failed to delete location.';
+                  const msg = err.error?.message ?? 'No se pudo eliminar la ubicación.';
                   this.toastService.error(msg);
                 }
               },
@@ -295,7 +296,7 @@ export class LocationListComponent implements OnInit, OnDestroy {
           this.isLoading.set(false);
         },
         error: () => {
-          this.toastService.error('Failed to load locations.');
+          this.toastService.error('No se pudieron cargar las ubicaciones.');
           this.isLoading.set(false);
         },
       }),

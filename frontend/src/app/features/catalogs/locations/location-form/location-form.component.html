@@ -1,9 +1,9 @@
 <div class="p-4">
   <!-- Page Header -->
   <ui-page-header
-    kicker="CATALOGS / LOCATIONS"
-    [title]="isEditing() ? 'Edit Location' : 'New Location'"
-    [subtitle]="isEditing() ? 'Update the location details below.' : 'Fill in the fields to create a new location.'"
+    kicker="CATÁLOGOS / UBICACIONES"
+    [title]="isEditing() ? 'Editar ubicación' : 'Nueva ubicación'"
+    [subtitle]="isEditing() ? 'Actualiza los detalles de la ubicación a continuación.' : 'Completa los campos para crear una nueva ubicación.'"
     [showActions]="false"
   />
 
@@ -21,7 +21,7 @@
         role="alert"
       >
         <ui-icon name="alert-triangle" [size]="18" />
-        <span class="text-sm font-medium">This location cannot be modified because it is referenced by other records.</span>
+        <span class="text-sm font-medium">Esta ubicación no puede modificarse porque está referenciada por otros registros.</span>
       </div>
     }
 
@@ -29,14 +29,14 @@
       <div class="border-none shadow-sm rounded-lg mb-6">
         <div class="p-6">
           <h6 class="font-semibold text-slate-500 mb-4 text-sm uppercase tracking-wider">
-            Location Details
+            Detalles de la ubicación
           </h6>
 
           <div class="grid grid-cols-1 gap-4">
             <!-- Name -->
             <div>
               <label for="form-name" class="block text-sm font-medium text-slate-700 mb-1">
-                Name <span class="text-red-500">*</span>
+                Nombre <span class="text-red-500">*</span>
               </label>
               <input
                 id="form-name"
@@ -44,7 +44,7 @@
                 class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
                 [class.border-red-500]="fieldInvalid('name')"
                 [class.focus:ring-red-500/40]="fieldInvalid('name')"
-                placeholder="e.g. Pichincha"
+                placeholder="p. ej. Pichincha"
                 formControlName="name"
               />
               @if (fieldError('name'); as msg) {
@@ -55,7 +55,7 @@
             <!-- Code -->
             <div>
               <label for="form-code" class="block text-sm font-medium text-slate-700 mb-1">
-                Code
+                Código
               </label>
               <input
                 id="form-code"
@@ -63,7 +63,7 @@
                 class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
                 [class.border-red-500]="fieldInvalid('code')"
                 [class.focus:ring-red-500/40]="fieldInvalid('code')"
-                placeholder="e.g. 17"
+                placeholder="p. ej. 17"
                 formControlName="code"
               />
               @if (fieldError('code'); as msg) {
@@ -74,7 +74,7 @@
             <!-- Level -->
             <div>
               <label for="form-level" class="block text-sm font-medium text-slate-700 mb-1">
-                Level <span class="text-red-500">*</span>
+                Nivel <span class="text-red-500">*</span>
               </label>
               <select
                 id="form-level"
@@ -95,7 +95,7 @@
             @if (parentOptions().length > 0) {
               <div>
                 <label for="form-parent" class="block text-sm font-medium text-slate-700 mb-1">
-                  Parent
+                  Padre
                   @if (parentRequired()) {
                     <span class="text-red-500">*</span>
                   }
@@ -106,7 +106,7 @@
                   [class.border-red-500]="fieldInvalid('parent_id')"
                   formControlName="parent_id"
                 >
-                  <option value="">No parent</option>
+                  <option value="">Sin padre</option>
                   @for (parent of parentOptions(); track parent.id) {
                     <option [value]="parent.id">
                       {{ parent.name }} ({{ levelLabels[parent.level] }})
@@ -132,7 +132,7 @@
             [disabled]="isSaving()"
             (click)="onCancel()"
           >
-            Cancel
+            Cancelar
           </button>
           <button
             type="submit"
@@ -141,7 +141,7 @@
             [loading]="isSaving()"
             [disabled]="isSaving()"
           >
-            {{ isEditing() ? 'Save Changes' : 'Create Location' }}
+            {{ isEditing() ? 'Guardar cambios' : 'Crear ubicación' }}
           </button>
         </div>
       </div>

@@ -1,9 +1,9 @@
 <div class="p-4">
   <!-- Page Header -->
   <ui-page-header
-    kicker="CATALOGS / CATEGORIES"
-    title="Categories"
-    subtitle="Manage incident categories for classification and reporting."
+    kicker="CATÁLOGOS / CATEGORÍAS"
+    title="Categorías"
+    subtitle="Gestiona las categorías de incidentes para su clasificación y reporte."
   >
     <button
       page-header-actions
@@ -13,7 +13,7 @@
       (click)="navigateToCreate()"
     >
       <ui-icon uiButtonIcon name="plus" [size]="16" />
-      New Category
+      Nueva categoría
     </button>
   </ui-page-header>
 
@@ -27,10 +27,10 @@
         <input
           type="text"
           class="w-full pl-9 pr-3 py-2 text-sm border border-border-subtle rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
-          placeholder="Search categories..."
+          placeholder="Buscar categorías..."
           [value]="searchInput()"
           (input)="onSearchInput($event)"
-          aria-label="Search categories"
+          aria-label="Buscar categorías"
         />
       </div>
     </div>
@@ -44,9 +44,9 @@
       <!-- Empty state -->
       <app-empty-state
         icon="folder-open"
-        title="No categories found"
-        description="No categories match your search, or no categories have been created yet."
-        [actionLabel]="searchInput() ? '' : 'Create Category'"
+        title="No se encontraron categorías"
+        description="Ninguna categoría coincide con tu búsqueda o aún no se han creado categorías."
+        [actionLabel]="searchInput() ? '' : 'Crear categoría'"
         actionIcon="plus"
         (actionClicked)="navigateToCreate()"
       />
@@ -76,10 +76,10 @@
                   size="sm"
                   *hasPermission="'UPDATE incident-categories'"
                   (click)="navigateToEdit(category)"
-                  aria-label="Edit category"
+                  aria-label="Editar categoría"
                 >
                   <ui-icon name="pencil" [size]="14" />
-                  Edit
+                  Editar
                 </button>
                 <button
                   uiButton
@@ -87,10 +87,10 @@
                   size="sm"
                   *hasPermission="'DELETE incident-categories'"
                   (click)="deleteCategory(category)"
-                  aria-label="Delete category"
+                  aria-label="Eliminar categoría"
                 >
                   <ui-icon name="trash-2" [size]="14" class="text-red-500" />
-                  Delete
+                  Eliminar
                 </button>
               </td>
             </tr>
@@ -105,8 +105,8 @@
           [currentPage]="currentPage()"
           [pageSize]="pageSize()"
           [pageSizeOptions]="pageSizeOptions"
-          itemNameSingular="category"
-          itemNamePlural="categories"
+          itemNameSingular="categoría"
+          itemNamePlural="categorías"
           (pageChange)="onPageChange($event)"
           (pageSizeChange)="onPageSizeChange($event)"
         />

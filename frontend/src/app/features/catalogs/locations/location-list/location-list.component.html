@@ -1,9 +1,9 @@
 <div class="p-4">
   <!-- Page Header -->
   <ui-page-header
-    kicker="CATALOGS / LOCATIONS"
+    kicker="CATÁLOGOS / UBICACIONES"
     title="Ubicaciones"
-    subtitle="Manage the territorial hierarchy of locations."
+    subtitle="Gestiona la jerarquía territorial de ubicaciones."
   >
     <button
       page-header-actions
@@ -13,7 +13,7 @@
       (click)="navigateToCreate()"
     >
       <ui-icon uiButtonIcon name="plus" [size]="16" />
-      New Location
+      Nueva ubicación
     </button>
   </ui-page-header>
 
@@ -27,19 +27,19 @@
         <input
           type="text"
           class="w-full pl-9 pr-3 py-2 text-sm border border-border-subtle rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
-          placeholder="Search locations..."
+          placeholder="Buscar ubicaciones..."
           [value]="searchTerm()"
           (input)="onSearchInput($event)"
-          aria-label="Search locations"
+          aria-label="Buscar ubicaciones"
         />
       </div>
       <select
         class="px-3 py-2 text-sm border border-border-subtle rounded-lg bg-bg-primary text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
         [value]="levelFilter()"
         (change)="onLevelFilterChange($event)"
-        aria-label="Filter by level"
+        aria-label="Filtrar por nivel"
       >
-        <option value="all">All levels</option>
+        <option value="all">Todos los niveles</option>
         @for (level of levelKeys; track level) {
           <option [value]="level">{{ levelLabels[level] }}</option>
         }
@@ -55,9 +55,9 @@
       <!-- Empty state -->
       <app-empty-state
         icon="map-pin"
-        title="No locations found"
-        description="No locations match your search, or no locations have been created yet."
-        [actionLabel]="searchTerm() || levelFilter() !== 'all' ? '' : 'Create Location'"
+        title="No se encontraron ubicaciones"
+        description="Ninguna ubicación coincide con tu búsqueda o aún no se han creado ubicaciones."
+        [actionLabel]="searchTerm() || levelFilter() !== 'all' ? '' : 'Crear ubicación'"
         actionIcon="plus"
         (actionClicked)="navigateToCreate()"
       />
@@ -66,11 +66,11 @@
       <ui-table>
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Code</th>
-            <th>Level</th>
-            <th>Created</th>
-            <th class="ui-table-cell-actions">Actions</th>
+            <th>Nombre</th>
+            <th>Código</th>
+            <th>Nivel</th>
+            <th>Creado el</th>
+            <th class="ui-table-cell-actions">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -87,7 +87,7 @@
                       class="text-slate-500 hover:text-brand-primary shrink-0"
                       (click)="toggleExpand(location)"
                       [attr.aria-expanded]="isExpanded(location)"
-                      aria-label="Toggle children"
+                      aria-label="Alternar hijos"
                     >
                       <ui-icon
                         [name]="isExpanded(location) ? 'chevron-down' : 'chevron-right'"
@@ -121,10 +121,10 @@
                   size="sm"
                   *hasPermission="'UPDATE geo-zones'"
                   (click)="navigateToEdit(location)"
-                  aria-label="Edit location"
+                  aria-label="Editar ubicación"
                 >
                   <ui-icon name="pencil" [size]="14" />
-                  Edit
+                  Editar
                 </button>
                 <button
                   uiButton
@@ -132,10 +132,10 @@
                   size="sm"
                   *hasPermission="'DELETE geo-zones'"
                   (click)="deleteLocation(location)"
-                  aria-label="Delete location"
+                  aria-label="Eliminar ubicación"
                 >
                   <ui-icon name="trash-2" [size]="14" class="text-red-500" />
-                  Delete
+                  Eliminar
                 </button>
               </td>
             </tr>
@@ -149,20 +149,20 @@
   @if (!isLoading()) {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
       <div class="bg-bg-secondary border border-border-subtle rounded-lg p-5">
-        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Total locations</p>
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Total de ubicaciones</p>
         <p class="mt-2 text-3xl font-bold text-slate-800">{{ totalCount() }}</p>
       </div>
       <div class="bg-bg-secondary border border-border-subtle rounded-lg p-5">
-        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Created this month</p>
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Creadas este mes</p>
         <p class="mt-2 text-3xl font-bold text-slate-800">{{ monthCount() }}</p>
       </div>
       <div class="bg-bg-secondary border border-border-subtle rounded-lg p-5">
-        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Critical level</p>
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Nivel crítico</p>
         @if (criticalLevel()) {
           <p class="mt-2 text-3xl font-bold text-slate-800">
             {{ levelLabels[criticalLevel()!.level] }}
           </p>
-          <p class="mt-1 text-xs text-slate-500">{{ criticalLevel()!.count }} records</p>
+          <p class="mt-1 text-xs text-slate-500">{{ criticalLevel()!.count }} registros</p>
         } @else {
           <p class="mt-2 text-3xl font-bold text-slate-300">—</p>
         }

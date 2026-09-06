@@ -133,7 +133,7 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
             this.isLoading.set(false);
           },
           error: () => {
-            this.toastService.error('Failed to load organizations.');
+            this.toastService.error('No se pudieron cargar las organizaciones.');
             this.isLoading.set(false);
           },
         }),
@@ -174,22 +174,23 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
   deleteOrganization(organization: IOrganization): void {
     this.dialogService
       .confirm({
-        title: 'Confirm deletion',
-        message: `Are you sure you want to delete "${organization.name}"? This action cannot be undone.`,
+        title: 'Confirmar eliminación',
+        message: `¿Estás seguro de que deseas eliminar "${organization.name}"? Esta acción no se puede deshacer.`,
         isDanger: true,
-        confirmText: 'Delete',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
       })
       .subscribe((confirmed) => {
         if (confirmed) {
           this.subscriptions.add(
             this.organizationService.remove(organization.id).subscribe({
               next: () => {
-                this.toastService.success('Organization deleted successfully');
+                this.toastService.success('Organización eliminada correctamente');
                 this.loadPage();
                 this.loadSummary();
               },
               error: (err: { error?: { message?: string } }) => {
-                const msg = err.error?.message ?? 'Failed to delete organization.';
+                const msg = err.error?.message ?? 'No se pudo eliminar la organización.';
                 this.toastService.error(msg);
               },
             }),
@@ -236,7 +237,7 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
             this.isLoading.set(false);
           },
           error: () => {
-            this.toastService.error('Failed to load organizations.');
+            this.toastService.error('No se pudieron cargar las organizaciones.');
             this.isLoading.set(false);
           },
         }),

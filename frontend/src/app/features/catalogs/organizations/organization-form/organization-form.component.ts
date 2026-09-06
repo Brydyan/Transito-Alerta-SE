@@ -88,7 +88,7 @@ export class OrganizationFormComponent implements OnInit {
       return null;
     }
     if (control.errors['required']) {
-      return 'This field is required.';
+      return 'Este campo es obligatorio.';
     }
     return null;
   }
@@ -141,7 +141,7 @@ export class OrganizationFormComponent implements OnInit {
     if (this.isEditing()) {
       this.organizationService.update(this.id!, { name, zone_id, parent_id }).subscribe({
         next: () => {
-          this.toastService.success('Organization updated successfully');
+          this.toastService.success('Organización actualizada correctamente');
           this.isSaving.set(false);
           this.goBack();
         },
@@ -156,7 +156,7 @@ export class OrganizationFormComponent implements OnInit {
     } else {
       this.organizationService.create({ name, zone_id, parent_id }).subscribe({
         next: () => {
-          this.toastService.success('Organization created successfully');
+          this.toastService.success('Organización creada correctamente');
           this.isSaving.set(false);
           this.goBack();
         },
@@ -175,9 +175,10 @@ export class OrganizationFormComponent implements OnInit {
     if (this.form.dirty) {
       this.dialogService
         .confirm({
-          title: 'Discard changes?',
-          message: 'You have unsaved changes. Are you sure you want to leave?',
-          confirmText: 'Discard',
+          title: '¿Descartar cambios?',
+          message: 'Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?',
+          confirmText: 'Descartar',
+          cancelText: 'Cancelar',
           isDanger: true,
         })
         .subscribe((confirmed) => {
@@ -206,7 +207,7 @@ export class OrganizationFormComponent implements OnInit {
         this.isLoading.set(false);
       },
       error: () => {
-        this.toastService.error('Failed to load organization data.');
+        this.toastService.error('No se pudieron cargar los datos de la organización.');
         this.isLoading.set(false);
       },
     });
@@ -221,7 +222,7 @@ export class OrganizationFormComponent implements OnInit {
     } else if (err.status === 409) {
       this.integrityError.set(true);
     } else {
-      const msg = err.error?.message ?? 'An unexpected error occurred.';
+      const msg = err.error?.message ?? 'Ocurrió un error inesperado.';
       this.toastService.error(msg);
     }
   }

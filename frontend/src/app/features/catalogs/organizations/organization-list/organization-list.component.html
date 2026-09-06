@@ -1,9 +1,9 @@
 <div class="p-4">
   <!-- Page Header -->
   <ui-page-header
-    kicker="CATALOGS / ORGANIZATIONS"
-    title="Organizations"
-    subtitle="Manage organizations for claims management."
+    kicker="CATÁLOGOS / ORGANIZACIONES"
+    title="Organizaciones"
+    subtitle="Gestiona las organizaciones para la administración de reclamos."
   >
     <button
       page-header-actions
@@ -13,7 +13,7 @@
       (click)="navigateToCreate()"
     >
       <ui-icon uiButtonIcon name="plus" [size]="16" />
-      New Organization
+      Nueva organización
     </button>
   </ui-page-header>
 
@@ -27,10 +27,10 @@
         <input
           type="text"
           class="w-full pl-9 pr-3 py-2 text-sm border border-border-subtle rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
-          placeholder="Search organizations..."
+          placeholder="Buscar organizaciones..."
           [value]="searchInput()"
           (input)="onSearchInput($event)"
-          aria-label="Search organizations"
+          aria-label="Buscar organizaciones"
         />
       </div>
     </div>
@@ -44,9 +44,9 @@
       <!-- Empty state -->
       <app-empty-state
         icon="folder-open"
-        title="No organizations found"
-        description="No organizations match your search, or no organizations have been created yet."
-        [actionLabel]="searchInput() ? '' : 'Create Organization'"
+        title="No se encontraron organizaciones"
+        description="Ninguna organización coincide con tu búsqueda o aún no se han creado organizaciones."
+        [actionLabel]="searchInput() ? '' : 'Crear organización'"
         actionIcon="plus"
         (actionClicked)="navigateToCreate()"
       />
@@ -55,10 +55,10 @@
       <ui-table>
         <thead>
           <tr>
-            <th>Name</th>
+            <th>Nombre</th>
             <th>Localización</th>
-            <th>Created</th>
-            <th class="ui-table-cell-actions">Actions</th>
+            <th>Creado el</th>
+            <th class="ui-table-cell-actions">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -83,10 +83,10 @@
                   size="sm"
                   *hasPermission="'UPDATE organizations'"
                   (click)="navigateToEdit(organization)"
-                  aria-label="Edit organization"
+                  aria-label="Editar organización"
                 >
                   <ui-icon name="pencil" [size]="14" />
-                  Edit
+                  Editar
                 </button>
                 <button
                   uiButton
@@ -94,10 +94,10 @@
                   size="sm"
                   *hasPermission="'DELETE organizations'"
                   (click)="deleteOrganization(organization)"
-                  aria-label="Delete organization"
+                  aria-label="Eliminar organización"
                 >
                   <ui-icon name="trash-2" [size]="14" class="text-red-500" />
-                  Delete
+                  Eliminar
                 </button>
               </td>
             </tr>
@@ -112,8 +112,8 @@
           [currentPage]="currentPage()"
           [pageSize]="pageSize()"
           [pageSizeOptions]="pageSizeOptions"
-          itemNameSingular="organization"
-          itemNamePlural="organizations"
+          itemNameSingular="organización"
+          itemNamePlural="organizaciones"
           (pageChange)="onPageChange($event)"
           (pageSizeChange)="onPageSizeChange($event)"
         />
