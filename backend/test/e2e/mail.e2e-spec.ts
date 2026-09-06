@@ -95,6 +95,97 @@ describe('Mail module e2e (T3.5)', () => {
     );
   });
 
+  // ───── MAIL (sc-327) — C.4 — el test que habría detectado el defecto ─────
+
+  /**
+   * El defecto original: el código encolaba `'email_verification'`,
+   * que no estaba en el registro, y el consumer movía la entrada
+   * a `mail:dead` sin reintento (`attempts 0` = nunca intentó
+   * entregar). Este test corre el camino completo: encolar
+   * una entrada con la plantilla nueva, dejar que el consumer
+   * la procese, y comprobar que NO está en `mail:dead`.
+   *
+   * SMTP_HOST no está configurado, así que `deliverViaSmtp`
+   * cae al transporte de sólo-registro y devuelve sin error.
+   * El camino se recorre entero sin mandar correo de verdad.
+   */
+  it('C.4: una entrada con `email_verification` se procesa y NO termina en mail:dead', async () => {
+    const deliverSpy = jest.spyOn(mailService, 'deliver');
+    const deadCount = async (): Promise<number> => {
+      const len = (await env.redisStreams.xlen(MAIL_DEAD_STREAM_KEY)) as number;
+      return len;
+    };
+
+    const before = await deadCount();
+
+    await mailService.enqueue({
+      to: 'reporter@example.com',
+      subject: 'Your email verification code',
+      template: 'email_verification',
+      data: { otp: '408736', expiresMinutes: 15 },
+    });
+
+    // El consumer toma la entrada y llama `deliver`. Sin
+    // SMTP_HOST cae al log-only, no falla, y la entrada se
+    // XACK. La presencia de `deliver` confirma que el
+    // render corrió — si el template no existiera, la
+    // excepción habría aparecido como `mail:dead`.
+    await waitUntil(
+      async () => deliverSpy.mock.calls.length > 0 && (await pendingCount()) === 0,
+      15_000,
+    );
+
+    // La entrada NO está en mail:dead.
+    expect(await deadCount()).toBe(before);
+
+    // Y la llamada a `deliver` ocurrió con los datos del
+    // template (no con la entrada muerta). Esta es la
+    // diferencia con el bug original: el `attempts 0` ya no
+    // es posible, porque el render se ejecutó.
+    expect(deliverSpy).toHaveBeenCalledWith(
+      'reporter@example.com',
+      'Your email verification code',
+      'email_verification',
+      expect.objectContaining({ otp: '408736', expiresMinutes: 15 }),
+    );
+  });
+
+  it('C.4: una entrada con `existing_account_attempt` se procesa y NO termina en mail:dead', async () => {
+    const deliverSpy = jest.spyOn(mailService, 'deliver');
+    const deadCount = async (): Promise<number> => {
+      const len = (await env.redisStreams.xlen(MAIL_DEAD_STREAM_KEY)) as number;
+      return len;
+    };
+    const before = await deadCount();
+
+    await mailService.enqueue({
+      to: 'titular@example.com',
+      subject: 'Se intentó crear una cuenta con tu correo',
+      template: 'existing_account_attempt',
+      data: {
+        ip: '190.15.142.87',
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0.0.0',
+        attemptedAt: '2026-09-06T19:33:41.123Z',
+      },
+    });
+
+    await waitUntil(
+      async () => deliverSpy.mock.calls.length > 0 && (await pendingCount()) === 0,
+      15_000,
+    );
+
+    expect(await deadCount()).toBe(before);
+    expect(deliverSpy).toHaveBeenCalledWith(
+      'titular@example.com',
+      'Se intentó crear una cuenta con tu correo',
+      'existing_account_attempt',
+      expect.objectContaining({
+        ip: '190.15.142.87',
+        attemptedAt: '2026-09-06T19:33:41.123Z',
+      }),
+    );
+  });
+
   it(
     'a stalled entry (transient delivery failure) is claimed by the sweep and successfully retried',
     async () => {

@@ -6,6 +6,7 @@ import * as nodemailer from 'nodemailer';
 import { REDIS_CLIENT } from '../../core/core.module';
 import { MailConfig } from '../../config/mail.config';
 import { renderMailTemplate, TemplateName } from './templates/mail-templates';
+import { PRODUCT_NAME } from './product-name';
 
 export const MAIL_OUTBOX_STREAM_KEY = 'mail:outbox';
 export const MAIL_DEAD_STREAM_KEY = 'mail:dead';
@@ -101,7 +102,13 @@ export class MailService {
       to,
       subject,
       html,
-      from: mailConfig.smtpFrom,
+      // H.2 (ronda 14, D11) — el remitente lleva nombre visible,
+      // no la dirección pelada. Sin nombre, en la bandeja se
+      // lee «no-reply@georeporta.twintailcs.xyz», y eso es lo
+      // primero que decide si el titular abre o marca como no
+      // deseado. El nombre viene de la constante
+      // `PRODUCT_NAME` — un solo sitio.
+      from: `${PRODUCT_NAME} <${mailConfig.smtpFrom}>`,
     });
   }
 }

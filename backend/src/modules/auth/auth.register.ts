@@ -167,10 +167,17 @@ export class AuthRegisterService {
       // D3 — mandar aviso al titular. NO un OTP (el que el
       // titular ya pidió con verify-email es suyo; este correo
       // es informativo, no es un canal de autenticación).
+      //
+      // MAIL A.4 (ronda 14) — el momento del intento viaja en
+      // los datos del encolado, NO se calcula al renderizar.
+      // El outbox es asíncrono: la hora de entrega puede ser
+      // minutos después, y la que le importa al titular es la
+      // del intento, no la de la entrega.
       await this.emailVerificationService.notifyExistingAccountAttempt(
         existing.id,
         input.ip,
         input.userAgent,
+        new Date(),
       );
       this.registerEmailHit(emailLower);
       this.registerIpHit(input.ip);

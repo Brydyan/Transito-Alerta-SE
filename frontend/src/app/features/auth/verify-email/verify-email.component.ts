@@ -58,9 +58,15 @@ export class VerifyEmailComponent implements OnInit {
     const qp = this.route.snapshot.queryParamMap;
     const email = qp.get('email') ?? '';
     this.emailCtrl.setValue(email);
+    // F.1/F.3 (ronda 14) — el `hint` SIEMPRE viene del
+    // backend, vía el query param que `register.component.ts`
+    // arma con `response.message`. El fallback ya no es una
+    // copia literal del mensaje del backend (la frase "Si ya
+    // lo estaba, te avisamos al titular" la quitó REG en su
+    // ronda 12 — el frontend debe reflejar el mismo cambio).
     this.hint.set(
       qp.get('hint') ??
-        'Si el correo no estaba registrado, te enviamos un mensaje para verificar tu cuenta. Si ya lo estaba, te avisamos al titular.',
+        'Revisá tu casilla. Te enviamos un mensaje para verificar tu correo.',
     );
     this.isAuthenticated.set(this.authService.isAuthenticated());
   }

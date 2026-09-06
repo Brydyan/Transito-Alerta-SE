@@ -26,6 +26,32 @@
             }
           </div>
 
+          <!-- MAIL E.3 (ronda 14, D7) — segundo campo de
+               confirmación. El validador de GRUPO compara
+               con `email`. NO viaja al servidor. -->
+          <div>
+            <label class="form-label" for="email_confirm">Verifique su correo</label>
+            <input
+              id="email_confirm"
+              type="email"
+              class="form-input w-full"
+              formControlName="email_confirm"
+              autocomplete="email"
+              data-testid="email-confirm-input"
+            />
+            @if (f['email_confirm'].touched && f['email_confirm'].errors) {
+              <p class="form-error" data-testid="email-confirm-error">
+                @if (f['email_confirm'].errors['required']) { Verifique su correo. }
+                @else if (f['email_confirm'].errors['email']) { Debe ser un correo válido. }
+              </p>
+            }
+            @if (registerForm.errors?.['emailMatch'] && registerForm.touched) {
+              <p class="form-error" data-testid="email-match-error">
+                El correo no coincide con la verificación.
+              </p>
+            }
+          </div>
+
           <div>
             <label class="form-label" for="first_name">Nombre</label>
             <input

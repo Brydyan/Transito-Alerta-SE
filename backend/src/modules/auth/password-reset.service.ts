@@ -12,6 +12,7 @@ import { decodeTokenOrThrow, generateToken } from './token-codec';
 import { PasswordHasher } from './password-hasher';
 import { PasswordResetRepository } from './password-reset.repository';
 import { RESET_TOKEN_CONSUMED, RESET_TOKEN_EXPIRED } from '../invitations/invitation-errors';
+import { PRODUCT_NAME } from '../mail/product-name';
 
 /**
  * PasswordResetService (T3.6 design "Component Design"). `requestReset` is
@@ -53,7 +54,14 @@ export class PasswordResetService {
 
     await this.mailService.enqueue({
       to: email,
-      subject: 'Reset your Transito Alerta SE password',
+      // H.4 (ronda 14, D11) — el asunto pasaba a llevar
+      // "Transito Alerta SE" escrito a mano. Pasa a usar el
+      // nombre del producto, que es lo que el usuario ve en
+      // su bandeja y lo que decide si abre o marca como no
+      // deseado. El nombre viene de `PRODUCT_NAME` (un solo
+      // sitio) — el mismo que el remitente y el pie de las
+      // plantillas.
+      subject: `Reset your ${PRODUCT_NAME} password`,
       template: 'password-reset',
       data: { link: `${this.mailConfig.appBaseUrl}/reset-password?token=${token}` },
     });

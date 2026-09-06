@@ -13,6 +13,7 @@ import { AppModule } from '../../src/app.module';
 import { SnakeCaseResponseInterceptor } from '../../src/common/interceptors/snake-case-response.interceptor';
 import { RedisIoAdapter } from '../../src/modules/realtime/redis-io.adapter';
 import { PasswordHasher } from '../../src/modules/auth/password-hasher';
+import { isTrustedProxyAddress } from '../../src/common/proxy-trust';
 import helmet from 'helmet';
 import {
   MAIL_BLOCKING_CLIENT,
@@ -203,6 +204,16 @@ export class TestEnvironment {
     // T4.3a — keep the harness in lockstep with main.ts so security-headers
     // e2e assertions see what production sees.
     app.use(helmet());
+    // MAIL G.1 (ronda 14, D10) — `trust proxy` por dirección,
+    // mismo ajuste que `main.ts`. Sin esto, los tests que
+    // simulan peticiones a través de nginx (G.4, dos IPs
+    // distintas con X-Forwarded-For) verían `req.ip =
+    // 127.0.0.1` siempre y el rate limit compartiría llave
+    // entre los "clientes" simulados.
+    (app.getHttpAdapter().getInstance() as { set: (k: string, v: unknown) => void }).set(
+      'trust proxy',
+      isTrustedProxyAddress,
+    );
     app.setGlobalPrefix('api');
     app.enableCors({ origin: true, credentials: true });
     app.useGlobalPipes(

@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { SnakeCaseResponseInterceptor } from './common/interceptors/snake-case-response.interceptor';
 import { RequestIdLogger } from './common/observability/request-id.logger';
 import { RedisIoAdapter } from './modules/realtime/redis-io.adapter';
+import { isTrustedProxyAddress } from './common/proxy-trust';
 
 async function bootstrap(): Promise<void> {
   if (process.env.SENTRY_DSN) {
@@ -42,6 +43,19 @@ async function bootstrap(): Promise<void> {
   logger.setLogLevels(logLevels);
 
   const app = await NestFactory.create(AppModule, { logger });
+
+  // MAIL G.1 (ronda 14, D10) — confianza en el proxy acotada
+  // por DIRECCIÓN, no por número de saltos. La función
+  // está extraída a `common/proxy-trust.ts` para que G.2/G.3
+  // puedan probarla en aislamiento.
+  // `app.set` no existe en `INestApplication`; accedemos a
+  // la instancia de Express subyacente vía el adapter HTTP.
+  // `set('trust proxy', fn)` es exactamente el setting de
+  // Express, no un wrapper de Nest.
+  (app.getHttpAdapter().getInstance() as { set: (k: string, v: unknown) => void }).set(
+    'trust proxy',
+    isTrustedProxyAddress,
+  );
 
   // Design D5 — socket.io Redis adapter for cross-instance room broadcast.
   app.useWebSocketAdapter(new RedisIoAdapter(app));
