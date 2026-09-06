@@ -6,15 +6,23 @@
 
 ---
 
-## Flujo 1 — Reporte Anónimo (FL-1)
+## Flujo 1 — Reporte del ciudadano (FL-1)
+
+> **Reescrito por ANON (sc-326), 2026-09-05.** Estos tres escenarios decían «dispositivo
+> anónimo con `device_uuid: 'anonymous'` hace login». Ese camino se cerró: el login anónimo
+> ahora devuelve 401 `ANONYMOUS_IDENTITY_CLOSED`. El actor pasa a ser un `reporter`
+> autenticado, que REG (sc-325) hizo posible con el auto-registro.
+>
+> Lo que estos escenarios miden no cambió — geolocalización, aceptación fuera de zona,
+> lectura posterior. Sólo cambió quién los ejecuta.
 
 **FL-1-01 — Reporte dentro de zona**
-- **Given** un dispositivo anónimo con `device_uuid: 'anonymous'` hace login
+- **Given** un `reporter` autenticado y con el correo verificado
 - **When** POST `/api/incidents` con `{ lat: -2.2, lng: -80.5 }` (dentro de Santa Elena)
 - **Then** status 201, `zone_id = SANTA_ELENA_ZONE_ID`, `geofence_matched = true`
 
 **FL-1-02 — Reporte fuera de toda zona (R2)**
-- **Given** el mismo token anónimo
+- **Given** el mismo `reporter`
 - **When** POST `/api/incidents` con `{ lat: 10.0, lng: -70.0 }` (fuera de cualquier zona)
 - **Then** status 201 (NO rechazado — perder un reporte de emergencia es peor que archivarlo fuera de zona)
 - **Then** `zone_id = null`, `geofence_matched = false`
@@ -26,27 +34,37 @@
 
 ---
 
-## Flujo 2 — Anonymous Ceiling CC2 (FL-2)
+## Flujo 2 — Techo de permisos del `reporter` (FL-2)
+
+> **Reescrito por ANON (sc-326).** Era «Anonymous Ceiling CC2»: el techo que tenía la
+> identidad anónima. Esa identidad ya no concede nada, así que el techo que importa es el
+> del `reporter` — que publica y comenta, pero no gestiona.
 
 **FL-2-01 — READ y CREATE permitidos**
-- **Given** token anónimo
+- **Given** un `reporter` verificado
 - **When** GET `/api/incidents` y POST `/api/incidents`
 - **Then** ambos responden 200/201
 
 **FL-2-02 — UPDATE de estado rechazado 403**
-- **Given** token anónimo con incidente propio
+- **Given** un `reporter` con incidente propio
 - **When** PATCH `/api/incidents/{id}/status`
 - **Then** 403 Forbidden
 
 **FL-2-03 — DELETE de comentario propio rechazado 403**
-- **Given** token anónimo, comentario propio
+- **Given** un `reporter` con comentario propio
 - **When** DELETE `/api/comments/{id}`
 - **Then** 403 Forbidden
 
 **FL-2-04 — ASSIGN rechazado 403**
-- **Given** token anónimo
+- **Given** un `reporter`
 - **When** POST `/api/assignments`
 - **Then** 403 Forbidden
+
+**FL-2-05 — El login anónimo se rechaza (ANON sc-326)**
+- **Given** una petición de login con `device_uuid: 'anonymous'`
+- **When** POST `/api/auth/login`
+- **Then** 401 con código `ANONYMOUS_IDENTITY_CLOSED`, sin crear fila, sin emitir token y
+  sin abrir sesión
 
 **FL-2-05 — Sin token rechazado 401**
 - **Given** request sin header Authorization

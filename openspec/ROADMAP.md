@@ -44,7 +44,7 @@ internamente — ver «Ciudadano» más abajo.
 | 3 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
 | 4 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
 | — | **REG** Auto-registro ✅ | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano se registra, verifica su correo y publica — **completada y archivada 2026-09-05**, tras 10 rondas de verify y dos archivados revertidos |
-| — | **ANON** Cerrar sin sesión | [326](https://app.shortcut.com/upse/story/326) | 3 | Retira el reporte anónimo sin cuenta |
+| — | **ANON** Cerrar sin sesión ✅ | [326](https://app.shortcut.com/upse/story/326) | 3 | El login anónimo devuelve 401; el techo de permisos queda vacío — **completada y archivada 2026-09-05** |
 | — | **AUD** Auditoría y revelación | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría |
 | 5 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
 | 6 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
@@ -316,7 +316,7 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 | ✅ Sidebar cae al 404 | `menu-map.ts` ↔ `app.routes.ts` | F1 (cerrada 2026-09-02) · `archive/2026-08-29-f1-menu-routing-alignment/` |
 | ✅ **El ciudadano no puede registrarse** — F4/B.2.12 ofrecía un registro inexistente | `auth.controller.ts:54` (410) | REG ✅ archivada 2026-09-05 · `archive/2026-09-02-reg-citizen-self-registration/` |
 | ✅ **El reporte anónimo devolvía 403** — `EmailVerifiedGuard` exigía verificar un correo que el dispositivo anónimo no tiene | `email-verified.guard.ts` ↔ `auth.service.ts` | REG ✅ (la exención se retira cuando ANON cierre el login anónimo) |
-| **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos | `auth.config.ts:74` | ANON + AUD |
+| 🔶 **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos. ANON cerró el camino; falta que AUD selle la autoría del reporte anónimo del ciudadano autenticado | `auth.config.ts` | ANON ✅ archivada 2026-09-05 · AUD pendiente |
 | **No hay tabla de auditoría** — F7 la necesita para la excepción al tope | — | AUD |
 | «Volver al inicio» del login es `href="#!"` | `login.component.html:147` | REG (apunta a `/registro`) |
 | **Compuerta de typecheck es un no-op** — `npx tsc -p tsconfig.json --noEmit` revisa 0 archivos (`files: []`); el comando real es `npx tsc -b tsconfig.json --noEmit` | `frontend/tsconfig.json` + `frontend/tsconfig.spec.json` | Sin ticket — detectado en sc-324; afecta toda ejecución de verificación de tipos en el frontend |
