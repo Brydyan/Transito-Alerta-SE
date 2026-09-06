@@ -83,9 +83,9 @@ describe('PlaceholderComponent (F1, D2)', () => {
     const routesPath = path.resolve(here, '../../app.routes.ts');
     const routesSrc = fs.readFileSync(routesPath, 'utf8');
 
-    // 1. Existen al menos 3 placeholders (F2 retiró los suyos).
+    // 1. Existen al menos 2 placeholders (F2 y F3 retiraron los suyos).
     const placeholderComments = routesSrc.match(/\/\/\s*PLACEHOLDER\s+F\d+/g) ?? [];
-    expect(placeholderComments.length).toBeGreaterThanOrEqual(3);
+    expect(placeholderComments.length).toBeGreaterThanOrEqual(2);
 
     // 2. Para cada placeholder, encontramos el bloque `{ ... }` que
     //    termina en su comentario y validamos el data.

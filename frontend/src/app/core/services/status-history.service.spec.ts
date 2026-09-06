@@ -16,7 +16,7 @@ import { StatusHistoryEntry, StatusHistoryListResult } from '../models/status-hi
 describe('StatusHistoryService (F3.1.6)', () => {
   let service: StatusHistoryService;
   let http: HttpTestingController;
-  const base = 'http://localhost:3001/api';
+  const base = '/api';
 
   const fixtureEntry: StatusHistoryEntry = {
     id: 'sh-1',
