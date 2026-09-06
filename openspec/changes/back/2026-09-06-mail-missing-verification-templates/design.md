@@ -237,8 +237,23 @@ por nginx debe registrar la IP del cliente; una petición directa que trae un
 
 ## D11 — El correo dice de parte de quién viene, y el nombre vive en un solo sitio
 
-**Decisión**: una constante con el nombre del producto —**GeoReporta**— usada en el nombre
-visible del remitente y en el pie de todas las plantillas.
+**Decisión**: una constante con el nombre de la aplicación —**GeoReporta**— usada en el
+nombre visible del remitente y en el pie de todas las plantillas.
+
+**Los dos nombres, fijados el 2026-09-06** (registrado en `openspec/ROADMAP.md`): **TASE**
+es el proyecto —repositorio, ramas, tickets, documentos internos—; **GeoReporta** es la
+aplicación, el nombre que ve el ciudadano. No son sinónimos, y `TASE` no aparece en ninguna
+superficie de usuario.
+
+**La colisión que hay que tener presente**: «GeoReporta» ya aparece 11 veces en
+`backend/src` refiriéndose al **sistema anterior**, el que se migró y cuyo código se borró
+(«GeoReporta's bug», «Mirrors GeoReporta's IncidentClaimService»). Con la aplicación
+llamándose igual, esos comentarios quedan ambiguos.
+
+Esta fase **no** los reescribe: son notas históricas correctas en su contexto, y una pasada
+de renombrado en masa arriesga cambiar el sentido de comentarios que explican por qué el
+código es como es. La regla es hacia adelante: el nombre del producto sale de la constante,
+nunca escrito a mano, y el sistema viejo se nombra como «GeoReporta (el sistema anterior)».
 
 **El remitente lleva nombre.** Hoy `mail.service.ts:104` manda `from: mailConfig.smtpFrom`,
 la dirección pelada. En la bandeja se lee `no-reply@georeporta.twintailcs.xyz`. Pasa a

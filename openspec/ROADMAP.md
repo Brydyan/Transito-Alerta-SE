@@ -18,6 +18,58 @@ contra 8 rutas.
 
 ---
 
+## Los dos nombres · decidido 2026-09-06
+
+**TASE** es el proyecto. **GeoReporta** es la aplicación — el nombre que ve el ciudadano.
+
+```
+TASE          repositorio, ramas, tickets, este documento, conversación interna
+GeoReporta    título del navegador, marca en pantalla, remitente y cuerpo de los correos
+```
+
+No son sinónimos y no se sustituyen el uno por el otro.
+
+### La trampa: «GeoReporta» ya significa otra cosa en el código
+
+Hay **11 menciones en `backend/src`** que se refieren al **sistema viejo**, el que se
+migró y cuyo código se borró:
+
+```
+subject-scope.ts               «...GeoReporta's bug»
+incident-workflow.service.ts   «Mirrors GeoReporta's IncidentClaimService»
+app.controller.ts              «GeoReporta parity: GET /estados alias»
+```
+
+Con la aplicación llamándose igual, esos comentarios quedan ambiguos: dentro de unos meses
+nadie sabrá si «el bug de GeoReporta» es del sistema que migramos o del nuestro.
+
+**Regla para no empeorarlo**: al escribir código nuevo, referirse al sistema anterior como
+**«GeoReporta (el sistema anterior)»**, nunca a secas. Y el nombre del producto **no se
+escribe a mano** en ninguna parte: sale de una única constante.
+
+No se hace una pasada de renombrado sobre las 11 menciones existentes. Son comentarios
+históricos correctos en su contexto; reescribirlos en masa arriesga cambiar el sentido de
+notas que explican por qué el código es como es.
+
+### Dónde dice hoy el nombre equivocado
+
+| Superficie | Hoy | Dónde se arregla |
+|---|---|---|
+| Título del navegador | `TransitoAlertaSEFrontend` — el andamio de Angular, nunca tocado | MAIL |
+| Remitente del correo | la dirección pelada, sin nombre | MAIL |
+| Asunto de recuperar contraseña | `Reset your Transito Alerta SE password` | MAIL |
+| Respaldo de la invitación | `Transito Alerta SE` | MAIL |
+| Marca del sidebar | logo `assets/logo.svg` + «Tránsito Alerta» | **F6** — lleva un activo gráfico nuevo, es trabajo de diseño |
+| Título de Swagger | `Transito Alerta SE — API` | **no se toca** — no se sirve en producción |
+
+### Deuda anotada
+
+Las cuatro plantillas de correo de incidencias y comentarios están **redactadas en inglés**
+(«A new incident was reported») en una aplicación en castellano. Es otra superficie, con su
+propia revisión de texto. Sin dueño asignado.
+
+---
+
 ## Orden de ejecución
 
 ```

@@ -2,7 +2,7 @@
 
 ## Domain: citizen-registration (MODIFIED)
 
-Se añaden 7 requisitos, con 32 escenarios. Los siete existentes no cambian.
+Se añaden 7 requisitos, con 33 escenarios. Los siete existentes no cambian.
 
 El hueco que cubren: el spec vigente exige que **la respuesta diga** que se envió un correo
 de verificación, pero nunca que el correo **se pueda enviar**. Un sistema que responde «te
@@ -124,16 +124,21 @@ confianza, y NO DEBE aceptarlas de un origen que no sea ese proxy.
 
 ---
 
-### Requirement: Todo correo dice de parte de quién viene, con un solo nombre
-Los correos que el sistema envía DEBEN identificar al producto por su nombre, y ese nombre
-DEBE venir de una única definición.
+### Requirement: La aplicación se identifica como GeoReporta, con un solo nombre
+Lo que el ciudadano ve DEBE identificar a la aplicación como **GeoReporta**, y ese nombre
+DEBE venir de una única definición en cada lado.
+
+`TASE` es el nombre del proyecto —repositorio, ramas, tickets— y NO DEBE aparecer en
+ninguna superficie de usuario.
 
 - Scenario: Remitente con nombre — GIVEN un correo enviado THEN la cabecera de remitente
-  lleva el nombre visible del producto además de la dirección, no la dirección sola
-- Scenario: Pie del mensaje — GIVEN el cuerpo de cualquier plantilla THEN identifica al
-  producto que lo envía
+  lleva el nombre visible de la aplicación además de la dirección, no la dirección sola
+- Scenario: Pie del mensaje — GIVEN el cuerpo de cualquier plantilla THEN identifica a la
+  aplicación que lo envía
 - Scenario: Un solo nombre — GIVEN los correos de verificación, de aviso de intento y de
-  recuperación de contraseña THEN los tres identifican al producto con el mismo nombre
+  recuperación de contraseña THEN los tres identifican a la aplicación con el mismo nombre
+- Scenario: Título del navegador — GIVEN el ciudadano abre la aplicación THEN la pestaña
+  muestra el nombre de la aplicación, no el nombre generado por el andamio del proyecto
 - Scenario: Sin literales sueltos — GIVEN el código del módulo de correo THEN el nombre del
   producto no aparece escrito a mano en ninguna plantilla: todas lo toman de la misma
   definición

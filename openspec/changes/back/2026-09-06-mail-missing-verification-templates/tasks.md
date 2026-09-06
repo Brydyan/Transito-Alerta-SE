@@ -253,6 +253,22 @@ Todo en `frontend/src/app/features/auth/register/`.
 
 - [ ] **H.6** — Test: el `from` que llega al transporte incluye el nombre visible.
 
+- [ ] **H.7** — `frontend/src/index.html:5` — el título es `TransitoAlertaSEFrontend`, el
+  nombre que generó el andamio de Angular y que nunca se cambió. Pasa a ser el nombre de la
+  aplicación.
+
+  Es lo que se lee en la pestaña del navegador mientras el ciudadano se registra.
+
+- [ ] **H.8** — **No** tocar la marca del sidebar (`sidebar.component.html:3-5`: el logo
+  `assets/logo.svg` y el texto «Tránsito Alerta»). Lleva un activo gráfico nuevo, así que
+  es trabajo de diseño y pertenece a F6. Anotarlo en `apply-progress.md`.
+
+  **Recordatorio de nomenclatura** (ver «Los dos nombres» en `openspec/ROADMAP.md`):
+  **TASE** es el proyecto; **GeoReporta** es la aplicación. Y «GeoReporta» ya aparece 11
+  veces en `backend/src` refiriéndose al **sistema anterior** — no tocar esos comentarios,
+  y al escribir nuevos decir «GeoReporta (el sistema anterior)» para que no se confundan
+  con el producto.
+
 ---
 
 ---
