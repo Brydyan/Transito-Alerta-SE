@@ -220,13 +220,28 @@ describe('IncidentsService (AUD sc-327 — B.5/B.6 anonymous sealing)', () => {
   });
 
   it('B.6: el resultado de create NO contiene el id del autor real (sólo la máscara)', async () => {
-    // Defensa contra el patrón "regla a medias": la fila de
-    // `incidents` devuelta al controller — y por tanto al
-    // cliente — debe tener `citizen_id` = máscara, NUNCA
-    // el id del autor real. Este test lo afirma
-    // explícitamente. Si alguien refactoriza y devuelve
-    // la fila con `citizen_id` = AUTHOR_ID, este test
-    // cae con el id correcto en el mensaje de error.
+    // WARNING-B (ronda 12) — el docstring original afirmaba
+    // que este test cazaba "el patrón regla a medias" del
+    // proyecto. La realidad, sin embargo, es que el test
+    // hardcodea la respuesta del mock (`makeRow({citizen_id:
+    // MASK_ID})`) — pasa aunque el servicio pase `AUTHOR_ID` a
+    // `repo.create`. La defensa real vive en los dos tests
+    // B.5 hermanos ("is_anonymous=true con citizen_id=mask y
+    // fila en incident_reporters" y "el fallo del INSERT …
+    // hace rollback"), que sí inspeccionan los argumentos
+    // pasados al repo. Lo que este test prueba, hoy, es:
+    //  - el servicio INVOCA `repo.create` con `isAnonymous: true`
+    //    (cambio en el contrato de `CreateIncidentInput`),
+    //  - el resultado final que el service devuelve NO tiene
+    //    `citizen_id = AUTHOR_ID` por accidente (red de
+    //    seguridad contra una mutación de `result.citizen_id`
+    //    posterior al mock).
+    //
+    // Para cazar "regla a medias" en serio, mirá
+    // `repo.create.mock.calls[0][0]` — la trenza entre este
+    // test y los B.5 no es redundante: cubren la respuesta
+    // del servicio y los argumentos al repo, dos lados de
+    // la misma frontera.
     dataSource.query.mockResolvedValueOnce([{ id: MASK_ID }]);
     const txManagerQuery = jest.fn().mockResolvedValue([]);
     dataSource.transaction.mockImplementation(async (fn) =>
@@ -243,6 +258,19 @@ describe('IncidentsService (AUD sc-327 — B.5/B.6 anonymous sealing)', () => {
 
     expect(result.citizen_id).toBe(MASK_ID);
     expect(result.citizen_id).not.toBe(AUTHOR_ID);
+    // WARNING-B: el servicio debe pedir al repo que cree
+    // con `isAnonymous: true`. Si alguien refactoriza y la
+    // `is_anonymous` se omite, el INSERT pone la columna en
+    // `false` (default de la BD) y la regla "el autor de un
+    // anónimo nunca aparece en la respuesta" se rompe: la
+    // respuesta ahora expone al autor real.
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isAnonymous: true,
+        citizenId: MASK_ID,
+      }),
+      expect.anything(),
+    );
   });
 
   it('B.6: el fallo del INSERT de incident_reporters hace rollback de la incidencia', async () => {

@@ -20,8 +20,12 @@ function makeActor(overrides: Partial<AuthContext> = {}): AuthContext {
   };
 }
 
+function mockRole(name: string) {
+  return { id: 'role-1', name, permissions: [] } as unknown as RoleEntity;
+}
+
 describe('RolesService', () => {
-  let roleRepo: { findOne: jest.Mock; find: jest.Mock; save: jest.Mock };
+  let roleRepo: { findOne: jest.Mock; find: jest.Mock; save: jest.Mock; create: jest.Mock };
   let userRepo: { findOne: jest.Mock; find: jest.Mock; save: jest.Mock };
   let permissionRepo: { find: jest.Mock };
   let dataSource: { transaction: jest.Mock };
@@ -29,7 +33,20 @@ describe('RolesService', () => {
   let service: RolesService;
 
   beforeEach(() => {
-    roleRepo = { findOne: jest.fn(), find: jest.fn(), save: jest.fn(async (x) => x) };
+    roleRepo = {
+      findOne: jest.fn(),
+      find: jest.fn(),
+      // AUD FIX-5 (ronda 12): `create()` llama a
+      // `this.roleRepo.create({...})` antes de save. El
+      // mock anterior no lo proveía, así que el
+      // spec del camino feliz fallaba con
+      // "this.roleRepo.create is not a function". El mock
+      // implementa el contrato estándar de TypeORM:
+      // `create(input)` devuelve una entidad sin persistir
+      // (es una función de "construcción", no de "save").
+      create: jest.fn().mockImplementation((x: unknown) => x),
+      save: jest.fn(async (x) => x),
+    };
     userRepo = { findOne: jest.fn(), find: jest.fn(async () => []), save: jest.fn(async (x) => x) };
     permissionRepo = { find: jest.fn(async () => []) };
     dataSource = { transaction: jest.fn(async (cb) => cb({ getRepository: () => ({ save: async (x: unknown) => x }) })) };
@@ -497,10 +514,6 @@ describe('RolesService', () => {
   // después — no debe quedar un UPDATE parcial si la
   // lógica rechaza.
   describe('syncPermissions (AUD WARNING-1 — REVEAL is master-only)', () => {
-    function mockRole(name: string) {
-      return { id: 'role-1', name, permissions: [] } as unknown as RoleEntity;
-    }
-
     it('master puede incluir REVEAL incidents en su set', async () => {
       roleRepo.findOne.mockResolvedValue(mockRole('master'));
 
@@ -564,6 +577,180 @@ describe('RolesService', () => {
         'READ incidents',
         'UPDATE incidents',
       ]);
+    });
+  });
+
+  // AUD FIX-5 (ronda 12) — `create()` también debe rechazar
+  // REVEAL incidents para roles no-master. El guard estaba
+  // sólo en `syncPermissions`, así que `create()` aceptaba
+  // silenciosamente `{name: 'auditor', permissions:
+  // ['REVEAL incidents']}`. El escenario de la spec
+  // "No se concede por descuido" lo cubría para 1 de 3
+  // puntos de mutación; esta ronda lo cierra para los 3.
+  describe('create (AUD FIX-5)', () => {
+    it('rechaza REVEAL incidents en un rol no-master con BadRequestException + code REVEAL_NOT_GRANTABLE', async () => {
+      await expect(
+        service.create({
+          name: 'auditor',
+          permissions: ['REVEAL incidents'],
+        } as never),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'REVEAL_NOT_GRANTABLE' }),
+      });
+      // No persistió.
+      expect(roleRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('acepta REVEAL incidents cuando el nombre es "master"', async () => {
+      // Espejo del test que ya existe para `syncPermissions`,
+      // aplicado a `create`. Si alguien cambia el nombre a
+      // 'Master' (mayúscula inicial) o 'MASTER', el test cae —
+      // el match es exacto, no case-insensitive.
+      roleRepo.save.mockResolvedValue({
+        id: 'role-new',
+        name: 'master',
+        permissions: ['REVEAL incidents'],
+      } as never);
+
+      const result = await service.create({
+        name: 'master',
+        permissions: ['REVEAL incidents'],
+      } as never);
+
+      expect(result.permissions).toEqual(['REVEAL incidents']);
+    });
+
+    it('roles no-master pueden crearse con permisos que NO incluyen REVEAL', async () => {
+      roleRepo.save.mockResolvedValue({
+        id: 'role-1',
+        name: 'auditor',
+        permissions: ['READ incidents'],
+      } as never);
+
+      const result = await service.create({
+        name: 'auditor',
+        permissions: ['READ incidents'],
+      } as never);
+
+      expect(result.permissions).toEqual(['READ incidents']);
+    });
+  });
+
+  // AUD FIX-5 (ronda 12) — `update()` también debe rechazar.
+  // Esto es crítico porque la spec exige la invariante
+  // "ningún rol distinto de master tiene REVEAL incidents"
+  // sobre TODA mutación de `roles.permissions`, no sólo
+  // sobre `syncPermissions`.
+  describe('update (AUD FIX-5)', () => {
+    it('rechaza añadir REVEAL incidents a un rol no-master existente', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('admin_org'));
+
+      await expect(
+        service.update('role-1', { permissions: ['READ incidents', 'REVEAL incidents'] } as never),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'REVEAL_NOT_GRANTABLE' }),
+      });
+      // No persistió.
+      expect(roleRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('acepta añadir REVEAL incidents a un rol master', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('master'));
+      // `save` devuelve la entidad que recibió (con las
+      // permissions nuevas). Si el mock devolviera un
+      // `mockRole('master')` con `permissions: []` "fresco",
+      // el assert caería con la forma vacía y el spec diría
+      // que la mutación se perdió, lo cual es un test
+      // que miente: la mutación sí se hizo, es el mock el
+      // que no la refleja.
+      roleRepo.save.mockImplementation(async (x) => x as never);
+
+      const result = await service.update('role-1', { permissions: ['REVEAL incidents'] } as never);
+
+      expect(result.permissions).toEqual(['REVEAL incidents']);
+    });
+  });
+
+  // AUD FIX-6 (ronda 12) — el guard se apoyaba en
+  // `role.name`, pero `update()` permite renombrar. El
+  // camino de ataque: PATCH /roles/:id {name:'master'}
+  // (acepta), seguido de PUT /roles/:id/permissions
+  // ['REVEAL incidents'] (acepta porque role.name ahora es
+  // 'master'). El guard tiene que evaluar con el nombre
+  // RESULTANTE del dto, no con el actual. Y los nombres
+  // sembrados son identificadores funcionales, no
+  // etiquetas cosméticas — no se puede renombrar hacia
+  // ni desde ese conjunto.
+  describe('update (AUD FIX-6 — REVEAL evalúa nombre resultante + rename protection)', () => {
+    it('rechaza el PATCH atómico (rename a master + añadir REVEAL) con REVEAL_NOT_GRANTABLE', async () => {
+      // El camino de ataque. role.name actual = 'reporter'.
+      // dto dice name='master' + permissions incluye
+      // REVEAL incidents. El guard con el nombre RESULTANTE
+      // ('master') + permissions que incluyen REVEAL pasa
+      // la primera condición; entonces el spec de rename
+      // rechaza el renombrado al nombre sembrado. Y la
+      // primera línea del método (`this.assertRevealOnlyForMaster
+      // (resultingName, resultingPermissions)`) NO rechaza
+      // porque resultingName === 'master'. El orden importa:
+      // rename protection va ANTES de save, y la lógica
+      // resultante evalúa correctamente.
+      roleRepo.findOne.mockResolvedValue(mockRole('reporter'));
+
+      await expect(
+        service.update('role-1', {
+          name: 'master',
+          permissions: ['REVEAL incidents'],
+        } as never),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'SEEDED_ROLE_RENAME_FORBIDDEN' }),
+      });
+      expect(roleRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rechaza renombrar un rol sembrado (reporter → master) por sí solo, sin permisos', async () => {
+      // Un solo campo del dto no esquiva el guard.
+      roleRepo.findOne.mockResolvedValue(mockRole('reporter'));
+
+      await expect(
+        service.update('role-1', { name: 'master' } as never),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'SEEDED_ROLE_RENAME_FORBIDDEN' }),
+      });
+    });
+
+    it('rechaza renombrar un rol sembrado HACIA otro nombre sembrado (master → reporter)', async () => {
+      // El camino "no me conviene ser master, prefiero ser
+      // reporter". La razón técnica: las migraciones
+      // conceden por nombre, y `master` tiene REVEAL
+      // incidents (0047); si renombramos a 'reporter',
+      // perdemos la garantía de que REVEAL se queda en
+      // master.
+      roleRepo.findOne.mockResolvedValue(mockRole('master'));
+
+      await expect(
+        service.update('role-1', { name: 'reporter' } as never),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'SEEDED_ROLE_RENAME_FORBIDDEN' }),
+      });
+    });
+
+    it('rechaza renombrar a admin_org', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('auditor'));
+
+      await expect(
+        service.update('role-1', { name: 'admin_org' } as never),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'SEEDED_ROLE_RENAME_FORBIDDEN' }),
+      });
+    });
+
+    it('permite renombrar roles no-sembrados a otros nombres no-sembrados', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('auditor'));
+      roleRepo.save.mockResolvedValue(mockRole('auditor-v2'));
+
+      const result = await service.update('role-1', { name: 'auditor-v2' } as never);
+
+      expect(result.name).toBe('auditor-v2');
     });
   });
 });

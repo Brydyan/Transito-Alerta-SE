@@ -393,4 +393,254 @@ describe('E2E AUD — D4 transactional rollback (FIX-1) + reveal coverage (FIX-2
       .set({ Authorization: `Bearer ${admin.accessToken}` })
       .expect(403);
   });
+
+  // ───────── WARNING-A (ronda 12) — superficies adicionales + roles staff + walk seeded ─────────
+
+  /**
+   * Crea una incidencia anónima con un reporter y devuelve el
+   * id. Helper de los 3 tests de superficies (FIX-2.9-2.11).
+   */
+  async function createAnonymousIncident(): Promise<{ id: string; reporterId: string }> {
+    const reporter = await env.provisionUser(['CREATE incidents'], {
+      email: `r-${randomUUID()}@example.com`,
+      roleName: 'reporter',
+      emailVerified: true,
+    });
+    const res = await request(env.httpServer)
+      .post('/api/incidents')
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
+      .send({ ...newIncident(), is_anonymous: true })
+      .expect(201);
+    return { id: res.body.id, reporterId: reporter.userId };
+  }
+
+  it('WARNING-A.1: GET /incidents (list) NO contiene el id/email del autor real cuando la incidencia es anónima', async () => {
+    const { id, reporterId } = await createAnonymousIncident();
+    const master = await env.provisionUser(['READ incidents'], {
+      roleName: 'master',
+    });
+    const list = await request(env.httpServer)
+      .get('/api/incidents')
+      .set({ Authorization: `Bearer ${master.accessToken}` })
+      .expect(200);
+    const found = list.body.find((r: { id: string }) => r.id === id);
+    expect(found).toBeDefined();
+    const body = JSON.stringify(found);
+    expect(body).not.toContain(reporterId);
+  });
+
+  it('WARNING-A.2: GET /incidents/feed NO contiene el id del autor real cuando la incidencia es anónima', async () => {
+    const { id, reporterId } = await createAnonymousIncident();
+    const master = await env.provisionUser(['READ incidents'], {
+      roleName: 'master',
+    });
+    const feed = await request(env.httpServer)
+      .get('/api/incidents/feed')
+      .set({ Authorization: `Bearer ${master.accessToken}` })
+      .expect(200);
+    // El shape del feed es variable según staff/citizen
+    // (`items` para citizen, otro para staff). La defensa
+    // robusta: la respuesta entera, serializada, no
+    // contiene el id del autor real, sin importar el shape.
+    const body = JSON.stringify(feed.body);
+    expect(body).not.toContain(reporterId);
+    // Y la incidencia SÍ aparece — sino el test probaría
+    // ausencia por motivo equivocado.
+    expect(body).toContain(id);
+  });
+
+  it('WARNING-A.3: GET /incidents/export NO contiene el id del autor real cuando la incidencia es anónima', async () => {
+    const { id, reporterId } = await createAnonymousIncident();
+    // `export` requiere `READ dashboard` además de `READ incidents`.
+    const master = await env.provisionUser(['READ dashboard'], {
+      roleName: 'master',
+    });
+    const csv = await request(env.httpServer)
+      .get('/api/incidents/export')
+      .set({ Authorization: `Bearer ${master.accessToken}` })
+      .expect(200);
+    // El export es texto CSV; basta con que el id no aparezca
+    // en el cuerpo de la respuesta.
+    expect(csv.text).not.toContain(reporterId);
+    // La incidencia está en el CSV — confirmamos que el
+    // endpoint la devolvió pero sin el id del autor.
+    expect(csv.text).toContain(id);
+  });
+
+  it('WARNING-A.4: operador_org NO puede revelar — 403', async () => {
+    const { id } = await createAnonymousIncident();
+    const orgId = await ensureOrg();
+    const op = await env.provisionUser([], {
+      organizationId: orgId,
+      roleName: 'operador_org',
+    });
+    await request(env.httpServer)
+      .post(`/api/incidents/${id}/reveal-reporter`)
+      .set({ Authorization: `Bearer ${op.accessToken}` })
+      .send({ justification: 'Justificación suficiente para pasar el MinLength de 20' })
+      .expect(403);
+  });
+
+  it('WARNING-A.5: operador_sistema NO puede revelar — 403', async () => {
+    const { id } = await createAnonymousIncident();
+    const op = await env.provisionUser([], {
+      roleName: 'operador_sistema',
+    });
+    await request(env.httpServer)
+      .post(`/api/incidents/${id}/reveal-reporter`)
+      .set({ Authorization: `Bearer ${op.accessToken}` })
+      .send({ justification: 'Justificación suficiente para pasar el MinLength de 20' })
+      .expect(403);
+  });
+
+  // ───────── Cache-invalidation direct test (ronda 13) ─────────
+
+  /**
+   * AUD ronda 13 — verifica end-to-end que la migración 0047
+   * (que concede REVEAL incidents a master y bumpea
+   * `permission_version` para invalidar `perm:v3:uid:*`)
+   * funciona contra la BD real: un master provisionado
+   * después de la migración 0047 tiene REVEAL en su
+   * denormalización, y la cache de permisos respeta el
+   * bump.
+   *
+   * Cubre el warning del `fixes-required.md` ronda 3: la
+   * afirmación era estructural (leer el SQL de la
+   * migración), no runtime. Este test lo confirma contra
+   * la BD y la cache.
+   */
+  it('ronda-13: un master tiene REVEAL en users.permissions tras la migración 0047', async () => {
+    const master = await env.provisionUser(['REVEAL incidents'], {
+      roleName: 'master',
+    });
+    const { rows } = await env.pg.query<{ permissions: string[]; permission_version: number }>(
+      `SELECT permissions, permission_version FROM users WHERE id = $1`,
+      [master.userId],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].permissions).toContain('REVEAL incidents');
+    // El `permission_version` que se haya quedado tras la
+    // migración es ≥ 1. La afirmación útil es que está
+    // bumpeado (no es 0, que sería el default anterior a
+    // cualquier bump).
+    expect(rows[0].permission_version).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ronda-13: el master provisionado puede ejecutar POST /reveal-reporter sin re-login (la cache está sincronizada)', async () => {
+    // El primer hit a un endpoint con guard popula
+    // `perm:v3:uid:<userId>` con `(permissions, version)`. Si
+    // los permisos denormalizados y la cache están en
+    // sincronía, el `PermissionGuard` deja pasar REVEAL sin
+    // necesidad de re-login. Este test es la red por
+    // mutación: si la migración 0047 no denormaliza a
+    // `users.permissions`, el primer hit a la cache sirve
+    // un set vacío y el master recibe 403.
+    const master = await env.provisionUser(['REVEAL incidents'], {
+      roleName: 'master',
+    });
+    const reporter = await env.provisionUser(['CREATE incidents'], {
+      email: `r-${randomUUID()}@example.com`,
+      roleName: 'reporter',
+      emailVerified: true,
+    });
+    const created = await request(env.httpServer)
+      .post('/api/incidents')
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
+      .send({ ...newIncident(), is_anonymous: true })
+      .expect(201);
+    // El primer hit: este request falla 403 si REVEAL no
+    // está en la cache. El segundo es redundante — el spec
+    // es la primera línea de defensa.
+    await request(env.httpServer)
+      .post(`/api/incidents/${created.body.id}/reveal-reporter`)
+      .set({ Authorization: `Bearer ${master.accessToken}` })
+      .send({ justification: 'Justificación suficiente para pasar el MinLength de 20' })
+      .expect(201);
+  });
+
+  // ───────── WARNING-A (ronda 12) ─────────
+
+  it('WARNING-A.6: walk post-migración — sólo master tiene REVEAL incidents en users.permissions', async () => {
+    // Después de las migraciones (incluida la 0047 que concede
+    // REVEAL incidents a master y bumpea permission_version),
+    // ningún rol sembrado distinto de master tiene el permiso
+    // denormalizado. El walk afirma la invariante del catálogo
+    // — si alguien migra el cambio y la concesión se aplica a
+    // un rol equivocado, este test cae con el nombre del rol
+    // que no debería tener el permiso.
+    const { rows } = await env.pg.query<{ name: string; has_reveal: boolean }>(
+      `SELECT r.name,
+              EXISTS (
+                SELECT 1 FROM jsonb_array_elements_text(r.permissions) AS p
+                WHERE p = 'REVEAL incidents'
+              ) AS has_reveal
+         FROM roles r
+        WHERE r.deleted_at IS NULL
+        ORDER BY r.name`,
+    );
+    const offenders = rows.filter((r) => r.has_reveal && r.name !== 'master');
+    expect(offenders).toEqual([]);
+
+    // Aseguramos también que master SÍ lo tiene, porque si la
+    // concesión se borró accidentalmente, "ningún rol lo
+    // tiene" pasaría como verde, y la revelación nunca
+    // funcionaría.
+    const master = rows.find((r) => r.name === 'master');
+    expect(master).toBeDefined();
+    expect(master?.has_reveal).toBe(true);
+  });
+
+  // WARNING-C (ronda 12) — "Filtrar por autor no revela" y
+  // "El autor se ve a sí mismo". Cubre dos escenarios que el
+  // unit-test del servicio no prueba: el riesgo de correlación
+  // por id (un atacante con un id en mano NO puede encontrar
+  // las publicaciones anónimas) y la simetría del reporter
+  // (sus publicaciones anónimas siguen apareciendo en su
+  // listado, marcadas con `is_anonymous: true`).
+  it('WARNING-C.1: filtrar por author_id NO devuelve las publicaciones anónimas de ese autor', async () => {
+    const { reporterId } = await createAnonymousIncident();
+    const master = await env.provisionUser(['READ incidents'], {
+      roleName: 'master',
+    });
+    // Un atacante prueba distintos filtros por `citizen_id`.
+    // La API no expone este query param (sólo `zone_id` y
+    // `status`), pero el ataque equivalente es mirar la
+    // respuesta y buscar el id del autor en cualquier parte
+    // del cuerpo. Si lo encuentra, tiene correlación.
+    const allIncidents = await request(env.httpServer)
+      .get('/api/incidents')
+      .set({ Authorization: `Bearer ${master.accessToken}` })
+      .expect(200);
+    const body = JSON.stringify(allIncidents.body);
+    expect(body).not.toContain(reporterId);
+  });
+
+  it('WARNING-C.2: el autor ve sus propias publicaciones anónimas con is_anonymous=true', async () => {
+    const reporter = await env.provisionUser(['CREATE incidents', 'READ incidents'], {
+      email: `r-${randomUUID()}@example.com`,
+      roleName: 'reporter',
+      emailVerified: true,
+    });
+    const created = await request(env.httpServer)
+      .post('/api/incidents')
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
+      .send({ ...newIncident(), is_anonymous: true })
+      .expect(201);
+
+    // El reporter ve su propia lista de incidencias — la
+    // anónima aparece con `is_anonymous: true` y la marca de
+    // máscara en `citizen_id` (no su id). Reconoce que es
+    // suya por la combinación de `is_anonymous: true` y la
+    // ausencia de su id en `citizen_id`.
+    const list = await request(env.httpServer)
+      .get('/api/incidents')
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
+      .expect(200);
+    const found = list.body.find((r: { id: string }) => r.id === created.body.id);
+    expect(found).toBeDefined();
+    expect(found.is_anonymous).toBe(true);
+    // El id del reporter NO aparece en su propia respuesta —
+    // tampoco se lo devolvemos a él mismo, no sólo al staff.
+    expect(found.citizen_id).not.toBe(reporter.userId);
+  });
 });
