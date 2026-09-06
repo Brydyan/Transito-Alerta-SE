@@ -176,6 +176,26 @@ export class TestEnvironment {
     // MailModule always loads (AppModule) — shrink the sweep/idle windows
     // so mail.e2e-spec.ts's retry scenario doesn't wait out the 10s/30s
     // production defaults, without faking timers around real Redis I/O.
+    // sc-330 CRITICAL-1 — el arnés sobreescribe TODA la infraestructura
+    // (base, Redis, JWT, rate limit) y hasta acá dejaba fuera el correo.
+    // `CoreModule` carga `backend/.env` incondicionalmente, así que el
+    // valor de la máquina de quien corre los tests se colaba: con un
+    // `SMTP_HOST=localhost:1025` apuntando a un MailHog que nadie levanta,
+    // `deliverViaSmtp` intenta una conexión real, falla, y la entrada
+    // termina en `mail:dead` — justo lo que los tests de C.4 comprueban
+    // que NO debe pasar.
+    //
+    // Peor que un test frágil: `.env` está en `.gitignore`, así que en CI
+    // no existe y la variable queda sin definir. El resultado era rojo en
+    // local y verde en CI, con CI del lado permisivo. La misma ceguera que
+    // la compuerta de migraciones de `ci.yml` (ver el archive-report de
+    // ANON): el comportamiento difería entre los dos lados y el que
+    // decidía era el que no veía el problema.
+    //
+    // Vacío fuerza el camino de sólo-registro de `deliverViaSmtp`, que es
+    // lo que el arnés quiere: recorrer el camino entero sin mandar correo.
+    process.env.SMTP_HOST = '';
+
     process.env.MAIL_SWEEP_INTERVAL_MS = '300';
     process.env.MAIL_CLAIM_IDLE_MS = '500';
     // XREADGROUP BLOCK timeout: 1s in tests (vs 5s prod) so entries

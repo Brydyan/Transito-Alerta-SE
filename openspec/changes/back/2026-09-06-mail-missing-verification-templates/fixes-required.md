@@ -4,7 +4,9 @@
 **Ronda de verify**: 1
 **Fuente**: `verify-report.md` de esta misma ronda
 
-**Un** CRITICAL bloquea el archivado, con reproducción confirmada por quien verifica.
+**Estado: el único CRITICAL está resuelto.** Queda WARNING-A, que no bloquea el archivado
+pero sí conviene cerrar antes, porque deja un test que no puede fallar con un comentario
+que afirma lo contrario.
 
 > **Corrección sobre el reporte original de la ronda 1.** El agente de verify marcó C.2
 > como un segundo CRITICAL y propuso derivar el array de `Object.keys(TEMPLATES)`. Se
@@ -15,7 +17,25 @@
 
 ---
 
-## CRITICAL-1 — Los e2e C.4 fallan en ejecución real (SMTP_HOST ambiental)
+## CRITICAL-1 — Los e2e C.4 fallan en ejecución real (SMTP_HOST ambiental) — ✅ RESUELTO
+
+> **Cerrado el 2026-09-06.** `test-environment.ts` fuerza `process.env.SMTP_HOST = ''`
+> junto al resto de overrides de infraestructura, y los tres comentarios de
+> `mail.e2e-spec.ts` que afirmaban «SMTP_HOST is unset in this harness» ahora dicen lo que
+> de verdad ocurre: que el arnés lo fuerza.
+>
+> Comprobado sin ningún override manual:
+> `npx jest --config ./test/jest-e2e.json --testPathPattern='mail\.e2e-spec'` → **6 passed,
+> 6 total**, incluidos los dos de C.4 que fallaban.
+>
+> **Lo que este defecto enseñó, y vale más que el arreglo**: `backend/.env` está en
+> `.gitignore`, así que en CI no existe. El resultado era **rojo en local y verde en CI**,
+> con CI del lado permisivo. Es la misma ceguera que la compuerta de migraciones (ver el
+> archive-report de ANON): el comportamiento difería entre los dos lados y el que decidía
+> era el que no veía el problema. Una compuerta que sólo es verde porque le falta un
+> archivo no es una compuerta.
+
+### Diagnóstico original
 
 **Síntoma**: `backend/test/e2e/mail.e2e-spec.ts`, los dos tests `C.4: ... se procesa y NO termina en mail:dead` fallan con `Expected: 0, Received: 1` en `deadCount()`.
 
