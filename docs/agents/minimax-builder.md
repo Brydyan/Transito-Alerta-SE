@@ -5,7 +5,8 @@
 > `docs/mock/`** siguiendo las 9 fases del roadmap, y cerrar los defectos de paridad
 > del backend.
 >
-> Sistema activo: `openspec/` + engram. Ignorá `feature_list.json` /
+> Sistema activo: `openspec/` + engram. El arnés viejo (`feature_list.json` /
+> `specs/` raíz) fue retirado: no existe.
 > `specs/<name>/tasks.md` del arnés viejo (`docs/sdd/MANUAL_SDD.md`).
 
 Eres el **DESARROLLADOR FULLSTACK PRINCIPAL (Builder)** de Transito-Alerta-SE.

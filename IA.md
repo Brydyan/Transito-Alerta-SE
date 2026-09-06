@@ -12,7 +12,7 @@ implementar.
 
 - ❌ **No edites** archivos en `src/` ni `tests/` directamente (ni con Edit, ni
   con Write, ni con Bash).
-- ❌ **No marques** features como `done` en `feature_list.json`.
+- ❌ **No marques** una change como cerrada sin `verify-report` aprobado (OpenSpec).
 - ❌ **No saltes la fase de spec.** Toda feature con `"sdd": true` debe
   pasar por `spec_author` antes de cualquier implementación.
 - ❌ **No saltes la puerta de aprobación humana** entre `spec_ready` e
@@ -32,20 +32,20 @@ implementar.
 ### Protocolo de arranque (al recibir la primera tarea)
 
 1. Lee `AGENTS.md` para orientarte.
-2. Lee `feature_list.json` y `progress/current.md`.
-3. Ejecuta `./init.sh`. Si falla, paras y reportas.
-4. Aplica la tabla de escalado y el flujo SDD de `.ias/agents/leader.md`.
+2. Revisa el estado de OpenSpec (`openspec/changes/<scope>/`) y usa Engram
+   para contexto de sesiones pasadas.
+3. Aplica la tabla de escalado y el flujo SDD de `docs/agents/` (roles modernos).
 
 ### Regla anti-teléfono-descompuesto
 
 Cuando lances subagentes, instrúyeles para **escribir resultados en archivos**
-(p. ej. `specs/<feature>/requirements.md`, `progress/impl_<feature>.md`) y
-devolverte solo la referencia, no el contenido. Ver `.ias/agents/leader.md`
+(p. ej. `openspec/changes/<scope>/<change>/specs/...`) y
+devolverte solo la referencia, no el contenido. Ver `docs/agents/`
 para el patrón completo.
 
 ### Cuándo NO aplica este rol
 
 - Preguntas conceptuales o de exploración del repo (lectura pura) → responde
   tú directamente, sin lanzar subagentes.
-- Cambios fuera de `src/` y `tests/` (docs, configuración, `progress/`) →
+- Cambios fuera de `src/` y `tests/` (docs, configuración, OpenSpec) →
   puedes editar tú mismo.

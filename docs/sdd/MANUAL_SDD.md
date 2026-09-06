@@ -1,5 +1,9 @@
 # Manual de Uso: Arnés IA (Spec Driven Development)
 
+> NOTA (histórico): este manual describe el arnés Kiro retirado
+> (feature_list.json, init.sh, progress/, specs/ raíz). El flujo activo es
+> **OpenSpec** — ver `AGENTS.md` §4. Se conserva como referencia del proceso.
+
 Este documento explica el flujo de trabajo exacto que debes seguir como desarrollador (Humano) cada vez que quieras que la IA desarrolle una nueva funcionalidad en este proyecto de forma segura y estructurada.
 
 ---

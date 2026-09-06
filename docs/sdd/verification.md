@@ -1,7 +1,9 @@
 # Verificación — Cómo demostrar que el trabajo funciona
 
-> Regla de oro: **el agente no dice "funciona", lo demuestra**.
-> Toda feature termina con evidencia ejecutable, no con afirmaciones.
+> NOTA: el arnés Kiro (feature_list.json, init.sh, progress/, specs/ raíz) fue
+> retirado. Las referencias a esos archivos en este doc son históricas. La
+> verificación activa: gates frontend (`pnpm test` + `pnpm run build`) y
+> backend, con trazabilidad contra los specs de OpenSpec en cada change.
 
 ## Niveles de verificación
 
