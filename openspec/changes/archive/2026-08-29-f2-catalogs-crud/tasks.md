@@ -98,7 +98,11 @@ controladores de `backend/src/modules/{geo-zones,incident-categories,organizatio
 - [x] **F2.5.4** — Specs faltantes de F2.3 añadidos: `geo-zone.service.spec.ts` y
   `location-list.component.spec.ts`.
 
-### Traspaso (2026-09-05)
+### Traspaso (2026-09-05) — histórico, ya cerrado
+
+> **Nota de archivado (2026-09-06)**: este bloque se conserva como registro histórico.
+> Los tres items quedaron cerrados en la tercera pasada de `sdd-verify` (0 CRITICAL,
+> 0 WARNING, 406/406 tests). Se mantiene por la lección del último párrafo.
 
 Lo de esta tanda queda commiteado y verificado (`sdd-verify` pass 2: 0 CRITICAL,
 303 tests / 47 suites en verde, `npm run build` OK). **Lo que sigue abierto queda para
