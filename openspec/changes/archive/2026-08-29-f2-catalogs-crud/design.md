@@ -31,21 +31,22 @@ Precedente que obliga a esta regla: SC-209 encontró que el modelo declaraba
 test afirmaba sobre la URL en vez de sobre la carga.
 
 ```ts
-// frontend/src/app/core/models/geo-zone.model.ts
-export type GeoZoneLevel = 'pais' | 'provincia' | 'canton' | 'parroquia';
+// frontend/src/app/features/catalogs/locations/interfaces/igeo-zone.interface.ts
+export type GeoZoneLevel = 'provincia' | 'canton' | 'parroquia' | 'zona';
 
-export interface GeoZone {
+export interface IGeoZone {
   id: string;
   name: string;
-  code: string;
+  code: string | null;
   level: GeoZoneLevel;
   parent_id: string | null;
+  active: boolean;
   created_at: string;
 }
 
 /** Nodo derivado en cliente — no existe en el wire. */
-export interface GeoZoneNode extends GeoZone {
-  children: GeoZoneNode[];
+export interface IGeoZoneNode extends IGeoZone {
+  children: IGeoZoneNode[];
   depth: number;
 }
 ```
@@ -125,13 +126,15 @@ al listado · 422: errores por campo · 409: motivo de integridad, el registro p
 
 | Archivo | Acción | Descripción |
 |---|---|---|
-| `frontend/src/app/core/models/geo-zone.model.ts` | Nuevo (D2) | `GeoZone`, `GeoZoneLevel`, `GeoZoneNode` |
-| `frontend/src/app/core/models/incident-category.model.ts` | Nuevo (D2) | Modelo alineado al wire |
-| `frontend/src/app/core/models/organization.model.ts` | Nuevo (D2) | Modelo alineado al wire |
-| `frontend/src/app/core/services/geo-zone.service.ts` | Nuevo | Listado, alta, edición, borrado |
-| `frontend/src/app/core/services/incident-category.service.ts` | Nuevo | Ídem |
-| `frontend/src/app/core/services/organization.service.ts` | Nuevo | Ídem |
-| `frontend/src/app/features/catalogs/categories/` | Nuevo (D7) | Listado + formulario — fija el patrón |
+| Archivo | Acción | Descripción |
+|---|---|---|
+| `frontend/src/app/features/catalogs/locations/interfaces/igeo-zone.interface.ts` | Nuevo (D2) | `IGeoZone`, `GeoZoneLevel`, `IGeoZoneNode` |
+| `frontend/src/app/features/catalogs/incident-categories/interfaces/iincident-category.interface.ts` | Nuevo (D2) | Modelo alineado al wire |
+| `frontend/src/app/features/catalogs/organizations/interfaces/iorganization.interface.ts` | Nuevo (D2) | Modelo alineado al wire |
+| `frontend/src/app/features/catalogs/locations/services/geo-zone.service.ts` | Nuevo | Listado, alta, edición, borrado |
+| `frontend/src/app/features/catalogs/incident-categories/services/incident-category.service.ts` | Nuevo | Ídem |
+| `frontend/src/app/features/catalogs/organizations/services/organization.service.ts` | Nuevo | Ídem |
+| `frontend/src/app/features/catalogs/incident-categories/` | Nuevo (D7) | Listado + formulario — fija el patrón |
 | `frontend/src/app/features/catalogs/organizations/` | Nuevo | Listado + formulario |
 | `frontend/src/app/features/catalogs/locations/` | Nuevo (D3/D4) | Árbol + formulario |
 | `frontend/src/app/features/catalogs/locations/tree.util.ts` | Nuevo (D3) | `buildTree`, cálculo de `depth`, filtro con ancestros |
@@ -158,16 +161,15 @@ sin cambios.
   el DOM; con acceso directo a la ruta, el guard bloquea.
 - **e2e (Playwright)**: por catálogo, el ciclo alta → búsqueda → edición → borrado.
   Para Ubicaciones, además: expandir hasta parroquia y verificar la sangría.
-- Comandos: `pnpm lint && pnpm test` y `pnpm test:e2e` desde `frontend/`.
+- Comandos: `pnpm test` y `pnpm test:e2e` desde `frontend/`.
 
 ## Open Questions
 
-- **Q1 — RESUELTA** (equipo, 2026-08-29). El `Colombia` del mock 06-01 era relleno de
-  maqueta. El caso real es **Ecuador**: la jerarquía de interés es provincia → cantón →
-  parroquia, y el resto de provincias del país se cargaron como datos de relleno.
+- **Q1 — RESUELTA** (equipo, 2026-08-29; corregida con wire real 2026-09-05). El `Colombia` del
+  mock 06-01 era relleno de maqueta. El caso real es **Ecuador**: la jerarquía real en backend
+  (`GEO_ZONE_LEVELS`) es `provincia` → `canton` → `parroquia` → `zona` (no existe nivel `pais`).
   Consecuencia para el diseño: el volumen esperado se mantiene en el orden de cientos
   de nodos, lo que **confirma D3** (carga completa y árbol en cliente) y deja el umbral
-  de 5.000 filas holgadamente lejos. El nivel `pais` se conserva administrable —cuesta
-  lo mismo y evita un caso especial en el formulario— pero en la práctica es un nodo raíz.
+  de 5.000 filas holgadamente lejos. Las provincias son las raíces del árbol.
 - **Q2** — El pie del mock dice «1 localización visible» con diez filas en pantalla.
   Se interpreta como error de la maqueta; se implementa el conteo real de filas visibles.

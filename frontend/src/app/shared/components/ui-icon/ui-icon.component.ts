@@ -157,7 +157,17 @@ function renderIcon(
   size: number,
   strokeWidth: number,
 ): string {
-  return data.map((n) => renderNode(n, size, strokeWidth)).join('');
+  const body = data.map((n) => renderNode(n, size, strokeWidth)).join('');
+  // LucideIconData es SOLO la lista de nodos internos (paths, circles, …): si se
+  // inyectan pelados, el navegador no los dibuja (un path sin <svg> no pinta).
+  // El wrapper replica los atributos raíz de Lucide (viewBox 24 + stroke actual).
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" ` +
+    `viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
+    `stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">` +
+    body +
+    `</svg>`
+  );
 }
 
 /** Respaldo absoluto — círculo con punto central, sin tocar librerías. */

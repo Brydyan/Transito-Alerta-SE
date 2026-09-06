@@ -3,7 +3,11 @@ import { importProvidersFrom } from '@angular/core';
 import { LucideAngularModule, CircleDot, AlertTriangle, Search } from 'lucide-angular';
 import { UiIconComponent } from './ui-icon.component';
 
-const ICONS = { CircleDot, AlertTriangle, Search };
+const ICONS = {
+  'circle-dot': CircleDot,
+  'alert-triangle': AlertTriangle,
+  search: Search,
+};
 
 describe('UiIconComponent', () => {
   it('renders the requested icon as inline SVG when the name is registered', async () => {
@@ -15,6 +19,22 @@ describe('UiIconComponent', () => {
     const svg = container.querySelector('svg');
     expect(svg).toBeTruthy();
     expect(svg?.children.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('renders the REAL icon, not the circle-dot fallback, for a registered kebab-case name', async () => {
+    // Regresión (2026-09-06): el provider de lucide-angular matchea keys EXACTAS
+    // (name in icons, sin normalización kebab). Si el pick registra con keys
+    // PascalCase ({AlertTriangle}), el name kebab 'alert-triangle' nunca matchea
+    // y TODOS los iconos caían al respaldo circle-dot. El fallback son 2 círculos;
+    // el icono real alert-triangle NO tiene círculos.
+    const { container } = await render(`<ui-icon name="alert-triangle" />`, {
+      imports: [UiIconComponent],
+      providers: [importProvidersFrom(LucideAngularModule.pick(ICONS))],
+    });
+
+    const svg = container.querySelector('svg');
+    expect(svg).toBeTruthy();
+    expect(container.querySelectorAll('circle').length).toBe(0);
   });
 
   it('falls back to a circle-dot SVG for an unknown name and never renders the raw name as text', async () => {

@@ -42,6 +42,14 @@
 - [ ] **B.8** — Ajustar el aserto de rol: el usuario e2e es `operador_org`, así que ve un
   **subconjunto** del menú. `menu-navigation.e2e.ts` ya tiene un caso para eso
   (`F1.6.2`); comprobar que sigue siendo coherente con el usuario nuevo.
+- [ ] **B.9** — `catalogs-crud.e2e.ts` y `catalogs-permissions.e2e.ts`: mismo helper.
+  Llegaron con F2 (`front/2026-08-29-f2-catalogs-crud`) después de que se escribiera el
+  scope de esta fase, y traen `const PASSWORD = 'ChangeMe!Demo2026'` literal — justo lo
+  que B.6 prohíbe. Ya usan `operador-org-1@tase.local`, que sí existe en el seed, así
+  que es sustituir el literal, no reparar credenciales rotas. Ojo: `catalogs-permissions`
+  necesita un usuario **sin** permisos de escritura en catálogos, así que si el usuario
+  e2e nuevo es `operador_org` le sirve tal cual; `catalogs-crud` en cambio necesita uno
+  **con** escritura — resolver cuál usa antes de unificar.
 
 ## C · CI y despliegue
 
@@ -59,9 +67,12 @@
 
 ## D · Verificación de extremo a extremo
 
-- [ ] **D.1** — Con `BASE_URL` y `E2E_PASSWORD` reales, los 6 tests corren y su resultado
+- [ ] **D.1** — Con `BASE_URL` y `E2E_PASSWORD` reales, los tests corren y su resultado
   **no** es «skipped». Es la única prueba de que esta fase cumplió: el objetivo no era que
   el job dejara de fallar, sino que empezara a probar.
+  - El conteo de 6 con el que nació esta fase quedó viejo: F2 sumó `catalogs-crud` y
+    `catalogs-permissions` (B.9), que nunca se vieron correr contra un backend real. El
+    criterio los incluye — recontar al ejecutar en vez de confiar en el número de arriba.
 - [ ] **D.2** — Confirmar que el job tarda menos que antes con la caché activa, y anotar
   el número en `apply-progress.md`.
 

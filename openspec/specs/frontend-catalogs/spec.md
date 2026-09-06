@@ -12,7 +12,7 @@ mock lo define, un filtro por atributo.
   THEN se solicita al servidor el listado filtrado, con debounce, y la paginación
   vuelve a la primera página
 - Scenario: Filtro por nivel — GIVEN el catálogo de Ubicaciones WHEN se elige un nivel
-  (`País|Provincia|Cantón|Parroquia`) THEN sólo se listan zonas de ese nivel
+  (`Provincia|Cantón|Parroquia|Zona`) THEN sólo se listan zonas de ese nivel
 - Scenario: Sin resultados — GIVEN una búsqueda sin coincidencias THEN se renderiza
   `empty-state`, no una tabla vacía
 - Scenario: Carga en progreso — GIVEN una petición en vuelo THEN se muestra
