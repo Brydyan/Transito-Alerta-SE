@@ -24,10 +24,20 @@ import { UpdateCommentDto } from './dto/update-comment.dto';
 import { CommentsService } from './comments.service';
 
 /**
- * CommentsController (R3). Anonymous devices hold "CREATE comments" on the
- * permission ceiling but NOT "DELETE comments" — PermissionGuard denies by
- * default (CC1/R7); CommentsService.delete additionally enforces
- * owner-only (403 for non-owners, including authenticated operators).
+ * CommentsController (R3).
+ *
+ * **ANON (sc-326)**: el techo anónimo está VACÍO. La identidad
+ * anónima (`device_uuid === 'anonymous'`) ya no puede
+ * autenticarse (ver `auth.service.ts:login()`), y aunque
+ * pudiera, no crearía comentarios. `JwtAuthGuard` a nivel de
+ * clase rechaza cualquier request sin token con 401 antes
+ * de que la lógica del controller corra. Ver
+ * `backend/test/e2e/anon-no-anonymous-creation.e2e-spec.ts`
+ * para la verificación e2e. Los métodos de moderación
+ * (delete/update) siguen denegando a no-dueños vía
+ * `PermissionGuard` (CC1/R7) y `CommentsService.delete`
+ * refuerza owner-only (403 para no-dueños, incluyendo
+ * operadores autenticados).
  */
 @Controller('comments')
 @UseGuards(JwtAuthGuard, PermissionGuard)

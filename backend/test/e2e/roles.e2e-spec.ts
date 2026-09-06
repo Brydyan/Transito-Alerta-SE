@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import request from 'supertest';
 
 import { ProvisionedUser, TestEnvironment } from '../support/test-environment';
@@ -25,15 +26,26 @@ describe('Roles + Permissions e2e (T3.1)', () => {
     admin = await env.provisionUser(['ASSIGN roles', 'READ roles']);
   });
 
+  // ANON (sc-326) — el camino del dispositivo anónimo
+  // para crear una incidencia se cerró. El helper ahora
+  // crea la incidencia con un `reporter` autenticado, no
+  // con la máscara compartida. La firma y semántica
+  // observable del test no cambian: las pruebas que
+  // usan este helper siguen creando una incidencia
+  // cualquiera y operando sobre ella.
   async function createIncidentAnonymously(): Promise<string> {
-    const login = await request(env.httpServer)
-      .post('/api/auth/login')
-      .send({ device_uuid: 'anonymous' })
-      .expect(200);
+    const reporter = await env.provisionUser(
+      ['CREATE incidents'],
+      {
+        email: `reporter-${randomUUID()}@example.com`,
+        roleName: 'reporter',
+        emailVerified: true,
+      },
+    );
 
     const created = await request(env.httpServer)
       .post('/api/incidents')
-      .set({ Authorization: `Bearer ${login.body.access_token}` })
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
       .send({ title: 'Choque menor', description: 'Sin heridos', lat: -2.2, lng: -80.5 })
       .expect(201);
 

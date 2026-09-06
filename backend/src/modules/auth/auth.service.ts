@@ -24,7 +24,7 @@ import {
   SessionErrorCode,
 } from '../sessions/session-errors';
 import { SessionsRepository } from '../sessions/sessions.repository';
-import { INVALID_CREDENTIALS } from './auth-errors';
+import { ANONYMOUS_IDENTITY_CLOSED, INVALID_CREDENTIALS } from './auth-errors';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { DUMMY_HASH, PasswordHasher } from './password-hasher';
 
@@ -134,23 +134,31 @@ export class AuthService {
       throw new UnauthorizedException('device_uuid is required');
     }
 
+    // ANON (sc-326) — la identidad anónima ya no puede
+    // autenticarse. El rechazo es ANTES de tocar la BD, la
+    // sesión o el cache: la identidad anónima no entra al
+    // sistema bajo ninguna circunstancia. La forma de
+    // credencial `{device_uuid}` sigue siendo válida
+    // (122 tests e2e la usan), sólo se cierra la rama
+    // específica del device_uuid configurado como anónimo.
+    // El motivo se distingue del error genérico de
+    // credenciales para que un cliente antiguo pueda
+    // mostrar algo accionable al ciudadano.
+    if (deviceUuid === this.authConfig.anonymousDeviceUuid) {
+      throw new UnauthorizedException({
+        code: ANONYMOUS_IDENTITY_CLOSED,
+        message:
+          'El reporte anónimo sin sesión ya no está disponible. Registrate primero para reportar.',
+      });
+    }
+
     let user = await this.userRepo.findOne({ where: { deviceUuid } });
     if (!user) {
       user = this.userRepo.create({ deviceUuid, permissions: [], isActive: true });
       user = await this.userRepo.save(user);
     }
 
-    const isAnonymous = deviceUuid === this.authConfig.anonymousDeviceUuid;
     const permissions = await this.getPermissions(deviceUuid);
-
-    if (isAnonymous) {
-      return {
-        access_token: this.signAccessToken(user.id),
-        refresh_token: this.signRefreshToken(user.id),
-        permissions,
-      };
-    }
-
     return this.issueSession(user, deviceUuid, meta, permissions);
   }
 
@@ -472,12 +480,17 @@ export class AuthService {
       return [];
     }
 
-    const { anonymousDeviceUuid, anonymousPermissions, permissionCacheTtlSeconds } =
-      this.authConfig;
-
-    if (deviceUuid === anonymousDeviceUuid) {
-      return anonymousPermissions;
-    }
+    // ANON (sc-326) — la rama `if (deviceUuid === anonymousDeviceUuid)`
+    // se eliminó: `AuthService.login` ya rechaza ese `deviceUuid`
+    // con 401 ANONYMOUS_IDENTITY_CLOSED ANTES de llegar a
+    // `getPermissions` (ver `auth.service.ts:132-152`). La rama
+    // anterior era inalcanzable; mantenerla como defensa en
+    // profundidad duplicaba una invariante que ahora vive
+    // en un solo lugar (la guard de `login`). Si en el futuro
+    // se quiere restaurar el acceso anónimo, lo correcto
+    // es quitar el rechazo en `login` — no reintroducir esta
+    // rama muerta.
+    const { permissionCacheTtlSeconds } = this.authConfig;
 
     const key = `${PERMISSION_CACHE_PREFIX}${deviceUuid}`;
     const cached = await this.cache.get<string[]>(key);

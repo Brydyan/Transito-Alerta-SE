@@ -50,41 +50,48 @@ describe('authConfig — sessionRefreshTtlSeconds/sessionRefreshGraceSeconds (T3
   });
 });
 
-describe('authConfig — anonymous permission ceiling', () => {
+describe('authConfig — anonymous permission ceiling (ANON sc-326, ronda 1)', () => {
   const anonymous = () => authConfig().anonymousPermissions;
 
-  it('lets an anonymous device report an emergency without logging in', () => {
-    expect(anonymous()).toContain('CREATE incidents');
+  // ANON (sc-326) — los 3 tests del round 0 ("lets an anonymous
+  // device…") se sustituyeron por sus inversiones. La regla
+  // del spec: el test afirma la nueva propiedad, no se queda
+  // callado sobre la vieja. Estos tests sustituyen a:
+  //   - "lets an anonymous device report an emergency without logging in"
+  //   - "lets an anonymous device read what the public posted"
+  //   - "lets an anonymous device comment on public reports"
+  //   - "grants exactly the four agreed permissions and nothing more"
+  // …que afirmaban la propiedad VIEJA (techo abierto).
+  it('ANON: the ceiling is empty — no anonymous login path grants any permission', () => {
+    expect(anonymous()).toEqual([]);
   });
 
-  it('lets an anonymous device read what the public posted', () => {
-    expect(anonymous()).toEqual(
-      expect.arrayContaining(['READ incidents', 'READ comments']),
-    );
+  it('ANON: the ceiling grants no permission of any kind', () => {
+    expect(anonymous().length).toBe(0);
   });
 
-  it('lets an anonymous device comment on public reports', () => {
-    expect(anonymous()).toContain('CREATE comments');
+  it('ANON: the four previously-agreed permissions are explicitly absent', () => {
+    // Defensa explícita: si alguien reintroduce cualquiera de
+    // los 4 strings del round 0, este test cae con el nombre
+    // del permiso reintroducido. Es la red que faltaba: el
+    // test anterior "grants exactly the four…" era un
+    // espejo del código y desaparecía junto con él.
+    expect(anonymous()).not.toContain('READ incidents');
+    expect(anonymous()).not.toContain('CREATE incidents');
+    expect(anonymous()).not.toContain('READ comments');
+    expect(anonymous()).not.toContain('CREATE comments');
   });
 
-  // The ceiling is read-and-contribute, never modify: an unauthenticated
-  // device must not be able to alter or remove anything, its own included.
+  // Test preservado del round 0 para simetría: con la lista
+  // vacía el filtro de "UPDATE/DELETE/ASSIGN" sigue siendo
+  // trivialmente vacío, pero la afirmación sigue siendo
+  // legítima — la invariante debe ser estructural, no
+  // accidental.
   it('grants no UPDATE, DELETE or ASSIGN permission of any kind', () => {
     const forbidden = anonymous().filter((permission) =>
       /^(UPDATE|DELETE|ASSIGN) /.test(permission),
     );
 
     expect(forbidden).toEqual([]);
-  });
-
-  it('grants exactly the four agreed permissions and nothing more', () => {
-    expect(anonymous().sort()).toEqual(
-      [
-        'CREATE comments',
-        'CREATE incidents',
-        'READ comments',
-        'READ incidents',
-      ].sort(),
-    );
   });
 });

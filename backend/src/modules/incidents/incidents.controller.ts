@@ -40,10 +40,20 @@ import { FeedRecoveryService } from './feed-recovery.service';
 import { IncidentWorkflowService } from './incident-workflow.service';
 
 /**
- * IncidentsController (R2) — calibration slice. Anonymous devices hold
- * "CREATE incidents"/"READ incidents" on the anonymous permission ceiling
- * (auth.config.ts); status transitions require "UPDATE incidents", which
- * anonymous does NOT hold.
+ * IncidentsController (R2) — calibration slice.
+ *
+ * **ANON (sc-326)**: el techo anónimo está VACÍO. La identidad
+ * anónima (`device_uuid === 'anonymous'`) ya no puede
+ * autenticarse (ver `auth.service.ts:login()`), y aunque
+ * pudiera, no leería/crearía nada — la migración 0048 vacía
+ * el `permissions` denormalizado de la fila máscara y
+ * `auth.config.ts:anonymousPermissions` está en `[]`. Por
+ * seguridad, las guards a nivel de clase (`JwtAuthGuard`,
+ * `PermissionGuard`, `EmailVerifiedGuard`) rechazan cualquier
+ * request sin sesión/token con 401 o 403 antes de que la
+ * lógica de este controller corra. Ver
+ * `backend/test/e2e/anon-no-anonymous-creation.e2e-spec.ts`
+ * para la verificación e2e.
  *
  * Route order matters: literal routes (stats, weekly-stats, feed, export)
  * MUST be declared before the `:id` wildcard to avoid shadowing.

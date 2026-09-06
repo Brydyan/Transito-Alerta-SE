@@ -50,3 +50,12 @@ export const REGISTRATION_RATE_LIMITED = 'REGISTRATION_RATE_LIMITED';
 export const OTP_INVALID = 'OTP_INVALID';
 export const EMAIL_ALREADY_VERIFIED = 'EMAIL_ALREADY_VERIFIED';
 
+// ANON (sc-326) — el reporte sin sesión se cierra. La identidad
+// anónima (`device_uuid === 'anonymous'`) ya no puede autenticarse.
+// El motivo se distingue del error genérico de credenciales para
+// que un cliente antiguo pueda mostrar algo accionable al
+// ciudadano en vez de un "credenciales inválidas" que no le
+// dice qué pasa. Mensaje accionable: «El reporte anónimo sin
+// sesión ya no está disponible. Registrate primero para reportar.»
+export const ANONYMOUS_IDENTITY_CLOSED = 'ANONYMOUS_IDENTITY_CLOSED';
+

@@ -33,19 +33,27 @@
     creando fila + emitiendo tokens. Distinción quirúrgica verificada.
 - [x] **A.4** — Correr la suite e2e completa y **confirmar que los 122 siguen pasando**.
   Si alguno cae, la delimitación de A.2 se rompió: parar y revisar, no ajustar el test.
-  **HECHO** — `npx jest` (backend) corre 99/99 suites, 902/902 tests PASS. Los
-  122 e2e tests viven en `test/` (no en `src/`), no los ejecuto en este
-  entorno sin DB+Redis; sin embargo, no se tocó `LoginDto`,
-  `ExactlyOneCredential` ni `credential-dispatch`, así que la
-  precondición contractual se preserva. El verificador de ANON
-  debe correr la suite e2e con `pnpm run test:e2e` antes de
-  promover; queda como item del gate de sdd-verify pasada 2.
+  **HECHO** — la suite e2e completa corre y pasa: **52 suites, 448 tests, 0
+  fallos**, ejecutada por el verify de la ronda 2. Siete archivos e2e se
+  reescribieron para usar un `reporter` autenticado en vez de la máscara
+  anónima; cada uno conserva el invariante que medía —geolocalización de
+  organización, aceptación fuera de zona, techo de permisos, el
+  `ON DELETE SET NULL` de la integridad referencial— y ninguna aserción se
+  recortó ni se invirtió. `anon-no-anonymous-creation.e2e-spec.ts` es nuevo.
+
+  Unit del backend: **100 suites, 915 tests** PASS.
+
+  (La versión anterior de esta casilla decía «99/99, 902/902» y daba el e2e
+  por pendiente, argumentando que no se podía correr sin base de datos ni
+  Redis. Se corrió con Testcontainers, que levanta las dos. Una tarea que
+  declara «no verificable en este entorno» y se marca hecha igual es la
+  forma en que este proyecto acumuló trece defectos en el change hermano.)
 
 ## B · Vaciar el techo
 
 - [x] **B.1** — `anonymousPermissions: []` en `auth.config.ts`. **HECHO** —
   `auth.config.ts:anonymousPermissions: []`. JSDoc documenta: "ANON
-  (sc-327) — la lista está VACÍA. La identidad anónima ya no concede
+  (sc-326) — la lista está VACÍA. La identidad anónima ya no concede
   nada… la invariante la cubre el spec de `auth.config.spec.ts`
   (B.5 + B.6)".
 - [x] **B.2** — Migración `0048_close_anonymous_ceiling.sql`: vaciar
@@ -130,16 +138,20 @@
     de la ruta padre `path: 'app'` (ver `frontend/src/app/app.routes.ts`).
   - **D.1 cerrado.**
 - [x] **D.2** — Specs: crear incidencia sin token → 401, crear comentario sin token →
-  401, sin puerta trasera, lectura pública también cerrada. **PARCIAL** —
-  la verificación HTTP real (401 ante request sin Authorization) requiere
-  la suite e2e con backend en runtime. La verificación estructural
-  (D.1) está cubierta por inspección de decoradores; un spec que
-  afirme "D.1: el controller tiene JwtAuthGuard en la clase y
-  no hay @Public" se intentó pero jest rechazó el patrón de
-  nombre (`incidents.routes.anon.spec.ts` con `routes.anon`
-  matchea regex `routes.anon` literal). La cobertura end-to-end
-  del 401 sin token queda como item del gate de sdd-verify pasada
-  2 (`pnpm run test:e2e`).
+  401, sin puerta trasera, lectura pública también cerrada. **HECHO en la
+  ronda 1** — `backend/test/e2e/anon-no-anonymous-creation.e2e-spec.ts`
+  (3 tests, 3/3 PASS) verifica contra la app real:
+  - `POST /api/incidents` sin `Authorization` → 401.
+  - `POST /api/comments` sin `Authorization` → 401 (con un padre
+    existente al que se comenta).
+  - `GET /api/incidents` (lectura) sin `Authorization` → 401 — la
+    lectura tampoco es pública en esta etapa (el producto no
+    expone feed público, decisión de producto del 2026-09-02).
+  El test del round 0 que decía "PARCIAL... queda como item del
+  gate de sdd-verify pasada 2" quedó obsoleto: la verificación
+  runtime está hecha, no es un item pendiente. La verificación
+  estructural (D.1) sigue válida — el spec cubre el runtime, y
+  el grep de decoradores el shape del controller.
 
 ## E · Reconciliar F4
 
@@ -187,7 +199,36 @@ que ningún ciudadano puede reportar nada. ✅ REG está cerrado (903/903 tests)
 ---
 
 ## Estado de gates
-- `npx jest` (backend): **99/99 suites, 902/902 tests** PASS.
-- `npx tsc -p tsconfig.json --noEmit`: exit 0.
-- `npx eslint src`: 0 errors, 19 warnings (preexistentes en archivos ajenos a ANON).
-- `pnpm run test:e2e`: pendiente (requiere DB+Redis en runtime, fuera de este entorno).
+
+Corridas por el verify de la ronda 2 (2026-09-05), las mismas de `ci.yml`:
+
+| Compuerta | Resultado |
+|---|---|
+| backend `pnpm run lint` | 0 errores, 19 warnings preexistentes ajenos a ANON |
+| backend `pnpm run typecheck` | exit 0 |
+| backend `pnpm run build` | exit 0 |
+| backend `pnpm test` | **100 suites / 915 tests** |
+| `pnpm run test:e2e` | **52 suites / 448 tests, 0 fallos** |
+| frontend `pnpm test` | 47 suites / 326 tests |
+| frontend `pnpm run build` | exit 0 |
+| frontend `npx tsc -b --noEmit` | 10 errores, todos preexistentes |
+| compuerta de migraciones de `ci.yml` | pasa — 0048 registrada en `MIGRATION_LOG.md` |
+
+## Nota de despliegue — purgar el caché de permisos
+
+**Al desplegar este change hay que vaciar las entradas de permisos en Redis.**
+
+`anonymousPermissions: []` vale desde que el backend arranca, pero las entradas
+`perm:v3:uid:*` que ya estaban en caché conservan el contenido viejo hasta que expiran:
+el TTL del caché es de 3600 s y el del token de acceso, 15 min
+(`backend/src/config/auth.config.ts`). Un token anónimo emitido justo antes del despliegue
+puede seguir publicando durante esa ventana — hasta **15 minutos**, acotado por el token.
+
+```bash
+docker compose exec -T redis sh -c \
+  "redis-cli --scan --pattern 'perm:v3:uid:*' | xargs -r redis-cli del"
+```
+
+No es un defecto del código: es la diferencia entre cuándo cambia la configuración y
+cuándo caduca lo que ya se calculó. Pero sin esta nota, quien despliegue no tiene forma de
+saber que existe la ventana.

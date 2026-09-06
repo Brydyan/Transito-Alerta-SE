@@ -25,7 +25,7 @@ function makeAuthConfig(overrides: Partial<Record<string, unknown>> = {}) {
     jwtRefreshExpiresIn: '7d',
     permissionCacheTtlSeconds: 3600,
     anonymousDeviceUuid: 'anonymous',
-    anonymousPermissions: ['READ incidents', 'CREATE incidents', 'READ comments', 'CREATE comments'],
+    anonymousPermissions: [], // ANON (sc-326) — el techo está vacío
     sessionRefreshGraceSeconds: 30,
     sessionRefreshTtlSeconds: 604800,
     bcryptCost: 4,
