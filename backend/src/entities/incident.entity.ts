@@ -36,8 +36,30 @@ export class IncidentEntity {
   @Column({ type: 'varchar', default: 'medium' })
   priority!: IncidentPriority;
 
+  /**
+   * AUD (sc-327) D1 — `citizen_id` pasa de significar "la persona"
+   * a "la autoría mostrada" en publicaciones anónimas. Si
+   * `is_anonymous = true`, esta columna apunta a la fila
+   * máscara (`users.device_uuid = 'anonymous'`); el autor real
+   * vive en `incident_reporters`. Si `is_anonymous = false`,
+   * apunta al usuario que creó la incidencia, como siempre.
+   *
+   * La columna se conserva con el nombre para no romper los
+   * tests y rutas preexistentes. El cambio de semántica está
+   * documentado en la cabecera de la migración 0046 y en
+   * `IncidentReporterEntity`.
+   */
   @Column({ name: 'citizen_id', type: 'uuid' })
   citizenId!: string;
+
+  /**
+   * AUD (sc-327) D1 — `true` si la autoría se muestra sin
+   * revelar al autor real. Cuando es `true`, `citizen_id`
+   * apunta a la máscara y existe una fila en
+   * `incident_reporters` con el id del autor.
+   */
+  @Column({ name: 'is_anonymous', type: 'boolean', default: false })
+  isAnonymous!: boolean;
 
   @Column({ name: 'assigned_to', type: 'uuid', nullable: true })
   assignedTo!: string | null;

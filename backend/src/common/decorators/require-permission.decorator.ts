@@ -17,7 +17,12 @@ export type PermissionAction =
   // permissions.action in migration 0043 extends the allowed set in lockstep
   // with this type; keep both in sync. Distinct from `UPDATE` because resolving
   // and closing are different outcomes (D8 del design).
-  | 'CLOSE';
+  | 'CLOSE'
+  // AUD (sc-327) — revealing the sealed authorship of an anonymous incident
+  // (D4 del design). The CHECK constraint on permissions.action in migration
+  // 0047 extends the allowed set in lockstep with this type. Conceded
+  // exclusively to `master`; see migration 0047 (D5 del design).
+  | 'REVEAL';
 
 export interface RequiredPermission {
   action: PermissionAction;
