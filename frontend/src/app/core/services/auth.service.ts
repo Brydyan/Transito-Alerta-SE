@@ -82,6 +82,23 @@ export class AuthService {
       );
   }
 
+  // REG (sc-325) — alta pública de ciudadano. D1 (design.md): el
+  // DTO del backend es correo, contraseña, nombre y apellido —
+  // nada de rol, organización ni permisos. D3: la respuesta es
+  // indistinguible para correos nuevos y existentes. La pantalla
+  // de registro navega al `verify-email` en ambos casos; el
+  // backend ya envió el OTP (o el aviso al titular) por su cuenta.
+  register(input: {
+    email: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+  }): Observable<{ message: string }> {
+    return this.http
+      .post<{ message: string }>(`${this.API_URL}/register`, input)
+      .pipe(catchError((err) => this.handleError(err)));
+  }
+
   // ───── A.3 — Refresh (single-flight, body-based per backend contract) ─────
   refresh(): Observable<AuthTokens> {
     if (this.refreshInProgress$) {
@@ -133,9 +150,20 @@ export class AuthService {
             email: null,
             name: null,
             roleId: null,
-            roleName: null,
+            // REG (sc-325) Fix A (ronda 10) — el nombre del rol
+            // llega por la misma llamada a `/me`. Antes de este
+            // fix, el signal se hardcodeaba en `null` y la regla
+            // de C.4 (`roleName === 'reporter' && emailVerified
+            // === false`) nunca disparaba. Es el bug que el
+            // verify de la ronda 9 cazó como CRITICAL 1.
+            roleName: me.role_name,
             permissions: me.permissions,
             device_uuid: me.device_uuid,
+            // REG (sc-325) C.1 — el booleano llega por la misma
+            // llamada a `/me`. El frontend usa esto en C.4 para
+            // decidir si redirige al composer del OTP tras el
+            // login.
+            emailVerified: me.email_verified,
           });
         }),
       );

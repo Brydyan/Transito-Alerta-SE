@@ -43,8 +43,8 @@ internamente — ver «Ciudadano» más abajo.
 | — | **315** Fix máquina de estados ✅ | [315](https://app.shortcut.com/upse/story/315) | 3 | Habilita `closed`, declara la máquina. **Completada y archivada 2026-09-03** |
 | 3 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
 | 4 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
-| — | **REG** Auto-registro | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano puede crearse cuenta. **Hoy no puede** |
-| — | **ANON** Cerrar sin sesión | [326](https://app.shortcut.com/upse/story/326) | 3 | Retira el reporte anónimo sin cuenta |
+| — | **REG** Auto-registro ✅ | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano se registra, verifica su correo y publica — **completada y archivada 2026-09-05**, tras 10 rondas de verify y dos archivados revertidos |
+| — | **ANON** Cerrar sin sesión ✅ | [326](https://app.shortcut.com/upse/story/326) | 3 | El login anónimo devuelve 401; el techo de permisos queda vacío — **completada y archivada 2026-09-05** |
 | — | **AUD** Auditoría y revelación | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría |
 | 5 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
 | 6 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
@@ -134,10 +134,32 @@ El equipo quiere poder **sancionar la información falsa**. Eso es incompatible 
 identidad compartida, y de ahí las tres fases.
 
 #### REG — Auto-registro · `front/2026-09-02-reg-citizen-self-registration/`
-Hoy `POST /auth/register` responde **410 Gone** (`auth.controller.ts:54`, T6.8.C1): el
-alta es sólo por invitación. Correcto para el personal, y deja fuera al ciudadano. REG lo
+`POST /auth/register` respondía **410 Gone** (`auth.controller.ts:54`, T6.8.C1): el alta
+era sólo por invitación. Correcto para el personal, y dejaba fuera al ciudadano. REG lo
 revierte **sólo para `reporter`**; el rol es constante del servidor, nunca dato de la
 petición. Reutiliza `EmailVerificationService` y `email_verified_at`, que ya existen.
+
+**Estado 2026-09-05 — parcial.** Se archivó y se desarchivó el mismo día: la auditoría
+tarea por tarea encontró dos defectos que las cuatro rondas de verify no vieron.
+
+El backend está hecho y auditado a fondo: rol fijado en servidor con tres capas de
+defensa, rate limit por IP y correo, respuesta indistinguible ante correo existente por
+cuerpo y por tiempo, y `EmailVerifiedGuard` con allow-list de staff — verificado por
+mutación contra el renombrado del rol.
+
+Falta el último tramo del frontend, y falta un guard:
+
+1. `register.component.ts:111` navega a `/verify-email`, **ruta que no existe**. El alta
+   exitosa cae en el comodín y termina en `ErrorPageComponent`. La casilla decía que el
+   componente «ya existe»: hay un `.html` y un `.js` de GeoReporta sin `.ts`, que el build
+   ni mira.
+2. `EmailVerifiedGuard` no exime a la identidad anónima. `roleName` es `null` para ella,
+   así que le exige un `email_verified_at` que un dispositivo sin correo no puede tener.
+   13 tests e2e en rojo.
+
+Los dos sobrevivieron por lo mismo: los specs mockean el `Router` y no hay ningún e2e que
+ejercite `POST /auth/register` de punta a punta. El hueco de cobertura y los defectos son
+el mismo hueco.
 
 #### ANON — Cerrar el reporte sin sesión · `back/2026-09-02-anon-close-anonymous-reporting/`
 Vacía `anonymousPermissions` y rechaza el login con `device_uuid = 'anonymous'`. **La
@@ -292,8 +314,9 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 | `assign()` no valida el tope de carga | `assignments.service.ts:28-36` | F7 / A.2 |
 | Escrituras de asignación sin acotar por organización | `assignments.controller.ts` | F7 / A.5 |
 | ✅ Sidebar cae al 404 | `menu-map.ts` ↔ `app.routes.ts` | F1 (cerrada 2026-09-02) · `archive/2026-08-29-f1-menu-routing-alignment/` |
-| **El ciudadano no puede registrarse** — F4/B.2.12 ofrecía un registro inexistente | `auth.controller.ts:54` (410) | REG |
-| **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos | `auth.config.ts:74` | ANON + AUD |
+| ✅ **El ciudadano no puede registrarse** — F4/B.2.12 ofrecía un registro inexistente | `auth.controller.ts:54` (410) | REG ✅ archivada 2026-09-05 · `archive/2026-09-02-reg-citizen-self-registration/` |
+| ✅ **El reporte anónimo devolvía 403** — `EmailVerifiedGuard` exigía verificar un correo que el dispositivo anónimo no tiene | `email-verified.guard.ts` ↔ `auth.service.ts` | REG ✅ (la exención se retira cuando ANON cierre el login anónimo) |
+| 🔶 **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos. ANON cerró el camino; falta que AUD selle la autoría del reporte anónimo del ciudadano autenticado | `auth.config.ts` | ANON ✅ archivada 2026-09-05 · AUD pendiente |
 | **No hay tabla de auditoría** — F7 la necesita para la excepción al tope | — | AUD |
 | «Volver al inicio» del login es `href="#!"` | `login.component.html:147` | REG (apunta a `/registro`) |
 | **Compuerta de typecheck es un no-op** — `npx tsc -p tsconfig.json --noEmit` revisa 0 archivos (`files: []`); el comando real es `npx tsc -b tsconfig.json --noEmit` | `frontend/tsconfig.json` + `frontend/tsconfig.spec.json` | Sin ticket — detectado en sc-324; afecta toda ejecución de verificación de tipos en el frontend |

@@ -24,7 +24,7 @@ import {
   SessionErrorCode,
 } from '../sessions/session-errors';
 import { SessionsRepository } from '../sessions/sessions.repository';
-import { INVALID_CREDENTIALS } from './auth-errors';
+import { ANONYMOUS_IDENTITY_CLOSED, INVALID_CREDENTIALS } from './auth-errors';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { DUMMY_HASH, PasswordHasher } from './password-hasher';
 
@@ -134,23 +134,31 @@ export class AuthService {
       throw new UnauthorizedException('device_uuid is required');
     }
 
+    // ANON (sc-326) — la identidad anónima ya no puede
+    // autenticarse. El rechazo es ANTES de tocar la BD, la
+    // sesión o el cache: la identidad anónima no entra al
+    // sistema bajo ninguna circunstancia. La forma de
+    // credencial `{device_uuid}` sigue siendo válida
+    // (122 tests e2e la usan), sólo se cierra la rama
+    // específica del device_uuid configurado como anónimo.
+    // El motivo se distingue del error genérico de
+    // credenciales para que un cliente antiguo pueda
+    // mostrar algo accionable al ciudadano.
+    if (deviceUuid === this.authConfig.anonymousDeviceUuid) {
+      throw new UnauthorizedException({
+        code: ANONYMOUS_IDENTITY_CLOSED,
+        message:
+          'El reporte anónimo sin sesión ya no está disponible. Registrate primero para reportar.',
+      });
+    }
+
     let user = await this.userRepo.findOne({ where: { deviceUuid } });
     if (!user) {
       user = this.userRepo.create({ deviceUuid, permissions: [], isActive: true });
       user = await this.userRepo.save(user);
     }
 
-    const isAnonymous = deviceUuid === this.authConfig.anonymousDeviceUuid;
     const permissions = await this.getPermissions(deviceUuid);
-
-    if (isAnonymous) {
-      return {
-        access_token: this.signAccessToken(user.id),
-        refresh_token: this.signRefreshToken(user.id),
-        permissions,
-      };
-    }
-
     return this.issueSession(user, deviceUuid, meta, permissions);
   }
 
@@ -430,13 +438,33 @@ export class AuthService {
    * otherwise collide every password-only user onto one `perm:v3:null`
    * cache key (the hazard named in the proposal).
    */
-  async getMe(userId: string): Promise<{ deviceUuid: string | null; permissions: string[] }> {
+  async getMe(userId: string): Promise<{
+    deviceUuid: string | null;
+    permissions: string[];
+    /** REG (sc-325) C.1 — booleano derivado de `email_verified_at`.
+     *  `null` cuando la fila no existe (caso que el controller
+     *  ya controla arriba). El frontend usa esto para decidir
+     *  si muestra el interruptor "verificar mi correo" o el
+     *  composer del OTP (C.3). */
+    email_verified: boolean;
+    /** REG (sc-325) Fix A (ronda 10) — `role_name` resuelto por
+     *  `getAuthContextByUserId` (que ya hace el JOIN con `roles`).
+     *  El frontend usa esto en C.4 para decidir si redirige al
+     *  composer del OTP tras el login: la regla es
+     *  `roleName === 'reporter' && emailVerified === false`. */
+    role_name: string | null;
+  }> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-    const permissions = await this.getPermissionsByUserId(user.id);
-    return { deviceUuid: user.deviceUuid, permissions };
+    const ctx = await this.getAuthContextByUserId(user.id);
+    return {
+      deviceUuid: user.deviceUuid,
+      permissions: ctx.permissions,
+      email_verified: user.emailVerifiedAt !== null,
+      role_name: ctx.roleName,
+    };
   }
 
   /**
@@ -452,12 +480,17 @@ export class AuthService {
       return [];
     }
 
-    const { anonymousDeviceUuid, anonymousPermissions, permissionCacheTtlSeconds } =
-      this.authConfig;
-
-    if (deviceUuid === anonymousDeviceUuid) {
-      return anonymousPermissions;
-    }
+    // ANON (sc-326) — la rama `if (deviceUuid === anonymousDeviceUuid)`
+    // se eliminó: `AuthService.login` ya rechaza ese `deviceUuid`
+    // con 401 ANONYMOUS_IDENTITY_CLOSED ANTES de llegar a
+    // `getPermissions` (ver `auth.service.ts:132-152`). La rama
+    // anterior era inalcanzable; mantenerla como defensa en
+    // profundidad duplicaba una invariante que ahora vive
+    // en un solo lugar (la guard de `login`). Si en el futuro
+    // se quiere restaurar el acceso anónimo, lo correcto
+    // es quitar el rechazo en `login` — no reintroducir esta
+    // rama muerta.
+    const { permissionCacheTtlSeconds } = this.authConfig;
 
     const key = `${PERMISSION_CACHE_PREFIX}${deviceUuid}`;
     const cached = await this.cache.get<string[]>(key);
@@ -630,3 +663,27 @@ export class AuthService {
     });
   }
 }
+
+/**
+ * REG (sc-325) — D1 del design: el alta pública es el único
+ * camino que NO va por invitación. Devuelve SIEMPRE el mismo
+ * body para correos nuevos y existentes (D3 del design — sin
+ * oráculo de existencia), y fija el rol `reporter` en el
+ * servidor. El DTO no acepta campos de rol; si el cliente los
+ * manda, se ignoran (class-validator con `whitelist: true` +
+ * `forbidNonWhitelisted` los rechazaría antes de llegar acá,
+ * pero la defense-in-depth sigue aplicando: el método
+ * resuelve el rol por nombre, no por lo que diga el DTO).
+ *
+ * `RequestMeta` se usa para audit; no es relevante para la
+ * decisión de éxito/error (D3: indistinguible).
+ *
+ * El bloque de tipos `RegisterInput`/`RegisterResult`/`RegisterDeps`
+ * que estaba aquí fue el scaffold de un primer intento de meter el
+ * alta dentro de `AuthService`. Fue reemplazado por
+ * `AuthRegisterService` en `auth.register.ts` (REG, sc-325). El
+ * controller importa las clases desde el service nuevo; nada en
+ * el código vivo depende de estas declaraciones. Se eliminaron
+ * en la ronda 2 del fix (W2 del verify) porque el lint las marcaba
+ * como `no-unused-vars`.
+ */

@@ -1,0 +1,105 @@
+<div class="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-8">
+  <div class="w-full max-w-md">
+    <ui-card>
+      <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" data-testid="register-form">
+        <h1 class="text-2xl font-bold text-slate-900 mb-1">Crear cuenta</h1>
+        <p class="text-sm text-slate-500 mb-6">
+          Para reportar y comentar incidencias en la provincia.
+        </p>
+
+        <div class="space-y-4">
+          <div>
+            <label class="form-label" for="email">Correo</label>
+            <input
+              id="email"
+              type="email"
+              class="form-input w-full"
+              formControlName="email"
+              autocomplete="email"
+              data-testid="email-input"
+            />
+            @if (f['email'].touched && f['email'].errors) {
+              <p class="form-error" data-testid="email-error">
+                @if (f['email'].errors['required']) { El correo es obligatorio. }
+                @else if (f['email'].errors['email']) { Debe ser un correo válido. }
+              </p>
+            }
+          </div>
+
+          <div>
+            <label class="form-label" for="first_name">Nombre</label>
+            <input
+              id="first_name"
+              type="text"
+              class="form-input w-full"
+              formControlName="first_name"
+              autocomplete="given-name"
+              data-testid="first-name-input"
+            />
+            @if (f['first_name'].touched && f['first_name'].errors) {
+              <p class="form-error">El nombre es obligatorio.</p>
+            }
+          </div>
+
+          <div>
+            <label class="form-label" for="last_name">Apellido</label>
+            <input
+              id="last_name"
+              type="text"
+              class="form-input w-full"
+              formControlName="last_name"
+              autocomplete="family-name"
+              data-testid="last-name-input"
+            />
+            @if (f['last_name'].touched && f['last_name'].errors) {
+              <p class="form-error">El apellido es obligatorio.</p>
+            }
+          </div>
+
+          <div>
+            <label class="form-label" for="password">Contraseña</label>
+            <input
+              id="password"
+              type="password"
+              class="form-input w-full"
+              formControlName="password"
+              autocomplete="new-password"
+              data-testid="password-input"
+            />
+            <p class="text-xs text-slate-500 mt-1">
+              12+ caracteres, con mayúscula, minúscula, dígito y símbolo.
+            </p>
+            @if (f['password'].touched && f['password'].errors) {
+              <p class="form-error" data-testid="password-error">
+                @if (f['password'].errors['required']) { La contraseña es obligatoria. }
+                @else if (f['password'].errors['minlength']) { Necesita al menos 12 caracteres. }
+                @else if (f['password'].errors['pattern']) { Debe incluir mayúscula, minúscula, dígito y símbolo. }
+              </p>
+            }
+          </div>
+        </div>
+
+        @if (errorMessage()) {
+          <p class="form-error mt-4" role="alert" data-testid="register-error">
+            {{ errorMessage() }}
+          </p>
+        }
+
+        <div class="mt-6 flex flex-col gap-3">
+          <button
+            type="submit"
+            class="btn btn-primary w-full"
+            [disabled]="loading()"
+            data-testid="submit-button"
+          >
+            @if (loading()) { Creando… } @else { Crear cuenta }
+          </button>
+          <p class="text-sm text-slate-500 text-center">
+            ¿Ya tenés cuenta?
+            <a routerLink="/login" class="text-brand-primary font-medium ml-1">Iniciar sesión</a>
+          </p>
+        </div>
+      </form>
+    </ui-card>
+  </div>
+</div>

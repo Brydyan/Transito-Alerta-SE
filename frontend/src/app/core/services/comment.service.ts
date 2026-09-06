@@ -74,12 +74,33 @@ export class CommentService {
     );
   }
 
-  /** D.1 — image upload stub. Full impl (compression + chunked upload) in Priority 2. */
-  uploadCommentImage(commentId: string, _file: File): Observable<CommentImage> {
-    // TODO: implement image compression + upload (Priority 2)
+  /**
+   * D.1 — POST /comments/:id/images with `images` (plural) field.
+   *
+   * F3 (sc-303) C1 (ronda 2): el método viejo era un stub que construía
+   * un `FormData` vacío y nunca adjuntaba el archivo. La forma correcta
+   * del wire (ver `comment-images.controller.ts:21-30`) es:
+   *   - `FilesInterceptor('images', 5, …)` — campo `images`, hasta 5
+   *   - un único POST con todos los archivos
+   *   - respuesta: `CommentImageDto[]` (array, no objeto único)
+   *
+   * La compresión previa por archivo y la UI de selección quedan en
+   * F3.5 (`image-compressor.service.ts` y `comment-thread`); este
+   * método es el contrato de red correcto.
+   */
+  uploadCommentImages(commentId: string, files: File[]): Observable<CommentImage[]> {
     const formData = new FormData();
-    // formData.append('image', file);
-    return this.httpService.post<CommentImage>(`/comments/${commentId}/images`, formData);
+    for (const file of files) {
+      // El backend hace `FilesInterceptor('images', 5, …)`: el nombre
+      // de campo es `images` y acepta múltiples archivos. Repetir el
+      // `append` con la misma clave es cómo FormData codifica
+      // `multipart/form-data` con varios archivos bajo el mismo field.
+      formData.append('images', file);
+    }
+    return this.httpService.post<CommentImage[]>(
+      `/comments/${commentId}/images`,
+      formData,
+    );
   }
 
   /** C.4.3 — clear the cache (called on logout / route change if needed). */

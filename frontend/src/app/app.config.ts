@@ -1,4 +1,5 @@
-import { ApplicationConfig, isDevMode, importProvidersFrom } from '@angular/core';
+import { ApplicationConfig, ErrorHandler, isDevMode, importProvidersFrom } from '@angular/core';
+import * as Sentry from '@sentry/angular';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
@@ -91,5 +92,14 @@ export const appConfig: ApplicationConfig = {
       registrationStrategy: 'registerWhenStable:30000',
     }),
     importProvidersFrom(LucideAngularModule.pick(LUCIDE_ICONS)),
+
+    // Reemplaza el ErrorHandler de Angular. Sin esto, Sentry sólo vería lo que
+    // se le reporta a mano: toda excepción no capturada dentro de un
+    // componente, un guard o un resolver moriría en la consola del navegador,
+    // que en staging y producción no lee nadie.
+    //
+    // Si `environment.sentryDsn` está vacío, `Sentry.init` no corrió y este
+    // handler es inerte — no rompe nada, simplemente no envía.
+    { provide: ErrorHandler, useValue: Sentry.createErrorHandler() },
   ],
 };
