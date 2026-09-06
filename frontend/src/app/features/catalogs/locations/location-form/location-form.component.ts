@@ -99,10 +99,12 @@ export class LocationFormComponent implements OnInit, OnDestroy {
   private readonly levelControl = this.form.get('level') as FormControl;
   private readonly parentControl = this.form.get('parent_id') as FormControl;
 
+  readonly selectedLevel = signal<GeoZoneLevel>('zona');
+
   /** When true, the parent field must be present (canton / parroquia). Not
    *  required for provincia (no parent) or zona (any parent or none). */
   readonly parentRequired = computed(() => {
-    const level = this.levelControl.value as GeoZoneLevel | '';
+    const level = this.selectedLevel();
     return level === 'canton' || level === 'parroquia';
   });
 
@@ -125,7 +127,7 @@ export class LocationFormComponent implements OnInit, OnDestroy {
   /** Parent options restricted to the immediate parent level (design D3 /
    *  backend REQUIRED_PARENT_LEVEL). For 'zona' any level is offered. */
   readonly parentOptions = computed(() => {
-    const level = this.levelControl.value as GeoZoneLevel | '';
+    const level = this.selectedLevel();
     if (!level) {
       return [];
     }
@@ -273,7 +275,8 @@ export class LocationFormComponent implements OnInit, OnDestroy {
   }
 
   private refreshParentValidation(): void {
-    const level = this.levelControl.value as GeoZoneLevel | '';
+    const level = (this.levelControl.value as GeoZoneLevel | '') || 'zona';
+    this.selectedLevel.set(level as GeoZoneLevel);
     if (this.parentRequired()) {
       this.parentControl.setValidators(Validators.required);
     } else {
