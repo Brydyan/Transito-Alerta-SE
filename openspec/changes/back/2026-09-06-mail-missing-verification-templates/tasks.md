@@ -17,17 +17,46 @@ existan deja el proyecto sin compilar.
   `email_verification` recibe `{ otp, expiresMinutes }`. El cuerpo muestra el código y los
   minutos de vigencia.
 
-  `existing_account_attempt` recibe `{ ip, userAgent }`. Aviso informativo: alguien intentó
-  crear una cuenta con este correo. **Sin OTP y sin enlace de acción** (D4).
+  `existing_account_attempt` recibe `{ ip, userAgent, attemptedAt }`. Aviso informativo:
+  alguien intentó crear una cuenta con este correo. **Sin OTP y sin enlace de acción**
+  (D4). Tres campos, todos recortados (D9):
+
+  ```
+  Dispositivo     Chrome en Linux
+  Dirección IP    190.15.x.x
+  Cuándo          6 de septiembre de 2026, 14:33 (GMT-5)
+  ```
+
+  El cuerpo cierra diciendo que **no hay nada que hacer** en ninguno de los dos casos:
+  nadie entró a la cuenta ni cambió nada. El correo lo dispara un tercero; si suena
+  alarmante, asusta a la gente por algo que no ocurrió.
 
   Ambas interpolan **exclusivamente** a través de `field()`, como las seis existentes. Nada
   de plantillas de cadena con datos crudos: es el requisito R13 y la razón por la que este
   módulo no usa un motor de plantillas.
 
-- [ ] **A.3** — Tests de renderizado, uno por plantilla:
-  - el cuerpo contiene el dato esperado (el OTP; la IP)
+- [ ] **A.3** — Ayudantes de formato para el aviso, en el módulo de correo. Sin
+  dependencias nuevas (D9):
+
+  - **`maskIp`** — IPv4 conserva los dos primeros octetos (`190.15.142.87` → `190.15.x.x`);
+    IPv6, los dos primeros grupos. Entrada nula → `'desconocida'`.
+  - **`describeDevice`** — del user-agent saca navegador y sistema, **sin versiones**
+    (`Chrome en Linux`). Unas veinte líneas. Lo que no reconozca → `'desconocido'`.
+  - **`formatAttemptTime`** — fecha legible en hora de Ecuador (`America/Guayaquil`), no
+    UTC.
+
+- [ ] **A.4** — `notifyExistingAccountAttempt` pasa también `attemptedAt` (el momento del
+  intento).
+
+  Motivo: el outbox es asíncrono. La hora de entrega no es la del intento, y la que le
+  importa al titular es la segunda. Calcularla al renderizar daría la hora equivocada.
+
+- [ ] **A.5** — Tests de renderizado, uno por plantilla:
+  - el cuerpo contiene el dato esperado (el OTP; la IP enmascarada)
   - un dato con marcado HTML sale **escapado**, no interpretado
   - el aviso de intento **no** contiene el OTP ni un `href` de acción
+  - el aviso **no** contiene la IP completa ni la cadena de user-agent entera
+  - IP o user-agent ausentes → «desconocida» / «desconocido», nunca un hueco vacío
 
 ---
 
@@ -166,6 +195,36 @@ Todo en `frontend/src/app/features/auth/register/`.
 
 ---
 
+## G · Que `req.ip` sea la IP del cliente
+
+- [ ] **G.1** — Habilitar la confianza en el proxy en `main.ts`, **acotada por dirección** a
+  la red interna de Docker. No `true` (confía en cualquiera) ni un número de saltos (supone
+  que siempre hay exactamente un proxy delante y falla en silencio hacia el lado inseguro).
+  Ver D10.
+
+- [ ] **G.2** — Test: una petición con `X-Forwarded-For` que llega **desde la red de
+  confianza** resuelve la IP del cliente.
+
+- [ ] **G.3** — Test: una petición con `X-Forwarded-For` que llega **desde fuera** de esa
+  red **no** se hace pasar por la IP declarada.
+
+  Es el que importa: `APP_PORT=3004` está publicado en el host, así que el backend es
+  alcanzable sin pasar por nginx. Sin este test, la configuración podría estar abierta y
+  parecer correcta.
+
+- [ ] **G.4** — Test del efecto real: dos clientes con IPs distintas cuentan por separado
+  en el límite de tasa del alta. Hoy comparten llave, así que `IP_MAX = 5` se aplica al
+  tráfico entero.
+
+- [ ] **G.5** — **Verificación por mutación.** Quitar el ajuste de confianza y comprobar que
+  **caen** G.2 y G.4. Anotar cuál cayó, por nombre.
+
+- [ ] **G.6** — Anotar en `apply-progress.md` la deuda de infraestructura: publicar
+  `APP_PORT` en el host no hace falta si todo entra por nginx, y cerrarlo reduce la
+  superficie. Es cambio de despliegue, no de código — no se hace en esta fase.
+
+---
+
 ## Qué NO hacer en esta fase
 
 - **No** introducir un motor de plantillas. El diseño original eligió funciones puras a
@@ -177,6 +236,13 @@ Todo en `frontend/src/app/features/auth/register/`.
   relación con el correo.
 - **No** cambiar nada de Resend, del dominio ni del DNS. Se verificó que el fallo ocurre
   antes de abrir la conexión SMTP (`attempts 0`).
+- **No** añadir ubicación geográfica al aviso. Evaluada y descartada: una base local son
+  ~70 MB y un trabajo de refresco, y una API externa metería una llamada de red dentro del
+  consumidor del outbox — que es el componente que estamos arreglando.
+- **No** usar `trust proxy: true` ni un número de saltos. Ver D10: la primera confía en
+  cualquiera, la segunda supone una topología que puede cambiar sin aviso.
+- **No** añadir una librería de parseo de user-agent. Trae una base de firmas que envejece
+  para producir dos palabras.
 
 ---
 

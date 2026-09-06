@@ -2,7 +2,7 @@
 
 ## Domain: citizen-registration (MODIFIED)
 
-Se añaden cinco requisitos. Los siete existentes no cambian.
+Se añaden seis requisitos, con 28 escenarios. Los siete existentes no cambian.
 
 El hueco que cubren: el spec vigente exige que **la respuesta diga** que se envió un correo
 de verificación, pero nunca que el correo **se pueda enviar**. Un sistema que responde «te
@@ -56,7 +56,19 @@ aviso informativo, y ese aviso NO DEBE contener un OTP ni un enlace de acción.
   ejecute ninguna operación sobre la cuenta: un tercero provoca el envío, así que un botón
   convertiría el aviso en un vector
 - Scenario: Contexto del intento — GIVEN un intento con IP y user-agent conocidos THEN el
-  aviso los muestra escapados, para que el titular reconozca si fue suyo
+  aviso muestra dispositivo, dirección IP y momento, todos escapados, para que el titular
+  reconozca si fue suyo
+- Scenario: Dispositivo sin versiones — GIVEN un user-agent completo THEN el aviso muestra
+  el navegador y el sistema («Chrome en Linux») y NO la cadena completa ni números de
+  versión
+- Scenario: IP enmascarada — GIVEN una IPv4 THEN el aviso muestra sólo los dos primeros
+  octetos (`190.15.x.x`); GIVEN una IPv6, los dos primeros grupos
+- Scenario: Momento del intento, no de la entrega — GIVEN un aviso que se entrega minutos
+  después THEN la hora mostrada es la del intento, que viaja en los datos del encolado
+- Scenario: Hora local — GIVEN un intento THEN la hora se muestra en hora de Ecuador, no en
+  UTC
+- Scenario: Dato ausente — GIVEN un intento sin IP o sin user-agent THEN el aviso dice
+  «desconocida» / «desconocido», nunca un hueco vacío
 - Scenario: La respuesta HTTP sigue siendo indistinguible — GIVEN un alta contra un correo
   existente y otra contra uno nuevo THEN ambas respuestas son idénticas en código de
   estado, cuerpo y forma; la diferencia viaja sólo por el buzón del titular
@@ -91,3 +103,21 @@ cliente NO DEBE mantener su propia copia.
   muestra el mensaje recibido en la respuesta, sin reescribirlo
 - Scenario: Sin gemelos divergentes — GIVEN el código del cliente THEN no existe una cadena
   literal que duplique el mensaje de alta del servidor
+
+---
+
+### Requirement: La IP registrada es la del cliente, no la del proxy
+El sistema DEBE resolver la dirección del cliente a partir de las cabeceras del proxy de
+confianza, y NO DEBE aceptarlas de un origen que no sea ese proxy.
+
+- Scenario: Petición a través del proxy — GIVEN una petición que entra por nginx THEN la IP
+  registrada es la del cliente, no la del contenedor del proxy
+- Scenario: Cabecera falsificada desde fuera — GIVEN una petición directa al backend que
+  incluye un `X-Forwarded-For` inventado THEN esa cabecera se descarta y no se toma como
+  origen
+- Scenario: Límite de tasa por cliente — GIVEN varios ciudadanos distintos registrándose en
+  la misma hora THEN el límite de tasa por IP los cuenta por separado. Con una sola llave
+  compartida, el umbral de cinco por hora se aplicaría a todo el tráfico junto
+- Scenario: Sin dirección resoluble — GIVEN una petición de la que no se puede derivar
+  ninguna dirección THEN el alta procede sin limitación por IP, y el aviso muestra la IP
+  como desconocida

@@ -160,7 +160,82 @@ quedar vieja.
 
 ---
 
-## D9 — Qué NO se toca
+## D9 — El aviso muestra lo justo para reconocerse, no para identificar a nadie
+
+**Decisión**: tres campos, todos recortados.
+
+```
+Dispositivo     Chrome en Linux                          ← sin versiones
+Dirección IP    190.15.x.x                               ← dos octetos
+Cuándo          6 de septiembre de 2026, 14:33 (GMT-5)   ← hora de Ecuador
+```
+
+**El criterio**: el titular sólo necesita decidir una cosa — «¿fui yo?». Para eso alcanza
+con reconocer el dispositivo, la zona y el momento. La versión del navegador y los octetos
+finales de la IP no ayudan a decidir nada y sí identifican a un tercero.
+
+**Por qué no mostrarlo todo.** Un intento no es necesariamente un ataque: lo más común es
+un dedazo, alguien escribiendo mal su propio correo. En ese caso el sistema le estaría
+mandando a un desconocido la IP exacta y el perfil de dispositivo de una persona de buena
+fe, que no hizo nada malo.
+
+**Por qué no mostrar nada.** Un aviso sin contexto no se puede accionar: todos se parecen y
+la gente los ignora. Un aviso que nadie lee es peor que no mandarlo, porque da la impresión
+de que hay una alerta.
+
+**Enmascarado**: IPv4 conserva los dos primeros octetos (`190.15.x.x`). IPv6 conserva los
+dos primeros grupos. Un valor ausente se muestra como «desconocida», nunca como cadena
+vacía.
+
+**`attemptedAt` viaja en los datos del encolado**, no se calcula al renderizar. El outbox es
+asíncrono: la hora de entrega no es la hora del intento, y la que le importa al titular es
+la segunda. Hoy el servicio pasa sólo `{ ip, userAgent }`; se le añade el momento.
+
+**La hora se muestra en hora de Ecuador** (`America/Guayaquil`), no en UTC. Un
+`2026-09-06T19:33:41Z` no lo reconoce nadie, y reconocer es todo lo que este correo pide.
+
+**El parser de dispositivo es propio**, unas veinte líneas sobre el user-agent. No se añade
+dependencia: una librería de parseo trae una base de firmas que envejece, para producir dos
+palabras.
+
+---
+
+## D10 — La confianza en el proxy se declara por dirección, no por número de saltos
+
+**Decisión**: habilitar `trust proxy` acotado a la red interna de Docker.
+
+Hoy no está declarado en ninguna parte, así que Express ignora el `X-Forwarded-For` que
+nginx sí manda (`nginx.conf:56`) y `req.ip` devuelve la IP del contenedor de nginx —
+idéntica para todo el tráfico.
+
+**Lo que eso rompe hoy, más allá del correo**: `auth.register.ts:146` limita el alta por IP
+con `IP_MAX = 5` en una hora. Con una sola llave compartida, eso son **cinco altas por hora
+para todo internet**; el sexto ciudadano recibe un rechazo por límite de tasa sin haber
+hecho nada, y cualquiera lo dispara con cinco intentos.
+
+**Alternativa descartada — `trust proxy: true`.** Confía en cualquiera. Un cliente que
+alcance el backend directo manda su propio `X-Forwarded-For` y se inventa la IP que quiera:
+el límite de tasa deja de existir en vez de arreglarse.
+
+**Alternativa descartada — `trust proxy: 1`.** Contar saltos supone que siempre hay
+exactamente un proxy delante. Deja de ser cierto el día que se agrega un balanceador, y
+falla en silencio hacia el lado inseguro.
+
+**Por qué importa que sea por dirección**: `APP_PORT=3004` está publicado en el host, así
+que el backend **es alcanzable sin pasar por nginx**. Confiando por dirección, una petición
+directa no viene de la red interna y su `X-Forwarded-For` se descarta.
+
+**Anotado como deuda de infraestructura**: publicar `APP_PORT` en el host no hace falta si
+todo el tráfico entra por nginx. Cerrar ese puerto reduce la superficie, pero es un cambio
+de despliegue y no de código — no entra en esta fase.
+
+**Verificación por mutación, obligatoria**: con el ajuste puesto, una petición que llega
+por nginx debe registrar la IP del cliente; una petición directa que trae un
+`X-Forwarded-For` falsificado **no** debe hacerse pasar por esa IP. Las dos, con test.
+
+---
+
+## D11 — Qué NO se toca
 
 **El proveedor.** Resend, su dominio verificado y sus registros DNS funcionan. Se comprobó
 que el fallo ocurre antes de abrir la conexión SMTP (`attempts 0`). Cambiar de proveedor

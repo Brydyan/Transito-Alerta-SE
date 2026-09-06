@@ -82,8 +82,12 @@ responde «te enviamos un mensaje» y no envía nada cumple el spec al pie de la
 - `email_verification` — cuerpo con el código OTP y su vigencia. Datos: `{ otp,
   expiresMinutes }`.
 - `existing_account_attempt` — aviso al titular de que alguien intentó registrarse con su
-  correo. Datos: `{ ip, userAgent }`. Sin OTP y sin enlace de acción: el titular no pidió
-  nada, y darle un botón sería convertir un aviso en un vector.
+  correo. Datos: `{ ip, userAgent, attemptedAt }`. Sin OTP y sin enlace de acción: el
+  titular no pidió nada, y darle un botón sería convertir un aviso en un vector.
+
+  Muestra tres campos: **dispositivo** («Chrome en Linux», derivado del user-agent sin
+  versiones), **dirección IP enmascarada** (`190.15.x.x`) y **cuándo**, en hora local de
+  Ecuador. Sin ubicación geográfica — ver «Fuera de alcance».
 
 Ambas se suman a `TemplateName` y al registro `TEMPLATES`, con el mismo escapado de datos
 que las seis existentes (R13 — nada se interpola sin pasar por `field()`).
@@ -135,6 +139,33 @@ verificación. No es un oráculo (la frase es constante, no depende de si el cor
 pero es la misma regla aplicada en un sitio y no en su vecino. El frontend pasa a mostrar
 el mensaje que devuelve el backend en vez de mantener su gemelo.
 
+### In Scope — G · Que `req.ip` sea la IP del cliente
+
+Hoy no lo es, y nadie lo había notado.
+
+nginx manda las cabeceras correctamente (`nginx.conf:56`), pero Express corre **sin
+`trust proxy`** —no aparece en ninguna parte del backend— así que las ignora y devuelve la
+dirección del socket: **la IP del contenedor de nginx, idéntica para todo el tráfico web**.
+
+Dos consecuencias, y la segunda es la grave:
+
+**El aviso al titular mostraría `172.18.0.4`**, un dato interno que no dice nada. El bloque
+A no tiene sentido sin esto.
+
+**La limitación de tasa del alta es global.** `auth.register.ts:146` limita por IP con
+`IP_MAX = 5` en una ventana de una hora, y todas las peticiones comparten la misma llave:
+
+```
+5 registros por hora — para todo internet
+```
+
+El sexto ciudadano que intente darse de alta en esa hora recibe un rechazo por límite de
+tasa sin haber hecho nada, y cualquiera lo dispara con cinco intentos. Justo el camino que
+este change existe para poner en marcha.
+
+Se configura la confianza en el proxy **por dirección, no por número de saltos**, y se fija
+con un test.
+
 ### Out of Scope
 
 - **Rediseñar las plantillas.** Son HTML mínimo, como las seis que ya existen. Darles
@@ -144,6 +175,20 @@ el mensaje que devuelve el backend en vez de mantener su gemelo.
   los dos campos iguales y la comprobación no dice nada. Ver D8.
 - **Rediseñar la pantalla de alta.** Se añade un campo y se corrige un mensaje; el resto
   del formulario queda como está. El rediseño visual es F6.
+- **Ubicación geográfica en el aviso.** Evaluada y descartada para esta fase. Las dos vías
+  tienen un coste que no compensa una línea de un correo informativo:
+
+  Una **base local** (GeoLite2) son ~70 MB en la imagen, una cuenta y clave de MaxMind, y
+  un trabajo de refresco — una base de geolocalización que no se actualiza empieza a
+  mentir.
+
+  Una **API externa** manda la IP del ciudadano a un tercero en cada intento, y —peor— mete
+  una llamada de red **dentro del consumidor del outbox**. Si el tercero tarda o falla, la
+  entrada se reintenta o acaba en `mail:dead`: exactamente el fallo que este change existe
+  para arreglar.
+
+  Si más adelante se quiere, la vía correcta es la base local, que no entrega la IP de los
+  usuarios a nadie. Queda como bloque separable, sin tocar lo demás.
 - **Cambiar de proveedor de correo.** Resend funciona; el problema nunca estuvo ahí.
 - **El `as never` de `incidents.service.ts:269`.** Es otro cast, en otro contexto, y no
   toca el correo. Merece revisión propia, no un arreglo de pasada.
@@ -172,10 +217,21 @@ verificar su cuenta.
 - **`MailService.deliver` renderiza antes de abrir SMTP.** Un test que simule el transporte
   y no el renderizado no prueba nada de este defecto.
 
+## Decisión de producto — 2026-09-06
+
+**Qué muestra el aviso al titular.** La pregunta era si mostrar la IP y el user-agent tal
+cual, nada, o una versión recortada. Un intento no es necesariamente un ataque: el caso más
+común es que alguien se equivoque al escribir su propio correo, y entonces se le estaría
+enviando a un desconocido la dirección IP de una persona de buena fe.
+
+**Decidido: versión recortada.** Dispositivo sin versiones, IP enmascarada a dos octetos,
+hora local. Alcanza para que el titular distinga «eso fui yo anoche» de «eso no es mío»,
+que es lo único que necesita para decidir, y no entrega la dirección exacta de nadie.
+
+**Sin ubicación geográfica.** Se evaluó y se descartó para esta fase: ver «Fuera de
+alcance».
+
 ## Preguntas abiertas
 
-- ¿El aviso de `existing_account_attempt` debe incluir la IP y el user-agent tal cual? Se
-  le está diciendo al titular desde dónde intentaron usar su correo, lo cual ayuda a
-  reconocer un intento propio, pero también expone datos del tercero. La decisión previa
-  (REG) ya los pasa al servicio; esta fase los renderiza tal como llegan y deja la pregunta
-  anotada para quien defina la política de privacidad.
+Ninguna. Las dos que había —qué mostrar en el aviso, y si incluir ubicación— quedaron
+resueltas arriba.
