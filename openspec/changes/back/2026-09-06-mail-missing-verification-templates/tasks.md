@@ -97,6 +97,75 @@ existan deja el proyecto sin compilar.
 
 ---
 
+## E · Confirmar el correo en el formulario de alta
+
+Todo en `frontend/src/app/features/auth/register/`.
+
+- [ ] **E.1** — Añadir el control `email_confirm` al `FormGroup` de
+  `register.component.ts`, con `Validators.required` y `Validators.email`.
+
+- [ ] **E.2** — Validador **de grupo** (no de campo) que compara `email` con
+  `email_confirm`.
+
+  Tiene que ser de grupo: un validador de campo no ve el valor del otro. Y si se engancha
+  sólo al segundo, editar el primero después de haber confirmado deja el formulario válido
+  con dos valores distintos (escenario explícito del spec).
+
+- [ ] **E.3** — Marcado en `register.component.html`, debajo del campo de correo actual:
+
+  ```
+  Correo                 → el campo que ya existe
+  Verifique su correo    → el nuevo
+  ```
+
+  Mensaje de error cuando no coinciden: **«El correo no coincide con la verificación.»**
+  Mismo patrón `@if (...touched && ...errors)` y misma clase `form-error` que los campos
+  existentes. Poner `data-testid` como tienen los demás.
+
+- [ ] **E.4** — **Comprobar que el campo NO viaja al servidor.**
+
+  `onSubmit` ya desestructura campo por campo
+  (`const { email, password, first_name, last_name } = this.registerForm.value`), así que
+  por defecto no viaja. **No cambiar eso a `...this.registerForm.value`.**
+
+  Motivo, verificado en staging el 2026-09-06: el `ValidationPipe` corre con
+  `forbidNonWhitelisted` y un campo de más **rechaza el alta entera**:
+
+  ```
+  {"message":["property full_name should not exist"],"error":"Bad Request","statusCode":400}
+  ```
+
+  Test que lo fija: espiar la llamada a `authService.register` y assertar que el objeto
+  tiene **exactamente** esas cuatro claves.
+
+- [ ] **E.5** — Tests del componente:
+  - dos correos distintos → formulario inválido, mensaje visible, `register` no se llama
+  - dos correos iguales → `register` se llama
+  - coinciden y luego se edita el primero → vuelve a inválido
+  - el cuerpo enviado tiene exactamente cuatro claves (E.4)
+
+- [ ] **E.6** — **Verificación por mutación.** Quitar el validador de grupo y comprobar que
+  **caen** los tests de E.5. Anotar cuál cayó, por nombre.
+
+---
+
+## F · El mensaje de éxito, en un solo sitio
+
+- [ ] **F.1** — `register.component.ts:64` deja de tener su propia copia. El componente
+  muestra el mensaje que devuelve el backend en la respuesta del alta.
+
+  La copia actual conserva la frase *«Si ya lo estaba, te enviamos un aviso al titular»*,
+  que REG quitó del backend en su ronda 12 y que aquí quedó viva. La que el usuario ve es
+  ésta.
+
+- [ ] **F.2** — Test: la pantalla de verificación recibe como `hint` el texto de la
+  respuesta, no una constante del cliente.
+
+- [ ] **F.3** — Comprobar que no queda ninguna otra copia literal de ese mensaje en
+  `frontend/src`.
+
+---
+
 ## Qué NO hacer en esta fase
 
 - **No** introducir un motor de plantillas. El diseño original eligió funciones puras a
@@ -114,11 +183,17 @@ existan deja el proyecto sin compilar.
 ## Compuertas antes de dar por terminada la fase
 
 ```
-backend  npx tsc --noEmit          exit 0   (no `nest build`: excluye test/)
-backend  pnpm run lint             0 errores
-backend  unit                      suites/tests, comparar con la línea base
-backend  e2e                       suites/tests, comparar con la línea base
+backend   npx tsc --noEmit         exit 0   (no `nest build`: excluye test/)
+backend   pnpm run lint            0 errores
+backend   unit                     suites/tests, comparar con la línea base
+backend   e2e                      suites/tests, comparar con la línea base
+frontend  npx tsc -b --noEmit      exit 0
+frontend  unit                     suites/tests, comparar con la línea base
+frontend  build                    exit 0
 ```
+
+**Trampa del frontend**: `npx tsc -p frontend/tsconfig.json` compila **cero archivos**
+(`"files": []`). Hay que usar `tsc -b`. Un typecheck que no compila nada pasa siempre.
 
 Si el total de tests **no sube**, los tests nuevos no se están ejecutando. Eso es un fallo
 de la fase, no un detalle.

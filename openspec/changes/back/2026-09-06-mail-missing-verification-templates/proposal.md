@@ -108,10 +108,42 @@ Las entradas muertas guardan el OTP **en claro** y no caducan solas. Hoy hay una
 alta funcionando y cualquier fallo de transporte, se acumulan. Se acota el crecimiento del
 stream.
 
+### In Scope — E · Confirmar el correo antes de enviarlo
+
+El formulario de alta pide el correo **una sola vez**. Un dedazo crea una cuenta cuyo OTP
+viaja a un buzón que no es el del usuario: la cuenta queda inservible y el desconocido
+recibe un código.
+
+Se añade un segundo campo de confirmación. Mientras los dos no coincidan, el formulario no
+se envía y se dice por qué.
+
+Es el arreglo que estaba faltando en el orden correcto: hasta ahora no importaba, porque el
+correo no salía. Con el correo funcionando, importa desde el primer alta.
+
+### In Scope — F · El mensaje de éxito, en un solo sitio
+
+`register.component.ts:64` mantiene su propia copia del mensaje de alta, y conserva una
+frase que el backend ya quitó:
+
+```
+backend   'Si el correo no estaba registrado, te enviamos un mensaje para verificar tu cuenta.'
+frontend  '...verificar tu cuenta. Si ya lo estaba, te enviamos un aviso al titular.'
+```
+
+La copia del frontend es la que el usuario ve — se pasa como `hint` a la pantalla de
+verificación. No es un oráculo (la frase es constante, no depende de si el correo existe),
+pero es la misma regla aplicada en un sitio y no en su vecino. El frontend pasa a mostrar
+el mensaje que devuelve el backend en vez de mantener su gemelo.
+
 ### Out of Scope
 
 - **Rediseñar las plantillas.** Son HTML mínimo, como las seis que ya existen. Darles
   formato de marca es trabajo de otra fase.
+- **Un campo de confirmación en el DTO del backend.** La confirmación es una defensa contra
+  el dedazo humano, y sólo tiene sentido donde hay dedos. Un cliente que llame al API manda
+  los dos campos iguales y la comprobación no dice nada. Ver D8.
+- **Rediseñar la pantalla de alta.** Se añade un campo y se corrige un mensaje; el resto
+  del formulario queda como está. El rediseño visual es F6.
 - **Cambiar de proveedor de correo.** Resend funciona; el problema nunca estuvo ahí.
 - **El `as never` de `incidents.service.ts:269`.** Es otro cast, en otro contexto, y no
   toca el correo. Merece revisión propia, no un arreglo de pasada.

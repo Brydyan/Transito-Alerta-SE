@@ -111,7 +111,56 @@ invisible, que es peor. Se acota el tamaño, se conserva lo reciente.
 
 ---
 
-## D7 — Qué NO se toca
+## D7 — La confirmación de correo vive sólo en el cliente
+
+**Decisión**: el segundo campo es un control del formulario Angular. **No** viaja al
+backend y **no** se añade a `RegisterDto`.
+
+Una confirmación por repetición defiende contra un dedazo: obliga a teclear dos veces y
+compara. Eso sólo tiene sentido donde hay dedos. Un cliente que llame al API directamente
+manda los dos campos idénticos sin esfuerzo, y la comprobación del servidor no dice nada
+sobre nada.
+
+**Trampa verificada, no teórica**: el `ValidationPipe` del backend corre con
+`forbidNonWhitelisted`. Mandar un campo de más no se ignora — **rechaza la petición
+entera**. Comprobado en staging el 2026-09-06 con un cuerpo que traía `full_name`:
+
+```
+{"message":["property full_name should not exist"],"error":"Bad Request","statusCode":400}
+```
+
+Así que el control de confirmación tiene que quedarse fuera del cuerpo que se envía. El
+código actual ya desestructura campo por campo antes de llamar al servicio
+(`const { email, password, first_name, last_name } = this.registerForm.value`), que es
+justo la forma que lo evita: añadir un control no lo mete en la petición por accidente.
+
+**Dónde vive la comparación**: en un validador de grupo sobre el `FormGroup`, no en el
+campo. Un validador de campo no ve el valor del otro; y si se engancha sólo al segundo
+campo, cambiar el primero después de confirmarlo deja el formulario válido con dos valores
+distintos.
+
+---
+
+## D8 — El mensaje de éxito tiene un solo dueño
+
+**Decisión**: el frontend muestra el mensaje que devuelve el backend. Deja de mantener su
+propia copia.
+
+Hoy hay dos cadenas para lo mismo, y ya divergieron: REG (ronda 12) quitó del backend la
+frase *«Si ya lo estaba, te enviamos un aviso al titular»* y la copia del frontend se quedó
+con ella. La que el usuario ve es la del frontend.
+
+**Por qué importa aunque no sea un fallo de seguridad**: la frase es constante, así que no
+revela si un correo existe — no es el oráculo que REG cerró. Pero el motivo por el que se
+quitó del backend fue reducir lo que la respuesta afirma sobre cuentas ajenas, y esa
+decisión no llegó al sitio donde se lee. Dos copias de una regla es una que se va a
+quedar vieja.
+
+---
+
+---
+
+## D9 — Qué NO se toca
 
 **El proveedor.** Resend, su dominio verificado y sus registros DNS funcionan. Se comprobó
 que el fallo ocurre antes de abrir la conexión SMTP (`attempts 0`). Cambiar de proveedor
