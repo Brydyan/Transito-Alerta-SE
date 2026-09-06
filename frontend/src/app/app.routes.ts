@@ -47,6 +47,20 @@ export const routes: Routes = [
       ),
     canActivate: [guestGuard],
   },
+  // REG (sc-325) — C.3/C.4: composer del OTP, detrás de
+  // `authGuard`. El `reporter` llega acá automáticamente tras el
+  // login si `email_verified === false` (C.4). El personal
+  // (staff) nunca entra: la regla de redirección vive en
+  // `LoginComponent` (un solo lugar) y consulta
+  // `email_verified` antes de decidir a dónde mandar.
+  {
+    path: 'verificar',
+    loadComponent: () =>
+      import('./features/auth/verify-otp/verify-otp.component').then(
+        (m) => m.VerifyOtpComponent,
+      ),
+    canActivate: [authGuard],
+  },
   // SC-207 — invitation token acceptance (replaces the dead
   // /auth/register flow). Token arrives out-of-band (typically via
   // email) as `?token=…`. Deliberately NO guestGuard: an already

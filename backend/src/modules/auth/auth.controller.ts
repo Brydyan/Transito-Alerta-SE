@@ -166,10 +166,32 @@ export class AuthController {
   @Get('me')
   async me(
     @Req() req: AuthenticatedRequest,
-  ): Promise<{ user_id: string; device_uuid: string | null; permissions: string[] }> {
+  ): Promise<{
+    user_id: string;
+    device_uuid: string | null;
+    permissions: string[];
+    /** REG (sc-325) C.1 — booleano derivado de `email_verified_at`.
+     *  El `SnakeCaseResponseInterceptor` reescribe toda respuesta
+     *  a snake_case; el nombre en TypeScript puede ser
+     *  `emailVerified` o `email_verified` — el wire es
+     *  `email_verified` siempre. */
+    email_verified: boolean;
+    /** REG (sc-325) Fix A (ronda 10) — nombre del rol
+     *  (`reporter`, `operador_org`, `admin_org`, etc.) o `null`
+     *  para el dispositivo anónimo. El frontend usa esto en C.4
+     *  para decidir el redirect post-login. */
+    role_name: string | null;
+  }> {
     const userId = req.user!.userId;
-    const { deviceUuid, permissions } = await this.authService.getMe(userId);
-    return { user_id: userId, device_uuid: deviceUuid, permissions };
+    const { deviceUuid, permissions, email_verified, role_name } =
+      await this.authService.getMe(userId);
+    return {
+      user_id: userId,
+      device_uuid: deviceUuid,
+      permissions,
+      email_verified,
+      role_name,
+    };
   }
 
   /**

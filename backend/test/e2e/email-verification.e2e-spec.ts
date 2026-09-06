@@ -117,7 +117,7 @@ describe('E2E T6 email verification OTP (T6.5.D3)', () => {
 
   // ---- (c) expired OTP → 422 -----------------------------------------------
 
-  it('T6.5.D3c: verify expired OTP → 422', async () => {
+  it('T6.5.D3c: verify expired OTP → 422 con code OTP_INVALID (Fix B)', async () => {
     const { userId, accessToken } = await provisionEmailUser();
 
     // Insert a known OTP hash that is already expired.
@@ -130,11 +130,61 @@ describe('E2E T6 email verification OTP (T6.5.D3)', () => {
       [hash, expiredAt, userId],
     );
 
-    await request(env.httpServer)
+    const res = await request(env.httpServer)
       .post('/api/email/verify-otp')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ otp: knownOtp })
       .expect(422);
+
+    // REG Fix B (ronda 10) — el 422 ahora lleva campo `code`
+    // para que el frontend pueda switchear. Antes era un string
+    // plano, y el cliente asumía una forma que el backend no
+    // producía (CRITICAL 2 del verify de la ronda 9).
+    expect(res.body.code).toBe('OTP_INVALID');
+  });
+
+  // ---- (c.bis) REG Fix B (ronda 10) — submit con correo ya verificado -----
+
+  it('Fix B: verify-otp con usuario ya verificado → 422 con code EMAIL_ALREADY_VERIFIED', async () => {
+    // Crea un usuario YA verificado (no `emailVerified: false` como
+    // el helper de arriba). El backend debe distinguir "ya
+    // verificado" de "código malo" — son dos mensajes distintos
+    // que el frontend presenta de forma distinta.
+    const email = `already-${randomUUID()}@example.com`;
+    const user = await env.provisionUser([], { email, emailVerified: true });
+    const auth = { Authorization: `Bearer ${user.accessToken}` };
+
+    const res = await request(env.httpServer)
+      .post('/api/email/verify-otp')
+      .set(auth)
+      .send({ otp: '123456' })
+      .expect(422);
+
+    expect(res.body.code).toBe('EMAIL_ALREADY_VERIFIED');
+  });
+
+  it('Fix B: verify-otp con OTP inválido (no-vencido) → 422 con code OTP_INVALID', async () => {
+    // El caso "OTP incorrecto, vigente" — el hash de la BD
+    // existe y no está vencido, pero el código sometido no
+    // coincide. Antes del Fix B el backend emitía un string
+    // plano; ahora emite `{ code: 'OTP_INVALID', ... }`.
+    const { userId, accessToken } = await provisionEmailUser();
+
+    const storedOtp = '111111';
+    const knownHash = sha256Hex(storedOtp);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await env.pg.query(
+      `UPDATE users SET verification_otp = $1, verification_otp_expires_at = $2 WHERE id = $3`,
+      [knownHash, expiresAt, userId],
+    );
+
+    const res = await request(env.httpServer)
+      .post('/api/email/verify-otp')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ otp: '999999' }) // distinto al storedOtp
+      .expect(422);
+
+    expect(res.body.code).toBe('OTP_INVALID');
   });
 
   // ---- (d) rate limit: resend twice < 60s → 429 ---------------------------

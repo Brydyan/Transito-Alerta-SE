@@ -1,0 +1,451 @@
+diff --git a/backend/src/config/auth.config.spec.ts b/backend/src/config/auth.config.spec.ts
+index 0e4adfb..9c92354 100644
+--- a/backend/src/config/auth.config.spec.ts
++++ b/backend/src/config/auth.config.spec.ts
+@@ -50,41 +50,54 @@ describe('authConfig — sessionRefreshTtlSeconds/sessionRefreshGraceSeconds (T3
+   });
+ });
+ 
+-describe('authConfig — anonymous permission ceiling', () => {
++describe('authConfig — anonymous permission ceiling (ANON sc-327)', () => {
++  // ANON (sc-327) — la capacidad «reporte sin sesión» se cerró por
++  // decisión de producto 2026-09-02. Los tests que afirmaban lo
++  // contrario (los tres primeros: «lets an anonymous device…»)
++  // INVIRTIERON su tesis. No se borran: la regla del fix B.6
++  // es que la capacidad retirada tiene que seguir documentada
++  // como retirada, no silenciada.
+   const anonymous = () => authConfig().anonymousPermissions;
+ 
+-  it('lets an anonymous device report an emergency without logging in', () => {
+-    expect(anonymous()).toContain('CREATE incidents');
++  it('ANON: the ceiling is empty — no anonymous login path', () => {
++    // B.1 — `anonymousPermissions` se vacía. La identidad
++    // anónima ya no concede nada: la ruta del reporte sin
++    // sesión se cerró (decisión 2026-09-02). La fila máscara
++    // queda en BD con `permissions = []` (migración 0048, B.2).
++    expect(anonymous()).toEqual([]);
+   });
+ 
+-  it('lets an anonymous device read what the public posted', () => {
+-    expect(anonymous()).toEqual(
+-      expect.arrayContaining(['READ incidents', 'READ comments']),
+-    );
++  it('ANON: the ceiling grants no permission of any kind (READ, CREATE, UPDATE, DELETE, ASSIGN, CLAIM, RELEASE, CLOSE)', () => {
++    // La lista es la lista vacía. Cualquier permiso que se
++    // añada al array rompe este test — fail-loud en compilación
++    // sería mejor, pero `expect([]).toEqual([])` ya es fail-loud
++    // en CI: si alguien cambia el array, el test cae.
++    const all = anonymous();
++    expect(all).toHaveLength(0);
+   });
+ 
+-  it('lets an anonymous device comment on public reports', () => {
+-    expect(anonymous()).toContain('CREATE comments');
++  it('ANON: the four previously-agreed permissions are explicitly absent', () => {
++    // B.6 — los tests del round 0 afirmaban que `READ/CREATE
++    // incidents` y `READ/CREATE comments` estaban. ANON los
++    // retira. Este test fija la propiedad «ausentes» de manera
++    // explícita para que un futuro refactor que los re-introduzca
++    // caiga aquí antes de que llegue a producción.
++    const all = anonymous();
++    expect(all).not.toContain('READ incidents');
++    expect(all).not.toContain('CREATE incidents');
++    expect(all).not.toContain('READ comments');
++    expect(all).not.toContain('CREATE comments');
+   });
+ 
+-  // The ceiling is read-and-contribute, never modify: an unauthenticated
+-  // device must not be able to alter or remove anything, its own included.
+-  it('grants no UPDATE, DELETE or ASSIGN permission of any kind', () => {
++  it('grants no UPDATE, DELETE or ASSIGN permission of any kind (kept from round 0 for symmetry)', () => {
++    // El test del round 0 sigue siendo válido: la identidad
++    // anónima nunca concedió UPDATE/DELETE/ASSIGN. La
++    // afirmación es trivial con la lista vacía, pero la
++    // mantenemos para que un cambio futuro que añada un
++    // UPDATE explícito lo nombre como error.
+     const forbidden = anonymous().filter((permission) =>
+       /^(UPDATE|DELETE|ASSIGN) /.test(permission),
+     );
+-
+     expect(forbidden).toEqual([]);
+   });
+-
+-  it('grants exactly the four agreed permissions and nothing more', () => {
+-    expect(anonymous().sort()).toEqual(
+-      [
+-        'CREATE comments',
+-        'CREATE incidents',
+-        'READ comments',
+-        'READ incidents',
+-      ].sort(),
+-    );
+-  });
+ });
+diff --git a/backend/src/config/auth.config.ts b/backend/src/config/auth.config.ts
+index baa28ee..15d2085 100644
+--- a/backend/src/config/auth.config.ts
++++ b/backend/src/config/auth.config.ts
+@@ -57,7 +57,12 @@ export function parseDurationSeconds(value: string): number {
+  *
+  * - Dual JWT secrets (access/refresh) per design D2.
+  * - Anonymous identity ceiling (device_uuid='anonymous') per blocker
+- *   resolution #4: read what the public posted and contribute to it, never
++ * - Anonymous identity ceiling (device_uuid='anonymous'). ANON (sc-327):
++ *   la identidad anónima NO concede nada. El reporte sin sesión se cerró
++ *   por decisión de producto del 2026-09-02 (ver
++ *   `openspec/changes/back/2026-09-02-anon-close-anonymous-reporting`).
++ *   La lista queda vacía: el getter en `AuthService` la retorna tal
++ *   cual, y `getAuthContextByUserId` la usa para la fila máscara.
+  *   modify. READ/CREATE incidents, READ/CREATE comments — no UPDATE, DELETE
+  *   or ASSIGN, not even over its own rows.
+  */
+@@ -72,12 +77,11 @@ export default registerAs('auth', (): AuthConfig => {
+       ? parseInt(process.env.PERMISSION_CACHE_TTL_SECONDS, 10)
+       : 3600,
+     anonymousDeviceUuid: 'anonymous',
+-    anonymousPermissions: [
+-      'READ incidents',
+-      'CREATE incidents',
+-      'READ comments',
+-      'CREATE comments',
+-    ],
++    // ANON (sc-327) — la lista está VACÍA. La identidad anónima ya
++    // no concede nada; cualquier ruta que la use devuelve `[]` y
++    // falla el `PermissionGuard`. La invariante la cubre el spec
++    // `auth.config.spec.ts` (B.5 + B.6): el techo está cerrado.
++    anonymousPermissions: [],
+     sessionRefreshGraceSeconds: process.env.SESSION_REFRESH_GRACE_SECONDS
+       ? parseInt(process.env.SESSION_REFRESH_GRACE_SECONDS, 10)
+       : 30,
+diff --git a/backend/src/modules/auth/auth-errors.ts b/backend/src/modules/auth/auth-errors.ts
+index d370fa4..fffd007 100644
+--- a/backend/src/modules/auth/auth-errors.ts
++++ b/backend/src/modules/auth/auth-errors.ts
+@@ -1,21 +1,41 @@
+-/**
+- * AUTH_* error codes (T3.6 design "Error Map"). Mirrors
+- * `sessions/session-errors.ts`'s pattern — defined once here and imported
+- * everywhere else instead of re-typing string literals, so a typo cannot
+- * silently create an unmatched code.
+- */
++// T3.9 / T3.6 / REG (sc-325) — códigos de error del módulo de auth.
++//
++// Cada constante es la clave que el cliente recibe en el body
++// de la respuesta (campo `code`), para que pueda switchear
++// programáticamente en vez de parsear mensajes.
++
+ export const INVALID_CREDENTIALS = 'INVALID_CREDENTIALS';
+ export const INVALID_CREDENTIAL_SHAPE = 'INVALID_CREDENTIAL_SHAPE';
+ export const INVALID_TOKEN = 'INVALID_TOKEN';
++export const SESSION_REQUIRED = 'SESSION_REQUIRED';
++export const SESSION_RETRY_UNAVAILABLE = 'SESSION_RETRY_UNAVAILABLE';
++export const SESSION_REUSE_DETECTED = 'SESSION_REUSE_DETECTED';
++export const SESSION_REVOKED = 'SESSION_REVOKED';
++export const SESSION_USER_MISMATCH = 'SESSION_USER_MISMATCH';
+ export const EMAIL_ALREADY_CLAIMED = 'EMAIL_ALREADY_CLAIMED';
++export type SessionErrorCode =
++  | typeof SESSION_REQUIRED
++  | typeof SESSION_RETRY_UNAVAILABLE
++  | typeof SESSION_REUSE_DETECTED
++  | typeof SESSION_REVOKED
++  | typeof SESSION_USER_MISMATCH;
++
++// REG (sc-325) — códigos nuevos del alta pública. Documentados
++// en `openspec/changes/front/2026-09-02-reg-citizen-self-registration/design.md`.
++// `EMAIL_VERIFICATION_REQUIRED` lo emite `EmailVerifiedGuard`
++// cuando un `reporter` sin verificar intenta crear una
++// incidencia o un comentario (D2).
++export const EMAIL_VERIFICATION_REQUIRED = 'EMAIL_VERIFICATION_REQUIRED';
+ 
+-export type AuthErrorCode =
+-  | typeof INVALID_CREDENTIALS
+-  | typeof INVALID_CREDENTIAL_SHAPE
+-  | typeof INVALID_TOKEN
+-  | typeof EMAIL_ALREADY_CLAIMED;
++// `REGISTRATION_RATE_LIMITED` lo emite el limitador por IP /
++// por correo del alta. La forma del body es estándar de
++// NestJS `{ statusCode: 429, message, code }`; el código
++// `code` es lo que el cliente switchea.
++export const REGISTRATION_RATE_LIMITED = 'REGISTRATION_RATE_LIMITED';
+ 
+-export interface AuthErrorBody {
+-  code: AuthErrorCode;
+-  message: string;
+-}
++// ANON (sc-327) — `ANONYMOUS_IDENTITY_CLOSED` lo emite el rechazo
++// de `device_uuid = 'anonymous'` en `AuthService.login`. Es
++// distinguible de `INVALID_CREDENTIALS` (un cliente antiguo debe
++// poder mostrarle al usuario que la ruta del reporte sin sesión
++// se cerró, no que las credenciales son inválidas).
++export const ANONYMOUS_IDENTITY_CLOSED = 'ANONYMOUS_IDENTITY_CLOSED';
+diff --git a/backend/src/modules/auth/auth.service.spec.ts b/backend/src/modules/auth/auth.service.spec.ts
+index f412aee..42ade68 100644
+--- a/backend/src/modules/auth/auth.service.spec.ts
++++ b/backend/src/modules/auth/auth.service.spec.ts
+@@ -21,12 +21,11 @@ function makeAuthConfig() {
+     jwtRefreshExpiresIn: '7d',
+     permissionCacheTtlSeconds: 3600,
+     anonymousDeviceUuid: 'anonymous',
+-    anonymousPermissions: [
+-      'READ incidents',
+-      'CREATE incidents',
+-      'READ comments',
+-      'CREATE comments',
+-    ],
++    // ANON (sc-327) — la lista está vacía. El reporte sin sesión
++    // se cerró. Si la mock no se actualizara, los tests que pasan
++    // por la rama "anonymous device" verían un techo obsoleto y
++    // falsearían verde la rama crítica.
++    anonymousPermissions: [],
+     sessionRefreshGraceSeconds: 30,
+     sessionRefreshTtlSeconds: 604800,
+   };
+@@ -151,35 +150,45 @@ describe('AuthService', () => {
+       await expect(service.login('device-abc')).rejects.toThrow('DB down');
+     });
+ 
+-    it('grants the anonymous permission ceiling for device_uuid="anonymous" (triangulation)', async () => {
+-      const anonUser: Partial<UserEntity> = { id: 'anon-id', deviceUuid: 'anonymous', permissions: [] };
+-      userRepo.findOne.mockResolvedValue(anonUser);
+-      cache.get.mockResolvedValue(undefined);
+-      jwtService.sign.mockReturnValueOnce('access2').mockReturnValueOnce('refresh2');
+-
+-      const result = await service.login('anonymous');
+-
+-      expect(result.permissions).toEqual([
+-        'READ incidents',
+-        'CREATE incidents',
+-        'READ comments',
+-        'CREATE comments',
+-      ]);
++    // ANON (sc-327) — la identidad anónima ya no puede iniciar
++    // sesión. El reporte requiere `reporter` autenticado con
++    // verificación de email (REG sc-325). El login con
++    // `device_uuid = 'anonymous'` se rechaza con 401
++    // `ANONYMOUS_IDENTITY_CLOSED` antes de tocar la BD. La rama
++    // completa de "anonymous grants" del round 0 desaparece
++    // porque la capacidad se retiró a propósito.
++    it('ANON: rejects device_uuid="anonymous" with 401 ANONYMOUS_IDENTITY_CLOSED (no BD, no token)', async () => {
++      await expect(service.login('anonymous')).rejects.toMatchObject({
++        status: 401,
++        response: { code: 'ANONYMOUS_IDENTITY_CLOSED' },
++      });
++      // La BD NO se toca (no se busca ni se crea la fila
++      // anónima — el rechazo es anterior).
++      expect(userRepo.findOne).not.toHaveBeenCalled();
++      expect(userRepo.save).not.toHaveBeenCalled();
++      // No se emite token de acceso ni de refresco.
++      expect(jwtService.sign).not.toHaveBeenCalled();
+     });
+ 
+-    it('an anonymous login mints tokens with no sid and creates no session row', async () => {
+-      const anonUser: Partial<UserEntity> = { id: 'anon-id', deviceUuid: 'anonymous', permissions: [] };
+-      userRepo.findOne.mockResolvedValue(anonUser);
++    it('ANON: device_uuid no anónimo sigue su camino habitual (no se rompe la rama de device-identity)', async () => {
++      // Distinción quirúrgica del proposal §"Alcance quirúrgico":
++      // la decisión cierra `device_uuid === 'anonymous'`, NO la
++      // forma de credencial `{device_uuid}` ni los demás
++      // dispositivos. Este test afirma que el resto del flujo
++      // device-uuid no se ve afectado.
++      const realDeviceUser: Partial<UserEntity> = {
++        id: 'device-user',
++        deviceUuid: 'device-abc',
++        permissions: [],
++        isActive: true,
++      };
++      userRepo.findOne.mockResolvedValue(realDeviceUser);
+       cache.get.mockResolvedValue(undefined);
+-      jwtService.sign.mockReturnValueOnce('access2').mockReturnValueOnce('refresh2');
+-
+-      await service.login('anonymous');
++      jwtService.sign.mockReturnValueOnce('access-x').mockReturnValueOnce('refresh-x');
+ 
+-      expect(sessionsRepository.create).not.toHaveBeenCalled();
+-      const accessPayload = jwtService.sign.mock.calls[0][0];
+-      const refreshPayload = jwtService.sign.mock.calls[1][0];
+-      expect(accessPayload.sid).toBeUndefined();
+-      expect(refreshPayload.sid).toBeUndefined();
++      const result = await service.login('device-abc');
++      expect(result.access_token).toBe('access-x');
++      expect(result.refresh_token).toBe('refresh-x');
+     });
+   });
+ 
+@@ -615,14 +624,28 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] —
+     });
+   });
+ 
+-  // The anonymous branch cannot short-circuit BEFORE the query on the uid
+-  // path (design "Correction to the proposal's wording") — userId alone
+-  // does not reveal the device. device_uuid is loaded, THEN checked.
+-  it('anonymous device_uuid forces the anonymous ceiling, public scope, and isAnonymous=true', async () => {
++  // ANON (sc-327) — la rama "anonymous grants" del round 0
++  // desaparece. La decisión de producto cierra la identidad
++  // anónima: un usuario con `device_uuid = 'anonymous'` no puede
++  // iniciar sesión, y `getAuthContextByUserId` con un id que
++  // pertenece a la fila máscara ya no devuelve permisos — el
++  // `anonymousPermissions` queda vacío (B.1) y la fila máscara
++  // tiene `permissions = []` en BD (B.2).
++  //
++  // Mantener un test que afirma el viejo comportamiento sería
++  // mentir sobre el estado del código. La regla del round 0
++  // ("el anonymous grants el ceiling público") se invierte a
++  // ("el anonymous grants la lista vacía") — el spec cambia de
++  // forma paralela al código.
++  it('ANON: getAuthContextByUserId for the anonymous row now returns an empty permission set', async () => {
+     cache.get.mockResolvedValue(undefined);
+     dataSource.query.mockResolvedValue([
+       {
+-        permissions: ['UPDATE incidents'], // ignored for anonymous — DB row's own permissions never apply
++        // ANON B.2 — la fila máscara tiene `permissions = []` en BD
++        // (la migración 0048 vacía la denormalización que 0008 había
++        // populado). El cache hit en producción debería reflejar
++        // el mismo estado; el test pasa por la rama sin cache.
++        permissions: [],
+         organization_id: null,
+         device_uuid: 'anonymous',
+         role_name: null,
+@@ -631,12 +654,12 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] —
+ 
+     const ctx = await service.getAuthContextByUserId('anon-row-id');
+ 
+-    expect(ctx.permissions).toEqual([
+-      'READ incidents',
+-      'CREATE incidents',
+-      'READ comments',
+-      'CREATE comments',
+-    ]);
++    // Sin permisos. El resto del shape (organizationId, roleName,
++    // scope, isAnonymous, sessionId) se mantiene porque otras
++    // rutas (AUD) leen la fila para distinguir el autor anónimo
++    // de un `reporter` autenticado. El comportamiento de
++    // ANON es quitar GRANT, no ELIMINAR la identidad.
++    expect(ctx.permissions).toEqual([]);
+     expect(ctx.organizationId).toBeNull();
+     expect(ctx.roleName).toBeNull();
+     expect(ctx.scope).toEqual({ kind: 'public' });
+@@ -748,7 +771,12 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
+     expect(permissions).toEqual(['READ incidents', 'UPDATE incidents']);
+   });
+ 
+-  it('grants the anonymous ceiling when the id resolves to the anonymous device', async () => {
++  // ANON (sc-327) — la decisión de producto cierra la identidad
++  // anónima. La fila máscara sigue existiendo (AUD la recicla
++  // como autoría de publicaciones), pero ya no concede permisos.
++  // Antes (round 0) este test afirmaba el techo de los 4 — la
++  // afirmación se invierte: la lista ahora es vacía.
++  it('ANON: getPermissionsByUserId for the anonymous row returns [] (the ceiling is empty)', async () => {
+     cache.get.mockResolvedValue(undefined);
+     dataSource.query.mockResolvedValue([
+       { permissions: [], organization_id: null, device_uuid: 'anonymous', role_name: null },
+@@ -756,12 +784,13 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
+ 
+     const permissions = await service.getPermissionsByUserId('anon-row-id');
+ 
+-    expect(permissions).toEqual([
+-      'READ incidents',
+-      'CREATE incidents',
+-      'READ comments',
+-      'CREATE comments',
+-    ]);
++    // Lista vacía. La fila máscara sigue en BD (migración 0048
++    // NO la borra — AUD la necesita). El "ceiling" es ahora
++    // un piso en el suelo: `getAuthContextByUserId` para el
++    // anonymous row retorna un `AuthContext` con `permissions: []`
++    // y `isAnonymous: true` (la firma del isAnonymous se mantiene
++    // porque AUD la usa para distinguir la autoría).
++    expect(permissions).toEqual([]);
+   });
+ 
+   it('returns no permissions for an unknown user id', async () => {
+diff --git a/backend/src/modules/auth/auth.service.ts b/backend/src/modules/auth/auth.service.ts
+index 1b9c65c..1a7c287 100644
+--- a/backend/src/modules/auth/auth.service.ts
++++ b/backend/src/modules/auth/auth.service.ts
+@@ -80,6 +80,27 @@ function invalidCredentialsError(): UnauthorizedException {
+   return new UnauthorizedException({ code: INVALID_CREDENTIALS, message: 'Invalid email or password' });
+ }
+ 
++/**
++ * ANON (sc-327) — error específico del rechazo del device_uuid
++ * anónimo. Distinguible del `INVALID_CREDENTIALS` genérico:
++ *  - código: `ANONYMOUS_IDENTITY_CLOSED`.
++ *  - mensaje: «El reporte anónimo sin sesión ya no está disponible.
++ *    Registrate primero para reportar.» — accionable para un
++ *    cliente antiguo.
++ *
++ * El cliente antiguo puede mostrarle al usuario un mensaje útil
++ * en vez de un «credenciales inválidas» que lo deja sin pista.
++ * La constante se reexporta en `auth-errors.ts` (al final de este
++ * archivo) para que controller y specs la consuman.
++ */
++function anonymousIdentityClosedError(): UnauthorizedException {
++  return new UnauthorizedException({
++    code: ANONYMOUS_IDENTITY_CLOSED,
++    message:
++      'El reporte anónimo sin sesión ya no está disponible. Registrate primero para reportar.',
++  });
++}
++
+ /**
+  * AuthService — device-UUID identity + email/password identity (T3.6) +
+  * dual JWT + Redis-cached permissions + session lifecycle (T3.9).
+@@ -134,6 +155,22 @@ export class AuthService {
+       throw new UnauthorizedException('device_uuid is required');
+     }
+ 
++    // ANON (sc-327) — decisión de producto 2026-09-02: la identidad
++    // anónima ya no puede iniciar sesión. Se rechaza con 401
++    // explícito ANTES de tocar la BD (no se crea fila, no se
++    // emite token, no se crea sesión). Distinguible del error
++    // genérico de credenciales: un cliente antiguo debe poder
++    // mostrarle al usuario que la ruta del reporte sin sesión se
++    // cerró, no que las credenciales son inválidas.
++    //
++    // El rechazo es quirúrgico (proposal §"Alcance quirúrgico"):
++    // sólo `device_uuid === 'anonymous'` se cierra. Otros
++    // device_uuid autenticados siguen su camino habitual
++    // (rama `else` que crea la fila si no existe y emite sesión).
++    if (deviceUuid === this.authConfig.anonymousDeviceUuid) {
++      throw anonymousIdentityClosedError();
++    }
++
+     let user = await this.userRepo.findOne({ where: { deviceUuid } });
+     if (!user) {
+       user = this.userRepo.create({ deviceUuid, permissions: [], isActive: true });
+@@ -630,3 +667,35 @@ export class AuthService {
+     });
+   }
+ }
++
++/**
++ * REG (sc-325) — D1 del design: el alta pública es el único
++ * camino que NO va por invitación. Devuelve SIEMPRE el mismo
++ * body para correos nuevos y existentes (D3 del design — sin
++ * oráculo de existencia), y fija el rol `reporter` en el
++ * servidor. El DTO no acepta campos de rol; si el cliente los
++ * manda, se ignoran (class-validator con `whitelist: true` +
++ * `forbidNonWhitelisted` los rechazaría antes de llegar acá,
++ * pero la defense-in-depth sigue aplicando: el método
++ * resuelve el rol por nombre, no por lo que diga el DTO).
++ *
++ * `RequestMeta` se usa para audit; no es relevante para la
++ * decisión de éxito/error (D3: indistinguible).
++ *
++ * El bloque de tipos `RegisterInput`/`RegisterResult`/`RegisterDeps`
++ * que estaba aquí fue el scaffold de un primer intento de meter el
++ * alta dentro de `AuthService`. Fue reemplazado por
++ * `AuthRegisterService` en `auth.register.ts` (REG, sc-325). El
++ * controller importa las clases desde el service nuevo; nada en
++ * el código vivo depende de estas declaraciones. Se eliminaron
++ * en la ronda 2 del fix (W2 del verify) porque el lint las marcaba
++ * como `no-unused-vars`.
++ */
++
++/**
++ * ANON (sc-327) — código de error que `anonymousIdentityClosedError()`
++ * emite. Reexportado para que controller, specs y clientes no
++ * repitan el string literal (mismo patrón que las otras constantes
++ * de `auth-errors.ts`).
++ */
++const ANONYMOUS_IDENTITY_CLOSED = 'ANONYMOUS_IDENTITY_CLOSED';

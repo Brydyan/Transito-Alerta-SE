@@ -30,8 +30,9 @@
             <!-- El alta pública no emite tokens (T6.5.D): el endpoint
                  /api/email/resend-verification exige JWT. La pantalla
                  lleva al login con el correo pre-rellenado; tras
-                 autenticarse, el composer del OTP entra cuando F4
-                 lo enchufe. -->
+                 autenticarse, el `LoginComponent` (C.4) redirige al
+                 composer del OTP en `/verificar` si el `reporter`
+                 sigue sin verificar. -->
             <button
               type="submit"
               class="btn btn-primary w-full"
@@ -46,8 +47,8 @@
             </p>
           } @else {
             <p class="text-sm text-slate-700" data-testid="logged-in-message">
-              Sesión activa. Cuando F4 habilite el composer del OTP,
-              lo vas a ver en este mismo lugar.
+              Sesión activa. Ingresá el código de verificación que te
+              enviamos por correo.
             </p>
           }
         </div>

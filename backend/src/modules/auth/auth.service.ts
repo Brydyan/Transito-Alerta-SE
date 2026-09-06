@@ -430,13 +430,33 @@ export class AuthService {
    * otherwise collide every password-only user onto one `perm:v3:null`
    * cache key (the hazard named in the proposal).
    */
-  async getMe(userId: string): Promise<{ deviceUuid: string | null; permissions: string[] }> {
+  async getMe(userId: string): Promise<{
+    deviceUuid: string | null;
+    permissions: string[];
+    /** REG (sc-325) C.1 — booleano derivado de `email_verified_at`.
+     *  `null` cuando la fila no existe (caso que el controller
+     *  ya controla arriba). El frontend usa esto para decidir
+     *  si muestra el interruptor "verificar mi correo" o el
+     *  composer del OTP (C.3). */
+    email_verified: boolean;
+    /** REG (sc-325) Fix A (ronda 10) — `role_name` resuelto por
+     *  `getAuthContextByUserId` (que ya hace el JOIN con `roles`).
+     *  El frontend usa esto en C.4 para decidir si redirige al
+     *  composer del OTP tras el login: la regla es
+     *  `roleName === 'reporter' && emailVerified === false`. */
+    role_name: string | null;
+  }> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-    const permissions = await this.getPermissionsByUserId(user.id);
-    return { deviceUuid: user.deviceUuid, permissions };
+    const ctx = await this.getAuthContextByUserId(user.id);
+    return {
+      deviceUuid: user.deviceUuid,
+      permissions: ctx.permissions,
+      email_verified: user.emailVerifiedAt !== null,
+      role_name: ctx.roleName,
+    };
   }
 
   /**

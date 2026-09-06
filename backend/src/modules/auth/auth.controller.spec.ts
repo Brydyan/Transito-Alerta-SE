@@ -167,10 +167,18 @@ describe('AuthController', () => {
   });
 
   describe('GET /auth/me', () => {
-    it('returns user_id, device_uuid, and permissions for the authenticated user', async () => {
+    it('returns user_id, device_uuid, and permissions for the authenticated user (C.1)', async () => {
       authService.getMe.mockResolvedValue({
         deviceUuid: 'device-abc',
         permissions: ['READ incidents', 'CREATE incidents'],
+        // REG C.1 — booleano derivado de email_verified_at. El
+        // fixture de reporter sin verificar lo setea en `false`
+        // (es el caso que importa para C.4: el frontend redirige).
+        email_verified: false,
+        // REG Fix A (ronda 10) — `role_name` poblado para que
+        // C.4 (`roleName === 'reporter'`) pueda disparar el
+        // redirect al composer del OTP.
+        role_name: 'reporter',
       });
       const req = {
         user: { userId: 'user-1', permissions: [], sessionId: 'sid-1', isAnonymous: false },
@@ -179,15 +187,47 @@ describe('AuthController', () => {
       const result = await controller.me(req);
 
       expect(authService.getMe).toHaveBeenCalledWith('user-1');
+      // C.2 — la afirmación es sobre la **respuesta** completa,
+      // no sobre la llamada al service. `toEqual` (no
+      // `toMatch`) atrapa la regresión del Fix 12: un cambio
+      // en el shape del wire se ve acá.
       expect(result).toEqual({
         user_id: 'user-1',
         device_uuid: 'device-abc',
         permissions: ['READ incidents', 'CREATE incidents'],
+        email_verified: false,
+        role_name: 'reporter',
       });
     });
 
+    it('C.1: el booleano `email_verified` refleja la verificación del usuario', async () => {
+      // Caso opuesto al test anterior: usuario con `email_verified_at`
+      // poblado. El booleano es `true`, el frontend NO redirige al
+      // composer (C.4).
+      authService.getMe.mockResolvedValue({
+        deviceUuid: 'device-abc',
+        permissions: ['READ incidents'],
+        email_verified: true,
+        role_name: 'reporter',
+      });
+      const req = {
+        user: { userId: 'user-2', permissions: [], sessionId: 'sid-2', isAnonymous: false },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.me(req);
+
+      expect(result).toEqual(
+        expect.objectContaining({ email_verified: true }),
+      );
+    });
+
     it('returns device_uuid: null for a password-only identity (T3.6 D8)', async () => {
-      authService.getMe.mockResolvedValue({ deviceUuid: null, permissions: ['READ incidents'] });
+      authService.getMe.mockResolvedValue({
+        deviceUuid: null,
+        permissions: ['READ incidents'],
+        email_verified: false,
+        role_name: 'reporter',
+      });
       const req = {
         user: { userId: 'user-2', permissions: [], sessionId: 'sid-2', isAnonymous: false },
       } as unknown as AuthenticatedRequest;
@@ -195,6 +235,49 @@ describe('AuthController', () => {
       const result = await controller.me(req);
 
       expect(result.device_uuid).toBeNull();
+    });
+
+    it('Fix A: incluye `role_name` en la respuesta (C.4 lo necesita)', async () => {
+      // Antes del Fix A este campo no existía; `LoginComponent`
+      // leía `current?.roleName`, que `fetchUser()` hardcodeaba
+      // en `null`, y la condición del redirect nunca disparaba.
+      // El test fija el contrato de wire: `role_name` está
+      // presente y refleja el nombre del rol resuelto por
+      // `getAuthContextByUserId()`.
+      authService.getMe.mockResolvedValue({
+        deviceUuid: 'device-staff',
+        permissions: ['CREATE incidents'],
+        email_verified: false,
+        role_name: 'operador_org',
+      });
+      const req = {
+        user: { userId: 'user-staff', permissions: [], sessionId: 'sid-staff', isAnonymous: false },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.me(req);
+
+      expect(result.role_name).toBe('operador_org');
+    });
+
+    it('Fix A: `role_name` es `null` para el dispositivo anónimo', async () => {
+      // El dispositivo anónimo no tiene rol: lo decide
+      // `getAuthContextByUserId` cuando `device_uuid` coincide
+      // con `anonymousDeviceUuid`. La exención del guard
+      // depende de esto: si `role_name` fuera `'reporter'`, el
+      // `EmailVerifiedGuard` lo exigiría verificar (que no puede).
+      authService.getMe.mockResolvedValue({
+        deviceUuid: 'anon-device-uuid',
+        permissions: ['READ incidents', 'CREATE incidents'],
+        email_verified: false,
+        role_name: null,
+      });
+      const req = {
+        user: { userId: 'user-anon', permissions: [], sessionId: null, isAnonymous: true },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.me(req);
+
+      expect(result.role_name).toBeNull();
     });
   });
 

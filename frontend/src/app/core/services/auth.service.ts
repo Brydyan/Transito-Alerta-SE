@@ -150,9 +150,20 @@ export class AuthService {
             email: null,
             name: null,
             roleId: null,
-            roleName: null,
+            // REG (sc-325) Fix A (ronda 10) — el nombre del rol
+            // llega por la misma llamada a `/me`. Antes de este
+            // fix, el signal se hardcodeaba en `null` y la regla
+            // de C.4 (`roleName === 'reporter' && emailVerified
+            // === false`) nunca disparaba. Es el bug que el
+            // verify de la ronda 9 cazó como CRITICAL 1.
+            roleName: me.role_name,
             permissions: me.permissions,
             device_uuid: me.device_uuid,
+            // REG (sc-325) C.1 — el booleano llega por la misma
+            // llamada a `/me`. El frontend usa esto en C.4 para
+            // decidir si redirige al composer del OTP tras el
+            // login.
+            emailVerified: me.email_verified,
           });
         }),
       );

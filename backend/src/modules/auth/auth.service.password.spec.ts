@@ -247,16 +247,67 @@ describe('AuthService — password identity (T3.6)', () => {
   });
 
   describe('getMe (T3.6 D8 — widened to device_uuid: string | null)', () => {
-    it('resolves permissions via getPermissionsByUserId (uid-keyed), not the device-keyed cache', async () => {
-      userRepo.findOne.mockResolvedValue({ id: 'user-1', deviceUuid: null });
+    it('resuelve permisos vía getAuthContextByUserId (uid-keyed), no el cache device-keyed', async () => {
+      userRepo.findOne.mockResolvedValue({
+        id: 'user-1',
+        deviceUuid: null,
+        // El mock NO setea `emailVerifiedAt` a propósito. El booleano
+        // `email_verified` se deriva de `emailVerifiedAt !== null`, así
+        // que con `undefined` sale `true` (no es lo que parece).
+        // El caso negativo se cubre en el test siguiente, no acá.
+        emailVerifiedAt: undefined,
+      });
       dataSource.query.mockResolvedValue([
-        { permissions: ['READ incidents'], organization_id: null, device_uuid: null, role_name: 'reporter' },
+        {
+          permissions: ['READ incidents'],
+          organization_id: null,
+          device_uuid: null,
+          role_name: 'reporter',
+          role_deleted_at: null,
+        },
       ]);
 
       const result = await service.getMe('user-1');
 
-      expect(result).toEqual({ deviceUuid: null, permissions: ['READ incidents'] });
+      // REG (sc-325) C.1 + Fix A (ronda 10) — la respuesta
+      // expone `email_verified` (booleano derivado) Y
+      // `role_name` (vía `getAuthContextByUserId`, que ya hace
+      // el JOIN con `roles`). Sin `role_name`, C.4 no puede
+      // decidir el redirect al composer del OTP.
+      expect(result).toEqual({
+        deviceUuid: null,
+        permissions: ['READ incidents'],
+        email_verified: true,
+        role_name: 'reporter',
+      });
       expect(cache.get).toHaveBeenCalledWith('perm:v3:uid:user-1');
+    });
+
+    it('email_verified=false cuando emailVerifiedAt es null explícito (caso negativo)', async () => {
+      // El test anterior pasa con `undefined` (que no es estrictamente
+      // `null`). Este test fija el caso negativo REAL: la fila de la
+      // BD tiene `email_verified_at` en `null`, y el booleano debe
+      // salir `false`. Esto es lo que C.4 necesita para saber que
+      // el reportero nuevo no verificado va al composer del OTP.
+      userRepo.findOne.mockResolvedValue({
+        id: 'user-2',
+        deviceUuid: null,
+        emailVerifiedAt: null,
+      });
+      dataSource.query.mockResolvedValue([
+        {
+          permissions: ['READ incidents', 'CREATE incidents'],
+          organization_id: null,
+          device_uuid: null,
+          role_name: 'reporter',
+          role_deleted_at: null,
+        },
+      ]);
+
+      const result = await service.getMe('user-2');
+
+      expect(result.email_verified).toBe(false);
+      expect(result.role_name).toBe('reporter');
     });
   });
 

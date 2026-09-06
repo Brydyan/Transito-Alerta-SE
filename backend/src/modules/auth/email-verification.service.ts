@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity } from '../../entities/user.entity';
 import { MailService } from '../mail/mail.service';
+import { EMAIL_ALREADY_VERIFIED, OTP_INVALID } from './auth-errors';
 
 /** SHA-256 hex of a 6-digit OTP string. */
 function sha256Hex(otp: string): string {
@@ -83,11 +84,17 @@ export class EmailVerificationService {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
       // Don't leak user existence — just treat as 422
-      throw new UnprocessableEntityException('Cannot send verification email');
+      throw new UnprocessableEntityException({
+        code: OTP_INVALID,
+        message: 'Cannot send verification email',
+      });
     }
 
     if (user.emailVerifiedAt) {
-      throw new UnprocessableEntityException('Email is already verified');
+      throw new UnprocessableEntityException({
+        code: EMAIL_ALREADY_VERIFIED,
+        message: 'Email is already verified',
+      });
     }
 
     this.assertRateLimit(user);
@@ -117,26 +124,64 @@ export class EmailVerificationService {
    * Verify an OTP: compare SHA-256(otp) with stored hash, check expiry.
    * On success: sets email_verified_at = NOW() and clears OTP columns.
    * Throws 422 for invalid OTP, expired OTP, or no pending OTP.
+   *
+   * REG (sc-325) Fix B (ronda 10) — los 422 ahora llevan campo
+   * `code` para que el frontend (C.3/C.6) pueda distinguir:
+   *  - `OTP_INVALID` (código equivocado, vencido, o sin OTP pendiente)
+   *  - `EMAIL_ALREADY_VERIFIED` (el correo ya estaba verificado)
+   *
+   * Antes del fix, las cuatro ramas lanzaban un string plano y
+   * `e.error.code` era siempre `undefined` en el cliente. Un
+   * reportero cuyo correo ya estaba verificado recibía el
+   * mensaje de "reintentá" — exactamente lo que el spec prohíbe.
    */
   async verifyOtp(userId: string, otp: string): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
-      throw new UnprocessableEntityException('Invalid OTP');
+      throw new UnprocessableEntityException({
+        code: OTP_INVALID,
+        message: 'Invalid OTP',
+      });
+    }
+
+    // REG (sc-325) Fix B (ronda 10) — el chequeo de "ya verificado"
+    // vivía sólo en `generateAndSendOtp()` (línea 89). Si un OTP
+    // viejo se somete cuando el correo ya está verificado (p.ej.
+    // un segundo submit tras un éxito, o un OTP reenviado desde
+    // una pestaña vieja), caía en "No pending OTP for this
+    // account" con código `OTP_INVALID`. El spec exige distinguir
+    // "ya verificado" de "código malo" — son dos razones distintas
+    // y mensajes distintos. Subimos el chequeo a `verifyOtp`
+    // también.
+    if (user.emailVerifiedAt) {
+      throw new UnprocessableEntityException({
+        code: EMAIL_ALREADY_VERIFIED,
+        message: 'Email is already verified',
+      });
     }
 
     if (!user.verificationOtp || !user.verificationOtpExpiresAt) {
-      throw new UnprocessableEntityException('No pending OTP for this account');
+      throw new UnprocessableEntityException({
+        code: OTP_INVALID,
+        message: 'No pending OTP for this account',
+      });
     }
 
     if (user.verificationOtpExpiresAt < new Date()) {
-      throw new UnprocessableEntityException('OTP has expired');
+      throw new UnprocessableEntityException({
+        code: OTP_INVALID,
+        message: 'OTP has expired',
+      });
     }
 
     const expectedHash = user.verificationOtp;
     const providedHash = sha256Hex(otp);
 
     if (expectedHash !== providedHash) {
-      throw new UnprocessableEntityException('Invalid OTP');
+      throw new UnprocessableEntityException({
+        code: OTP_INVALID,
+        message: 'Invalid OTP',
+      });
     }
 
     await this.userRepo.update(userId, {

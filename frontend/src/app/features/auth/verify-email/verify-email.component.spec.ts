@@ -57,15 +57,28 @@ describe('VerifyEmailComponent (REG sc-325 Fix 9)', () => {
 
   it('sin sesión, el botón lleva al login (no a un composer del OTP)', () => {
     setup({ email: 'x@example.com' }, false);
-    // El composer del OTP requiere JWT (T6.5.D,
-    // email-verification.controller.ts:43). Como el alta
+    // El composer del OTP requiere JWT
+    // (`email-verification.controller.ts:43`). Como el alta
     // pública no emite tokens, esta pantalla sin sesión sólo
-    // puede llevar al login. El composer entra en F4 con un
-    // punto de enchufe claro.
+    // puede llevar al login. La transición post-login al
+    // composer vive en `LoginComponent` (C.4) — el reportero
+    // entra y, si su correo no está verificado, va a
+    // `/verificar` automáticamente. Acá no hay punto de
+    // enchufe de F4; esa dependencia se eliminó en C.5.
     expect(document.body.textContent).toContain('Iniciar sesión para verificar');
   });
 
-  it('con sesión, muestra el mensaje de "sesión activa" (composer queda como placeholder F4)', () => {
+  it('con sesión, muestra el mensaje de "sesión activa" e instruye a usar el composer del OTP en /verificar', () => {
+    // REG C.5 (ronda 9) — esta pantalla pública ya no es un
+    // callejón. Con sesión activa, en vez del "placeholder F4"
+    // que decía el round 0, el componente indica al reportero
+    // que ingrese el código en el composer del OTP
+    // (`/verificar`). El composer existe y está bajo
+    // `authGuard`; el `LoginComponent` (C.4) lo alcanza
+    // automáticamente para el reporter sin verificar, pero un
+    // reporter que ya está logueado y que por alguna razón
+    // abre esta URL puede llegar al composer navegando
+    // manualmente o desde el menú.
     setup({ email: 'x@example.com' }, true);
     expect(document.body.textContent).toContain('Sesión activa');
   });

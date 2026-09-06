@@ -1,0 +1,66 @@
+<div class="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-8">
+  <div class="w-full max-w-md">
+    <ui-card>
+      <h1 class="text-2xl font-bold text-slate-900 mb-1">Verificá tu correo</h1>
+      <p class="text-sm text-slate-500 mb-6">
+        Ingresá el código de 6 dígitos que te enviamos. Si no lo encontrás,
+        revisá la carpeta de spam o pedí uno nuevo.
+      </p>
+
+      <form [formGroup]="otpForm" (ngSubmit)="submit()" data-testid="otp-form">
+        <div>
+          <label class="form-label" for="otp">Código de verificación</label>
+          <input
+            id="otp"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            class="form-input w-full text-center text-2xl tracking-widest font-mono"
+            formControlName="otp"
+            data-testid="otp-input"
+          />
+          @if (otpCtrl.touched && otpCtrl.errors) {
+            <p class="form-error" data-testid="otp-error">
+              Ingresá los 6 dígitos del código.
+            </p>
+          }
+        </div>
+
+        @if (message()) {
+          <p
+            class="mt-4 text-sm"
+            [class.text-rose-600]="status() === 'invalid'"
+            [class.text-amber-700]="status() === 'ratelimit'"
+            [class.text-emerald-700]="status() === 'success' || status() === 'resent-ok' || status() === 'already'"
+            [class.text-slate-700]="status() === 'verifying' || status() === 'resending'"
+            role="status"
+            data-testid="otp-message"
+          >
+            {{ message() }}
+          </p>
+        }
+
+        <div class="mt-6 flex flex-col gap-3">
+          <button
+            type="submit"
+            class="btn btn-primary w-full"
+            [disabled]="status() === 'verifying' || status() === 'resending'"
+            data-testid="submit-otp"
+          >
+            @if (status() === 'verifying') { Verificando… } @else { Verificar }
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost w-full"
+            (click)="resend()"
+            [disabled]="status() === 'verifying' || status() === 'resending' || status() === 'resent-ok'"
+            data-testid="resend-otp"
+          >
+            @if (status() === 'resending') { Reenviando… } @else { Reenviar código }
+          </button>
+        </div>
+      </form>
+    </ui-card>
+  </div>
+</div>

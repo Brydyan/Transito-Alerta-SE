@@ -33,3 +33,20 @@ export const EMAIL_VERIFICATION_REQUIRED = 'EMAIL_VERIFICATION_REQUIRED';
 // `code` es lo que el cliente switchea.
 export const REGISTRATION_RATE_LIMITED = 'REGISTRATION_RATE_LIMITED';
 
+// REG (sc-325) Fix B (ronda 10) — códigos del composer del OTP.
+// `EmailVerificationService` emite estos códigos en sus 422 para
+// que el frontend (C.3/C.6) pueda distinguir las dos causas del
+// 422 que el spec exige separar:
+//  - `OTP_INVALID` — código equivocado, vencido, o sin OTP pendiente.
+//    El reportero puede reintentar (pedir reenvío + nuevo código).
+//  - `EMAIL_ALREADY_VERIFIED` — el correo ya estaba verificado.
+//    El reportero terminó; la app lo lleva al dashboard.
+//
+// Antes de este fix el backend lanzaba `UnprocessableEntityException(string)`
+// sin campo `code`, y el frontend (que asumía `code` en el body) caía
+// siempre en la rama "OTP inválido" — un reportero cuyo correo ya estaba
+// verificado recibía el mensaje de "reintentá", exactamente lo que el
+// spec prohíbe.
+export const OTP_INVALID = 'OTP_INVALID';
+export const EMAIL_ALREADY_VERIFIED = 'EMAIL_ALREADY_VERIFIED';
+
