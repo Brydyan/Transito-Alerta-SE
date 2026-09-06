@@ -56,7 +56,13 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   `,
   styles: [
     `
-      .ui-table th {
+      /* Los estilos deben alcanzar el contenido proyectado (th/td vienen del
+         template del consumidor, no del template de este componente). Con la
+         encapsulación emulada, un selector .ui-table th[_ngcontent-...] exige el
+         scope de ESTE componente sobre nodos que llevan el scope del consumidor y
+         nunca matchea. :host ::ng-deep restrige el alcance al host <ui-table>
+         eliminando el scope sobre los descendientes proyectados. */
+      :host ::ng-deep .ui-table th {
         background-color: var(--color-bg-primary);
         color: #475569;
         border-bottom: 2px solid var(--color-border-subtle);
@@ -68,7 +74,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
         text-align: left;
         vertical-align: middle;
       }
-      .ui-table td {
+      :host ::ng-deep .ui-table td {
         padding: 0.875rem 1.25rem;
         border-bottom: 1px solid var(--color-border-subtle);
         vertical-align: middle;
@@ -76,42 +82,42 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
         font-size: 0.9rem;
         background-color: var(--color-bg-secondary);
       }
-      .ui-table tbody tr {
+      :host ::ng-deep .ui-table tbody tr {
         transition: background-color 0.15s ease-in-out;
       }
-      .ui-table tbody tr:hover td {
+      :host ::ng-deep .ui-table tbody tr:hover td {
         background-color: var(--color-bg-primary);
       }
-      .ui-table tbody tr:last-child td {
+      :host ::ng-deep .ui-table tbody tr:last-child td {
         border-bottom: 0;
       }
       /* Helpers */
-      .ui-table .ui-table-title {
+      :host ::ng-deep .ui-table .ui-table-title {
         font-weight: 600;
         color: #0f172a;
       }
-      .ui-table .ui-table-subtitle {
+      :host ::ng-deep .ui-table .ui-table-subtitle {
         font-size: 0.8rem;
         color: #64748b;
         margin-top: 0.125rem;
       }
-      .ui-table .ui-table-cell-select {
+      :host ::ng-deep .ui-table .ui-table-cell-select {
         width: 2.5rem;
         text-align: center;
         padding-left: 1rem;
         padding-right: 0.5rem;
       }
-      .ui-table .ui-table-cell-actions {
+      :host ::ng-deep .ui-table .ui-table-cell-actions {
         text-align: right;
         white-space: nowrap;
       }
-      .ui-table .ui-table-cell-actions > * + * {
+      :host ::ng-deep .ui-table .ui-table-cell-actions > * + * {
         margin-left: 0.25rem;
       }
-      .ui-table .ui-table-row-selected td {
+      :host ::ng-deep .ui-table .ui-table-row-selected td {
         background-color: var(--color-brand-primary-soft);
       }
-      .ui-table .ui-table-row-selected:hover td {
+      :host ::ng-deep .ui-table .ui-table-row-selected:hover td {
         background-color: var(--color-brand-primary-soft);
       }
     `,
