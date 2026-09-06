@@ -1,5 +1,5 @@
-import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { CoreModule } from './core/core.module';
@@ -25,6 +25,8 @@ import { SessionsModule } from './modules/sessions/sessions.module';
 import { InvitationsModule } from './modules/invitations/invitations.module';
 import { OperatorsModule } from './modules/operators/operators.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
+import { AllExceptionsFilter } from './common/observability/all-exceptions.filter';
+import { RequestIdMiddleware } from './common/observability/request-id.middleware';
 
 @Module({
   imports: [
@@ -57,6 +59,20 @@ import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
       provide: APP_GUARD,
       useClass: RateLimiterGuard,
     },
+    {
+      // Registrado acá y NO con `app.useGlobalFilters()` en main.ts: así
+      // pasa por el contenedor de DI, que es lo que le permitirá inyectar
+      // dependencias (Sentry, métricas) sin reescribir el arranque.
+      provide: APP_FILTER,
+      useClass: AllExceptionsFilter,
+    },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // `'*'` — todas las rutas, incluida `/api/health`. Una petición sin id
+    // es una petición que después no se puede rastrear, y las excepciones
+    // se lanzan igual en las rutas que uno cree aburridas.
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

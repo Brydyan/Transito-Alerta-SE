@@ -67,9 +67,41 @@ export class AuthService {
     // If we have a token in storage but no in-memory user, try to
     // hydrate from /auth/me. If the token is expired the call will
     // 401 and the interceptor handles the refresh+retry.
+    //
+    // La llamada se DIFIERE fuera del constructor a propósito.
+    // `fetchUser()` atraviesa `authInterceptor`, que hace
+    // `inject(AuthService)`: emitirla acá obliga a Angular a resolver
+    // `AuthService` mientras todavía lo está construyendo, y eso es
+    // `NG0200: Circular dependency detected for AuthService`. El
+    // observable fallaba antes de que ningún request saliera del
+    // navegador, el handler de error borraba los tokens, y el
+    // `authGuard` mandaba al login. Se manifestaba en TODA recarga y
+    // sólo en la recarga: al iniciar sesión el servicio ya existe, así
+    // que el ciclo no se forma. La microtarea corre cuando la pila de
+    // inyección ya se vació — ahí `AuthService` es un objeto normal.
     if (this.accessToken() && !this.user()) {
-      this.fetchUser().subscribe({ error: () => this.clearAuthState() });
+      queueMicrotask(() => this.hydrateSession());
     }
+  }
+
+  /**
+   * Rehidrata el usuario desde `/auth/me` al arrancar la app.
+   *
+   * Sólo un 401 cierra la sesión. Cuando llega hasta acá, el
+   * `authInterceptor` YA intentó el refresh y también falló: el token
+   * es irrecuperable. Cualquier otro error —backend caído (status 0),
+   * 500, timeout— deja la sesión intacta: perder el token por un
+   * hipo de red obliga a volver a iniciar sesión sin que la sesión
+   * tuviera nada malo.
+   */
+  private hydrateSession(): void {
+    this.fetchUser().subscribe({
+      error: (err: { status?: number }) => {
+        if (err?.status === 401) {
+          this.clearAuthState();
+        }
+      },
+    });
   }
 
   // ───── A.1 — Real login ─────
