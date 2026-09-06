@@ -28,6 +28,13 @@ import { UpdateIncidentDto } from './dto/update-incident.dto';
 import { UpdateIncidentStatusDto } from './dto/update-incident-status.dto';
 import { StatsQueryDto } from './dto/stats-query.dto';
 import { WeeklyStatsQueryDto } from './dto/weekly-stats-query.dto';
+// AUD (sc-327) D4 — DTO y servicio de revelación de autoría
+// sellada. La ruta `POST /incidents/:id/reveal-reporter` vive
+// en este mismo controller porque comparte el guard
+// `JwtAuthGuard` y la convención de `ParseUUIDPipe` del
+// resto del módulo.
+import { RevealIncidentDto } from './dto/reveal-incident.dto';
+import { RevealService } from './reveal.service';
 import { FeedQueryDto } from './dto/feed-query.dto';
 import { ExportQueryDto } from './dto/export-query.dto';
 import { ExportFormat } from './incident-export.service';
@@ -71,6 +78,15 @@ export class IncidentsController {
     // service para que la transición pase por la máquina de estados y
     // la escritura de `status_history` sea atómica (S.5.1).
     private readonly workflow: IncidentWorkflowService,
+    // AUD (sc-327) D4 — la revelación de autoría vive en el
+    // mismo controller porque comparte el guard y la
+    // convención de routing. El servicio, en cambio, está
+    // separado: la inserción de `audit_events` exige una
+    // transacción compartida con la consulta del autor real
+    // (D2), y un controller no debe abrir transacciones
+    // — esa es la lección de la separación de capas que el
+    // proyecto ya documentó.
+    private readonly revealService: RevealService,
   ) {}
 
   @Post()
@@ -215,5 +231,48 @@ export class IncidentsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   delete(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     return this.incidentsService.softDelete(id);
+  }
+
+  // ───── AUD (sc-327) D4 — revelación de autoría sellada ─────
+
+  /**
+   * `POST`, no `GET` (D4). Cada revelación produce un hecho
+   * nuevo —la fila de auditoría— y eso es el punto del
+   * mecanismo. Permiso: `REVEAL incidents` (D5, sólo master).
+   */
+  @Post(':id/reveal-reporter')
+  @RequirePermission('REVEAL')
+  revealReporter(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: RevealIncidentDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{
+    incident_id: string;
+    reporter: { id: string; email: string | null; first_name: string | null };
+  }> {
+    return this.revealService.reveal(id, req.user!.userId, {
+      justification: dto.justification,
+      caseRef: dto.case_ref ?? null,
+    });
+  }
+
+  /**
+   * Historial de revelaciones de una incidencia. NO incluye
+   * la identidad del autor real — eso se entrega sólo en
+   * el momento de revelar (D4). Permiso: `REVEAL incidents`.
+   */
+  @Get(':id/reveals')
+  @RequirePermission('REVEAL')
+  listReveals(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<
+    Array<{
+      revealed_by: string;
+      revealed_at: Date;
+      justification: string;
+      case_ref: string | null;
+    }>
+  > {
+    return this.revealService.listReveals(id);
   }
 }

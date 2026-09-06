@@ -69,6 +69,22 @@ describe('IncidentsService', () => {
       eventEmitter as unknown as jest.Mocked<EventEmitter2>,
       redis as unknown as jest.Mocked<Redis>,
       cache as unknown as jest.Mocked<Cache>,
+      // AUD (sc-327) D1 — `dataSource` y `configService` se
+      // inyectan en el constructor; el spec los provee con
+      // mocks. `dataSource.query` simula el lookup de la fila
+      // máscara y la transacción. `configService.get('auth')`
+      // devuelve el objeto AuthConfig con `anonymousDeviceUuid`.
+      {
+        query: jest.fn(),
+        transaction: jest.fn().mockImplementation(async (fn) =>
+          fn({ query: jest.fn() }),
+        ),
+      } as unknown as import('typeorm').DataSource,
+      {
+        get: jest.fn().mockReturnValue({
+          anonymousDeviceUuid: 'anonymous',
+        }),
+      } as unknown as import('@nestjs/config').ConfigService,
     );
   });
 

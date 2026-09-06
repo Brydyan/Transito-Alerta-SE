@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { DataSource, type Repository } from 'typeorm';
 import { RolesService } from './roles.service';
 import { RoleEntity } from '../../entities/role.entity';
@@ -482,6 +482,88 @@ describe('RolesService', () => {
       await expect(service.recalculateEffectivePermissions('ghost')).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+
+  // AUD (sc-327) WARNING-1 (ronda 11) — `REVEAL incidents`
+  // se reserva a `master`. La revelación abre un agujero
+  // serio: la fila de `incident_reporters` muestra el id
+  // real del autor de un reporte anónimo, y ese id es lo
+  // que el master usa para abrir una investigación. Si un
+  // admin_org o un reportero lograra añadir `REVEAL
+  // incidents` a su set, el aislamiento entre staff
+  // jerárquicamente separado se rompe. Por eso la
+  // comprobación se hace ANTES de la transacción, no
+  // después — no debe quedar un UPDATE parcial si la
+  // lógica rechaza.
+  describe('syncPermissions (AUD WARNING-1 — REVEAL is master-only)', () => {
+    function mockRole(name: string) {
+      return { id: 'role-1', name, permissions: [] } as unknown as RoleEntity;
+    }
+
+    it('master puede incluir REVEAL incidents en su set', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('master'));
+
+      const result = await service.syncPermissions('role-1', [
+        'REVEAL incidents',
+        'READ incidents',
+      ]);
+
+      expect(result.permissions).toEqual([
+        'REVEAL incidents',
+        'READ incidents',
+      ]);
+    });
+
+    it('admin_org NO puede incluir REVEAL incidents → BadRequestException con code REVEAL_NOT_GRANTABLE', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('admin_org'));
+
+      await expect(
+        service.syncPermissions('role-1', ['REVEAL incidents', 'READ incidents']),
+      ).rejects.toMatchObject({
+        status: 400,
+        response: expect.objectContaining({ code: 'REVEAL_NOT_GRANTABLE' }),
+      });
+      // Sin transacción — la BD no se tocó.
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('operador_org NO puede incluir REVEAL incidents → BadRequestException', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('operador_org'));
+
+      await expect(
+        service.syncPermissions('role-1', ['REVEAL incidents']),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('reporter NO puede incluir REVEAL incidents → BadRequestException', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('reporter'));
+
+      await expect(
+        service.syncPermissions('role-1', ['REVEAL incidents']),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('un rol nuevo (e.g. "auditor") NO puede incluir REVEAL incidents → BadRequestException', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('auditor'));
+
+      await expect(
+        service.syncPermissions('role-1', ['REVEAL incidents']),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('roles no-master pueden tener cualquier permiso que NO sea REVEAL incidents', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('operador_org'));
+
+      const result = await service.syncPermissions('role-1', [
+        'READ incidents',
+        'UPDATE incidents',
+      ]);
+
+      expect(result.permissions).toEqual([
+        'READ incidents',
+        'UPDATE incidents',
+      ]);
     });
   });
 });

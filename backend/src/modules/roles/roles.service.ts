@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Not, Repository } from 'typeorm';
 
@@ -207,13 +207,40 @@ export class RolesService {
    * PUT semantics: REPLACE the role's permission set in a single
    * transaction. Returns the updated role so the controller can show
    * the new state without an extra GET.
+   *
+   * AUD (sc-327) WARNING-1 (ronda 11): `REVEAL incidents` es
+   * un permiso exclusivo de `master` (D5 del diseño). Un
+   * admin_org, operador, reporter o un rol nuevo no pueden
+   * tenerlo. Si un rol intenta incluirlo en `syncPermissions`,
+   * se rechaza con 400 — antes de la transacción, para que
+   * no quede un UPDATE parcial.
    */
   async syncPermissions(id: string, permissions: string[]): Promise<RoleEntity> {
     const role = await this.findOne(id);
+    this.assertRevealOnlyForMaster(role, permissions);
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(RoleEntity);
       role.permissions = permissions;
       return repo.save(role);
     });
+  }
+
+  /**
+   * AUD WARNING-1: comprueba que `REVEAL incidents` no aparezca
+   * en el set de permisos de un rol que no es `master`. La
+   * decisión de producto del 2026-09-02 (D5) reserva la
+   * revelación a `master`; sin este guard, un `PUT
+   * /admin/roles/:id/permissions` con `["REVEAL incidents",
+   * ...]` en cualquier rol se aceptaba silenciosamente.
+   */
+  private assertRevealOnlyForMaster(role: RoleEntity, permissions: string[]): void {
+    const wantsReveal = permissions.includes('REVEAL incidents');
+    if (wantsReveal && role.name !== 'master') {
+      throw new BadRequestException({
+        code: 'REVEAL_NOT_GRANTABLE',
+        message:
+          `REVEAL incidents is reserved for the master role; role '${role.name}' cannot hold it.`,
+      });
+    }
   }
 }
