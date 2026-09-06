@@ -43,7 +43,7 @@ internamente — ver «Ciudadano» más abajo.
 | — | **315** Fix máquina de estados ✅ | [315](https://app.shortcut.com/upse/story/315) | 3 | Habilita `closed`, declara la máquina. **Completada y archivada 2026-09-03** |
 | 3 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
 | 4 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
-| — | **REG** Auto-registro 🔶 | [325](https://app.shortcut.com/upse/story/325) | 5 | Backend listo y auditado. **Falta la pantalla de verificación**: el alta exitosa navega a una ruta inexistente. Ver `fixes-required.md` |
+| — | **REG** Auto-registro ✅ | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano se registra, verifica su correo y publica — **completada y archivada 2026-09-05**, tras 10 rondas de verify y dos archivados revertidos |
 | — | **ANON** Cerrar sin sesión | [326](https://app.shortcut.com/upse/story/326) | 3 | Retira el reporte anónimo sin cuenta |
 | — | **AUD** Auditoría y revelación | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría |
 | 5 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
@@ -314,8 +314,8 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 | `assign()` no valida el tope de carga | `assignments.service.ts:28-36` | F7 / A.2 |
 | Escrituras de asignación sin acotar por organización | `assignments.controller.ts` | F7 / A.5 |
 | ✅ Sidebar cae al 404 | `menu-map.ts` ↔ `app.routes.ts` | F1 (cerrada 2026-09-02) · `archive/2026-08-29-f1-menu-routing-alignment/` |
-| 🔶 **El ciudadano no puede registrarse** — F4/B.2.12 ofrecía un registro inexistente. El backend ya lo permite; el frontend lo deja en una página de error al terminar | `auth.controller.ts:54` (410) → `register.component.ts:111` | REG · Fix 9 |
-| **El reporte anónimo devuelve 403** — `EmailVerifiedGuard` le exige verificar un correo que no tiene. Regresión introducida por REG, 13 e2e en rojo | `email-verified.guard.ts` ↔ `auth.service.ts:566` | REG · Fix 10 |
+| ✅ **El ciudadano no puede registrarse** — F4/B.2.12 ofrecía un registro inexistente | `auth.controller.ts:54` (410) | REG ✅ archivada 2026-09-05 · `archive/2026-09-02-reg-citizen-self-registration/` |
+| ✅ **El reporte anónimo devolvía 403** — `EmailVerifiedGuard` exigía verificar un correo que el dispositivo anónimo no tiene | `email-verified.guard.ts` ↔ `auth.service.ts` | REG ✅ (la exención se retira cuando ANON cierre el login anónimo) |
 | **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos | `auth.config.ts:74` | ANON + AUD |
 | **No hay tabla de auditoría** — F7 la necesita para la excepción al tope | — | AUD |
 | «Volver al inicio» del login es `href="#!"` | `login.component.html:147` | REG (apunta a `/registro`) |
