@@ -166,6 +166,22 @@ este change existe para poner en marcha.
 Se configura la confianza en el proxy **por dirección, no por número de saltos**, y se fija
 con un test.
 
+### In Scope — H · De parte de GeoReporta, con un solo nombre
+
+Los correos no dicen de quién vienen. `mail.service.ts:104` manda `from: mailConfig.smtpFrom`
+—la dirección pelada— así que en la bandeja se lee `no-reply@georeporta.twintailcs.xyz`, no
+un remitente con nombre. Es lo primero que ve quien recibe, y lo que decide si abre o marca
+como no deseado.
+
+Y el producto está nombrado de dos maneras en el código: `'Reset your Transito Alerta SE
+password'` en `password-reset.service.ts:56`, `'Transito Alerta SE'` como respaldo en la
+plantilla de invitación. Poner «GeoReporta» sólo en las dos plantillas nuevas haría que el
+mismo ciudadano reciba su código de verificación de un remitente y la recuperación de
+contraseña de otro.
+
+Una constante única, usada en el nombre visible del remitente y en el pie de las ocho
+plantillas.
+
 ### Out of Scope
 
 - **Rediseñar las plantillas.** Son HTML mínimo, como las seis que ya existen. Darles

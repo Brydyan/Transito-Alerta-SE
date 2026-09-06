@@ -225,6 +225,38 @@ Todo en `frontend/src/app/features/auth/register/`.
 
 ---
 
+## H · De parte de GeoReporta, con un solo nombre
+
+- [ ] **H.1** — Constante única con el nombre del producto (**`GeoReporta`**) en el módulo
+  de correo. Es la fuente para todo lo demás de este bloque.
+
+- [ ] **H.2** — El remitente lleva nombre visible. Hoy `mail.service.ts:104` manda
+  `from: mailConfig.smtpFrom`, la dirección pelada, y en la bandeja se lee
+  `no-reply@georeporta.twintailcs.xyz`.
+
+  Pasa a enviarse con el nombre delante de la dirección. Es lo primero que ve quien recibe
+  y lo que decide si abre o marca como no deseado.
+
+- [ ] **H.3** — Pie común en las plantillas, tomando el nombre de H.1. Las dos nuevas y las
+  seis existentes: si sólo se aplica a las nuevas, el mismo ciudadano recibe el código de
+  verificación de un remitente y la recuperación de contraseña de otro.
+
+- [ ] **H.4** — Retirar los literales sueltos de los sitios que el usuario **ve**:
+  - `password-reset.service.ts:56` — `'Reset your Transito Alerta SE password'`
+  - `mail-templates.ts` — el respaldo `'Transito Alerta SE'` de la plantilla `invitation`
+
+  **No** tocar `main.ts:77` (título de Swagger, que no se sirve en producción).
+
+- [ ] **H.5** — Test: el nombre del producto **no** aparece escrito a mano en ninguna
+  plantilla; todas lo toman de la constante. Es el test que impide que el próximo correo
+  vuelva a traer su propia copia.
+
+- [ ] **H.6** — Test: el `from` que llega al transporte incluye el nombre visible.
+
+---
+
+---
+
 ## Qué NO hacer en esta fase
 
 - **No** introducir un motor de plantillas. El diseño original eligió funciones puras a
@@ -243,6 +275,12 @@ Todo en `frontend/src/app/features/auth/register/`.
   cualquiera, la segunda supone una topología que puede cambiar sin aviso.
 - **No** añadir una librería de parseo de user-agent. Trae una base de firmas que envejece
   para producir dos palabras.
+- **No** traducir las cuatro plantillas en inglés (`incident.created`, `incident.assigned`,
+  `incident.status_changed`, `comment.created`). Están en inglés en una aplicación en
+  castellano y salta a la vista al tocar este módulo, pero es otra superficie con su propia
+  revisión de texto, y no bloquea el alta. Anotarlo en `apply-progress.md`.
+- **No** tocar `main.ts:77` (`'Transito Alerta SE — API'`). Es el título de Swagger, que no
+  se sirve en producción. El renombrado de H alcanza a lo que el usuario recibe.
 
 ---
 

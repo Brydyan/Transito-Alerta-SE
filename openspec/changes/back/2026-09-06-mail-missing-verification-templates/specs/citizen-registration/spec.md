@@ -2,7 +2,7 @@
 
 ## Domain: citizen-registration (MODIFIED)
 
-Se añaden seis requisitos, con 28 escenarios. Los siete existentes no cambian.
+Se añaden 7 requisitos, con 32 escenarios. Los siete existentes no cambian.
 
 El hueco que cubren: el spec vigente exige que **la respuesta diga** que se envió un correo
 de verificación, pero nunca que el correo **se pueda enviar**. Un sistema que responde «te
@@ -121,3 +121,19 @@ confianza, y NO DEBE aceptarlas de un origen que no sea ese proxy.
 - Scenario: Sin dirección resoluble — GIVEN una petición de la que no se puede derivar
   ninguna dirección THEN el alta procede sin limitación por IP, y el aviso muestra la IP
   como desconocida
+
+---
+
+### Requirement: Todo correo dice de parte de quién viene, con un solo nombre
+Los correos que el sistema envía DEBEN identificar al producto por su nombre, y ese nombre
+DEBE venir de una única definición.
+
+- Scenario: Remitente con nombre — GIVEN un correo enviado THEN la cabecera de remitente
+  lleva el nombre visible del producto además de la dirección, no la dirección sola
+- Scenario: Pie del mensaje — GIVEN el cuerpo de cualquier plantilla THEN identifica al
+  producto que lo envía
+- Scenario: Un solo nombre — GIVEN los correos de verificación, de aviso de intento y de
+  recuperación de contraseña THEN los tres identifican al producto con el mismo nombre
+- Scenario: Sin literales sueltos — GIVEN el código del módulo de correo THEN el nombre del
+  producto no aparece escrito a mano en ninguna plantilla: todas lo toman de la misma
+  definición

@@ -235,7 +235,39 @@ por nginx debe registrar la IP del cliente; una petición directa que trae un
 
 ---
 
-## D11 — Qué NO se toca
+## D11 — El correo dice de parte de quién viene, y el nombre vive en un solo sitio
+
+**Decisión**: una constante con el nombre del producto —**GeoReporta**— usada en el nombre
+visible del remitente y en el pie de todas las plantillas.
+
+**El remitente lleva nombre.** Hoy `mail.service.ts:104` manda `from: mailConfig.smtpFrom`,
+la dirección pelada. En la bandeja se lee `no-reply@georeporta.twintailcs.xyz`. Pasa a
+enviarse con nombre visible, que es lo primero que ve quien recibe y lo que decide si abre
+o marca como no deseado.
+
+**Por qué una constante y no el literal en cada plantilla.** El código ya tiene el producto
+nombrado de dos maneras: `'Transito Alerta SE — API'` en `main.ts:77`,
+`'Reset your Transito Alerta SE password'` en `password-reset.service.ts:56`, y
+`'Transito Alerta SE'` como respaldo en la plantilla de invitación. Si esta fase pone
+«GeoReporta» sólo en las dos plantillas nuevas, el mismo ciudadano recibe el código de
+verificación de un remitente y la recuperación de contraseña de otro.
+
+Eso no es un detalle cosmético: un correo cuyo remitente no coincide con el que el usuario
+espera es exactamente lo que enseña a desconfiar de los correos legítimos — y lo que hace
+que los de verdad acaben en no deseado.
+
+**Alcance del renombrado**: los sitios que el usuario **ve**. El asunto de recuperación de
+contraseña y el respaldo de la invitación entran; `main.ts:77` es el título de Swagger, que
+no se sirve en producción, y queda fuera.
+
+**Lo que NO se hace**: traducir las cuatro plantillas de incidencias y comentarios, que
+están en inglés (*«A new incident was reported»*) en una aplicación en castellano. Es una
+inconsistencia real y anotada, pero es otra superficie y no bloquea el alta. Ver «Qué NO se
+toca».
+
+---
+
+## D12 — Qué NO se toca
 
 **El proveedor.** Resend, su dominio verificado y sus registros DNS funcionan. Se comprobó
 que el fallo ocurre antes de abrir la conexión SMTP (`attempts 0`). Cambiar de proveedor
@@ -247,3 +279,13 @@ ciudadano pide uno nuevo y funciona.
 **El `as never` de `incidents.service.ts:269`.** Es otro cast, en otro camino, sin relación
 con el correo. Arreglarlo de pasada, sin entender qué oculta, repetiría el error que trajo
 hasta acá.
+
+**Las cuatro plantillas en inglés.** `incident.created`, `incident.assigned`,
+`incident.status_changed` y `comment.created` están redactadas en inglés en una aplicación
+en castellano. Es una inconsistencia real —y sale a la vista al tocar este módulo— pero
+traducirlas es otra superficie, con su propia revisión de texto, y no bloquea el alta del
+ciudadano. Queda anotada, no arreglada de pasada.
+
+**El título de Swagger** (`main.ts:77`, `'Transito Alerta SE — API'`). No se sirve en
+producción, así que ningún usuario lo ve. El renombrado de D11 alcanza a lo que el usuario
+recibe, no a todo sitio donde aparezca una cadena.
