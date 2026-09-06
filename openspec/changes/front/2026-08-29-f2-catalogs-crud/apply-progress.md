@@ -162,5 +162,7 @@ de prueba (`Test Category E2E`), no copy — por eso no hubo que actualizarlos. 
 **Verificación real ejecutada**: `npm test` → 303/303 tests, 47/47 suites en verde;
 `npm run build` OK.
 
-**Estado**: F2.5.6 `[x]` en `tasks.md`. Quedan abiertos F2.5.5 (spec de `location-form`)
-y F2.5.8 (retropropagar a `spec.md`/`design.md`, incluido el nivel `pais`).
+**Estado**: F2.5.5 y F2.5.8 cerrados (`[x]` en `tasks.md`).
+- F2.5.5: `location-form.component.spec.ts` creado y en verde (3/3), resolviendo la reactividad de signals con `levelControl` en `LocationFormComponent`.
+- F2.5.8: retropropagación completa a `spec.md` y `design.md` de las rutas y del set de niveles del wire real (`provincia|canton|parroquia|zona`).
+- Verificación global: `pnpm test` (307/307 tests, 48/48 suites en verde) y `pnpm build` OK.

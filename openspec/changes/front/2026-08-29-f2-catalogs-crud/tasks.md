@@ -119,10 +119,10 @@ que parezca razonable.
 
 ### Pendiente y **sí** es de F2
 
-- [ ] **F2.5.5** — `location-form.component.spec.ts` no existe. El formulario de
-  Ubicaciones no tiene cobertura unitaria directa: ni el acotado del selector de padre al
-  nivel inmediatamente superior (F2.3.7), ni la regla de padre obligatorio por nivel, ni
-  el mapeo del 422. Hoy sólo lo toca el e2e, que en local se salta.
+- [x] **F2.5.5** — `location-form.component.spec.ts` implementado y verificado (3/3 tests pasan):
+  cobertura unitaria directa del formulario de Ubicaciones cubriendo acotado del selector
+  de padre al nivel inmediatamente superior, obligatoriedad de padre según nivel, y mapeo
+  del error 422 a nivel de campos de formulario.
 - [x] **F2.5.6** — Copy de UI en inglés en Ubicaciones y Organizaciones (encabezados
   `Name/Code/Level/Created/Actions`, `All levels`, `Filter by level`, `Create Location`,
   toasts y confirm dialogs) dentro de un producto en español. Sólo se tradujeron los
@@ -154,11 +154,9 @@ que parezca razonable.
   - `MapPin` registrado en `app.config.ts` — `ui-icon` cae a `circle-dot` con nombres no
     registrados, así que el pin del mock salía como un punto genérico.
   - 15 casos nuevos entre los specs de servicio, listado y formulario.
-- [ ] **F2.5.8** — Retropropagar a `spec.md` y `design.md` las correcciones que hoy sólo
-  viven en `apply-progress.md`: el nivel `pais` no existe (el wire real es
-  `provincia|canton|parroquia|zona`) y las rutas reales son
-  `features/catalogs/<dominio>/{interfaces,services}/`, no `core/models/` ni
-  `core/services/`. Quien lea sólo el diseño hoy lee algo falso.
+- [x] **F2.5.8** — Retropropagadas a `specs/frontend-catalogs/spec.md` y `design.md` las
+  correcciones: el nivel `pais` no existe en el wire real (`provincia|canton|parroquia|zona`)
+  y las rutas reales agrupadas por dominio `features/catalogs/<dominio>/{interfaces,services}/`.
 
 ### Pendiente pero **no** es de F2 — reasignado
 
