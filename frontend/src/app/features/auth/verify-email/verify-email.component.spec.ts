@@ -50,6 +50,24 @@ describe('VerifyEmailComponent (REG sc-325 Fix 9)', () => {
     expect(input?.value).toBe('ciudadano@example.com');
   });
 
+  // MAIL (sc-327) — F.2/F.3 — el `hint` viene del backend
+  // (query param), NO de una constante local. Antes la frase
+  // «Si ya lo estaba, te avisamos al titular» vivía acá como
+  // fallback — REG la quitó del backend en la ronda 12 y el
+  // frontend quedó mostrando una frase muerta.
+  it('F.2/F.3: el hint que se muestra es el del query param (no una constante del cliente)', () => {
+    const backendMessage = 'Si el correo no estaba registrado, te enviamos un mensaje para verificar tu cuenta.';
+    const { component } = setup({
+      email: 'x@example.com',
+      hint: backendMessage,
+    });
+    // El `hint` que llegó por query param es el que se
+    // renderiza. La constante local del cliente es sólo un
+    // fallback (no una copia literal del mensaje del backend).
+    expect(component.hint()).toBe(backendMessage);
+    expect(document.body.textContent).toContain(backendMessage);
+  });
+
   it('el email del query param se pre-rellena en el control', () => {
     const { component } = setup({ email: 'pre@example.com' });
     expect(component.emailCtrl.value).toBe('pre@example.com');

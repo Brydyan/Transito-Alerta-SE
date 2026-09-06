@@ -98,6 +98,7 @@ internamente — ver «Ciudadano» más abajo.
 | — | **REG** Auto-registro ✅ | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano se registra, verifica su correo y publica — **completada y archivada 2026-09-05**, tras 10 rondas de verify y dos archivados revertidos |
 | — | **ANON** Cerrar sin sesión ✅ | [326](https://app.shortcut.com/upse/story/326) | 3 | El login anónimo devuelve 401; el techo de permisos queda vacío — **completada y archivada 2026-09-05** |
 | — | **AUD** Auditoría y revelación ✅ | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría — **completada y archivada 2026-09-06**, tras 3 rondas de verify y un archivado prematuro revertido |
+| — | **MAIL** El correo nunca salió | [330](https://app.shortcut.com/upse/story/330) | 5 | Dos plantillas que no existían, `trust proxy`, confirmación de correo, la marca. **Bloquea F4** |
 | 5 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
 | 6 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
 | 7 | **F5** Menús dinámicos | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura |

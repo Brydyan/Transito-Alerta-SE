@@ -118,7 +118,15 @@ describe('MailOutboxConsumer', () => {
       await consumer.processEntry('3-0', entryFields({ data: 'not-json' }));
 
       expect(mailService.deliver).not.toHaveBeenCalled();
-      expect(redis.xadd).toHaveBeenCalledWith(MAIL_DEAD_STREAM_KEY, '*', ...entryFields({ data: 'not-json' }));
+      // D.1 (ronda 14) — el XADD lleva `MAXLEN ~ 1000` para
+      // acotar el crecimiento de `mail:dead` (el cuerpo puede
+      // incluir el OTP en claro).
+      expect(redis.xadd).toHaveBeenCalledWith(
+        MAIL_DEAD_STREAM_KEY,
+        'MAXLEN', '~', '1000',
+        '*',
+        ...entryFields({ data: 'not-json' }),
+      );
       expect(redis.xack).toHaveBeenCalledWith(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, '3-0');
     });
 
@@ -129,6 +137,7 @@ describe('MailOutboxConsumer', () => {
 
       expect(redis.xadd).toHaveBeenCalledWith(
         MAIL_DEAD_STREAM_KEY,
+        'MAXLEN', '~', '1000',
         '*',
         ...entryFields({ template: 'bogus' }),
       );
@@ -161,6 +170,14 @@ describe('MailOutboxConsumer', () => {
       await consumer.sweep();
 
       expect(redis.xclaim).not.toHaveBeenCalled();
+      // D.1 (ronda 14) — `deadLetterById` es el otro path al
+      // stream de dead; a diferencia de `deadLetter`, NO
+      // recibe el MAXLEN porque el caller ya pasó por el
+      // consumer principal y la entrada está siendo
+      // reubicada. La política de cap la aplica el path
+      // `deadLetter` (entradas nuevas); este path queda
+      // explícito para que un cambio de política futuro
+      // decida conscientemente.
       expect(redis.xadd).toHaveBeenCalledWith(MAIL_DEAD_STREAM_KEY, '*', ...entryFields());
       expect(redis.xack).toHaveBeenCalledWith(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, '6-0');
     });

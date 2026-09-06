@@ -178,11 +178,15 @@ describe('AuthRegisterService (sc-325)', () => {
     // No se crea cuenta ni se manda OTP.
     expect(userRepo.save).not.toHaveBeenCalled();
     expect(emailVerification.generateAndSendOtp).not.toHaveBeenCalled();
-    // Sí se manda el aviso al titular.
+    // Sí se manda el aviso al titular. MAIL A.4 (ronda 14) — el
+    // momento del intento viaja en el cuarto argumento; el
+    // assert usa `expect.any(Date)` para que el test no
+    // dependa del reloj.
     expect(emailVerification.notifyExistingAccountAttempt).toHaveBeenCalledWith(
       'user-1',
       '203.0.113.5',
       'Mozilla/5.0 (X11; Linux x86_64)',
+      expect.any(Date),
     );
   });
 

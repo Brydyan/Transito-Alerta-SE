@@ -1,6 +1,7 @@
 # Tasks: MAIL — Las plantillas de verificación que nunca existieron
 
-Rama: `brydyan/mail/plantillas-de-verificacion-ausentes`, sacada de `develop`.
+Historia: [sc-330](https://app.shortcut.com/upse/story/330) · Rama:
+`brydyan/sc-330/mail-correo-de-verificacion-nunca-enviado`, sacada de `develop`.
 
 Orden obligatorio: **A antes que B**. Quitar los `as never` antes de que las plantillas
 existan deja el proyecto sin compilar.

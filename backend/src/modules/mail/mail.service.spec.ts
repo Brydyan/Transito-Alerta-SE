@@ -108,13 +108,60 @@ describe('MailService', () => {
           auth: { user: 'user', pass: 'secret' },
         }),
       );
+      // H.2 (ronda 14, D11) — el `from` lleva el nombre del
+      // producto delante de la dirección. Sin nombre, en la
+      // bandeja se leería sólo la dirección pelada y eso es
+      // lo que decide si el titular abre o marca como no
+      // deseado.
       expect(sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'user@example.com',
           subject: 'Subject',
-          from: 'no-reply@transito-alerta.example',
+          from: 'GeoReporta <no-reply@transito-alerta.example>',
         }),
       );
+    });
+
+    // H.6 — el `from` lleva el nombre visible. Sale de
+    // `PRODUCT_NAME`, que es la única fuente (H.1). Si
+    // alguien cambia la marca en `product-name.ts`, este
+    // test lo refleja: está atado al valor, no a la cadena
+    // literal "GeoReporta".
+    it('H.6: el from incluye el nombre visible del producto (PRODUCT_NAME)', async () => {
+      config.get.mockReturnValue({
+        smtpHost: 'smtp.example.com',
+        smtpPort: 587,
+        smtpUser: undefined,
+        smtpPassword: undefined,
+        smtpFrom: 'no-reply@transito-alerta.example',
+        sweepIntervalMs: 10_000,
+        claimIdleMs: 30_000,
+        maxAttempts: 3,
+      });
+      const sendMail = jest.fn().mockResolvedValue({ messageId: 'abc' });
+      (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
+      service = new MailService(redis as unknown as jest.Mocked<Redis>, config as unknown as ConfigService);
+
+      // Verificamos con CADA plantilla encolada que el `from`
+      // lleva el nombre visible: si alguien filtra la marca
+      // sólo en algunas plantillas, el test lo destapa.
+      const templates: Array<'incident.created' | 'email_verification' | 'existing_account_attempt' | 'password-reset' | 'invitation'> = [
+        'incident.created',
+        'email_verification',
+        'existing_account_attempt',
+        'password-reset',
+        'invitation',
+      ];
+      for (const tpl of templates) {
+        sendMail.mockClear();
+        await service.deliver('u@example.com', 'S', tpl, { title: 'x' });
+        const call = sendMail.mock.calls[0][0] as { from?: string };
+        // El from debe tener la forma "PRODUCT_NAME <address>"
+        // — la dirección pelada sería el defecto original.
+        expect(call.from).toMatch(/^GeoReporta </);
+        // Y la dirección real debe estar presente.
+        expect(call.from).toContain('no-reply@transito-alerta.example');
+      }
     });
 
     it('logs-only (no nodemailer call) when SMTP_HOST is unset', async () => {

@@ -164,7 +164,30 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
 
   private async deadLetter(entryId: string, fields: string[]): Promise<void> {
     this.logger.error(`[deadLetter] Entry ${entryId} moved to ${MAIL_DEAD_STREAM_KEY} (unretryable - data defect)`);
-    await this.redis.xadd(MAIL_DEAD_STREAM_KEY, '*', ...fields);
+    // D.1 (ronda 14) — acotar el crecimiento de `mail:dead`.
+    // Las entradas guardan el cuerpo del mensaje, y para la
+    // verificación eso incluye el OTP en claro. Cada fallo
+    // deja un código legible para cualquiera con acceso a
+    // Redis. El stream no caduca por sí solo: el cap es
+    // la única defensa contra la acumulación indefinida.
+    //
+    // `MAXLEN ~ 1000` (aproximado) deja 1k entradas como
+    // evidencia reciente y recorta lo más viejo sin que el
+    // costo del cap sea lineal con el tamaño. El `~` le
+    // dice a Redis que la cota es aproximada (mejor
+    // rendimiento, suficiente para nuestro caso — el
+    // tamaño real puede ser 950 o 1050, no importa para
+    // la política que esto enforza).
+    //
+    // NO vaciamos al arrancar: las entradas son la única
+    // evidencia de que un correo falló. Vaciar el stream
+    // convierte un fallo silencioso en uno invisible.
+    await this.redis.xadd(
+      MAIL_DEAD_STREAM_KEY,
+      'MAXLEN', '~', '1000',
+      '*',
+      ...fields,
+    );
     await this.redis.xack(MAIL_OUTBOX_STREAM_KEY, MAIL_OUTBOX_CONSUMER_GROUP, entryId);
   }
 
