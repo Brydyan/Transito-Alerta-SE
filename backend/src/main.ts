@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { SnakeCaseResponseInterceptor } from './common/interceptors/snake-case-response.interceptor';
+import { RequestIdLogger } from './common/observability/request-id.logger';
 import { RedisIoAdapter } from './modules/realtime/redis-io.adapter';
 
 async function bootstrap(): Promise<void> {
@@ -27,11 +28,18 @@ async function bootstrap(): Promise<void> {
   // El default es el conservador: sin la variable, no se emite `debug` ni
   // `verbose`. Un entorno que nadie configuró no debería ser el más ruidoso.
   const DEFAULT_LOG_LEVELS: LogLevel[] = ['error', 'warn', 'log'];
-  const logger = process.env.LOG_LEVEL
+  const logLevels = process.env.LOG_LEVEL
     ? (process.env.LOG_LEVEL.split(',')
         .map((l) => l.trim())
         .filter(Boolean) as LogLevel[])
     : DEFAULT_LOG_LEVELS;
+
+  // Una instancia de logger en vez de la lista de niveles a secas: es lo
+  // que ata cada línea a su petición (`[req=…]`, ver RequestIdLogger).
+  // Los niveles se le pasan igual — la variable LOG_LEVEL manda lo mismo
+  // que antes.
+  const logger = new RequestIdLogger();
+  logger.setLogLevels(logLevels);
 
   const app = await NestFactory.create(AppModule, { logger });
 

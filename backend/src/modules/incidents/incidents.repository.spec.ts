@@ -27,6 +27,7 @@ describe('IncidentsRepository', () => {
         zoneId: 'zone-1',
         geofenceMatched: true,
         organizationId: 'org-1',
+        isAnonymous: false,
       });
 
       const [sql, params] = dataSource.query.mock.calls[0];
@@ -40,6 +41,7 @@ describe('IncidentsRepository', () => {
         -2.2, // lat second
         'medium',
         'user-1',
+        false,
         'zone-1',
         true,
         'org-1',
@@ -60,9 +62,35 @@ describe('IncidentsRepository', () => {
         zoneId: null,
         geofenceMatched: false,
         organizationId: null,
+        isAnonymous: false,
       });
 
       expect(result).toEqual(row);
+    });
+
+    it('AUD (sc-327) D1: inserta is_anonymous=true cuando el llamador lo pide', async () => {
+      // La columna `is_anonymous` se persiste tal cual se
+      // recibe. La sustitución de `citizen_id` por la máscara
+      // es responsabilidad del service, no del repository.
+      dataSource.query.mockResolvedValue([{ id: 'inc-1', is_anonymous: true }]);
+
+      await repository.create({
+        title: 'Anon',
+        description: null,
+        lat: -2.2,
+        lng: -80.8,
+        priority: 'medium',
+        citizenId: 'mask-id',
+        zoneId: 'zone-1',
+        geofenceMatched: true,
+        organizationId: 'org-1',
+        isAnonymous: true,
+      });
+
+      const params = dataSource.query.mock.calls[0][1];
+      // El parámetro 7 es `is_anonymous` (después de
+      // title/description/lng/lat/priority/citizenId).
+      expect(params[6]).toBe(true);
     });
   });
 

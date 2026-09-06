@@ -33,6 +33,22 @@ export interface MeResponse {
   user_id: string;
   device_uuid: string | null;
   permissions: string[];
+  /**
+   * REG (sc-325) C.1 — booleano derivado de `email_verified_at` en la
+   * fila del usuario. `true` cuando el `reporter` (o cualquier
+   * usuario con `roleName = 'reporter'`) verificó su correo vía el
+   * composer del OTP (C.3). El frontend lo usa en C.4 para decidir
+   * si redirige al composer o al dashboard.
+   */
+  email_verified: boolean;
+  /**
+   * REG (sc-325) Fix A (ronda 10) — nombre del rol (`reporter`,
+   * `operador_org`, `admin_org`, `operador_sistema`, `master`) o
+   * `null` para el dispositivo anónimo. Sin este campo, C.4 no
+   * puede decidir el redirect (`current?.roleName === 'reporter'`
+   * era siempre `false` antes del fix).
+   */
+  role_name: string | null;
 }
 
 /** POST /auth/logout */
@@ -56,6 +72,13 @@ export interface User {
   permissions: string[];
   device_uuid: string | null;
   avatar?: Avatar | null;
+  /**
+   * REG (sc-325) C.1/C.4 — espejado de la respuesta de `/auth/me`.
+   * El frontend no consulta la BD; el backend es la fuente.
+   * `null` mientras el fetch no haya terminado (entre login
+   * y la primera respuesta de `/me`).
+   */
+  emailVerified?: boolean | null;
 }
 
 /** @deprecated — same reason as the removed self-service register flow. */

@@ -49,18 +49,24 @@ describe('Sessions e2e (T3.9)', () => {
     expect(rows[0].refresh_token_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('an anonymous login creates no session row and mints a token with no sid', async () => {
+  it('ANON: an anonymous device_uuid is rejected at login (the round-0 path is closed)', async () => {
+    // Inversión del round 0 ("an anonymous login creates no
+    // session row and mints a token with no sid"). El
+    // reporte sin sesión se cerró por decisión de producto
+    // 2026-09-02: la identidad anónima ya no puede
+    // autenticarse. La forma de credencial `{device_uuid}`
+    // sigue siendo válida (otros device_uuids funcionan
+    // normalmente), sólo el device_uuid configurado como
+    // anónimo se rechaza.
     const response = await request(env.httpServer)
       .post('/api/auth/login')
       .send({ device_uuid: 'anonymous' })
-      .expect(200);
+      .expect(401);
 
-    const jwtService = env.app.get(JwtService);
-    const decoded = jwtService.decode(response.body.access_token as string) as { sid?: string };
-    expect(decoded.sid).toBeUndefined();
-
-    const { rows } = await env.pg.query('SELECT id FROM user_sessions WHERE user_id = (SELECT id FROM users WHERE device_uuid = $1)', ['anonymous']);
-    expect(rows).toHaveLength(0);
+    expect(response.body).toMatchObject({
+      code: 'ANONYMOUS_IDENTITY_CLOSED',
+    });
+    expect(response.body.access_token).toBeUndefined();
   });
 
   it('login on device A and device B, then revoking A: A is rejected on the very next request, B is unaffected', async () => {

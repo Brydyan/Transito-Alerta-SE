@@ -44,12 +44,34 @@ describe('E2E T7.7 referential integrity (0036)', () => {
     return res.body.id as string;
   }
 
-  async function anonymousAuth(): Promise<Record<string, string>> {
-    const login = await request(env.httpServer)
-      .post('/api/auth/login')
-      .send({ device_uuid: 'anonymous' })
-      .expect(200);
-    return { Authorization: `Bearer ${login.body.access_token as string}` };
+  // ANON (sc-326) — el helper `anonymousAuth` del round 0
+  // ya no funciona: el login con `device_uuid: 'anonymous'`
+  // se rechaza con 401 `ANONYMOUS_IDENTITY_CLOSED`. Lo
+  // sustituimos por uno que provisiona un `reporter`
+  // autenticado. La firma cambia: además del header, el
+  // helper devuelve el `userId` del reporter, porque R15.4
+  // (la única que lo necesita) borra al usuario y verifica
+  // que el `citizen_id` de su incidencia queda en NULL.
+  // Con la máscara compartida, la query por
+  // `device_uuid = 'anonymous'` devolvía el id de la
+  // máscara; con un reporter, el id está en
+  // `reporter.userId` y debe consultarse explícitamente.
+  async function anonymousAuth(): Promise<{
+    auth: Record<string, string>;
+    userId: string;
+  }> {
+    const reporter = await env.provisionUser(
+      ['CREATE incidents', 'CREATE comments', 'READ incidents', 'READ comments'],
+      {
+        email: `anon-reporter-${randomUUID()}@example.com`,
+        roleName: 'reporter',
+        emailVerified: true,
+      },
+    );
+    return {
+      auth: { Authorization: `Bearer ${reporter.accessToken}` },
+      userId: reporter.userId,
+    };
   }
 
   // ---- R14 — leaf-category trigger --------------------------------------
@@ -70,7 +92,7 @@ describe('E2E T7.7 referential integrity (0036)', () => {
     });
 
     it('R14.2: an incident in a leaf category (no children) is accepted', async () => {
-      const auth = await anonymousAuth();
+      const { auth } = await anonymousAuth();
       const leafId = await insertCategory('Bacheo', null);
       const incidentId = await createIncidentViaApi(auth);
 
@@ -80,7 +102,7 @@ describe('E2E T7.7 referential integrity (0036)', () => {
     });
 
     it('R14.3: an incident in a category that has children is rejected at the DB level and translated to 400 via PATCH /api/incidents/:id', async () => {
-      const auth = await anonymousAuth();
+      const { auth } = await anonymousAuth();
       const parentId = await insertCategory('Infraestructura Vial', null);
       await insertCategory('Baches', parentId);
       const incidentId = await createIncidentViaApi(auth);
@@ -105,7 +127,7 @@ describe('E2E T7.7 referential integrity (0036)', () => {
     });
 
     it('R14.4: a soft-deleted only-child does not turn its parent into a non-leaf', async () => {
-      const auth = await anonymousAuth();
+      const { auth } = await anonymousAuth();
       const parentId = await insertCategory('Seguridad Ciudadana', null);
       await insertCategory('Robos', parentId, new Date());
       const incidentId = await createIncidentViaApi(auth);
@@ -143,7 +165,7 @@ describe('E2E T7.7 referential integrity (0036)', () => {
     });
 
     it('R15.2: physically deleting an incident cascades comments, images, assignments and status_history', async () => {
-      const auth = await anonymousAuth();
+      const { auth } = await anonymousAuth();
       const incidentId = await createIncidentViaApi(auth);
 
       await request(env.httpServer)
@@ -190,7 +212,7 @@ describe('E2E T7.7 referential integrity (0036)', () => {
         orgId,
         'Org con incidentes',
       ]);
-      const auth = await anonymousAuth();
+      const { auth } = await anonymousAuth();
       const incidentId = await createIncidentViaApi(auth);
       await env.pg.query(`UPDATE incidents SET organization_id = $1 WHERE id = $2`, [
         orgId,
@@ -203,14 +225,16 @@ describe('E2E T7.7 referential integrity (0036)', () => {
     });
 
     it('R15.4: physically deleting a user leaves their incidents with citizen_id NULL', async () => {
-      const auth = await anonymousAuth();
+      // Inversión del round 0: el helper ya no devuelve la
+      // máscara anónima (sigue existiendo, pero su id ya
+      // no es el citizen_id de la incidencia). El reporter
+      // que creó la incidencia tiene su propio id; ese es
+      // el que borramos, y el `citizen_id` de la incidencia
+      // queda en NULL por el `ON DELETE SET NULL` de la FK.
+      const { auth, userId } = await anonymousAuth();
       const incidentId = await createIncidentViaApi(auth);
-      const { rows: userRows } = await env.pg.query<{ id: string }>(
-        `SELECT id FROM users WHERE device_uuid = 'anonymous'`,
-      );
-      const citizenId = userRows[0].id;
 
-      await env.pg.query(`DELETE FROM users WHERE id = $1`, [citizenId]);
+      await env.pg.query(`DELETE FROM users WHERE id = $1`, [userId]);
 
       const { rows: incidentRows } = await env.pg.query<{ citizen_id: string | null }>(
         `SELECT citizen_id FROM incidents WHERE id = $1`,

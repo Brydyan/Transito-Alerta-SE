@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import request from 'supertest';
 
 import { ProvisionedUser, TestEnvironment } from '../support/test-environment';
@@ -204,14 +205,24 @@ describe('IncidentCategories e2e (T3.7)', () => {
   it('soft-deletes a category referenced by an incident instead of blocking with 409 (TS-8, updated for T7.2 soft delete)', async () => {
     const category = await createCategory({ name: 'Referenced' }).expect(201);
 
-    const login = await request(env.httpServer)
-      .post('/api/auth/login')
-      .send({ device_uuid: 'anonymous' })
-      .expect(200);
+    // ANON (sc-326) — el login con `device_uuid: 'anonymous'`
+    // se cerró. El reporte se hace con un `reporter`
+    // autenticado, no con la máscara compartida. La
+    // semántica del test (soft-delete de categoría
+    // referenciada por una incidencia) no cambia — sólo
+    // quién crea la incidencia.
+    const reporter = await env.provisionUser(
+      ['CREATE incidents', 'READ incidents'],
+      {
+        email: `reporter-${randomUUID()}@example.com`,
+        roleName: 'reporter',
+        emailVerified: true,
+      },
+    );
 
     const incident = await request(env.httpServer)
       .post('/api/incidents')
-      .set({ Authorization: `Bearer ${login.body.access_token as string}` })
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
       .send({ title: 'Choque', description: 'Sin heridos', lat: -2.2, lng: -80.5 })
       .expect(201);
 

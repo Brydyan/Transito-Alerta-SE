@@ -56,6 +56,26 @@ export class LoginComponent {
       next: () => {
         this.loading.set(false);
 
+        // REG (sc-325) C.4 — la regla de redirección vive en
+        // un solo lugar. Si el usuario es `reporter` y su
+        // correo no está verificado, va al composer del OTP
+        // (sin buscarla). El personal entra al dashboard como
+        // siempre — la verificación no les aplica. Si la
+        // decisión se duplicara entre este componente y un
+        // guard de ruta, una de las dos copias se quedaría
+        // vieja (el defecto recurrente del proyecto).
+        //
+        // `fetchUser()` ya corrió en `handleLoginSuccess`
+        // (AuthService). El signal `user` está sincronizado.
+        const current = this.authService.user();
+        if (
+          current?.roleName === 'reporter' &&
+          current.emailVerified === false
+        ) {
+          this.router.navigate(['/verificar']);
+          return;
+        }
+
         const returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/app/dashboard';
         this.router.navigate([returnUrl]);
       },

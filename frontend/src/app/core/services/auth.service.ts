@@ -67,9 +67,41 @@ export class AuthService {
     // If we have a token in storage but no in-memory user, try to
     // hydrate from /auth/me. If the token is expired the call will
     // 401 and the interceptor handles the refresh+retry.
+    //
+    // La llamada se DIFIERE fuera del constructor a propósito.
+    // `fetchUser()` atraviesa `authInterceptor`, que hace
+    // `inject(AuthService)`: emitirla acá obliga a Angular a resolver
+    // `AuthService` mientras todavía lo está construyendo, y eso es
+    // `NG0200: Circular dependency detected for AuthService`. El
+    // observable fallaba antes de que ningún request saliera del
+    // navegador, el handler de error borraba los tokens, y el
+    // `authGuard` mandaba al login. Se manifestaba en TODA recarga y
+    // sólo en la recarga: al iniciar sesión el servicio ya existe, así
+    // que el ciclo no se forma. La microtarea corre cuando la pila de
+    // inyección ya se vació — ahí `AuthService` es un objeto normal.
     if (this.accessToken() && !this.user()) {
-      this.fetchUser().subscribe({ error: () => this.clearAuthState() });
+      queueMicrotask(() => this.hydrateSession());
     }
+  }
+
+  /**
+   * Rehidrata el usuario desde `/auth/me` al arrancar la app.
+   *
+   * Sólo un 401 cierra la sesión. Cuando llega hasta acá, el
+   * `authInterceptor` YA intentó el refresh y también falló: el token
+   * es irrecuperable. Cualquier otro error —backend caído (status 0),
+   * 500, timeout— deja la sesión intacta: perder el token por un
+   * hipo de red obliga a volver a iniciar sesión sin que la sesión
+   * tuviera nada malo.
+   */
+  private hydrateSession(): void {
+    this.fetchUser().subscribe({
+      error: (err: { status?: number }) => {
+        if (err?.status === 401) {
+          this.clearAuthState();
+        }
+      },
+    });
   }
 
   // ───── A.1 — Real login ─────
@@ -80,6 +112,23 @@ export class AuthService {
         tap((tokens) => this.handleLoginSuccess(tokens)),
         catchError((err) => this.handleError(err)),
       );
+  }
+
+  // REG (sc-325) — alta pública de ciudadano. D1 (design.md): el
+  // DTO del backend es correo, contraseña, nombre y apellido —
+  // nada de rol, organización ni permisos. D3: la respuesta es
+  // indistinguible para correos nuevos y existentes. La pantalla
+  // de registro navega al `verify-email` en ambos casos; el
+  // backend ya envió el OTP (o el aviso al titular) por su cuenta.
+  register(input: {
+    email: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+  }): Observable<{ message: string }> {
+    return this.http
+      .post<{ message: string }>(`${this.API_URL}/register`, input)
+      .pipe(catchError((err) => this.handleError(err)));
   }
 
   // ───── A.3 — Refresh (single-flight, body-based per backend contract) ─────
@@ -133,9 +182,20 @@ export class AuthService {
             email: null,
             name: null,
             roleId: null,
-            roleName: null,
+            // REG (sc-325) Fix A (ronda 10) — el nombre del rol
+            // llega por la misma llamada a `/me`. Antes de este
+            // fix, el signal se hardcodeaba en `null` y la regla
+            // de C.4 (`roleName === 'reporter' && emailVerified
+            // === false`) nunca disparaba. Es el bug que el
+            // verify de la ronda 9 cazó como CRITICAL 1.
+            roleName: me.role_name,
             permissions: me.permissions,
             device_uuid: me.device_uuid,
+            // REG (sc-325) C.1 — el booleano llega por la misma
+            // llamada a `/me`. El frontend usa esto en C.4 para
+            // decidir si redirige al composer del OTP tras el
+            // login.
+            emailVerified: me.email_verified,
           });
         }),
       );

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  HttpException,
   HttpStatus,
   Post,
   Put,
@@ -14,13 +15,16 @@ import type { Request } from 'express';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { InvitationsService } from '../invitations/invitations.service';
 import { AuthService, AuthTokens, RequestMeta } from './auth.service';
+import { AuthRegisterService, RegistrationRateLimited } from './auth.register';
 import { resolveCredential } from './credential-dispatch';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { PasswordResetConfirmDto } from './dto/password-reset-confirm.dto';
 import { PasswordResetRequestDto } from './dto/password-reset-request.dto';
+import { RegisterDto } from './dto/register.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { REGISTRATION_RATE_LIMITED } from './auth-errors';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PasswordResetService } from './password-reset.service';
 
@@ -42,19 +46,61 @@ function requestMeta(req: Request): RequestMeta {
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly authRegisterService: AuthRegisterService,
     private readonly invitationsService: InvitationsService,
     private readonly passwordResetService: PasswordResetService,
   ) {}
 
   /**
-   * T6.8.C1 — POST /auth/register tombstone (GeoReporta parity).
-   * Registration is invitation-only; return 410 Gone so API clients can
-   * surface a meaningful error rather than 404.
+   * REG (sc-325) — la lápida de T6.8.C1 (`POST /auth/register` ⇒ 410
+   * Gone) se revierte. El alta es por invitación para el personal
+   * (operadores, administradores); el ciudadano se auto-registra acá.
+   *
+   * **D1 (design.md):** el rol es `reporter` SIEMPRE, fijado en el
+   * servidor. El DTO no acepta `role`, `roleName`, `role_id`,
+   * `permissions` ni `organization_id` — los `class-validator`
+   * `whitelist: true` + `forbidNonWhitelisted` rechazan cualquier
+   * intento de inyectar campos. Si pasan, el service los ignora:
+   * la defensa es por construcción (no por validación).
+   *
+   * **D3:** la respuesta es **SIEMPRE** la misma forma — un
+   * oráculo de existencia comprometería la trazabilidad que
+   * AUD construye. La distinción "correo nuevo" vs "ya
+   * registrado" la hace el cliente por canales fuera de banda
+   * (el correo que sí está registrado recibe un aviso de
+   * intento de alta; el que no, un OTP de verificación).
+   *
+   * **D4:** el rate limit por IP y por correo se aplica en el
+   * service. Acá traducimos `RegistrationRateLimited` a 429.
    */
   @Post('register')
-  @HttpCode(HttpStatus.GONE)
-  register(): { message: string } {
-    return { message: 'Registration is invitation-only. Contact an administrator.' };
+  @HttpCode(HttpStatus.OK)
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() req: Request,
+  ): Promise<{ message: string }> {
+    try {
+      const result = await this.authRegisterService.register({
+        email: dto.email,
+        password: dto.password,
+        firstName: dto.first_name,
+        lastName: dto.last_name,
+        ip: req.ip ?? null,
+        userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
+      });
+      return result.publicMessage;
+    } catch (err) {
+      if (err instanceof RegistrationRateLimited) {
+        throw new HttpException(
+          {
+            code: REGISTRATION_RATE_LIMITED,
+            message: `Demasiados intentos. Probá en una hora.`,
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      throw err;
+    }
   }
 
   @Post('login')
@@ -120,10 +166,32 @@ export class AuthController {
   @Get('me')
   async me(
     @Req() req: AuthenticatedRequest,
-  ): Promise<{ user_id: string; device_uuid: string | null; permissions: string[] }> {
+  ): Promise<{
+    user_id: string;
+    device_uuid: string | null;
+    permissions: string[];
+    /** REG (sc-325) C.1 — booleano derivado de `email_verified_at`.
+     *  El `SnakeCaseResponseInterceptor` reescribe toda respuesta
+     *  a snake_case; el nombre en TypeScript puede ser
+     *  `emailVerified` o `email_verified` — el wire es
+     *  `email_verified` siempre. */
+    email_verified: boolean;
+    /** REG (sc-325) Fix A (ronda 10) — nombre del rol
+     *  (`reporter`, `operador_org`, `admin_org`, etc.) o `null`
+     *  para el dispositivo anónimo. El frontend usa esto en C.4
+     *  para decidir el redirect post-login. */
+    role_name: string | null;
+  }> {
     const userId = req.user!.userId;
-    const { deviceUuid, permissions } = await this.authService.getMe(userId);
-    return { user_id: userId, device_uuid: deviceUuid, permissions };
+    const { deviceUuid, permissions, email_verified, role_name } =
+      await this.authService.getMe(userId);
+    return {
+      user_id: userId,
+      device_uuid: deviceUuid,
+      permissions,
+      email_verified,
+      role_name,
+    };
   }
 
   /**

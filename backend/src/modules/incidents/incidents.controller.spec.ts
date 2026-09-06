@@ -6,6 +6,9 @@ import { IncidentFeedService } from './incident-feed.service';
 import { IncidentExportService } from './incident-export.service';
 import { FeedRecoveryService } from './feed-recovery.service';
 import { IncidentWorkflowService } from './incident-workflow.service';
+// AUD (sc-327) D4 — la revelación de autoría usa su propio
+// servicio. Lo importamos para tipar el mock del constructor.
+import { RevealService } from './reveal.service';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 
@@ -19,6 +22,7 @@ describe('IncidentsController', () => {
     updateStatus: jest.Mock;
   };
   let workflow: { changeStatus: jest.Mock };
+  let reveal: { reveal: jest.Mock; listReveals: jest.Mock };
   let controller: IncidentsController;
 
   beforeEach(() => {
@@ -30,6 +34,13 @@ describe('IncidentsController', () => {
     };
     // sc-315 — el controller delega PATCH /:id/status al workflow service.
     workflow = { changeStatus: jest.fn() };
+    // AUD (sc-327) D4 — la revelación tiene su propio servicio.
+    // El spec lo inyecta como mock vacío: los tests de
+    // autorización y routing ya cubren REVEAL en
+    // `incidents.controller.reveal.spec.ts` (futuro); este
+    // archivo no prueba el cuerpo del endpoint, sólo que el
+    // controller se construye.
+    reveal = { reveal: jest.fn(), listReveals: jest.fn() };
     controller = new IncidentsController(
       service as unknown as IncidentsService,
       {} as IncidentAnalyticsService,
@@ -37,6 +48,7 @@ describe('IncidentsController', () => {
       {} as IncidentExportService,
       {} as FeedRecoveryService,
       workflow as unknown as IncidentWorkflowService,
+      reveal as unknown as RevealService,
     );
   });
 

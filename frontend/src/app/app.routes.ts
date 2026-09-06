@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/guards/auth.guard';
+import { permissionGuard } from './core/guards/permission.guard';
 import { menuResolver } from './core/guards/menu.resolver';
 
 export const routes: Routes = [
@@ -13,6 +14,53 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/auth/login/login.component').then((m) => m.LoginComponent),
     canActivate: [guestGuard],
+  },
+  // REG (sc-325) — primera ruta alcanzable sin sesión (D5).
+  // `guestGuard` redirige al dashboard si el visitante ya tiene
+  // sesión, igual que la ruta de login. Vive FUERA del árbol
+  // `/app` (que está bajo `authGuard`).
+  {
+    path: 'registro',
+    loadComponent: () =>
+      import('./features/auth/register/register.component').then(
+        (m) => m.RegisterComponent,
+      ),
+    canActivate: [guestGuard],
+  },
+  // REG (sc-325) — Fix 9 (ronda 6): destino de la navegación de
+  // `register.component.ts:onSubmit` al alta exitosa. Sin esta
+  // ruta, el ciudadano cae en el comodín `path: '**'` y termina
+  // en una página de error 404 con la cuenta creada y el OTP
+  // enviado. La propia existencia de esta ruta la cubre el spec
+  // de la próxima sección (defensa contra el defecto B.6 que
+  // verificó el cambio como hecho cuando en realidad no
+  // existía el componente, sólo un `.html` heredado de sc-117).
+  //
+  // guestGuard (no authGuard): un visitante sin sesión debe poder
+  // ver esta pantalla; un usuario con sesión queda en el
+  // dashboard (esto último es decisión consciente del round 0,
+  // no se cambia en este fix).
+  {
+    path: 'verify-email',
+    loadComponent: () =>
+      import('./features/auth/verify-email/verify-email.component').then(
+        (m) => m.VerifyEmailComponent,
+      ),
+    canActivate: [guestGuard],
+  },
+  // REG (sc-325) — C.3/C.4: composer del OTP, detrás de
+  // `authGuard`. El `reporter` llega acá automáticamente tras el
+  // login si `email_verified === false` (C.4). El personal
+  // (staff) nunca entra: la regla de redirección vive en
+  // `LoginComponent` (un solo lugar) y consulta
+  // `email_verified` antes de decidir a dónde mandar.
+  {
+    path: 'verificar',
+    loadComponent: () =>
+      import('./features/auth/verify-otp/verify-otp.component').then(
+        (m) => m.VerifyOtpComponent,
+      ),
+    canActivate: [authGuard],
   },
   // SC-207 — invitation token acceptance (replaces the dead
   // /auth/register flow). Token arrives out-of-band (typically via
@@ -198,29 +246,98 @@ export const routes: Routes = [
       {
         path: 'organizaciones',
         data: { breadcrumb: 'Organizaciones', title: 'Organizaciones', phase: 'F2' },
-        loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
-          ),
-        // PLACEHOLDER F2
+        children: [
+          {
+            path: '',
+            data: { breadcrumb: 'Organizaciones' },
+            loadComponent: () =>
+              import('./features/catalogs/organizations/organization-list/organization-list.component').then(
+                (m) => m.OrganizationListComponent,
+              ),
+          },
+          {
+            path: 'new',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Nueva Organización', permission: 'CREATE organizations' },
+            loadComponent: () =>
+              import('./features/catalogs/organizations/organization-form/organization-form.component').then(
+                (m) => m.OrganizationFormComponent,
+              ),
+          },
+          {
+            path: ':id/edit',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Editar Organización', permission: 'UPDATE organizations' },
+            loadComponent: () =>
+              import('./features/catalogs/organizations/organization-form/organization-form.component').then(
+                (m) => m.OrganizationFormComponent,
+              ),
+          },
+        ],
       },
       {
         path: 'categorias',
         data: { breadcrumb: 'Categorías', title: 'Categorías', phase: 'F2' },
-        loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
-          ),
-        // PLACEHOLDER F2
+        children: [
+          {
+            path: '',
+            data: { breadcrumb: 'Categorías' },
+            loadComponent: () =>
+              import('./features/catalogs/incident-categories/category-list/category-list.component').then(
+                (m) => m.CategoryListComponent,
+              ),
+          },
+          {
+            path: 'new',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Nueva Categoría', permission: 'CREATE incident-categories' },
+            loadComponent: () =>
+              import('./features/catalogs/incident-categories/category-form/category-form.component').then(
+                (m) => m.CategoryFormComponent,
+              ),
+          },
+          {
+            path: ':id/edit',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Editar Categoría', permission: 'UPDATE incident-categories' },
+            loadComponent: () =>
+              import('./features/catalogs/incident-categories/category-form/category-form.component').then(
+                (m) => m.CategoryFormComponent,
+              ),
+          },
+        ],
       },
       {
         path: 'ubicaciones',
         data: { breadcrumb: 'Ubicaciones', title: 'Ubicaciones', phase: 'F2' },
-        loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
-          ),
-        // PLACEHOLDER F2
+        children: [
+          {
+            path: '',
+            data: { breadcrumb: 'Ubicaciones' },
+            loadComponent: () =>
+              import('./features/catalogs/locations/location-list/location-list.component').then(
+                (m) => m.LocationListComponent,
+              ),
+          },
+          {
+            path: 'new',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Nueva Ubicación', permission: 'CREATE geo-zones' },
+            loadComponent: () =>
+              import('./features/catalogs/locations/location-form/location-form.component').then(
+                (m) => m.LocationFormComponent,
+              ),
+          },
+          {
+            path: ':id/edit',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Editar Ubicación', permission: 'UPDATE geo-zones' },
+            loadComponent: () =>
+              import('./features/catalogs/locations/location-form/location-form.component').then(
+                (m) => m.LocationFormComponent,
+              ),
+          },
+        ],
       },
 
       {

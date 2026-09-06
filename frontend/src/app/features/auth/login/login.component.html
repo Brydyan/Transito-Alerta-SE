@@ -138,6 +138,18 @@
             class="text-slate-500 underline text-sm hover:text-brand-navy font-medium transition-colors"
             >¿Olvidaste tu contraseña?</a
           >
+          <!-- REG (sc-325) — B.4: enlace al registro. Vive
+               al lado del "¿olvidaste tu contraseña?" para que el
+               usuario que no tiene cuenta tenga un camino claro. -->
+          <span class="block mt-2 text-sm text-slate-500">
+            ¿No tenés cuenta?
+            <a
+              routerLink="/registro"
+              class="text-brand-primary underline font-medium"
+              data-testid="link-to-register"
+              >Crear cuenta</a
+            >
+          </span>
         </div>
       </form>
 

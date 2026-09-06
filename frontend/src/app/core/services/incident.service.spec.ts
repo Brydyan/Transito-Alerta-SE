@@ -17,7 +17,7 @@ import { Incident, IncidentStatus, IncidentPriority } from '../models/incident.m
 describe('IncidentService (F3.1 contract revalidation)', () => {
   let service: IncidentService;
   let http: HttpTestingController;
-  const base = 'http://localhost:3001/api';
+  const base = '/api';
 
   // F3.1.1 — fixture reflects the post-sc-315 wire shape: 4 statuses,
   // 4 priorities, audit fields exposed. If the backend adds a field,
