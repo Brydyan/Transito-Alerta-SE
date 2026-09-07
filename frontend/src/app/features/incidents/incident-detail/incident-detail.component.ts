@@ -159,7 +159,34 @@ export class IncidentDetailComponent implements OnInit {
 
     switch (action) {
       case 'claim':
-        this.runStatusTransition(inc.id, 'in_progress');
+        // F3 (sc-303) ronda 6 — `claim` invoca el endpoint
+        // DEDICADO `POST /incidents/:id/claim`, NO la ruta
+        // genérica `PATCH /:id/status` (que no escribe
+        // `claimed_by`). Antes de este fix, la UI "reclamaba"
+        // cambiando el estado a `in_progress` pero la base
+        // de datos no registraba al claimer, dejando `release`
+        // y `resolve` inalcanzables. Mismo patrón que `release`:
+        // 409 INCIDENT_ALREADY_CLAIMED, 429 CLAIM_LIMIT_REACHED,
+        // 403 WRONG_ORGANIZATION ⇒ toast con el motivo del
+        // backend + recarga del incident (D4: el servidor es
+        // la autoridad).
+        this.incidentService.claimIncident(inc.id).subscribe({
+          next: (claimed) => {
+            this.incident.update((cur) => (cur ? { ...cur, ...claimed } : cur));
+            this.toast.show('Incidencia reclamada.', 'success');
+            this.statusHistoryService.getStatusHistory(inc.id).subscribe({
+              next: (r) => this.history.set(r.items),
+            });
+          },
+          error: (err) => {
+            const message =
+              err?.error?.message ?? 'No se pudo reclamar la incidencia.';
+            this.toast.show(message, 'error');
+            this.incidentService.getIncident(inc.id).subscribe({
+              next: (refreshed) => this.incident.set(refreshed),
+            });
+          },
+        });
         break;
       case 'release':
         // F3 (sc-303) C2 (ronda 5) — `release` ya no es un no-op.

@@ -66,6 +66,9 @@ describe('IncidentDetailComponent (F3.4)', () => {
       getIncident: jest.fn(),
       updateIncidentStatus: jest.fn(),
       releaseIncident: jest.fn(),
+      // MAIL/incidents ronda 6 — `claim` invoca un endpoint
+      // dedicado; mock explícito para los tests nuevos.
+      claimIncident: jest.fn(),
     };
     const commentSvc = {
       getComments: jest.fn().mockReturnValue(of<Comment[]>([])),
@@ -147,38 +150,69 @@ describe('IncidentDetailComponent (F3.4)', () => {
     expect(component.actions()).toContain('claim');
   });
 
-  it('F3.4.7 — al ejecutar claim con éxito, el incident signal se actualiza y se muestra toast', () => {
+  it('F3.4.7 — al ejecutar claim con éxito, claimIncident devuelve un ClaimReleaseResult con claimed_by, y el signal se actualiza con merge parcial', () => {
+    // F3 (sc-303) ronda 6 — `claim` invoca `POST /incidents/:id/claim`
+    // (endpoint dedicado), no `PATCH /:id/status`. El wire devuelve
+    // `ClaimReleaseResult` con `claimed_by` poblado al usuario actual;
+    // la UI hace merge parcial para no corromper el resto del modelo.
     const { component, incidentSvc, toastSvc } = setup({
       permissions: ['CLAIM incidents'],
+      userId: 'user-1',
     });
-    const updated = { ...baseIncident, status: 'in_progress' as const };
-    incidentSvc.updateIncidentStatus.mockReturnValue(of(updated));
+
+    // Wire real (7 campos). claimed_by = 'user-1' (el caller).
+    const claimed = {
+      id: 'inc-1',
+      title: 'Pothole on Main St',
+      status: 'in_progress' as const,
+      priority: 'medium' as const,
+      claimed_by: 'user-1',
+      organization_id: 'org-A',
+      updated_at: new Date('2026-09-07'),
+    };
+    incidentSvc.claimIncident.mockReturnValue(of(claimed));
 
     component.onAction('claim');
 
-    expect(incidentSvc.updateIncidentStatus).toHaveBeenCalledWith(
-      'inc-1',
-      'in_progress',
-      undefined,
-    );
+    // La acción llama al endpoint DEDICADO, no a la ruta genérica
+    // de cambio de estado. Esta aserción es la que los tres commits
+    // previos de F3.4.7 NO hacían — sin ella, el mock ficticio
+    // podía pasar el test sin que la UI reclamara de verdad.
+    expect(incidentSvc.claimIncident).toHaveBeenCalledWith('inc-1');
+    expect(incidentSvc.updateIncidentStatus).not.toHaveBeenCalled();
+
+    // La aserción que faltaba: tras un claim exitoso, `claimed_by`
+    // queda asignado al caller. Sin ella, el bug de la ronda 6
+    // (la UI "reclamaba" pero no asignaba) pasó 5 rondas de
+    // auditoría sin ser detectado.
+    expect(component.incident()?.claimed_by).toBe('user-1');
     expect(component.incident()?.status).toBe('in_progress');
-    expect(toastSvc.show).toHaveBeenCalled();
+
+    // Merge parcial: el resto de los campos del modelo se preservan.
+    expect(component.incident()?.description).toBe('Big crater');
+    expect(component.incident()?.lat).toBe(-2.2);
+    expect(component.incident()?.citizen_id).toBe('user-1');
+
+    // Feedback al usuario.
+    expect(toastSvc.show).toHaveBeenCalledWith('Incidencia reclamada.', 'success');
   });
 
-  it('F3.4.7 — al fallar el cambio de estado, el toast expone el mensaje del backend y se recarga la incidencia', () => {
+  it('F3.4.7 — al fallar el claim, el toast expone el mensaje del backend y se recarga la incidencia', () => {
+    // F3 (sc-303) ronda 6 — error del backend (409 INCIDENT_ALREADY_CLAIMED,
+    // 429 CLAIM_LIMIT_REACHED, 403 WRONG_ORGANIZATION) ⇒ toast con
+    // motivo + recarga del incident para resincronizar.
     const { component, incidentSvc, toastSvc } = setup({
       permissions: ['CLAIM incidents'],
     });
-    incidentSvc.updateIncidentStatus.mockReturnValue(
-      throwError(() => ({ error: { message: 'INCIDENT_INVALID_TRANSITION' } })),
+    incidentSvc.claimIncident.mockReturnValue(
+      throwError(() => ({ error: { message: 'INCIDENT_ALREADY_CLAIMED' } })),
     );
-    // La recarga usa `getIncident`, que está mockeado arriba
     incidentSvc.getIncident.mockReturnValue(of(baseIncident));
 
     component.onAction('claim');
 
     expect(toastSvc.show).toHaveBeenCalledWith(
-      'INCIDENT_INVALID_TRANSITION',
+      'INCIDENT_ALREADY_CLAIMED',
       'error',
     );
   });

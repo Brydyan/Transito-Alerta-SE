@@ -228,6 +228,65 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
     req.flush(null);
   });
 
+  // ───── F3 (sc-303) — ronda 6 fix: POST /incidents/:id/claim
+  // La acción "claim" debe invocar el endpoint dedicado del backend
+  // (`backend/src/modules/incidents/incident-workflow.controller.ts:34-42`),
+  // NO la ruta genérica `PATCH /:id/status` (que NO escribe `claimed_by`).
+  // El wire es el mismo `ClaimReleaseResponseDto` que `release`.
+  it('claimIncident POSTs /incidents/:id/claim with {} and updates cache partially (ronda 6)', (done) => {
+    // Seed the cache with a full fixture incident.
+    service.getIncidents({}).subscribe();
+    http.expectOne((r) => r.url === `${base}/incidents`).flush([fixtureIncident]);
+
+    // Wire real (7 campos snake_case, mismo DTO que release).
+    const slimResponse = {
+      id: 'inc-1',
+      title: 'Pothole on Main St',
+      status: 'in_progress' as const,
+      priority: 'medium' as const,
+      claimed_by: 'user-1',
+      organization_id: 'org-1',
+      updated_at: new Date('2026-09-07'),
+    };
+
+    service.claimIncident('inc-1').subscribe((res) => {
+      // Positive assertions (7 fields of ClaimReleaseResult).
+      expect(res.id).toBe('inc-1');
+      expect(res.title).toBe('Pothole on Main St');
+      expect(res.status).toBe('in_progress');
+      expect(res.priority).toBe('medium');
+      // El fix central: la respuesta del endpoint dedicado SÍ incluye
+      // `claimed_by` con el usuario actual. La aserción que faltó en
+      // los tres commits de F3.4.7 hasta la ronda 6.
+      expect(res.claimed_by).toBe('user-1');
+      expect(res.organization_id).toBe('org-1');
+      expect(res.updated_at).toBeDefined();
+
+      // Negative assertions: wire does NOT return the full 25 fields.
+      expect((res as any).description).toBeUndefined();
+      expect((res as any).lat).toBeUndefined();
+      expect((res as any).lng).toBeUndefined();
+      expect((res as any).citizen_id).toBeUndefined();
+      expect((res as any).category_id).toBeUndefined();
+
+      // Cache partial merge: la entrada en `incidents$` debe tener
+      // `claimed_by` actualizado a 'user-1' (no `null`), pero el resto
+      // de los campos del modelo se preservan.
+      const cached = (service as any).incidents$.value.find((i: Incident) => i.id === 'inc-1');
+      expect(cached?.claimed_by).toBe('user-1');
+      expect(cached?.description).toBe('Large crater blocking the right lane');
+      expect(cached?.lat).toBe(-2.2);
+      expect(cached?.status).toBe('in_progress');
+
+      done();
+    });
+
+    const req = http.expectOne(`${base}/incidents/inc-1/claim`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush(slimResponse);
+  });
+
   // ───── F3 (sc-303) C2 (ronda 5) — POST /incidents/:id/release
   // El endpoint devuelve ClaimReleaseResponseDto que tras el interceptor
   // es un shape recortado de 7 campos snake_case.

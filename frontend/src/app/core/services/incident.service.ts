@@ -108,6 +108,36 @@ export class IncidentService {
   }
 
   /**
+   * POST /api/incidents/:id/claim — reclama la incidencia para el
+   * caller. El backend (`IncidentWorkflowService.claim`,
+   * `incident-workflow.controller.ts:34-42`) hace un `UPDATE ... SET
+   * claimed_by = $1, claimed_at = NOW() WHERE id = $2 AND claimed_by
+   * IS NULL` atómico y devuelve 409 `INCIDENT_ALREADY_CLAIMED`,
+   * 429 `CLAIM_LIMIT_REACHED`, o 403 `WRONG_ORGANIZATION` si el
+   * caller no cumple las precondiciones de negocio.
+   *
+   * F3 (sc-303) ronda 6 — el bug preexistente: `onAction('claim')`
+   * llamaba a `runStatusTransition` (PATCH /:id/status con `status:
+   * 'in_progress'`), que NO escribe `claimed_by`. El resultado era
+   * que la UI "reclamaba" pero la base de datos no registraba al
+   * claimer, dejando `release` y `resolve` inalcanzables. El endpoint
+   * dedicado ya existía y funcionaba — el defecto era 100% de
+   * wiring en el frontend. Esta función lo corrige.
+   */
+  claimIncident(id: string): Observable<ClaimReleaseResult> {
+    return this.httpService
+      .post<ClaimReleaseResult>(`/incidents/${id}/claim`, {})
+      .pipe(
+        tap((claimed) => {
+          const current = this.incidents$.value.map((inc) =>
+            inc.id === id ? { ...inc, ...claimed } : inc,
+          );
+          this.incidents$.next(current);
+        }),
+      );
+  }
+
+  /**
    * POST /api/incidents/:id/release — libera la incidencia que el
    * caller tiene reclamada. El backend (`IncidentWorkflowService.release`)
    * exige que el caller sea el `claimed_by` actual, y devuelve 409
