@@ -21,7 +21,7 @@ async function waitUntil(check: () => Promise<boolean>, timeoutMs = 15_000, inte
 /**
  * Mail module e2e (T3.5). Real Postgres, real Redis (Testcontainers,
  * `redis:7-alpine`), the real running app — no mocked Redis seam, unlike
- * the unit specs. SMTP_HOST is unset in this harness (log-only fallback),
+ * the unit specs. SMTP_HOST is forced empty by TestEnvironment (log-only fallback),
  * so `MailService.deliver` is spied per-test to make transient-failure /
  * dead-letter scenarios deterministic without a real SMTP server.
  */
@@ -105,7 +105,7 @@ describe('Mail module e2e (T3.5)', () => {
    * una entrada con la plantilla nueva, dejar que el consumer
    * la procese, y comprobar que NO está en `mail:dead`.
    *
-   * SMTP_HOST no está configurado, así que `deliverViaSmtp`
+   * `TestEnvironment` fuerza `SMTP_HOST` vacío, así que `deliverViaSmtp`
    * cae al transporte de sólo-registro y devuelve sin error.
    * El camino se recorre entero sin mandar correo de verdad.
    */
@@ -126,7 +126,7 @@ describe('Mail module e2e (T3.5)', () => {
     });
 
     // El consumer toma la entrada y llama `deliver`. Sin
-    // SMTP_HOST cae al log-only, no falla, y la entrada se
+    // Con SMTP_HOST vacío cae al log-only, no falla, y la entrada se
     // XACK. La presencia de `deliver` confirma que el
     // render corrió — si el template no existiera, la
     // excepción habría aparecido como `mail:dead`.

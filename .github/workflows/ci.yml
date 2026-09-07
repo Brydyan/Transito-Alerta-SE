@@ -155,7 +155,7 @@ jobs:
       - run: pnpm test
 
   integration:
-    name: Integration — e2e harness against real Postgres+PostGIS and Redis
+    name: Integration — e2e ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
     # Skip en PR si nada del set `integration` cambió. En push SIEMPRE
     # corre como gate final. Reemplaza el filtro anterior (que sólo
@@ -164,6 +164,37 @@ jobs:
     if: |
       github.event_name == 'push' ||
       needs.changes.outputs.integration == 'true'
+
+    # sc-330 — la suite e2e se PARTICIONA en cuatro, no se recorta.
+    #
+    # `test-environment.ts` levanta un PostGIS y un Redis por archivo de
+    # spec (su propio comentario: "una instancia por archivo"), y
+    # `jest-e2e.json` fija `maxWorkers: 1`. Con 50 archivos eso son ~11
+    # minutos en serie, y crece con cada spec nuevo.
+    #
+    # `--shard=N/4` reparte los ARCHIVOS entre cuatro corredores. Los
+    # cuatro juntos ejecutan exactamente la misma suite que antes: esto
+    # divide el trabajo, no lo reduce. Recortar la suite en la compuerta
+    # de merge sería lo contrario de lo que la compuerta existe para
+    # hacer — es el único sitio donde nadie va a mirar lo que se saltó.
+    #
+    # Es seguro porque no hay estado compartido entre archivos: cada uno
+    # trae sus propios contenedores y los tira al terminar. Por eso mismo
+    # el particionado no ahorra arranques de contenedor, sólo los pone en
+    # paralelo. Bajar ese coste pide reutilizar contenedores entre
+    # archivos, que es la deuda que el propio `test-environment.ts`
+    # anota ("revisar si ese supuesto deja de valer" — ya dejó de valer,
+    # con 50 archivos).
+    #
+    # `fail-fast: false` para ver TODAS las particiones que fallan en una
+    # corrida. Con el valor por defecto, la primera en romperse cancela
+    # las otras tres y el informe queda incompleto justo cuando más hace
+    # falta.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
     defaults:
       run:
         working-directory: backend
@@ -192,7 +223,47 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm run test:e2e
+      # SIN el separador `--`, y no es un descuido: pnpm lo reenvía LITERAL
+      # al comando de abajo en vez de consumirlo (npm sí lo consume). El `--`
+      # llega a jest como primer argumento posicional, su parser deja de
+      # reconocer `--shard=N/4` como opción y lo trata como patrón de ruta:
+      #
+      #   $ pnpm run test:e2e -- --shard=1/4
+      #   Pattern: --shard=1/4 - 0 matches
+      #   No tests found, exiting with code 1
+      #
+      # Las cuatro particiones fallarían así en cada push, en rojo y sin
+      # haber ejecutado un solo test. Si alguien "arregla" esto volviendo a
+      # poner el `--`, eso es lo que rompe.
+      - run: pnpm run test:e2e --shard=${{ matrix.shard }}/4
+
+  # sc-330 — Agregador. Existe SÓLO para conservar el nombre de check que
+  # tenía el job `integration` antes de particionarse.
+  #
+  # Al añadir una matriz, GitHub renombra los checks a "… (1)", "… (2)"…
+  # Si `develop` o `main` exigen la comprobación con el nombre viejo, esos
+  # checks dejan de existir y los PR se quedan esperando indefinidamente
+  # uno que nunca va a llegar — bloqueados sin un error que lo explique.
+  # Este job mantiene el contrato: mismo nombre, verde sólo si las cuatro
+  # particiones pasaron.
+  #
+  # `if: always()` es obligatorio: sin él, el agregador se salta cuando se
+  # salta `integration`, y un check requerido que se salta bloquea igual.
+  # Por eso la condición distingue "skipped" (correcto: el PR no tocó nada
+  # de integración) de "failure"/"cancelled" (no correcto).
+  integration-gate:
+    name: Integration — e2e harness against real Postgres+PostGIS and Redis
+    runs-on: ubuntu-latest
+    needs: integration
+    if: always()
+    steps:
+      - name: Comprobar el resultado de las cuatro particiones
+        run: |
+          echo "resultado de integration: ${{ needs.integration.result }}"
+          case "${{ needs.integration.result }}" in
+            success|skipped) echo "OK"; exit 0 ;;
+            *)               echo "alguna partición no pasó"; exit 1 ;;
+          esac
 
   migrations:
     name: Migrations — apply to a clean PostGIS database
