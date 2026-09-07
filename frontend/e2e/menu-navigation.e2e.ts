@@ -89,7 +89,7 @@ async function assertNotErrorPage(page: Page, itemName: string): Promise<void> {
 }
 
 test.describe('F1.6.1 — sidebar del admin navega sin 404', () => {
-  test.skip(adminCreds.skip, adminCreds.reason);
+  test.skip(adminCreds.skip, adminCreds.skip ? adminCreds.reason : '');
 
   test('cada entrada del menú no monta ErrorPageComponent', async ({ page }) => {
     if (adminCreds.skip) return;
@@ -122,7 +122,7 @@ test.describe('F1.6.1 — sidebar del admin navega sin 404', () => {
 });
 
 test.describe('F1.6.2 — operador_org ve un subconjunto navegable', () => {
-  test.skip(e2eCreds.skip, e2eCreds.reason);
+  test.skip(e2eCreds.skip, e2eCreds.skip ? e2eCreds.reason : '');
 
   test('el menú reducido sigue siendo navegable en su totalidad', async ({ page }) => {
     if (e2eCreds.skip) return;
