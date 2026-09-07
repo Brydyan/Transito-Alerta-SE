@@ -1,4 +1,4 @@
-import { ENQUEUED_TEMPLATE_NAMES, renderMailTemplate } from './mail-templates';
+import { renderMailTemplate } from './mail-templates';
 
 describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', () => {
   describe('invitation', () => {
@@ -177,20 +177,5 @@ describe('renderMailTemplate — existing_account_attempt (MAIL A.2/A.5, D4/D9)'
     // Si el user-agent es HTML, el helper no puede describir
     // nada reconocible; el fallback es "desconocido".
     expect(html).toContain('desconocido');
-  });
-});
-
-describe('renderMailTemplate — todos los nombres encolados están cubiertos (MAIL C.2)', () => {
-  // El test recorre la costura: por cada nombre que el código
-  // encola (derivado de `ENQUEUED_TEMPLATE_NAMES`), `renderMailTemplate`
-  // lo acepta sin lanzar. El test NO enumera los nombres a mano:
-  // eso volvería a partir la costura en dos (lo que este test
-  // existe para evitar).
-  it('todos los `ENQUEUED_TEMPLATE_NAMES` se renderizan sin error', () => {
-    for (const name of ENQUEUED_TEMPLATE_NAMES) {
-      expect(() =>
-        renderMailTemplate(name, { _placeholder: 'x' }),
-      ).not.toThrow();
-    }
   });
 });

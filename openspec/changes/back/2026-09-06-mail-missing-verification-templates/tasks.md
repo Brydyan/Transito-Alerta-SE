@@ -88,19 +88,27 @@ existan deja el proyecto sin compilar.
 
   Hacer lo mismo con el test del aviso de intento, si existe; si no existe, escribirlo.
 
-- [x] **C.2** — **El test que recorre la costura**. Nuevo, y es el entregable de fondo de
-  esta fase: por cada nombre de plantilla que los servicios encolan, `renderMailTemplate`
-  lo acepta sin lanzar.
-
-  No vale enumerar los nombres a mano en el test — eso vuelve a partir la costura en dos.
-  Derivarlos de la propia unión `TemplateName` y comprobar que el registro `TEMPLATES` los
-  cubre todos.
+- [x] **C.2** — **Rebajado a WARNING por la auditoría de la ronda 1.** El test era una
+  tautología: `ENQUEUED_TEMPLATE_NAMES: ReadonlyArray<TemplateName>` y
+  `TEMPLATES: Record<TemplateName, TemplateFn>` hacen que el bucle
+  `for (const name of ENQUEUED_TEMPLATE_NAMES) renderMailTemplate(name, …)` nunca pueda
+  alcanzar la rama `if (!fn) throw`. La cobertura que C.2 buscaba ya la garantiza
+  el compilador. Lo que el compilador **no** puede ver — un nombre que llega como cadena
+  desde Redis y ya no existe en el union — está cubierto por
+  `mail-outbox.consumer.spec.ts` ('sends an unknown template straight to mail:dead'):
+  ese es el test que importa, no C.2. El bloque C.2 queda borrado; `ENQUEUED_TEMPLATE_NAMES`
+  ya no se exporta. Un comentario en `mail-templates.ts` documenta la cobertura real y
+  apunta al consumer test.
 
 - [x] **C.3** — **Verificación por mutación, ejecutada por quien implementa.** Quitar
-  `email_verification` del registro `TEMPLATES` y comprobar que **cae C.2**. Restaurar.
+  `email_verification` del registro `TEMPLATES` y comprobar que **cae** el typecheck
+  (no un test runtime). Restaurar.
 
-  Anotar en `apply-progress.md` **el nombre del test que cayó**. Si no cae ninguno, C.2 es
-  decorativo y hay que rehacerlo antes de seguir.
+  Anotar en `apply-progress.md` **lo que cayó**. La auditoría inicial pedía que cayera
+  C.2; con C.2 borrado, lo que cae es la **compilación de 10 specs** (la unión
+  `TemplateName` exige que la clave esté en `TEMPLATES`): el compilador vuelve a ser
+  la primera barrera contra un nombre inventado (D2). Eso es la prueba que C.3
+  buscaba demostrar.
 
 - [x] **C.4** — Test de integración del camino completo, contra Redis real: encolar una
   verificación, dejar que el consumidor la procese, y comprobar que **no** aparece en
@@ -218,7 +226,13 @@ Todo en `frontend/src/app/features/auth/register/`.
   tráfico entero.
 
 - [x] **G.5** — **Verificación por mutación.** Quitar el ajuste de confianza y comprobar que
-  **caen** G.2 y G.4. Anotar cuál cayó, por nombre.
+  **cae G.4**. Anotar cuál cayó, por nombre.
+
+  G.2 prueba la función pura `isTrustedProxyAddress` en aislamiento; no pasa por
+  `app.set`, así que la mutación de quitar el cableado no le hace nada (confirmado
+  en la ronda 1: 14/14 siguen pasando). El único test que depende del cableado real
+  es G.4 — la mutación lo hace caer porque `req.ip` deja de resolverse desde
+  `X-Forwarded-For` y los dos clientes del test comparten `127.0.0.1`.
 
 - [x] **G.6** — Anotar en `apply-progress.md` la deuda de infraestructura: publicar
   `APP_PORT` en el host no hace falta si todo entra por nginx, y cerrarlo reduce la

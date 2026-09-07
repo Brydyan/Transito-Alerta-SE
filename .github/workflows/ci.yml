@@ -223,7 +223,19 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm run test:e2e -- --shard=${{ matrix.shard }}/4
+      # SIN el separador `--`, y no es un descuido: pnpm lo reenvía LITERAL
+      # al comando de abajo en vez de consumirlo (npm sí lo consume). El `--`
+      # llega a jest como primer argumento posicional, su parser deja de
+      # reconocer `--shard=N/4` como opción y lo trata como patrón de ruta:
+      #
+      #   $ pnpm run test:e2e -- --shard=1/4
+      #   Pattern: --shard=1/4 - 0 matches
+      #   No tests found, exiting with code 1
+      #
+      # Las cuatro particiones fallarían así en cada push, en rojo y sin
+      # haber ejecutado un solo test. Si alguien "arregla" esto volviendo a
+      # poner el `--`, eso es lo que rompe.
+      - run: pnpm run test:e2e --shard=${{ matrix.shard }}/4
 
   # sc-330 — Agregador. Existe SÓLO para conservar el nombre de check que
   # tenía el job `integration` antes de particionarse.

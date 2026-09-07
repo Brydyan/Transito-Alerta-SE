@@ -1,127 +1,237 @@
 # Verify Report: MAIL — Las plantillas de verificación que nunca existieron
 
 **Change**: `2026-09-06-mail-missing-verification-templates` (sc-330)
-**Ronda**: 1
+**Ronda**: 2
 **Rama verificada**: `brydyan/sc-330/mail-el-correo-de-verificacion-nunca-se-pudo`
+**HEAD**: `e50814c6ef1181bf497e690fcfc7cf09f3285be1`
 **Fecha**: 2026-09-06
-**Modo**: Standard (Strict TDD no confirmado para este change vía sdd-init; se verificó igual con ejecución real + mutación, exigencia explícita del usuario)
+**Modo**: Standard (verificación por ejecución real + mutación, exigencia explícita del usuario)
 
-**Nota de discrepancia de entorno**: al empezar esta ronda el árbol NO estaba limpio como se afirmaba. `git status` mostraba `backend/src/common/proxy-trust.ts` y `.spec.ts` modificados (soporte de IPv4-mapped IPv6, `::ffff:127.0.0.1`, no documentado en tasks.md pero sí en apply-progress.md bajo G.1), `tasks.md` con checkboxes recién marcados, y `apply-progress.md` sin trackear. Se verificó el árbol de trabajo tal cual estaba, sin comittear. Todas las mutaciones de esta ronda respetaron la regla `cp`/`.bak` y el árbol quedó exactamente en el mismo estado sucio en el que se encontró.
+**Nota de contexto (importante)**: los arreglos de esta ronda (CRITICAL-1 y el particionado
+de CI) los escribió el orquestador, no el implementador. Se auditaron con el mismo rigor
+que si los hubiera escrito cualquier otro agente — sin beneficio de la duda.
+
+**Nota de discrepancia de entorno (otra vez)**: se afirmó "árbol limpio" al iniciar esta
+ronda. **Era falso.** `git status --short` mostró, desde el primer momento, 4 archivos sin
+commitear:
+
+```
+ M backend/src/modules/mail/templates/mail-templates.spec.ts
+ M backend/src/modules/mail/templates/mail-templates.ts
+ M openspec/changes/.../apply-progress.md
+ M openspec/changes/.../tasks.md
+```
+
+Estos cambios **ya implementan la opción 1 de WARNING-A** (borrar `ENQUEUED_TEMPLATE_NAMES`
+y el `describe` de C.2, dejar un comentario que documenta que la cobertura real vive en
+`mail-outbox.consumer.spec.ts`) — exactamente lo que el brief de esta ronda pedía **no
+tocar** ("confirmalo, no lo arregles"). No lo escribí yo en esta sesión: ya estaba en el
+árbol al arrancar. Se verificó tal cual estaba, sin comittear y sin revertir, siguiendo el
+mismo criterio que la ronda 1 (auditar el árbol real, no el que se supone que hay). El
+contenido del cambio es correcto (ver sección WARNING-A abajo) pero **queda sin commitear**
+— no se puede archivar con un árbol sucio.
 
 ---
 
 ## Veredicto
 
-**FAIL** — 2 CRITICAL bloquean el archivado.
-
-1. Los e2e C.4 (el entregable central del bloque C — "la prueba que habría detectado el defecto el primer día") **fallan en ejecución real**, tanto en el subconjunto como en la suite completa.
-2. El test C.2 ("el test que recorre la costura") **no cierra la costura**: es un array enumerado a mano (`ENQUEUED_TEMPLATE_NAMES`), exactamente el anti-patrón que la propia tarea prohibía. La mutación demuestra que **ningún test runtime cae** — sólo el compilador — que es la condición que tasks.md/C.3 define textualmente como "decorativo, hay que rehacerlo".
-
-Todo lo demás verificado (D10/trust proxy, E.2/validador de grupo, E.4/campo que no viaja, H.5/sin literales, H.1-H.7, B.1/B.2, D.1) está correctamente implementado y probado por mutación con evidencia real.
+**FAIL** — 1 CRITICAL nuevo bloquea el archivado. El CRITICAL-1 original (SMTP_HOST) sí
+está resuelto de verdad, con evidencia de mutación. El particionado de CI que se agregó
+para "resolver" la lentitud del e2e **no ejecuta ningún test en CI**: se rompe con "No
+tests found, exiting with code 1" en las cuatro particiones, por un problema de paso de
+flags de `pnpm run` que este mismo repo ya había sufrido antes (ver `CLAUDE.md`).
 
 ---
 
-## Respuestas a las preguntas que decidían esta ronda
+## 1 — CRITICAL-1 (SMTP_HOST): ¿cierra de verdad? → **Sí.**
 
-### 1 — C.2, ¿cierra la costura o la vuelve a partir? → **La vuelve a partir. CRITICAL.**
-
-`ENQUEUED_TEMPLATE_NAMES` en `backend/src/modules/mail/templates/mail-templates.ts:117-126` es un array **literal, escrito a mano**:
-
-```ts
-export const ENQUEUED_TEMPLATE_NAMES: ReadonlyArray<TemplateName> = [
-  'incident.created', 'incident.assigned', 'incident.status_changed',
-  'comment.created', 'invitation', 'password-reset',
-  'email_verification', 'existing_account_attempt',
-];
-```
-
-El propio comentario del código (líneas 110-116) lo admite: *"Si el código añade un nombre y olvida el registro, este array NO se actualiza automáticamente... La protección real contra 'nombre inventado' es el tipo."* Eso es exactamente lo que la tarea C.2 prohibía: *"No vale enumerar los nombres a mano en el test — eso vuelve a partir la costura en dos."*
-
-**Mutación ejecutada** (yo mismo, no confío en lo anotado): quité la entrada `email_verification` de `TEMPLATES` en `mail-templates.ts` y corrí:
+**Sin ningún override manual**, subconjunto de 6 e2e:
 
 ```
-npx tsc --noEmit -p tsconfig.json
-  → error TS2741: Property 'email_verification' is missing in type '...' but required in type 'Record<TemplateName, TemplateFn>'.
-
-npx jest src/modules/mail/templates/mail-templates.spec.ts --silent
-  → Test suite failed to run (0 tests ejecutados) — el archivo no compila.
+npx jest --config ./test/jest-e2e.json --testPathPattern='mail\.e2e-spec|email-verification\.e2e-spec|email-verified-guard\.e2e-spec|registration-flow\.e2e-spec|registration-otp-flow\.e2e-spec|trust-proxy-rate-limit\.e2e-spec'
+→ 6 suites / 27 tests, 0 fallos, 125.187s
 ```
 
-**Ningún test cayó.** El test C.2 (`renderMailTemplate — todos los nombres encolados están cubiertos (MAIL C.2) > todos los ENQUEUED_TEMPLATE_NAMES se renderizan sin error`) nunca llegó a ejecutarse — ts-jest abortó la compilación del archivo antes de correr un solo `it()`. Lo que realmente detiene la mutación es `Record<TemplateName, TemplateFn>` (D2), no el test C.2.
+`backend/.env` real del repo **sigue** trayendo `SMTP_HOST=localhost` (confirmado,
+`.env:47`) — el fix funciona pese a eso, no porque el `.env` haya cambiado.
 
-Esto coincide con la propia definición de fallo que tasks.md pone en C.3: *"Si no cae ninguno, C.2 es decorativo y hay que rehacerlo antes de seguir."* Es exactamente lo que ocurrió, y el ítem se marcó `[x]` de todas formas.
-
-`apply-progress.md` (C.3) documenta el mismo resultado con honestidad ("el test que 'cayó' fue la compilación de 10 specs, no un test runtime") — no hay engaño, pero la conclusión ("C.2 quedó confirmado por derivación") no es correcta: C.2 no quedó confirmado, quedó demostrado decorativo, y la tarea decía que en ese caso había que rehacerlo.
-
-**Riesgo real que deja abierto**: si algún día `TEMPLATES` deja de tipar como `Record<TemplateName, TemplateFn>` (p.ej. alguien lo relaja a `Record<string, TemplateFn>` para agregar una entrada dinámica), la única defensa que queda es un array manual que nadie está obligado a mantener sincronizado con lo que los servicios realmente encolan.
-
-**Fix sugerido** (no aplicado — sólo reporto): derivar la cobertura estructuralmente, p.ej. `Object.keys(TEMPLATES) as TemplateName[]` recorrido en el test, o un `satisfies` combinado con `Exclude<TemplateName, keyof typeof TEMPLATES>` que sea `never` — de forma que el test falle en runtime (o el propio archivo de producción falle a compilar con un mensaje decodificable) sin depender de un array mantenido a mano y sincronizado por convención.
-
----
-
-### 2 — G, trust proxy: ¿por dirección o por saltos? → **Por dirección. Correcto.**
-
-`backend/src/common/proxy-trust.ts` exporta `isTrustedProxyAddress`, una función que compara la IP contra CIDRs fijos (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.1/32`) y la pasa como callback a `app.set('trust proxy', isTrustedProxyAddress)` en `main.ts` y en el harness (`test-environment.ts`). No usa `true` ni un entero. Cumple D10 al pie de la letra, incluyendo el manejo de IPv4-mapped IPv6 (`::ffff:127.0.0.1`, necesario para Node en modo dual-stack — trabajo adicional no comiteado que encontré en el árbol, ver nota de discrepancia arriba).
-
-**G.3 (cabecera falsificada desde fuera) existe**: `proxy-trust.spec.ts` tiene 5+ tests bajo "fuera de la red de confianza" que verifican que IPs públicas (`1.2.3.4`, `8.8.8.8`, `190.15.142.87`), límites de CIDR y entradas malformadas devuelven `false`. No hay un test e2e que simule una conexión TCP real desde fuera de la red (imposible en este harness: todas las conexiones de Supertest llegan por loopback, dentro de `127.0.0.1/32`), así que la verificación de "fuera de la red" vive correctamente a nivel de función pura, no de request HTTP completo. Es una limitación de diseño razonable, no un hueco.
-
-**Mutación ejecutada**: quité el `app.set('trust proxy', isTrustedProxyAddress)` de `test-environment.ts` y corrí:
-
-- `proxy-trust.spec.ts` (G.2, unitario) → **14/14 pasan, ninguno cae**. Es esperado: G.2 prueba la función pura `isTrustedProxyAddress` directamente, sin pasar por `app.set`; la mutación no la toca.
-- `trust-proxy-rate-limit.e2e-spec.ts` (G.4) → **cae**: `expect(allowed.status).toBe(200)` recibe `429` — el cliente B hereda el cupo agotado del cliente A porque `req.ip` vuelve a ser `127.0.0.1` para ambos.
-
-**WARNING, no CRITICAL**: `tasks.md` G.5 pide literalmente *"comprobar que caen G.2 y G.4"* — ambos. Eso es estructuralmente imposible con el diseño actual: G.2 es (correctamente) un test de la función pura, desacoplado de si está cableada en `app.set`. `apply-progress.md` sólo reporta la caída de G.4 (correcto y honesto), pero no señala que el criterio de aceptación de la tarea, tal como está escrito, no se puede cumplir al 100%. No es un defecto de la protección real (D10 funciona), es un desajuste entre lo que el texto de la tarea pide y lo que es verificable.
-
----
-
-### 3 — E.4, ¿el campo de confirmación viaja? → **No viaja. Correcto y probado.**
-
-`onSubmit` sigue desestructurando campo por campo (`const { email, password, first_name, last_name } = this.registerForm.value`), no `...this.registerForm.value`. Test `E.4: el cuerpo enviado al servidor tiene exactamente cuatro claves` en `register.component.spec.ts:151` asserta `Object.keys(req.request.body).sort()` **exactamente** `['email', 'first_name', 'last_name', 'password']` y `'email_confirm' in req.request.body === false`. Backend: `RegisterDto` no tiene `email_confirm` (grep confirmado, cero resultados) — D7 respetado, la confirmación no cruza la red.
-
----
-
-### 4 — E.2, ¿el validador es de grupo? → **Sí, y el escenario de "editar después de confirmar" existe.**
-
-`{ validators: this.emailMatchValidator }` está en el segundo argumento de `formBuilder.group(...)` — a nivel de `FormGroup`, no enganchado a un control. Test `E.5: si después de confirmar el primer correo se edita, vuelve a inválido` en `register.component.spec.ts:197` existe y ejercita exactamente ese escenario.
-
-**Mutación ejecutada**: quité `{ validators: this.emailMatchValidator }`. Resultado — **exactamente 2 de 13 tests caen**:
-- `email_confirm (MAIL E.4/E.5) > E.5: dos correos distintos → formulario inválido y register no se llama`
-- `email_confirm (MAIL E.4/E.5) > E.5: si después de confirmar el primer correo se edita, vuelve a inválido`
-
-Coincide al 100% con lo que `apply-progress.md` (E.6) reporta. Restaurado y confirmado: 13/13 vuelven a pasar.
-
----
-
-### 5 — H.5, ¿el test de "sin literales sueltos" cae con un literal a mano? → **Sí, cae.**
-
-**Mutación ejecutada**: inyecté `De parte de GeoReporta.` a mano en el body de la plantilla `incident.assigned`. Resultado:
+**Mutación** — se quitó la línea `process.env.SMTP_HOST = '';` de
+`test-environment.ts` (backup con `cp`, restaurado después):
 
 ```
-FAIL mail-templates-no-literals.spec.ts
-● ... > H.5: ningún string literal del archivo contiene el valor de PRODUCT_NAME
-  - Expected: Array []
-  + Received: Array [ "`<p>...${productFooter()}</p><p>De parte de GeoReporta.</p>`" ]
+npx jest --config ./test/jest-e2e.json --testPathPattern='mail\.e2e-spec'
+→ 1 suite falla, 2 failed / 4 passed / 6 total
+● C.4: una entrada con `email_verification` se procesa y NO termina en mail:dead
+    expect(await deadCount()).toBe(before);  Expected: 0, Received: 1
+● C.4: una entrada con `existing_account_attempt` se procesa y NO termina en mail:dead
+    expect(await deadCount()).toBe(before);  Expected: 0, Received: 1
 ```
 
-Cayó exactamente el test esperado. Restaurado; 3/3 vuelven a pasar.
+**Cayeron exactamente los mismos dos tests que en la ronda 1.** El arreglo es el que hace
+pasar el test, no una casualidad del entorno.
+
+**Confirmado en código** (no sólo por el resultado del test):
+`mail.config.ts:33` → `smtpHost: process.env.SMTP_HOST || undefined`. Con
+`SMTP_HOST=''`, `'' || undefined` evalúa `undefined` (cadena vacía es falsy en JS).
+`mail.service.ts:81` → `if (!mailConfig.smtpHost)` → `!undefined` → `true` → toma la
+rama de sólo-registro. La cadena vacía SÍ llega como `undefined`, no como `''` truthy.
+
+**Orden de ejecución**: `process.env.SMTP_HOST = ''` está en `test-environment.ts:197`,
+antes de `moduleFixture.createNestApplication()` (línea 218) — se fija antes de que
+`ConfigModule` lea el proceso. Correcto.
+
+**Ningún otro test depende de un `SMTP_HOST` truthy**: `grep -rn SMTP_HOST src test` da
+sólo `mail.config.ts` (lee `process.env`), `mail.service.spec.ts` (dos tests que mockean
+`ConfigService` directamente, no `process.env` — no afectados, confirmado: siguen en la
+corrida de 1024/1024 verdes) y los tres comentarios actualizados de `mail.e2e-spec.ts`.
+
+**Veredicto parcial: CRITICAL-1 CERRADO, con evidencia real y mutación.**
 
 ---
 
-### 6 — Mutaciones anotadas en `apply-progress.md`
+## 2 — Particionado de CI: ¿las cuatro partes cubren el todo? → **Sí en teoría, NO EN LA PRÁCTICA — CRITICAL nuevo.**
 
-`tasks.md` y `design.md` sólo definen **3** tareas explícitas de "verificación por mutación": **C.3, E.6, G.5**. No existe una tarea de mutación formal para bloque A ni bloque H en ninguno de los dos artefactos (grep de "mutaci" en ambos confirma sólo 2 apariciones en design.md y 3 en tasks.md — las mismas tres). El enunciado de esta ronda las menciona como "seis", pero no encontré una cuarta, quinta o sexta tarea de mutación declarada en los artefactos de esta fase — si el usuario tiene en mente una lista distinta, no proviene de `tasks.md`/`design.md` tal como están.
+### 2.1 — Cobertura de la partición (unión = todo)
 
-Repetí las tres explícitas yo mismo, de forma independiente:
+`--listTests` directo con jest (sin pasar por `pnpm run`, para aislar la variable):
 
-| Tarea | Mutación | Test(s) que cayeron (verificado por mí) | Coincide con apply-progress.md |
-|-------|----------|------------------------------------------|--------------------------------|
-| C.3   | Quitar `email_verification` de `TEMPLATES` | **Ninguno** — sólo error de compilación TS2741; `mail-templates.spec.ts` no llega a ejecutar ningún `it()` | Sí (mismo hallazgo, honestamente documentado, pero conclusión de "confirmado por derivación" es incorrecta — ver punto 1) |
-| E.6   | Quitar `{ validators: emailMatchValidator }` | `E.5: dos correos distintos → inválido`, `E.5: editar después de confirmar → inválido` | Sí, exacto |
-| G.5   | Quitar `app.set('trust proxy', ...)` del harness | `G.4: dos clientes con X-Forwarded-For distinto NO comparten rate limit` (G.2 NO cae — ver punto 2) | Parcial: coincide en lo que reporta, pero tasks.md pedía que también cayera G.2, y eso no es alcanzable por diseño |
+```
+npx jest --config ./test/jest-e2e.json --listTests                → 54 archivos
+npx jest --config ./test/jest-e2e.json --shard=1/4 --listTests    → 14 archivos
+npx jest --config ./test/jest-e2e.json --shard=2/4 --listTests    → 14 archivos
+npx jest --config ./test/jest-e2e.json --shard=3/4 --listTests    → 13 archivos
+npx jest --config ./test/jest-e2e.json --shard=4/4 --listTests    → 13 archivos
+```
 
-Adicionalmente ejercité H.5 (no formalmente etiquetada como mutación en tasks.md, pero es una prueba de invariante clásica) — cae correctamente, ver punto 5.
+Unión de las cuatro particiones == conjunto completo de 54, comparado por `diff` de
+conjuntos ordenados (no por conteo): **coincide exactamente**. Sin solapamiento
+(`uniq -d` sobre la unión: vacío). El particionado en sí, a nivel de jest, es correcto.
 
-No encontré ninguna evidencia de mutación ejecutada para bloques A o D más allá de lo ya cubierto arriba.
+### 2.2 — ¿`pnpm run test:e2e -- --shard=N/4` pasa la bandera a jest? → **NO. Se rompe.**
+
+Esta es la línea exacta de `ci.yml:226`:
+
+```yaml
+- run: pnpm run test:e2e -- --shard=${{ matrix.shard }}/4
+```
+
+Ejecutada tal cual, para las cuatro particiones:
+
+```
+$ pnpm run test:e2e -- --shard=1/4
+> jest --config ./test/jest-e2e.json -- --shard=1/4
+No tests found, exiting with code 1
+Pattern: --shard=1/4 - 0 matches
+[ELIFECYCLE] Command failed with exit code 1.
+```
+
+**Exit code 1, 0 tests ejecutados, en las cuatro particiones.** Este repo (pnpm 11.20.0,
+fijado en `packageManager` y leído por `pnpm/action-setup@v4` en CI — misma versión que se
+usaría en el runner) **reenvía el `--` literal** al comando subyacente en lugar de
+eliminarlo, a diferencia de `npm run` (probado en paralelo: `npm run test:e2e --
+--shard=1/4 --listTests` sí funciona, 14 archivos). El `--` extra queda como primer
+argumento posicional para el parser de jest (yargs), que a partir de ahí trata todo lo
+siguiente como patrón de ruta de test literal en vez de flags — de ahí
+`Pattern: --shard=1/4 - 0 matches`.
+
+**Confirmado que NO es "pnpm se come la bandera" sino algo peor: la corrompe.** Sin el
+`--` (`pnpm run test:e2e --shard=1/4 --listTests`), el paso a jest funciona perfecto:
+14 archivos, idéntico al `--listTests` directo de jest para el shard 1.
+
+**Impacto real**: en CI, las cuatro particiones de `integration` fallarían con "No tests
+found" — **cero tests e2e se ejecutarían nunca**, en cada push a `main`/`develop` y en cada
+PR que toque paths de `integration`. No es un falso verde (ver 2.3), es una compuerta que
+se vuelve permanentemente roja y bloquea todo merge sin ejecutar una sola prueba real.
+
+**Fix necesario** (no aplicado — sólo diagnóstico, según las reglas de esta ronda): quitar
+el `--` de la línea 226 → `pnpm run test:e2e --shard=${{ matrix.shard }}/4`. Verificado que
+así sí reenvía correctamente (mismo split 14/14/13/13 que el jest directo).
+
+### 2.3 — `integration-gate`: ¿algún camino queda en verde con una partición rota?
+
+Lógica revisada (`ci.yml:242-254`):
+
+```yaml
+integration-gate:
+  needs: integration
+  if: always()
+  steps:
+    - run: |
+        case "${{ needs.integration.result }}" in
+          success|skipped) exit 0 ;;
+          *)                exit 1 ;;
+        esac
+```
+
+- `success` → las 4 particiones (matrix) pasaron → OK.
+- `skipped` → el job `integration` no corrió (PR sin cambios en paths de integración) → OK,
+  correcto.
+- `failure` (cualquier partición falla, matrix agregada) → cae al `*` → exit 1. **Correcto.**
+- `cancelled` → cae al `*` → exit 1. **Correcto** (falla cerrado, no abre una rendija).
+
+**No encontré ningún camino que quede en verde con una partición rota.** El agregador en sí
+está bien diseñado — el problema NO es que `integration-gate` mienta, es que `integration`
+nunca corre ni un test real por el bug de 2.2. El gate sería consistentemente rojo (lo
+correcto dado el estado actual), pero eso significa que la suite de integración quedaría
+bloqueando cada push/PR de main indefinidamente hasta que alguien note por qué "no hay
+tests" en vez de un fallo de test real — un modo de fallo confuso, aunque no silencioso.
+
+**Veredicto parcial: la partición en sí es correcta y el agregador es correcto. La
+invocación de `pnpm run` está rota y es CRITICAL — el gate completo de integración queda
+inoperante en CI tal como está escrito hoy.**
+
+---
+
+## 3 — WARNING-A: ¿sigue abierto? → **No — ya estaba resuelto (sin commitear) al empezar esta ronda.**
+
+Ver la nota de discrepancia de entorno arriba. El array `ENQUEUED_TEMPLATE_NAMES` y el
+`describe` de C.2 **ya no existen** en el árbol de trabajo (diff sin commitear,
+`mail-templates.ts` / `mail-templates.spec.ts`). Se aplicó la opción 1 de
+`fixes-required.md` ("Borrarlo"), con un comentario nuevo en `mail-templates.ts:110-122`
+que documenta correctamente que:
+
+- la cobertura de `TEMPLATES: Record<TemplateName, TemplateFn>` la garantiza el compilador
+  (todo miembro del union `TemplateName` debe tener entrada, o no compila);
+- el caso real que el compilador no ve — un nombre que llega como cadena desde Redis —
+  está cubierto en runtime.
+
+**Confirmado con ejecución real**: `mail-templates.spec.ts` → 14/14 pasan (bajó de 15 a 14,
+consistente con la eliminación de 1 test tautológico).
+
+**Mutación pedida para la parte que sí importa** — romper la detección de nombre
+desconocido en el consumidor (`mail-outbox.consumer.ts:154`,
+`(err as Error).message?.startsWith('Unknown mail template')` → cambiado a una cadena que
+nunca matchea, backup con `cp`, restaurado después):
+
+```
+npx jest src/modules/mail/mail-outbox.consumer.spec.ts
+→ 1 failed / 8 passed / 9 total
+● sends an unknown template straight to mail:dead (data defect)
+    expect(jest.fn()).toHaveBeenCalledWith(...)  Number of calls: 0
+```
+
+**Cayó exactamente el test esperado.** La protección real (bloque B, tipo + este test de
+runtime) tiene red; el WARNING-A queda cerrado y bien cerrado — pero **sin commitear**.
+Este verify-report lo trata como "resuelto, pendiente de commit", no como abierto.
+
+---
+
+## 4 — IPv4-mapped IPv6 en `proxy-trust.ts`: ¿tiene red? → **Sí.**
+
+Mutación: se quitó el strip de `::ffff:` (`isTrustedProxyAddress`, línea 75:
+`const ipv4 = addr.startsWith('::ffff:') ? addr.slice(7) : addr;` → `const ipv4 = addr;`,
+backup con `cp`, restaurado después):
+
+```
+npx jest src/common/proxy-trust.spec.ts
+→ 1 failed / 13 passed / 14 total
+● IPv4-mapped IPv6 (::ffff:127.0.0.1) SÍ es de confianza (G.4 — Node dual-stack)
+    expect(isTrustedProxyAddress('::ffff:127.0.0.1')).toBe(true);
+    Expected: true, Received: false
+```
+
+**Cayó exactamente el test que declara la garantía.** El arreglo del commit `9581104` tiene
+red real, no es cosmético.
 
 ---
 
@@ -130,21 +240,32 @@ No encontré ninguna evidencia de mutación ejecutada para bloques A o D más al
 | Compuerta | Resultado | Detalle |
 |-----------|-----------|---------|
 | backend `npx tsc --noEmit` | ✅ exit 0 | Sin errores |
-| backend `pnpm run lint` | ✅ exit 0, 24 warnings | Coincide exactamente con la línea base preexistente (24 `no-explicit-any`, mismos 5 archivos) |
+| backend `pnpm run lint` | ✅ exit 0, 24 warnings | Idéntico a la línea base de ronda 1 (mismos 5 archivos, mismo patrón `no-explicit-any`) |
 | backend `nest build` | ✅ exit 0 | |
-| backend unit (jest) | ✅ **111 suites / 1024 tests**, 0 fallos | Línea base sc-327: 109/989. Delta: +2 suites, +35 tests — los tests nuevos SÍ se ejecutan |
-| backend e2e SUBCONJUNTO (6 archivos) | ❌ **1 suite falla / 5 pasan** — **2 tests fallan / 25 pasan** (27 total) | `mail.e2e-spec.ts`: ambos tests C.4 fallan (ver CRITICAL #2) |
-| backend e2e COMPLETO (54 archivos) | ❌ **1 suite falla / 53 pasan** — **2 tests fallan / 468 pasan** (470 total) | Mismo fallo, reproducido en la corrida completa. Línea base sc-327: 53/465. Delta: +1 suite, +5 tests |
-| frontend `npx tsc -b --noEmit` | ❌ exit 2 (preexistente, no introducido por este change) | 3 archivos de spec rotos desde antes de esta rama (`auth.service.spec.ts:227`, `placeholder.component.spec.ts`, `layout-tokens.regression.spec.ts`) — confirmado con `git log`/`git diff` contra la base: ninguno de los tres fue tocado por los commits de este change |
-| frontend unit (jest) | ✅ **60 suites / 415 tests**, 0 fallos | |
-| frontend build (`ng build`) | ✅ exit 0 | El `tsc -b` roto no bloquea el build de Angular CLI, tal como documenta `apply-progress.md` |
+| backend unit (jest) | ✅ **111 suites / 1024 tests**, 0 fallos, 19.99s | Incluye el árbol tal cual (con WARNING-A ya resuelto sin commitear) |
+| backend e2e SUBCONJUNTO (6 archivos) | ✅ **6/6 suites, 27/27 tests**, 125.19s | Sin override manual de `SMTP_HOST` |
+| backend e2e COMPLETO (54 archivos) | ✅ **54/54 suites, 470/470 tests**, 614.28s | Objetivo cumplido exactamente: 54/54 y 470/470 |
+| frontend `npx tsc -b --noEmit` | ❌ exit 2 (preexistente, no de este change) | Mismos 3 archivos que ronda 1: `auth.service.spec.ts:227`, `placeholder.component.spec.ts`, `layout-tokens.regression.spec.ts` — ninguno tocado por commits de MAIL |
+| frontend unit (jest) | ✅ **60 suites / 415 tests**, 0 fallos, 5.11s | |
+| frontend build | No re-ejecutado esta ronda (sin cambios de frontend en round 2; ronda 1 ya confirmó exit 0) | |
 
-### Tiempo de e2e: subconjunto vs. completo
+**Tiempo del subconjunto vs. completo, otra vez confirmado**: 125s vs 614s (≈4.9×). Sin
+falsos negativos: el subconjunto predijo correctamente el resultado (todo verde) de la
+suite completa. La estrategia sigue valiendo la pena para iterar.
 
-- **Subconjunto (6 archivos)**: ~125 s (2 min 5 s)
-- **Completo (54 archivos)**: ~687 s (11 min 27 s) — reportado por Jest como 686.947 s, confirmado por timestamps externos (688 s)
+---
 
-**La estrategia vale la pena y hay que mantenerla.** El completo tarda ~5.5× más que el subconjunto. Cada iteración de mutación en el subconjunto cuesta ~2 min; la misma iteración contra el completo habría costado ~11-12 min. Con 3 mutaciones e2e-relevantes ejecutadas en esta ronda, usar el subconjunto ahorró aproximadamente 30 minutos frente a correr la suite completa cada vez. Confirmado además que el fallo de `mail.e2e-spec.ts` es el mismo en ambas corridas — el subconjunto no dio ningún falso negativo/positivo frente al completo en esta ronda.
+## Mutaciones de esta ronda — resumen
+
+| # | Mutación | Archivo | Test(s) que cayeron | Restaurado |
+|---|----------|---------|----------------------|------------|
+| 1 | Quitar `process.env.SMTP_HOST = ''` | `test-environment.ts` | `C.4: email_verification...`, `C.4: existing_account_attempt...` (mail.e2e-spec.ts) — los mismos 2 de ronda 1 | ✅ |
+| 2 | Quitar el strip `::ffff:` | `proxy-trust.ts` | `IPv4-mapped IPv6 (::ffff:127.0.0.1) SÍ es de confianza (G.4)` | ✅ |
+| 3 | Romper el `startsWith('Unknown mail template')` del consumidor | `mail-outbox.consumer.ts` | `sends an unknown template straight to mail:dead (data defect)` | ✅ |
+| 4 | Quitar el `--` de `pnpm run test:e2e -- --shard=N/4` (verificación positiva, no mutación de regresión) | invocación directa, no archivo | N/A — confirma que SIN el `--` el flag llega bien (14/14/13/13) | N/A (no tocó archivos) |
+
+`git status --short` idéntico antes y después de las mutaciones 1-3 (mismo estado sucio de
+las 4 archivos preexistentes, ver nota de discrepancia). Ningún `.bak` quedó en el árbol.
 
 ---
 
@@ -152,78 +273,57 @@ No encontré ninguna evidencia de mutación ejecutada para bloques A o D más al
 
 ### CRITICAL (bloquean el archivado)
 
-**CRITICAL-1 — Los e2e C.4 fallan en ejecución real.** `backend/test/e2e/mail.e2e-spec.ts`, tests *"C.4: una entrada con `email_verification` se procesa y NO termina en mail:dead"* y *"C.4: una entrada con `existing_account_attempt` se procesa y NO termina en mail:dead"* — ambos fallan, tanto en el subconjunto como en la suite completa.
+**CRITICAL-CI — El particionado de e2e no ejecuta ningún test en CI.**
+`ci.yml:226`: `pnpm run test:e2e -- --shard=${{ matrix.shard }}/4`. El `--` se reenvía
+literal al comando subyacente (comportamiento de pnpm 11.20.0, distinto de `npm run`,
+confirmado por ejecución directa), lo que hace que jest interprete `--shard=N/4` como un
+patrón de ruta de test en vez de una opción, matcheando 0 archivos, saliendo con código 1
+("No tests found"). Las cuatro particiones de la matriz fallarían así en cualquier push a
+`main`/`develop` o PR que toque paths de integración. El agregador `integration-gate` no
+miente (reportaría `failure`, no un falso verde), pero el efecto práctico es que **la
+compuerta de e2e queda permanentemente roja sin ejecutar un solo test real**, bloqueando
+todo merge. Fix sugerido (no aplicado): quitar el `--` → `pnpm run test:e2e --shard=${{ matrix.shard }}/4` (verificado que reenvía correctamente).
 
-Causa raíz confirmada: `backend/.env` (el archivo real del repo, no `.env.example`) trae `SMTP_HOST=localhost` y `SMTP_PORT=1025` — un catcher SMTP local (tipo MailHog) que no forma parte de `compose.yaml` y no está corriendo en este entorno. `backend/src/core/core.module.ts:83` carga `envFilePath: ['.env']` incondicionalmente, incluso en el harness e2e. `test-environment.ts` normalmente sobreescribe explícitamente cada variable de infraestructura no determinista (`DB_HOST`, `REDIS_URL`, etc. — ver líneas 136-190), pero **nunca toca `SMTP_HOST`**. El comentario del propio test (`mail.e2e-spec.ts:24`, `108`) asume *"SMTP_HOST is unset in this harness"* — eso es falso frente al `.env` real del proyecto.
+### WARNING (deberían atenderse antes de archivar)
 
-Verificado el diagnóstico de forma aislada: `SMTP_HOST= npm run test:e2e -- --testPathPattern='mail\.e2e-spec'` (forzando la variable vacía) → **6/6 pasan**. Con el `.env` real (sin overrides) → **2/6 fallan**, siempre los mismos dos.
-
-Esto significa que la prueba que tasks.md describe como *"la prueba que habría detectado el defecto el primer día"* — el entregable central del bloque C — **no pasa out-of-the-box** con el `.env` que el propio repositorio trae. Cualquiera que clone el repo y corra `npm run test:e2e` sin levantar manualmente un MailHog en el puerto 1025 ve estos dos tests en rojo. `apply-progress.md` reporta "✅ C.4: ... NO terminan en mail:dead" sin matiz — no refleja esta fragilidad.
-
-**Fix sugerido** (no aplicado): `test-environment.ts` debe sobreescribir `process.env.SMTP_HOST = ''` explícitamente, igual que hace con el resto de variables de infraestructura, para que el harness sea determinista sin depender del `.env` ambiental.
-
-**CRITICAL-2 — C.2 no cierra la costura; es decorativo por la propia definición de la tarea.** Ver punto 1 arriba. `ENQUEUED_TEMPLATE_NAMES` es un array enumerado a mano; la mutación de C.3 demuestra que ningún test runtime cae, sólo el compilador. `tasks.md` define textualmente esa condición como el criterio de "hay que rehacerlo", y no se rehizo.
-
-### WARNING (deberían atenderse)
-
-- **G.5 no puede cumplir literalmente su propio criterio de aceptación.** `tasks.md` pide que la mutación haga caer G.2 y G.4; G.2 es un test de función pura desacoplado del cableado `app.set`, así que estructuralmente no puede caer por esa mutación. No es un defecto de la protección (D10 funciona, confirmado por G.4), sino un desajuste de redacción entre la tarea y lo verificable. Sugerencia: reformular G.5 en tasks.md para pedir sólo la caída de G.4, o agregar un test de integración de `main.ts`/`bootstrap()` que sí dependa del cableado y pueda caer junto a G.4.
-- **`frontend npx tsc -b --noEmit` sigue en rojo** (exit 2) por 3 specs preexistentes no relacionados con este change (confirmado con `git log`/`git diff`: ninguno fue tocado por los commits de MAIL). No es una regresión de esta fase, pero la compuerta declarada en `tasks.md` línea 311 (*"frontend npx tsc -b --noEmit exit 0"*) no se cumple hoy, con o sin este change. Merece su propio ticket de limpieza — ya está anotado en `apply-progress.md` como deuda conocida.
+- **Árbol sin commitear con el fix de WARNING-A y el ajuste de G.5 en tasks.md.** Ambos
+  cambios son correctos (verificados con ejecución real + mutación en las secciones 3 y 4
+  de este reporte) pero no están comiteados. No se puede archivar sobre un árbol sucio.
+  Alguien tiene que decidir si se comitean como parte de este change o se descartan
+  intencionalmente — no es una decisión que le corresponda a esta fase de verify.
+- **Frontend `npx tsc -b --noEmit` sigue en rojo** (exit 2), deuda preexistente no tocada
+  por este change (confirmado, mismos 3 archivos que ronda 1). Sigue sin ticket propio.
 
 ### SUGGESTION
 
-- El comentario en `ENQUEUED_TEMPLATE_NAMES` (mail-templates.ts:110-116) es honesto sobre su propia limitación pero deja la puerta abierta a que la próxima persona confíe en él como si cerrara la costura. Vale la pena que el comentario en el propio test C.2 (no sólo en el array) advierta explícitamente que la protección real es el tipo `Record<TemplateName, TemplateFn>`, no el `for` del test.
-- Conteo de tests en `apply-progress.md` reporta "111 suites / 1023 tests" — la ejecución real de esta ronda dio 111/1024 (off-by-one, sin impacto práctico, probablemente un test agregado/quitado entre el momento del reporte y el commit final).
+- El comentario nuevo de `mail-templates.ts:113` dice "C.2 de la ronda 14" — probablemente
+  un cambio de nomenclatura entre rondas que quedó pegado (el resto del proyecto habla de
+  "ronda 1"/"ronda 2" para sc-330). No afecta la lógica, pero puede confundir a quien lo lea
+  después.
 
 ---
 
 ## Completeness
 
-37/37 tareas marcadas `[x]` en `tasks.md`. Todas tienen evidencia estructural en el código. Las discrepancias no son de tareas incompletas sino de **tareas marcadas completas cuya evidencia de ejecución real contradice el criterio de aceptación** (C.2/C.3, ver CRITICAL-2) o cuya ejecución real falla por una razón de entorno no capturada en el diseño del test (C.4, ver CRITICAL-1).
-
----
-
-## Spec Compliance Matrix (resumen — 7 requisitos, 33 escenarios)
-
-| Requirement | Escenarios cubiertos | Estado |
-|-------------|----------------------|--------|
-| Todo correo que el sistema encola se puede renderizar (5) | Render de las 2 plantillas: ✅ COMPLIANT (unit, pasan). Cobertura de todos los emisores (C.2): ⚠️ PARTIAL — test pasa pero es decorativo (CRITICAL-2). Nombre inventado no compila: ✅ COMPLIANT (demostrado con mutación TS2741). Nombre desconocido en runtime → dead-letter sin reintento: ✅ COMPLIANT (`mail-outbox.consumer.spec.ts` preexistente, sigue pasando) | 4/5 ✅, 1/5 ⚠️ |
-| El correo de verificación llega con OTP y vigencia (3) | Cuerpo con código, datos escapados, asunto sin OTP: ✅ COMPLIANT — `mail-templates.spec.ts`, subject verificado por grep (`'Your email verification code'`, sin interpolar OTP) | 3/3 ✅ |
-| El aviso de intento informa sin dar nada que pulsar (9) | Sin OTP, sin enlace, contexto (dispositivo/IP/hora), sin versiones, IP enmascarada, hora del intento no de entrega, hora local, dato ausente → "desconocida/o", indistinguibilidad HTTP: ✅ COMPLIANT — 8 tests unitarios en `mail-templates.spec.ts` cubren cada uno explícitamente; indistinguibilidad HTTP no tocada (D5 respetado, sin diff en respuesta) | 9/9 ✅ |
-| El alta pide el correo dos veces antes de enviarlo (5) | No coinciden, coinciden, editar tras confirmar, campo no viaja, confirmación no existe en servidor: ✅ COMPLIANT — los 5 tienen test (`register.component.spec.ts` E.4/E.5) y pasan; mutación E.2 confirma que 2 de ellos realmente dependen del validador de grupo | 5/5 ✅ |
-| El mensaje del alta tiene un solo dueño (2) | Mensaje mostrado desde backend, sin gemelos divergentes: ✅ COMPLIANT — `verify-email.component.spec.ts`/`register.component.spec.ts` F.2, grep confirma que la única frase vieja vive en comentarios/mocks de test | 2/2 ✅ |
-| La IP registrada es la del cliente, no la del proxy (4) | Petición por proxy, cabecera falsificada descartada, límite por cliente, sin dirección resoluble: ✅ COMPLIANT — `proxy-trust.spec.ts` + `trust-proxy-rate-limit.e2e-spec.ts` (G.4 mutation-tested); "sin dirección resoluble" cubierto por `assertRateLimit`/`registerIpHit` preexistente (`if (!key) return`) | 4/4 ✅ |
-| La aplicación se identifica como GeoReporta (5) | Remitente con nombre, pie del mensaje, un solo nombre, título del navegador, sin literales sueltos: ✅ COMPLIANT — `mail.service.spec.ts` (H.6), `mail-templates-no-literals.spec.ts` (H.5, mutation-tested), `index.html` (H.7) | 5/5 ✅ |
-
-**Compliance summary**: 32/33 escenarios COMPLIANT por evidencia de ejecución real; 1/33 PARTIAL (cobertura de todos los emisores — pasa pero es decorativo).
-
-Nota: el fallo de C.4 (CRITICAL-1) no corresponde a un escenario específico del spec de `citizen-registration` — es un test de integración adicional del bloque C de tasks.md, no uno de los 33 escenarios enumerados en `specs/citizen-registration/spec.md`. Se reporta como CRITICAL igualmente porque es el entregable central de la fase.
-
----
-
-## Coherence (Design)
-
-| Decisión | ¿Se siguió? | Notas |
-|----------|-------------|-------|
-| D1 — dos entradas en el registro, sin motor de plantillas | ✅ Sí | |
-| D2 — quitar los `as never` | ✅ Sí | Confirmado, y es la defensa real que funciona (ver CRITICAL-2) |
-| D3 — test que recorre el camino, no dos puntas | ⚠️ Deviated | El test existe pero no recorre nada que el tipo no garantice ya; ver CRITICAL-2 |
-| D4 — aviso sin OTP ni enlace | ✅ Sí | |
-| D5 — indistinguibilidad se conserva | ✅ Sí | Sin cambios en la respuesta HTTP |
-| D6 — mail:dead se acota, no se vacía | ✅ Sí | `MAXLEN ~ 1000` |
-| D7 — confirmación sólo en cliente | ✅ Sí | |
-| D8 — mensaje con un solo dueño | ✅ Sí | |
-| D9 — aviso recortado (dispositivo/IP/hora) | ✅ Sí | |
-| D10 — trust proxy por dirección | ✅ Sí | Mutation-tested |
-| D11 — GeoReporta en un solo sitio | ✅ Sí | |
-| D12 — qué no se toca | ✅ Sí | Nada de lo marcado "fuera de alcance" fue tocado |
+`tasks.md` (versión sin commitear, la que refleja el estado real del árbol): C.2 pasó de
+"nuevo test" a "rebajado a WARNING por la auditoría de la ronda 1, bloque borrado" y G.5 se
+ajustó para pedir sólo la caída de G.4. Ambos cambios de texto son consistentes con el
+código verificado en las secciones 3 y 4. El resto de tareas ([x]) tiene evidencia
+estructural y de ejecución consistente con lo reportado en ronda 1 (no re-verificado línea
+por línea esta ronda, salvo los bloques tocados por el CRITICAL-1 y las 4 mutaciones de
+arriba, conforme a la instrucción explícita de esta ronda de no re-tocar B/D/E/F/H).
 
 ---
 
 ## Qué queda abierto
 
-1. **CRITICAL-1**: agregar `process.env.SMTP_HOST = ''` (o equivalente) en `test-environment.ts` para que `mail.e2e-spec.ts` sea determinista sin depender del `.env` ambiental. Sin esto, la fase no se puede dar por cerrada: el propio entregable central falla en ejecución real.
-2. **CRITICAL-2**: rehacer C.2 para que derive la cobertura estructuralmente (no con un array a mano), o aceptar explícitamente en el design/tasks que la defensa real es el tipo `Record<TemplateName, TemplateFn>` y renombrar/reencuadrar la tarea en consecuencia — pero tal como está redactada hoy, no se cumplió.
-3. WARNING G.5: ajustar la redacción de la tarea o agregar un test que sí pueda caer junto a G.2.
-4. WARNING frontend tsc -b: deuda preexistente, no bloqueante para este change, pero sigue sin ticket propio más allá de la nota en `apply-progress.md`.
+1. **CRITICAL-CI**: sacar el `--` de `ci.yml:226` para que `pnpm run test:e2e` reciba
+   `--shard=N/4` como opción, no como patrón de test. Sin esto, el particionado de CI que
+   se agregó esta ronda no ejecuta ni un solo test e2e en el pipeline real.
+2. Decidir qué hacer con el árbol sin commitear (WARNING-A resuelto + ajuste de G.5 en
+   tasks.md): comitearlo como parte de este change (recomendado, ya está verificado y
+   correcto) o descartarlo explícitamente.
+3. Frontend `tsc -b --noEmit`: deuda preexistente, sigue sin ticket propio.
 
-**Next recommended**: `sdd-apply` para atender CRITICAL-1 y CRITICAL-2 antes de reintentar `sdd-verify`. No archivar.
+**Next recommended**: `sdd-apply` para corregir CRITICAL-CI (una línea) y decidir sobre el
+árbol sin commitear, antes de reintentar `sdd-verify`. No archivar.

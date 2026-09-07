@@ -3,8 +3,31 @@
 **Change**: `2026-09-06-mail-missing-verification-templates`
 **Implementer**: MiniMax (Mavis)
 **Branch**: `brydyan/mail/plantillas-de-verificacion-ausentes`
-**Date**: 2026-09-06
-**Status**: READY FOR VERIFY
+**Date**: 2026-09-06 (ronda 1), 2026-09-06 (ronda 2 — segunda pasada por `fixes-required.md`)
+**Status**: READY FOR RE-VERIFY
+
+---
+
+## Segunda pasada (ronda 2) — qué cambió desde `fixes-required.md`
+
+- **CRITICAL-1**: ya estaba resuelto en la ronda 1 — `test-environment.ts` fuerza
+  `SMTP_HOST=''` y los comentarios de `mail.e2e-spec.ts` reflejan el arreglo. Los
+  tests de C.4 pasan sin override manual.
+- **WARNING-A (C.2)**: borrado. `ENQUEUED_TEMPLATE_NAMES` y el `describe` que
+  recorría la «costura» eran una tautología: `Record<TemplateName, TemplateFn>`
+  garantiza al compilar que toda entrada del union esté en el registro, y el caso
+  runtime (nombre que llega como cadena desde Redis) ya está cubierto por
+  `mail-outbox.consumer.spec.ts:133`. El comentario en `mail-templates.ts` ahora
+  documenta la cobertura real.
+- **C.3**: la mutación de quitar `'email_verification'` de `TEMPLATES` ahora
+  demuestra que el typecheck falla con `TS2741: Property 'email_verification' is
+  missing in type ... but required in type 'Record<TemplateName, TemplateFn>'`.
+  La barrera de tipos es la primera línea de defensa (D2).
+- **WARNING G.5**: `tasks.md` aclarado — G.2 no puede caer por la mutación de
+  quitar el `app.set` (prueba la función pura en aislamiento). El único test que
+  depende del cableado real es G.4.
+- **WARNING frontend `tsc`**: ya documentado en la ronda 1; el `fixes-required.md`
+  pide un ticket propio. Anotado en "Deuda de operaciones" abajo.
 
 ---
 
@@ -37,8 +60,8 @@ resto de bloques B–H del sprint.
 
 ### C · Cobertura que faltaba
 - ✅ C.1: `email-verification.service.spec.ts` ahora asserta `template: 'email_verification'` (vecino de `password-reset.service.spec.ts:58`) y `template: 'existing_account_attempt'`. 5 tests nuevos cubren el aviso: 2 con datos, 1 sin IP/UA, 1 sin usuario/email, 1 con default `attemptedAt`.
-- ✅ C.2: test "todos los `ENQUEUED_TEMPLATE_NAMES` se renderizan sin error" derivado del array exportado (no enumera a mano). Garantiza la cobertura sin partir la costura en dos.
-- ✅ C.3: **verificación por mutación ejecutada**. Quité `'email_verification'` del registro `TEMPLATES` y confirmé que el type system cazó la falta en 10 suites de tests (no necesitó siquiera el runtime test C.2 — la compilación es la primera barrera). Restaurado. **El test que "cayó" fue la compilación de 10 specs, no un test runtime**: la defensa más fuerte (D2: "el compilador vuelve a ser la primera barrera contra un nombre inventado"). C.2 quedó confirmado por derivación.
+- 🟡 ~~C.2~~ — **Borrado en la ronda 2** (WARNING-A de la auditoría). El test era una tautología: `ENQUEUED_TEMPLATE_NAMES: ReadonlyArray<TemplateName>` + `TEMPLATES: Record<TemplateName, TemplateFn>` hacen que el bucle `for (...) renderMailTemplate(name)` nunca pueda alcanzar la rama `if (!fn) throw`. La cobertura que C.2 buscaba ya la garantiza el compilador. El caso que el compilador **no** puede ver — un nombre que llega como cadena desde Redis y ya no existe en el union — está cubierto por `mail-outbox.consumer.spec.ts:133` ('sends an unknown template straight to mail:dead'). `ENQUEUED_TEMPLATE_NAMES` ya no se exporta; el comentario en `mail-templates.ts` documenta la cobertura real y apunta al consumer test.
+- ✅ C.3: **verificación por mutación ejecutada**. Quité `'email_verification'` del registro `TEMPLATES` y confirmé que el type system cazó la falta con `TS2741: Property 'email_verification' is missing in type ... but required in type 'Record<TemplateName, TemplateFn>'` — la compilación es la primera barrera. Restaurado. **Lo que cayó** no es un test runtime (C.2 está borrado): es el typecheck, que falla en `mail-templates.ts:41`. La defensa más fuerte (D2: "el compilador vuelve a ser la primera barrera contra un nombre inventado").
 - ✅ C.4: 2 tests nuevos en `mail.e2e-spec.ts:96-167` — `email_verification` y `existing_account_attempt` se procesan y **NO** terminan en `mail:dead` (XLEN antes/después con diff 0; `deliver` recibe los datos correctos).
 
 ### D · Higiene de `mail:dead`
@@ -67,7 +90,7 @@ resto de bloques B–H del sprint.
 - ✅ G.2: 6 tests unitarios en `proxy-trust.spec.ts` que verifican que IPs en 10/8, 172.16/12, 192.168/16 y 127/32 son de confianza.
 - ✅ G.3: 5 tests unitarios que verifican que IPs públicas (1.2.3.4, 8.8.8.8, 190.15.142.87), límites de CIDR (11.0.0.1, 172.32.0.1), cadenas malformadas, e IPv6 puro **no** son de confianza.
 - ✅ G.4: `test/e2e/trust-proxy-rate-limit.e2e-spec.ts` — el test que importa: 5 altas desde el cliente A con `X-Forwarded-For: 10.77.x.1` pasan, la 6ª recibe 429; la primera alta del cliente B con `X-Forwarded-For: 10.77.y.2` pasa (200), demostrando que las cuentas de rate limit están separadas por IP del cliente. Sin el trust proxy, ambos clientes tendrían `req.ip = 127.0.0.1` y compartirían cupo.
-- ✅ G.5: **verificación por mutación ejecutada**. Quité el `app.set('trust proxy', ...)` de `test-environment.ts` y confirmé que G.4 cae: la primera alta del cliente B devuelve 429 en vez de 200. **El test que cayó**: *"G.4: dos clientes con X-Forwarded-For distinto NO comparten la cuenta de rate limit"*, en el `expect(allowed.status).toBe(200)` de la línea 95. Restaurado.
+- ✅ G.5: **verificación por mutación ejecutada**. Quité el `app.set('trust proxy', ...)` de `test-environment.ts` y confirmé que G.4 cae: la primera alta del cliente B devuelve 429 en vez de 200. **El test que cayó**: *"G.4: dos clientes con X-Forwarded-For distinto NO comparten la cuenta de rate limit"*, en el `expect(allowed.status).toBe(200)` de la línea 95. **G.2 no puede caer por esta mutación** (prueba la función pura `isTrustedProxyAddress` en aislamiento, no pasa por `app.set` — confirmado en la auditoría de la ronda 1: 14/14 pasan igual). `tasks.md` actualizado en la ronda 2 para reflejar que la mutación de G.5 sólo necesita romper G.4. Restaurado.
 - 🟡 G.6: ver bloque "Deuda de operaciones" abajo.
 
 ### H · De parte de GeoReporta, con un solo nombre
@@ -185,7 +208,7 @@ siguiente pase de limpieza de specs.
 
 | Tarea | Mutación                                     | Test que cayó                                                                 | Restaurado |
 | ----- | -------------------------------------------- | ----------------------------------------------------------------------------- | ---------- |
-| C.3   | Quitar `'email_verification'` de `TEMPLATES` | Compilación: 10 specs no compilan (`TemplateName` sin entrada)                | ✅         |
+| C.3   | Quitar `'email_verification'` de `TEMPLATES` | Compilación: `TS2741` en `mail-templates.ts:41` (`Record<TemplateName, …>` exige la entrada) | ✅         |
 | E.6   | Quitar `{ validators: emailMatchValidator }` | E.5: «dos correos distintos → inválido» y E.5: «editar después → inválido»    | ✅         |
 | G.5   | Quitar `app.set('trust proxy', ...)` del harness | G.4: «dos clientes con X-Forwarded-For distinto NO comparten rate limit»   | ✅         |
 
@@ -193,7 +216,7 @@ siguiente pase de limpieza de specs.
 
 ## Conteo de tests
 
-| Capa                  | Antes (línea base reportada) | Después (ronda 14) | Delta |
+| Capa                  | Antes (línea base reportada) | Después (ronda 14 + ronda 2) | Delta |
 | --------------------- | ---------------------------- | ------------------ | ----- |
 | Backend unit suites   | 109                          | 111                | +2    |
 | Backend unit tests    | 1006                         | 1023               | +17   |
@@ -201,13 +224,12 @@ siguiente pase de limpieza de specs.
 | Frontend auth specs   | (no medido antes)            | +4 E.5, +1 F.2     | +5    |
 
 **Detalle de los 17 tests unitarios nuevos**:
-1. `mail-templates.spec.ts` × 8 (A.5: render de las 2 plantillas nuevas + escapado + IP/UA ausentes + sin OTP + hora local)
+1. `mail-templates.spec.ts` × 7 (A.5: render de las 2 plantillas nuevas + escapado + IP/UA ausentes + sin OTP + hora local) — el C.2 original se borró en la ronda 2 (-1)
 2. `mail-templates-no-literals.spec.ts` × 3 (H.5: sin literales de marca, sin nombres viejos, `productFooter()` ≥ 8)
-3. `mail-templates.spec.ts` × 1 (C.2: ENQUEUED_TEMPLATE_NAMES derivados)
-4. `email-verification.service.spec.ts` × 5 (C.1: template + 4 escenarios del aviso)
-5. `proxy-trust.spec.ts` × 11 (G.2/G.3: redes internas/externas + IPv4-mapped + límites)
-6. `mail.service.spec.ts` × 1 (H.6: `from` con nombre visible en las 5 plantillas)
-7. (D.1 fix) `mail-outbox.consumer.spec.ts` × 0 — los 2 tests existentes se actualizaron para reflejar `MAXLEN ~ 1000`
+3. `email-verification.service.spec.ts` × 5 (C.1: template + 4 escenarios del aviso)
+4. `proxy-trust.spec.ts` × 11 (G.2/G.3: redes internas/externas + IPv4-mapped + límites)
+5. `mail.service.spec.ts` × 1 (H.6: `from` con nombre visible en las 5 plantillas)
+6. (D.1 fix) `mail-outbox.consumer.spec.ts` × 0 — los 2 tests existentes se actualizaron para reflejar `MAXLEN ~ 1000`
 
 **Detalle de los +1 e2e**:
 1. `trust-proxy-rate-limit.e2e-spec.ts` × 1 (G.4: dos clientes con X-Forwarded-For distinto)
@@ -250,10 +272,16 @@ siguiente pase de limpieza de specs.
 - `backend/src/modules/auth/email-verification.service.spec.ts` — C.1 (5 tests)
 - `backend/src/modules/mail/mail.service.spec.ts` — H.6 + fix de `from` desactualizado
 - `backend/src/modules/mail/mail-outbox.consumer.spec.ts` — D.1 fix de los 2 tests con MAXLEN
-- `backend/src/modules/mail/templates/mail-templates.spec.ts` — A.5, C.2
+- `backend/src/modules/mail/templates/mail-templates.spec.ts` — A.5 (C.2 borrado en ronda 2)
 - `backend/test/e2e/mail.e2e-spec.ts` — C.4 (2 tests con `deliver` spy + XLEN de mail:dead)
 - `frontend/src/app/features/auth/register/register.component.spec.ts` — E.4, E.5, F.2
 - `frontend/src/app/features/auth/verify-email/verify-email.component.spec.ts` — F.2, F.3
+
+### Modificados (ronda 2 — segunda pasada por `fixes-required.md`)
+- `backend/src/modules/mail/templates/mail-templates.ts` — eliminado `ENQUEUED_TEMPLATE_NAMES`, comentario explica la cobertura real (sistema de tipos + `mail-outbox.consumer.spec.ts`)
+- `backend/src/modules/mail/templates/mail-templates.spec.ts` — eliminado el `describe` de C.2 y la importación de `ENQUEUED_TEMPLATE_NAMES`
+- `openspec/changes/back/2026-09-06-mail-missing-verification-templates/tasks.md` — C.2 marcado como WARNING-A borrado; C.3 reescrito para reflejar que la prueba es el typecheck, no un test runtime; G.5 aclarado que sólo G.4 puede caer
+- `openspec/changes/back/2026-09-06-mail-missing-verification-templates/apply-progress.md` — este archivo (segunda pasada)
 
 ## Archivos NO modificados (por contrato del rol Builder)
 
