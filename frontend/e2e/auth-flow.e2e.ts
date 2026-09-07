@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+import { resolveE2eCredentials } from './_helpers/e2e-credentials';
+
 /**
  * F1 — auth-flow.e2e.ts
  * Change `2026-08-28-sc-203-auth-comments-backend-integration`.
@@ -15,47 +17,30 @@ import { test, expect } from '@playwright/test';
  *    uses `Contraseña`).
  *  - login button: keep `/entrar|iniciar|login/i`.
  *
- * Required environment:
- *  - `BASE_URL` points at an Angular app that proxies to a real
- *    NestJS backend (default: `http://localhost:4200` + dev proxy).
- *  - The seed includes a valid `admin@correo.com` / `123456` user
- *    (T3.6 / seed-data pipeline). If the backend is fresh, run
- *    `pnpm run db:seed` first.
+ * 3rd pass (`2026-09-03-e2e-test-user-and-credentials`): el usuario
+ * pasó de `admin@correo.com`/`123456` (credenciales heredadas de
+ * GeoReporta, sin sembrar) a `e2e@tase.local` con la contraseña que
+ * el runner recibe como `E2E_PASSWORD` secret. El helper
+ * `_helpers/e2e-credentials.ts` distingue "no configurado" (skip) de
+ * "configurado y roto" (falla) — ver D4 del change.
+ *
+ * Required environment (consumido por el helper):
+ *  - `BASE_URL` apunta a un Angular que proxia a un NestJS real.
+ *  - `E2E_PASSWORD` es el secret del runner; sin él la suite falla.
+ *  - `E2E_USER` es opcional; default `e2e@tase.local` (operador_org).
+ *
+ * Si el backend es fresco, `pnpm run db:seed` siembra los seis de demo
+ * Y al usuario e2e — este último sólo cuando `E2E_PASSWORD` está
+ * definida al momento del seed.
  */
-/**
- * Este spec necesita un backend real: hace login con credenciales sembradas
- * y afirma que la petición salió de verdad (`not mocked`). Sin backend, el
- * POST a /api/auth/login muere en el proxy del dev server y la navegación a
- * /app/dashboard nunca ocurre.
- *
- * `accept-invitation.e2e.ts` y `comment-flow.e2e.ts` ya estaban saltados por
- * este mismo motivo, con un TODO a mano. Este archivo tenía el requisito
- * declarado en su docblock y se había quedado corriendo igual — la regla
- * aplicada en dos de tres archivos.
- *
- * En vez de otro `test.skip()` a mano, la condición se hace explícita: sin
- * `BASE_URL` no hay backend que valga, y con ella el test se activa solo.
- * Así el motivo queda verificado por la máquina en lugar de recordado en un
- * comentario, y no hay que acordarse de "des-saltarlo" el día que exista el
- * entorno.
- *
- * OJO: esto vuelve honesto al gate, no lo convierte en gate. Mientras
- * `vars.STAGING_BASE_URL` siga sin configurarse, el job pasa sin probar el
- * login — que es justo lo que SC-208 advertía. La solución real es apuntar
- * BASE_URL a staging o levantar el backend en CI.
- */
-const BACKEND_URL = process.env['BASE_URL']?.trim();
+
+const creds = resolveE2eCredentials();
 
 test.describe('Auth flow', () => {
-  // A nivel de describe, no dentro del test: acá la condición se evalúa antes
-  // de que se instancien los fixtures, así que ni siquiera se levanta el
-  // browser. Dentro del test, `page` se resuelve primero y el skip llega tarde.
-  test.skip(
-    !BACKEND_URL,
-    'Requiere un backend real con seed (admin@correo.com). Definí BASE_URL apuntando a staging.',
-  );
+  test.skip(creds.skip, creds.skip ? creds.reason : '');
 
-  test('F1.1: admin login → dashboard', async ({ page }) => {
+  test('F1.1: e2e login → dashboard', async ({ page }) => {
+    if (creds.skip) return; // narrowing — `test.skip` no estrecha tipos
 
     // Capture every network call so we can assert the real endpoint fired.
     const loginRequests: string[] = [];
@@ -66,8 +51,8 @@ test.describe('Auth flow', () => {
     });
 
     await page.goto('/login');
-    await page.getByLabel(/usuario/i).fill('admin@correo.com');
-    await page.getByLabel(/contraseña|password/i).fill('123456');
+    await page.getByLabel(/usuario/i).fill(creds.user);
+    await page.getByLabel(/contraseña|password/i).fill(creds.password);
     await page.getByRole('button', { name: /entrar|iniciar|login/i }).click();
 
     // The login should land on /app/dashboard (route defined in
@@ -78,7 +63,10 @@ test.describe('Auth flow', () => {
     expect(loginRequests.length).toBeGreaterThan(0);
     expect(loginRequests[0]).toMatch(/\/auth\/login$/);
 
-    // The header should show the seeded user name.
-    await expect(page.getByRole('banner')).toContainText(/admin/i);
+    // The header should show the seeded user name. El usuario e2e
+    // se llama «E2E Test» (database/seeds/users.js, E2E_USER); el
+    // header de la app muestra nombre + apellido, así que alcanza
+    // con buscar «E2E» o «Test».
+    await expect(page.getByRole('banner')).toContainText(/E2E|Test/i);
   });
 });

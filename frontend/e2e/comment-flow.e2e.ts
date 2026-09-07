@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+import { resolveE2eCredentials } from './_helpers/e2e-credentials';
+
 /**
  * F2 — comment-flow.e2e.ts
  * Change `2026-08-28-sc-203-auth-comments-backend-integration`.
@@ -11,18 +13,28 @@ import { test, expect } from '@playwright/test';
  * visibly flagging the gap (and `pnpm test:e2e` lists them as
  * skipped rather than failed).
  *
+ * 3rd pass (`2026-09-03-e2e-test-user-and-credentials`): las
+ * credenciales pasaron a venir del helper. El `test.skip` manual
+ * del describe se retiró — el helper ya implementa D4 y devuelve
+ * `{ skip: true, reason }` cuando no hay backend. El `test.skip`
+ * interno del único caso se mantiene por la misma razón que antes:
+ * falta la página de detalle de incidencia y el composer.
+ *
  * TODO(sc-208 + sc-209): re-enable when the incident-detail page
  * AND the comment composer UI land. SC-209 provides the image
  * upload half; the composer + list are still a separate feature.
  */
 
-const ADMIN_EMAIL = 'admin@correo.com';
-const ADMIN_PASSWORD = '123456';
+const creds = resolveE2eCredentials();
 // TODO: replace with a real seed id when the incident-detail page lands.
 const INCIDENT_ID = '123';
 
 test.describe('Comment flow', () => {
+  test.skip(creds.skip, creds.skip ? creds.reason : '');
+
   test.skip('F2.1: login → open incident → add comment', async ({ page }) => {
+    if (creds.skip) return;
+
     const createRequests: string[] = [];
     page.on('request', (req) => {
       if (req.method() === 'POST' && req.url().endsWith('/comments')) {
@@ -31,8 +43,8 @@ test.describe('Comment flow', () => {
     });
 
     await page.goto('/login');
-    await page.getByLabel(/usuario/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/contraseña|password/i).fill(ADMIN_PASSWORD);
+    await page.getByLabel(/usuario/i).fill(creds.user);
+    await page.getByLabel(/contraseña|password/i).fill(creds.password);
     await page.getByRole('button', { name: /entrar|iniciar|login/i }).click();
     await page.waitForURL(/\/app\/dashboard/, { timeout: 10_000 });
 

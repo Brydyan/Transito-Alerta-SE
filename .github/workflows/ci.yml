@@ -510,9 +510,23 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Cambio `2026-09-03-e2e-test-user-and-credentials` (D5): cachear
+      # `~/.cache/ms-playwright` ata al lockfile de pnpm, no a una
+      # versión de Playwright a mano. Si el lockfile cambia, la versión
+      # del navegador puede cambiar con él; atar al lockfile evita el
+      # escenario "lockfile estable + navegador desactualizado" sin
+      # obligar a editar el workflow cada vez que Playwright bumpea.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
       # Playwright necesita el browser binary. `--with-deps`
       # instala también las libs del sistema (libnss, libxss, etc.)
-      # que el browser usa en Linux.
+      # que el browser usa en Linux. **No** lo cubre la caché de
+      # arriba (son paquetes apt), pero reinstalarlos es barato
+      # comparado con el navegador.
       - run: pnpm exec playwright install --with-deps chromium
 
       # Sin `BASE_URL`, playwright arranca el dev server local vía
@@ -522,9 +536,15 @@ jobs:
       # that hid every prior failure). If the backend is unreachable
       # in CI the job goes red — the proposal accepts that trade-off
       # because a green-by-default frontend e2e gate proves nothing.
+      #
+      # Cambio `2026-09-03-e2e-test-user-and-credentials` (D4 + C.1):
+      # `E2E_PASSWORD` se inyecta como secret. El helper distingue
+      # "sin backend" (skip) de "backend sin secret" (falla); sin
+      # este env, el segundo caso era un skip silencioso.
       - name: Run Playwright tests
         env:
           BASE_URL: ${{ vars.STAGING_BASE_URL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: pnpm run test:e2e --reporter=list
 
       - name: Upload Playwright report

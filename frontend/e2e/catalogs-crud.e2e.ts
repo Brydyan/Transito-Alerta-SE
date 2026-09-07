@@ -1,29 +1,41 @@
 import { test, expect, Page } from '@playwright/test';
 
-const BACKEND_URL = process.env['BASE_URL']?.trim();
-const PASSWORD = 'ChangeMe!Demo2026';
+import { resolveE2eAdminCredentials } from './_helpers/e2e-credentials';
 
-async function login(page: Page, email: string): Promise<void> {
+/**
+ * F2.4.1 — Catálogos CRUD (Categorías, Organizaciones, Ubicaciones).
+ *
+ * Necesita un usuario CON permisos de escritura sobre los catálogos. El
+ * usuario e2e sembrado por la fase es `operador_org` (D1) y NO tiene
+ * esos permisos — atraviesa los guards como un usuario real y se
+ * queda corta en escritura. Por eso este spec usa el perfil admin del
+ * helper, que por defecto es `master@tase.local` (override por
+ * `E2E_ADMIN_USER`). Los datos de Categoría, Organización y Ubicación
+ * son los del seed, no se traen al repo.
+ */
+
+const creds = resolveE2eAdminCredentials();
+
+async function login(page: Page, user: string, password: string): Promise<void> {
   await page.goto('/login');
-  await page.getByLabel(/usuario/i).fill(email);
-  await page.getByLabel(/contraseña|password/i).fill(PASSWORD);
+  await page.getByLabel(/usuario/i).fill(user);
+  await page.getByLabel(/contraseña|password/i).fill(password);
   await page.getByRole('button', { name: /entrar|iniciar|login/i }).click();
   await page.waitForURL(/\/app\/dashboard/, { timeout: 15_000 });
 }
 
 test.describe('F2.4.1 — Catálogos CRUD (Categorías, Organizaciones, Ubicaciones)', () => {
-  test.skip(
-    !BACKEND_URL,
-    'Requiere backend con seed. Definí BASE_URL apuntando a staging.',
-  );
+  test.skip(creds.skip, creds.skip ? creds.reason : '');
 
   test.beforeEach(async ({ page }) => {
-    await login(page, 'master@tase.local');
+    if (creds.skip) return;
+    await login(page, creds.user, creds.password);
   });
 
   test('Categorías CRUD completo', async ({ page }) => {
+    if (creds.skip) return;
     await page.goto('/app/categorias');
-    
+
     // Alta
     await page.getByRole('button', { name: /nuevo/i }).click();
     await page.waitForURL(/\/app\/categorias\/new/);
@@ -51,8 +63,9 @@ test.describe('F2.4.1 — Catálogos CRUD (Categorías, Organizaciones, Ubicacio
   });
 
   test('Organizaciones CRUD completo', async ({ page }) => {
+    if (creds.skip) return;
     await page.goto('/app/organizaciones');
-    
+
     // Alta
     await page.getByRole('button', { name: /nuevo/i }).click();
     await page.waitForURL(/\/app\/organizaciones\/new/);
@@ -80,8 +93,9 @@ test.describe('F2.4.1 — Catálogos CRUD (Categorías, Organizaciones, Ubicacio
   });
 
   test('Ubicaciones CRUD completo con expansión', async ({ page }) => {
+    if (creds.skip) return;
     await page.goto('/app/ubicaciones');
-    
+
     // Alta
     await page.getByRole('button', { name: /nuevo/i }).click();
     await page.waitForURL(/\/app\/ubicaciones\/new/);
