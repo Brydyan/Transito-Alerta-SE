@@ -98,6 +98,51 @@ causa de que SC-208 advirtiera sobre estos e2e sin que nadie lo notara.
 poder correr los tests unitarios de cualquier rama, y volvería el pipeline rojo por
 defecto en cualquier fork o entorno nuevo.
 
+### Consecuencia observada — el "fail" aborta la colección completa de Playwright
+
+La rama "configurado y roto" se implementa con un `throw` desde el helper. Los cinco specs
+de login (`auth-flow`, `comment-flow`, `menu-navigation`, `catalogs-crud`,
+`catalogs-permissions`) lo llaman **a nivel de módulo** (`const creds =
+resolveE2eCredentials()` arriba del `test.describe`), fuera de cualquier `test()` o
+`test.beforeAll`. Cuando el helper tira, el `throw` ocurre durante la **fase de collect**
+de Playwright, no durante la ejecución de un test: el proceso aborta con `exit 1`
+**antes** de imprimir "Running N tests".
+
+En la práctica eso significa:
+
+- **Sin staging** (`BASE_URL` ausente): los 5 specs de login se saltan, el resto de la
+  suite corre normal. Modo benigno.
+- **`BASE_URL` + sin `E2E_PASSWORD`**: la corrida entera se aborta. **No** se genera
+  ningún resultado de test — ni pass, ni fail, ni skip — para NINGÚN spec, incluyendo
+  los que no dependen de credenciales (`incident-flow`, `accept-invitation`, `ci-policy`,
+  `credentials-policy`). El reporte HTML de Playwright queda vacío o no se genera; el
+  paso `Upload Playwright report` de `ci.yml` puede no tener nada útil que subir.
+
+Esto satisface la **letra** del requisito ("la suite falla", "el resultado no es
+skipped": cierto, no hay skip porque no hay nada). Pero es más drástico de lo que el
+nombre "falla ruidosamente" sugiere, y reduce la observabilidad exactamente en el caso
+que más importa diagnosticar (secret mal configurado en el environment de GitHub). El
+mensaje del error sí nombra `E2E_PASSWORD` y aparece en la salida del job — es la única
+señal de qué estuvo mal.
+
+**Decisión de diseño:** se mantiene el comportamiento actual. Las alternativas
+consideradas fueron:
+
+1. **Mover la resolución a `test.beforeAll`**: el throw se reporta por-describe, el
+   resto de la suite corre. Más trabajo (refactor de los 5 specs), beneficio real sólo
+   cuando el secreto está mal configurado — un caso que no debería repetirse una vez
+   configurado correctamente.
+2. **Mover a inline dentro de cada `test()`**: cada test llama al helper al inicio y
+   se skipea individualmente. Más líneas por spec, misma observabilidad que
+   `beforeAll`.
+3. **Documentar** (esta opción): el `throw` es la semántica intencionada de D4; quien
+   lea el reporte de CI debe saber que "exit 1 sin tests" en el job `frontend-e2e`
+   significa «`BASE_URL` presente, `E2E_PASSWORD` ausente», no «suite rota».
+
+Se eligió la opción 3. Si la observabilidad se vuelve un problema recurrente (más de
+un corredor configurando mal el secret), el cambio a `beforeAll` es mecánico y se
+hace en un follow-up corto.
+
 ---
 
 ## D5 — Cachear los navegadores de Playwright

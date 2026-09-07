@@ -198,6 +198,105 @@ configurados.
 
 ---
 
+## Segunda pasada — implementación de `fixes-required.md`
+
+El veredicto de la auditoría fue **PASS WITH WARNINGS** con un
+CRITICAL-1. Esta pasada lo cierra y, de paso, limpia los dos
+WARNING.
+
+### CRITICAL-1 — `deploy-staging.yml` "Verify seeded users"
+
+Causa: el `env:` de un paso en GitHub Actions **no** se propaga al
+siguiente. El paso "Seed users" declaraba `E2E_PASSWORD` en su
+`env:`, pero "Verify seeded users" (el que comprueba que el e2e se
+siembró cuando correspondía) leía `$E2E_PASSWORD` sin redeclararlo.
+El chequeo de `[ -z "$E2E_PASSWORD" ]` siempre veía vacío y, cuando
+el secret SÍ estaba configurado, fallaba con un mensaje **falso**:
+"E2E_PASSWORD ausente pero e2e@tase.local existe". El caso "sin
+secret" funcionaba por accidente.
+
+**Fix**: `env: E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}` agregado
+al paso "Verify seeded users". Comentario en el workflow explica
+por qué la duplicación es necesaria (subirlo a nivel de job afecta
+a pasos que no lo quieren).
+
+### WARNING-2 — type narrowing en `test.skip(creds.skip, creds.reason)`
+
+Causa: `E2eCreds` es unión discriminada `{ skip: true; reason }` |
+`{ skip: false; user; password }`. `creds.reason` sólo existe en la
+rama `skip: true`; accederlo sin narrowing es `TS2339`. Playwright
+no type-checka (usa esbuild), así que el error quedaba invisible
+indefinidamente — `frontend/e2e/` no entra en `tsc -b`, ni en
+`ts-jest`, ni en `ng build`.
+
+**Fix**: aplicado el narrowing en los 4 describes que usan
+`test.skip(creds.skip, creds.reason)`:
+- `auth-flow.e2e.ts:40`
+- `comment-flow.e2e.ts`
+- `catalogs-crud.e2e.ts`
+- `catalogs-permissions.e2e.ts`
+
+Forma: `test.skip(creds.skip, creds.skip ? creds.reason : '')` —
+el ternario acota el tipo de `creds.reason` a la rama `skip: true`.
+Si más adelante se agrega un `tsconfig.json` propio para `e2e/` con
+`tsc --noEmit` en CI, el error ya no va a aparecer.
+
+**No-fix estructural (anotado)**: agregar `frontend/e2e/tsconfig.json`
+con su propio `tsc --noEmit` en el job de CI. Es una mejora de
+cobertura, no un defecto de esta fase — la falta de cobertura de
+tipos sobre `e2e/` es preexistente. Si se decide hacerlo, va como
+follow-up aparte.
+
+### WARNING-1 — el "fail ruidoso" de D4 aborta la colección completa
+
+Causa: los 5 specs de login llaman al helper a nivel de módulo
+(`const creds = resolveE2eCredentials()` arriba del `test.describe`).
+Con `BASE_URL` presente y `E2E_PASSWORD` ausente, el `throw` ocurre
+en la fase de **collect** de Playwright, no dentro de un `test()`.
+El proceso aborta con `exit 1` sin imprimir "Running N tests", y
+ningún spec — ni los que no dependen de credenciales
+(`incident-flow`, `accept-invitation`, `ci-policy`,
+`credentials-policy`) — llega a correr.
+
+Cumple la letra de D4 ("la suite falla", "el resultado no es
+skipped"), pero es más drástico de lo que el nombre sugiere. El
+reporte HTML queda vacío y el `Upload Playwright report` del
+siguiente paso de CI puede no tener nada útil.
+
+**Decisión**: documentar en `design.md` (D4) en vez de refactorizar
+los 5 specs a `test.beforeAll` o inline. Justificación:
+
+- El refactor es mecánico pero no es trivial (5 specs, varying
+  shapes: `beforeAll`, `beforeEach` compartido en
+  `catalogs-permissions`, `test.skip(...)` a nivel describe).
+- El beneficio (per-describe scope) sólo se nota cuando el secret
+  está mal configurado — un caso que, una vez configurado
+  correctamente, no debería repetirse.
+- La salida del job SÍ nombra `E2E_PASSWORD` y el stack del helper,
+  así que la diagnosabilidad es aceptable aunque el reporte HTML
+  quede vacío.
+
+Si la observabilidad se vuelve un problema recurrente, el cambio a
+`beforeAll` se hace en follow-up corto. Documentado en
+`design.md` (D4 → "Consecuencia observada") con las tres
+alternativas evaluadas (beforeAll / inline / documentar) y la
+razón de elegir la tercera.
+
+### Estado post-fix
+
+- 16/16 specs de política verdes (credenciales + CI).
+- Los 5 specs de login se siguen saltando cuando no hay
+  `BASE_URL` (modo benigno de WARNING-1) y siguen tirando
+  ruidosamente cuando hay `BASE_URL` sin `E2E_PASSWORD` (modo
+  drástico de WARNING-1, ahora documentado).
+- CRITICAL-1 cerrado: el verify de `deploy-staging.yml` ahora ve
+  el secret correctamente cuando está configurado.
+- WARNING-2 cerrado: el narrowing aplica, el `TS2339` ya no
+  aparece si alguna vez se type-checkea `frontend/e2e/`.
+- WARNING-1 documentado, no refactorizado (decisión de diseño).
+
+---
+
 ## Q1 — Deuda: cleanup de comentarios e2e contra staging compartido
 
 **Problema**: specs crean comentarios contra staging compartido
