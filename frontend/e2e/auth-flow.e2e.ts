@@ -24,9 +24,15 @@ import { resolveE2eCredentials } from './_helpers/e2e-credentials';
  * `_helpers/e2e-credentials.ts` distingue "no configurado" (skip) de
  * "configurado y roto" (falla) — ver D4 del change.
  *
+ * Resolución **lazy** (WARNING-1): la llamada al helper está adentro
+ * del `test()`, no a nivel de módulo. Razón — el `throw` de
+ * configuración rota debe ser un fallo POR-TEST (D4: "FALLA
+ * ruidosamente"), no un abort del collect que tira al resto de la
+ * suite (incluyendo specs que no necesitan credenciales).
+ *
  * Required environment (consumido por el helper):
  *  - `BASE_URL` apunta a un Angular que proxia a un NestJS real.
- *  - `E2E_PASSWORD` es el secret del runner; sin él la suite falla.
+ *  - `E2E_PASSWORD` es el secret del runner; sin él el test falla.
  *  - `E2E_USER` es opcional; default `e2e@tase.local` (operador_org).
  *
  * Si el backend es fresco, `pnpm run db:seed` siembra los seis de demo
@@ -34,13 +40,17 @@ import { resolveE2eCredentials } from './_helpers/e2e-credentials';
  * definida al momento del seed.
  */
 
-const creds = resolveE2eCredentials();
-
 test.describe('Auth flow', () => {
-  test.skip(creds.skip, creds.skip ? creds.reason : '');
-
   test('F1.1: e2e login → dashboard', async ({ page }) => {
-    if (creds.skip) return; // narrowing — `test.skip` no estrecha tipos
+    const creds = resolveE2eCredentials();
+    if (creds.skip) {
+      // BASE_URL ausente: skip legítimo (D4).
+      test.skip(creds.skip, creds.reason);
+      return;
+    }
+    // BASE_URL + E2E_PASSWORD ausente: el helper tira (D4 "FALLA
+    // ruidosamente"). Acá no se llega — Playwright reporta el test
+    // como fallido con el mensaje del helper, sin abortar la suite.
 
     // Capture every network call so we can assert the real endpoint fired.
     const loginRequests: string[] = [];

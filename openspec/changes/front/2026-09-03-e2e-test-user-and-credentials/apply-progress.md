@@ -249,51 +249,80 @@ follow-up aparte.
 
 ### WARNING-1 — el "fail ruidoso" de D4 aborta la colección completa
 
-Causa: los 5 specs de login llaman al helper a nivel de módulo
+Causa: los 5 specs de login llamaban al helper a nivel de módulo
 (`const creds = resolveE2eCredentials()` arriba del `test.describe`).
-Con `BASE_URL` presente y `E2E_PASSWORD` ausente, el `throw` ocurre
+Con `BASE_URL` presente y `E2E_PASSWORD` ausente, el `throw` ocurría
 en la fase de **collect** de Playwright, no dentro de un `test()`.
-El proceso aborta con `exit 1` sin imprimir "Running N tests", y
+El proceso abortaba con `exit 1` sin imprimir "Running N tests", y
 ningún spec — ni los que no dependen de credenciales
 (`incident-flow`, `accept-invitation`, `ci-policy`,
-`credentials-policy`) — llega a correr.
+`credentials-policy`) — llegaba a correr.
 
-Cumple la letra de D4 ("la suite falla", "el resultado no es
-skipped"), pero es más drástico de lo que el nombre sugiere. El
-reporte HTML queda vacío y el `Upload Playwright report` del
-siguiente paso de CI puede no tener nada útil.
+Cumplía la letra de D4 ("la suite falla", "el resultado no es
+skipped"), pero era más drástico de lo que el nombre sugiere: el
+reporte HTML quedaba vacío y el `Upload Playwright report` del
+siguiente paso de CI podía no tener nada útil.
 
-**Decisión**: documentar en `design.md` (D4) en vez de refactorizar
-los 5 specs a `test.beforeAll` o inline. Justificación:
+**Decisión revisada** (revierte la decisión del primer fix pass):
+**refactorizar** los 5 specs a resolución **lazy** (dentro del
+`test()` o `test.beforeEach()`), en vez de documentar y dejar
+el comportamiento. Razón: la observabilidad mejora claramente y el
+precio (5 specs refactorizados) ya está pagado.
 
-- El refactor es mecánico pero no es trivial (5 specs, varying
-  shapes: `beforeAll`, `beforeEach` compartido en
-  `catalogs-permissions`, `test.skip(...)` a nivel describe).
-- El beneficio (per-describe scope) sólo se nota cuando el secret
-  está mal configurado — un caso que, una vez configurado
-  correctamente, no debería repetirse.
-- La salida del job SÍ nombra `E2E_PASSWORD` y el stack del helper,
-  así que la diagnosabilidad es aceptable aunque el reporte HTML
-  quede vacío.
+**Fix aplicado**: la llamada al helper se mueve adentro del test
+(o del `beforeEach` en `catalogs-permissions`). Tres ramas:
 
-Si la observabilidad se vuelve un problema recurrente, el cambio a
-`beforeAll` se hace en follow-up corto. Documentado en
-`design.md` (D4 → "Consecuencia observada") con las tres
-alternativas evaluadas (beforeAll / inline / documentar) y la
-razón de elegir la tercera.
+1. **`BASE_URL` ausente** → helper devuelve `{ skip: true, reason }`
+   → el test llama `test.skip(creds.skip, creds.reason)` y retorna.
+2. **`BASE_URL` + sin `E2E_PASSWORD`** → helper **tira** (D4: "FALLA
+   ruidosamente"). El throw ocurre durante la ejecución del test
+   individual — Playwright lo reporta como `failed` con el mensaje
+   del helper, sin abortar la suite.
+3. **Ambos presentes** → helper devuelve `{ user, password }` → el
+   test corre normal.
+
+Verificación (`BASE_URL=https://staging.tase.ec pnpm exec playwright
+test`, sin `E2E_PASSWORD`):
+```
+10 failed   ← los 5 specs de login (× retries)
+3 skipped   ← accept-invitation (x2) + comment-flow F2.1
+16 passed   ← credentials-policy + ci-policy
+```
+
+`exit 1` por los 10 fallos, pero la suite corrió entera y el reporte
+HTML tiene los 16 pass. Antes del refactor el mismo comando daba
+"No tests found" sin reporte y exit 1 sin datos. La diagnosabilidad
+mejora sin perder la señal de D4 (los tests de login fallan, no
+pasan como skipped).
+
+**Notas del refactor**:
+- `auth-flow.e2e.ts` y `comment-flow.e2e.ts`: el helper se llama al
+  inicio de cada test.
+- `menu-navigation.e2e.ts` (F1.6.1 y F1.6.2): cada describe tiene
+  un solo test; el helper se llama al inicio.
+- `catalogs-crud.e2e.ts` (3 tests): el helper se llama al inicio
+  de cada test.
+- `catalogs-permissions.e2e.ts` (2 tests): el helper se llama en
+  `beforeEach` y se guarda en una variable de closure del
+  `describe`. Cada test referencia `creds` después del early-return.
+  Este es el único caso donde el `throw` queda dentro de
+  `beforeEach` — Playwright lo reporta como fallo del test actual,
+  mismo comportamiento que las otras 4 specs.
 
 ### Estado post-fix
 
 - 16/16 specs de política verdes (credenciales + CI).
-- Los 5 specs de login se siguen saltando cuando no hay
-  `BASE_URL` (modo benigno de WARNING-1) y siguen tirando
-  ruidosamente cuando hay `BASE_URL` sin `E2E_PASSWORD` (modo
-  drástico de WARNING-1, ahora documentado).
+- Los 5 specs de login ahora **fallan** (no skip, no abort) cuando
+  hay `BASE_URL` sin `E2E_PASSWORD`. Cada fallo nombra
+  `E2E_PASSWORD` en su mensaje.
+- Los demás specs (`credentials-policy`, `ci-policy`,
+  `incident-flow`, `accept-invitation`) corren sin verse afectados.
 - CRITICAL-1 cerrado: el verify de `deploy-staging.yml` ahora ve
   el secret correctamente cuando está configurado.
 - WARNING-2 cerrado: el narrowing aplica, el `TS2339` ya no
   aparece si alguna vez se type-checkea `frontend/e2e/`.
-- WARNING-1 documentado, no refactorizado (decisión de diseño).
+- WARNING-1 cerrado con refactor: el `throw` queda scoped al
+  test individual en vez de abortar el collect.
 
 ---
 

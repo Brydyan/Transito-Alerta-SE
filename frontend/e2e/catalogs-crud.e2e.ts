@@ -12,9 +12,11 @@ import { resolveE2eAdminCredentials } from './_helpers/e2e-credentials';
  * helper, que por defecto es `master@tase.local` (override por
  * `E2E_ADMIN_USER`). Los datos de Categoría, Organización y Ubicación
  * son los del seed, no se traen al repo.
+ *
+ * Resolución **lazy** (WARNING-1): el helper se llama dentro de cada
+ * test, no a nivel de módulo. El `throw` por secret ausente queda
+ * scoped a este describe y no aborta la suite entera.
  */
-
-const creds = resolveE2eAdminCredentials();
 
 async function login(page: Page, user: string, password: string): Promise<void> {
   await page.goto('/login');
@@ -25,15 +27,13 @@ async function login(page: Page, user: string, password: string): Promise<void> 
 }
 
 test.describe('F2.4.1 — Catálogos CRUD (Categorías, Organizaciones, Ubicaciones)', () => {
-  test.skip(creds.skip, creds.skip ? creds.reason : '');
-
-  test.beforeEach(async ({ page }) => {
-    if (creds.skip) return;
-    await login(page, creds.user, creds.password);
-  });
-
   test('Categorías CRUD completo', async ({ page }) => {
-    if (creds.skip) return;
+    const creds = resolveE2eAdminCredentials();
+    if (creds.skip) {
+      test.skip(creds.skip, creds.reason);
+      return;
+    }
+    await login(page, creds.user, creds.password);
     await page.goto('/app/categorias');
 
     // Alta
@@ -63,7 +63,12 @@ test.describe('F2.4.1 — Catálogos CRUD (Categorías, Organizaciones, Ubicacio
   });
 
   test('Organizaciones CRUD completo', async ({ page }) => {
-    if (creds.skip) return;
+    const creds = resolveE2eAdminCredentials();
+    if (creds.skip) {
+      test.skip(creds.skip, creds.reason);
+      return;
+    }
+    await login(page, creds.user, creds.password);
     await page.goto('/app/organizaciones');
 
     // Alta
@@ -93,7 +98,12 @@ test.describe('F2.4.1 — Catálogos CRUD (Categorías, Organizaciones, Ubicacio
   });
 
   test('Ubicaciones CRUD completo con expansión', async ({ page }) => {
-    if (creds.skip) return;
+    const creds = resolveE2eAdminCredentials();
+    if (creds.skip) {
+      test.skip(creds.skip, creds.reason);
+      return;
+    }
+    await login(page, creds.user, creds.password);
     await page.goto('/app/ubicaciones');
 
     // Alta

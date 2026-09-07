@@ -12,7 +12,9 @@ import { resolveE2eAdminCredentials, resolveE2eCredentials } from './_helpers/e2
  * afirma que ningún item del menú aterriza en el 404.
  *
  * 3rd pass (`2026-09-03-e2e-test-user-and-credentials`): las
- * credenciales vienen del helper.
+ * credenciales vienen del helper, con resolución **lazy** dentro de
+ * cada test (WARNING-1). El throw de D4 queda scoped al test que
+ * tiene la config rota — los demás describes siguen corriendo.
  *  - F1.6.1 necesita ver TODOS los ítems del menú — usa el perfil
  *    admin (master@tase.local), que es el único sembrado con la
  *    matriz completa de permisos.
@@ -28,9 +30,6 @@ import { resolveE2eAdminCredentials, resolveE2eCredentials } from './_helpers/e2
  * es `operador_org`, ve el mismo subconjunto que `operador-org-1`,
  * así que la lista de ítems visibles no cambia.
  */
-
-const adminCreds = resolveE2eAdminCredentials();
-const e2eCreds = resolveE2eCredentials();
 
 async function login(page: Page, user: string, password: string): Promise<void> {
   await page.goto('/login');
@@ -89,11 +88,13 @@ async function assertNotErrorPage(page: Page, itemName: string): Promise<void> {
 }
 
 test.describe('F1.6.1 — sidebar del admin navega sin 404', () => {
-  test.skip(adminCreds.skip, adminCreds.skip ? adminCreds.reason : '');
-
   test('cada entrada del menú no monta ErrorPageComponent', async ({ page }) => {
-    if (adminCreds.skip) return;
-    await login(page, adminCreds.user, adminCreds.password);
+    const creds = resolveE2eAdminCredentials();
+    if (creds.skip) {
+      test.skip(creds.skip, creds.reason);
+      return;
+    }
+    await login(page, creds.user, creds.password);
 
     // Las 10 entradas que el mapa D4 emite para un usuario con todos
     // los permisos del menú. El orden es el del backend (`order`).
@@ -122,11 +123,13 @@ test.describe('F1.6.1 — sidebar del admin navega sin 404', () => {
 });
 
 test.describe('F1.6.2 — operador_org ve un subconjunto navegable', () => {
-  test.skip(e2eCreds.skip, e2eCreds.skip ? e2eCreds.reason : '');
-
   test('el menú reducido sigue siendo navegable en su totalidad', async ({ page }) => {
-    if (e2eCreds.skip) return;
-    await login(page, e2eCreds.user, e2eCreds.password);
+    const creds = resolveE2eCredentials();
+    if (creds.skip) {
+      test.skip(creds.skip, creds.reason);
+      return;
+    }
+    await login(page, creds.user, creds.password);
 
     // El operador de organización NO ve Usuarios, Roles, Categorías
     // ni Ubicaciones (los permisos de esos recursos no están en su

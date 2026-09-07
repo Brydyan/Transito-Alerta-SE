@@ -100,48 +100,60 @@ defecto en cualquier fork o entorno nuevo.
 
 ### Consecuencia observada — el "fail" aborta la colección completa de Playwright
 
-La rama "configurado y roto" se implementa con un `throw` desde el helper. Los cinco specs
-de login (`auth-flow`, `comment-flow`, `menu-navigation`, `catalogs-crud`,
-`catalogs-permissions`) lo llaman **a nivel de módulo** (`const creds =
-resolveE2eCredentials()` arriba del `test.describe`), fuera de cualquier `test()` o
-`test.beforeAll`. Cuando el helper tira, el `throw` ocurre durante la **fase de collect**
-de Playwright, no durante la ejecución de un test: el proceso aborta con `exit 1`
-**antes** de imprimir "Running N tests".
+La rama "configurado y roto" se implementa con un `throw` desde el helper. En una
+versión anterior los cinco specs de login (`auth-flow`, `comment-flow`,
+`menu-navigation`, `catalogs-crud`, `catalogs-permissions`) lo llamaban **a nivel de
+módulo** (`const creds = resolveE2eCredentials()` arriba del `test.describe`), fuera de
+cualquier `test()` o `test.beforeAll`. Cuando el helper tira, el `throw` ocurre durante
+la **fase de collect** de Playwright, no durante la ejecución de un test: el proceso
+aborta con `exit 1` **antes** de imprimir "Running N tests".
 
-En la práctica eso significa:
+En la práctica eso significaba:
 
-- **Sin staging** (`BASE_URL` ausente): los 5 specs de login se saltan, el resto de la
-  suite corre normal. Modo benigno.
-- **`BASE_URL` + sin `E2E_PASSWORD`**: la corrida entera se aborta. **No** se genera
+- **Sin staging** (`BASE_URL` ausente): los 5 specs de login se saltaban, el resto de la
+  suite corría normal. Modo benigno.
+- **`BASE_URL` + sin `E2E_PASSWORD`**: la corrida entera se abortaba. **No** se generaba
   ningún resultado de test — ni pass, ni fail, ni skip — para NINGÚN spec, incluyendo
   los que no dependen de credenciales (`incident-flow`, `accept-invitation`, `ci-policy`,
-  `credentials-policy`). El reporte HTML de Playwright queda vacío o no se genera; el
-  paso `Upload Playwright report` de `ci.yml` puede no tener nada útil que subir.
+  `credentials-policy`). El reporte HTML de Playwright quedaba vacío o no se generaba;
+  el paso `Upload Playwright report` de `ci.yml` podía no tener nada útil que subir.
 
-Esto satisface la **letra** del requisito ("la suite falla", "el resultado no es
-skipped": cierto, no hay skip porque no hay nada). Pero es más drástico de lo que el
-nombre "falla ruidosamente" sugiere, y reduce la observabilidad exactamente en el caso
-que más importa diagnosticar (secret mal configurado en el environment de GitHub). El
-mensaje del error sí nombra `E2E_PASSWORD` y aparece en la salida del job — es la única
-señal de qué estuvo mal.
+Esto satisfacía la **letra** del requisito ("la suite falla", "el resultado no es
+skipped": cierto, no hay skip porque no hay nada). Pero era más drástico de lo que el
+nombre "falla ruidosamente" sugiere, y reducía la observabilidad exactamente en el
+caso que más importa diagnosticar (secret mal configurado en el environment de
+GitHub). El mensaje del error sí nombraba `E2E_PASSWORD` y aparecía en la salida del
+job — era la única señal de qué estuvo mal.
 
-**Decisión de diseño:** se mantiene el comportamiento actual. Las alternativas
-consideradas fueron:
+**Decisión de diseño (revisada) — WARNING-1 cerrado con refactor.** Los 5 specs
+mueven la llamada al helper **adentro de `test()` / `test.beforeEach()`**. El `throw`
+del helper se reporta como fallo del test individual (D4 preservado: "FALLA
+ruidosamente" — sí, falla), pero el collect ya no aborta: los specs que no usan
+credenciales (`credentials-policy`, `ci-policy`, `incident-flow`, `accept-invitation`)
+corren normalmente. Verificado con `BASE_URL=… pnpm exec playwright test`:
 
-1. **Mover la resolución a `test.beforeAll`**: el throw se reporta por-describe, el
-   resto de la suite corre. Más trabajo (refactor de los 5 specs), beneficio real sólo
-   cuando el secreto está mal configurado — un caso que no debería repetirse una vez
-   configurado correctamente.
-2. **Mover a inline dentro de cada `test()`**: cada test llama al helper al inicio y
-   se skipea individualmente. Más líneas por spec, misma observabilidad que
-   `beforeAll`.
-3. **Documentar** (esta opción): el `throw` es la semántica intencionada de D4; quien
-   lea el reporte de CI debe saber que "exit 1 sin tests" en el job `frontend-e2e`
-   significa «`BASE_URL` presente, `E2E_PASSWORD` ausente», no «suite rota».
+```
+10 failed   ← los 5 specs de login × 2 attempts del retry
+3 skipped   ← accept-invitation (x2) + comment-flow F2.1
+16 passed   ← credentials-policy + ci-policy
+```
 
-Se eligió la opción 3. Si la observabilidad se vuelve un problema recurrente (más de
-un corredor configurando mal el secret), el cambio a `beforeAll` es mecánico y se
-hace en un follow-up corto.
+`exit 1` por los 10 fallos, pero la suite corrió entera y el reporte HTML tiene los
+16 pass. Antes del refactor el mismo comando daba "No tests found" sin reporte. La
+diagnosabilidad mejora sin perder la señal de D4.
+
+Las dos alternativas evaluadas al cierre del WARNING-1:
+
+1. **`test.beforeAll` por describe**: un solo `throw` por describe (el primero), los
+   demás describes siguen. Ligeramente menos visible que per-test (un solo error en
+   vez de 6+), mismo impacto sobre el resto de la suite. Se descartó porque el
+   patrón per-test / per-beforeEach es más uniforme: el chequeo vive donde se
+   consume, y la asimetría entre `beforeAll` (auth-flow, comment-flow,
+   menu-navigation) y `beforeEach` (catalogs-permissions) es fea.
+2. **Documentar sin refactorizar** (la decisión que tomó el primer commit de fix):
+   el `throw` queda scoped al collect; el reporte sigue vacío cuando hay config
+   rota. Se rechazó porque deja exactamente el dolor que WARNING-1 describió:
+   "reduce la observabilidad exactamente en el caso que más importa diagnosticar".
 
 ---
 

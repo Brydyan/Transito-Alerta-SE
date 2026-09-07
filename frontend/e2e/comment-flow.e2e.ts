@@ -9,31 +9,30 @@ import { resolveE2eCredentials } from './_helpers/e2e-credentials';
  * 2nd pass (`2026-08-28-sc-208-frontend-e2e-tests-quick-fix`):
  * skipped — the spec asserts an incident-detail page + comment
  * composer that don't exist yet in `frontend/src/app/features/`.
- * Both tests are `test.skip()` so the suite stays green while
- * visibly flagging the gap (and `pnpm test:e2e` lists them as
+ * The test stays `test.skip()` so the suite stays green while
+ * visibly flagging the gap (and `pnpm test:e2e` lists it as
  * skipped rather than failed).
  *
- * 3rd pass (`2026-09-03-e2e-test-user-and-credentials`): las
- * credenciales pasaron a venir del helper. El `test.skip` manual
- * del describe se retiró — el helper ya implementa D4 y devuelve
- * `{ skip: true, reason }` cuando no hay backend. El `test.skip`
- * interno del único caso se mantiene por la misma razón que antes:
- * falta la página de detalle de incidencia y el composer.
+ * 3rd pass (`2026-09-03-e2e-test-user-and-credentials`): credenciales
+ * vía helper. Resolución **lazy** dentro del test (WARNING-1) — el
+ * `throw` por secret ausente debe ser un fallo del test, no un
+ * abort del collect.
  *
  * TODO(sc-208 + sc-209): re-enable when the incident-detail page
  * AND the comment composer UI land. SC-209 provides the image
  * upload half; the composer + list are still a separate feature.
  */
 
-const creds = resolveE2eCredentials();
 // TODO: replace with a real seed id when the incident-detail page lands.
 const INCIDENT_ID = '123';
 
 test.describe('Comment flow', () => {
-  test.skip(creds.skip, creds.skip ? creds.reason : '');
-
   test.skip('F2.1: login → open incident → add comment', async ({ page }) => {
-    if (creds.skip) return;
+    const creds = resolveE2eCredentials();
+    if (creds.skip) {
+      test.skip(creds.skip, creds.reason);
+      return;
+    }
 
     const createRequests: string[] = [];
     page.on('request', (req) => {
