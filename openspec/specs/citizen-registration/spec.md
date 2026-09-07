@@ -188,8 +188,11 @@ aviso informativo, y ese aviso NO DEBE contener un OTP ni un enlace de acción.
   octetos (`190.15.x.x`); GIVEN una IPv6, los dos primeros grupos
 - Scenario: Momento del intento, no de la entrega — GIVEN un aviso que se entrega minutos
   después THEN la hora mostrada es la del intento, que viaja en los datos del encolado
-- Scenario: Hora local — GIVEN un intento THEN la hora se muestra en hora de Ecuador, no en
-  UTC
+- Scenario: Hora local — GIVEN un intento THEN la hora se muestra en hora de Santa Elena
+  (Ecuador continental, `America/Guayaquil`, UTC−5), no en UTC
+- Scenario: La hora no depende del servidor — GIVEN el mismo instante renderizado en
+  máquinas con distinta zona horaria THEN el resultado es idéntico: un dato que es parte
+  del producto no puede cambiar según dónde se calcule
 - Scenario: Dato ausente — GIVEN un intento sin IP o sin user-agent THEN el aviso dice
   «desconocida» / «desconocido», nunca un hueco vacío
 - Scenario: La respuesta HTTP sigue siendo indistinguible — GIVEN un alta contra un correo

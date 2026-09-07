@@ -83,13 +83,19 @@ export function describeDevice(userAgent: string | null | undefined): string {
  *
  * Sin dependencia de `Intl.DateTimeFormat` con timeZone, y sin
  * leer la zona horaria del runtime: el resultado es el mismo en
- * cualquier máquina. Ecuador no observa horario de verano, así
- * que un offset fijo es correcto todo el año.
+ * cualquier máquina.
  */
 export function formatAttemptTime(date: Date): string {
-  // El proyecto se sirve en hora de Ecuador, que no observa
-  // horario de verano: el offset es fijo.
-  const ecuadorOffsetMinutes = 5 * 60; // GMT-5
+  // Santa Elena — Ecuador continental: `America/Guayaquil`,
+  // UTC-5. El país tiene DOS zonas y la otra es Galápagos
+  // (`Pacific/Galapagos`, UTC-6), así que «hora de Ecuador» a
+  // secas es ambiguo: acá es explícitamente la continental,
+  // que es donde está el cantón que atiende esta aplicación.
+  //
+  // Ninguna de las dos observa horario de verano, así que un
+  // offset fijo es correcto todo el año — no hay fecha en la
+  // que este número deje de valer.
+  const ecuadorOffsetMinutes = 5 * 60; // UTC-5
 
   // `getTime()` YA es epoch en UTC, así que basta restarle el
   // offset de Ecuador y leer el resultado con `getUTC*`.

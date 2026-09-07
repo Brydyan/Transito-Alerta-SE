@@ -153,7 +153,7 @@ describe('renderMailTemplate — existing_account_attempt (MAIL A.2/A.5, D4/D9)'
     expect(html).not.toMatch(/<a[^>]+href/i);
   });
 
-  it('el momento del intento se muestra en hora de Ecuador, no en UTC', () => {
+  it('el momento se muestra en hora de Santa Elena (UTC-5), no en UTC', () => {
     // 19:33:41 UTC son las 14:33 en Ecuador (GMT-5, sin horario
     // de verano). La aserción es la hora EXACTA a propósito: la
     // versión anterior esperaba `19:33 (GMT-5)` —la hora UTC sin
