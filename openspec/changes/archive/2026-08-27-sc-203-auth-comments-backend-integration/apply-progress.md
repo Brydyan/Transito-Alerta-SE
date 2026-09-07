@@ -95,9 +95,35 @@ interceptor hace refresh transparente del JWT en 401, y la Fase B
 | `auth.service.spec` | 8/8 con fixtures del contrato real (snake_case) |
 | `comment.service.spec` | 8/8 |
 | `auth.interceptor.spec` | 5/5 (pre-flight tests removidos — sin `expDate` no se puede pre-fresh) |
-| Full frontend jest | 20/22 suites, 51/51 tests pass (2 pre-existing vitest fails sin relación, confirmado via `git log`) |
+| Full frontend jest | 20/22 suites, 50/50 tests (2 pre-existing vitest fails sin relación, confirmado via `git stash`) |
 
 ---
+
+## Resumen
+
+Conecté auth + comments del frontend Angular al backend NestJS real.
+El mock de login está eliminado, las queries de comments usan los
+endpoints correctos (`/comments`, `/comments/incident/:id`), el
+interceptor hace refresh transparente del JWT, y agregué el flow
+de register con validación de errores 422 campo-por-campo.
+
+**Verificación en este turno** (laptop con Docker daemon + `pnpm install` en `frontend/`):
+
+| Suite | Resultado |
+|-------|-----------|
+| `pnpm jest` (frontend unit) | **20/22 suites, 50/50 tests** ✓ |
+| Suites nuevas: `auth.service.spec`, `comment.service.spec`, `auth.interceptor.spec` | **4/4 suites, 22/22 tests** ✓ |
+| 2 suites pre-existentes fallando (`main-layout`, `header`) | vitest en jest config, sin relación con T8 — confirmado pre-existente via `git stash` |
+
+**Lo que quedó pendiente** (4 tasks de Fase F, todos requieren correr Playwright contra el seed real):
+
+- F1.3 / F1.4 — `npx playwright test e2e/auth-flow.e2e.ts`
+- F2.3 / F2.4 — `npx playwright test e2e/comment-flow.e2e.ts`
+
+Las specs Playwright están escritas (`e2e/auth-flow.e2e.ts`,
+`e2e/comment-flow.e2e.ts`, `playwright.config.ts`) listas para
+correr cuando haya seed con `admin@correo.com` / `123456` y un
+incident válido en `/incidents/123`.
 
 ## Decisiones técnicas durante la implementación
 
@@ -204,7 +230,7 @@ del HttpErrorResponse), lo cual era frágil.
 
 | Check | Resultado |
 |-------|-----------|
-| `pnpm jest` (frontend) | ✅ 20/22 suites (2 pre-existentes fallan por vitest, sin relación), 51/51 tests |
+| `pnpm jest` (frontend) | ✅ 20/22 suites (2 pre-existentes fallan por vitest, sin relación), 50/50 tests |
 | Suites nuevas del change | ✅ 4/4, 22/22 |
 | `tsc --noEmit` (frontend, inferido del jest) | ✅ sin errores TS reportados por ts-jest |
 | Cobertura auth + comment + interceptor | ✅ todas las ramas cubiertas (login 401/200, register 422/201, refresh OK/fail, 401 retry, concurrent refresh, JWT inject/omit) |

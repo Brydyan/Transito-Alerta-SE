@@ -140,32 +140,42 @@ describe('E2E REG — EmailVerifiedGuard conectado (sc-325)', () => {
    * motivo equivocado. Provisionar después fuerza un contexto fresco y deja
    * que el 403 venga de donde tiene que venir.
    */
-  it('un rol renombrado NO entra a la allow-list: el ciudadano sigue necesitando verificar', async () => {
-    const admin = await env.provisionUser(['READ roles', 'UPDATE roles'], {
+  it('un rol nuevo con CREATE incidents NO entra a la allow-list: el ciudadano sigue necesitando verificar', async () => {
+    // AUD (sc-327) FIX-6 (ronda 12) — el round 0 de este test
+    // hacía un renombrado de `reporter` a `ciudadano` para
+    // demostrar que el `EmailVerifiedGuard` filtra por NOMBRE
+    // y que un nombre desconocido cae del lado de exigencia.
+    // FIX-6 prohíbe renombrar roles sembrados (porque un
+    // rename es un vector de privilege-escalation), así que
+    // el setup del round 0 ya no es legal.
+    //
+    // El invariante que el test afirma (allow-list por
+    // nombre, deny-by-default) sigue siendo verdadero, y se
+    // demuestra con un CREATE de un rol nuevo con permisos
+    // equivalentes a `reporter` (CREATE incidents). Si el
+    // guard filtra por nombre, un rol distinto de
+    // `master`/`admin_sistema`/`operador_sistema` no entra a
+    // la allow-list y el ciudadano debe verificar.
+    const admin = await env.provisionUser(['READ roles', 'CREATE roles'], {
       email: `admin-${randomUUID()}@example.com`,
       roleName: 'master',
+      emailVerified: true,
+    });
+    const authHeader = (u: { accessToken: string }) => ({
+      Authorization: `Bearer ${u.accessToken}`,
     });
 
-    const { rows } = await env.pg.query<{ id: string }>(
-      'SELECT id FROM roles WHERE name = $1',
-      ['reporter'],
-    );
-    const roleId = rows[0].id;
+    const newRoleName = `ciudadano-${randomUUID().slice(0, 8)}`;
+    const newRoleRes = await request(env.httpServer)
+      .post('/api/roles')
+      .set(authHeader(admin))
+      .send({ name: newRoleName, permissions: ['CREATE incidents'] });
+    expect(newRoleRes.status).toBe(201);
 
-    // `reset()` trunca usuarios, incidencias y comentarios, pero NO `roles`:
-    // el renombrado sobrevive al test y el siguiente encontraría `reporter`
-    // inexistente, provisionaría sin rol, y pasaría o fallaría por una razón
-    // que no tiene nada que ver con lo que mide. Se restaura sí o sí.
     try {
-      await request(env.httpServer)
-        .patch(`/api/roles/${roleId}`)
-        .set(authHeader(admin))
-        .send({ name: 'ciudadano' })
-        .expect(200);
-
       const renombrado = await env.provisionUser(['CREATE incidents'], {
         email: `ciudadano-${randomUUID()}@example.com`,
-        roleName: 'ciudadano',
+        roleName: newRoleName,
         emailVerified: false,
       });
 
@@ -177,7 +187,16 @@ describe('E2E REG — EmailVerifiedGuard conectado (sc-325)', () => {
 
       expect(res.body.code).toBe('EMAIL_VERIFICATION_REQUIRED');
     } finally {
-      await env.pg.query('UPDATE roles SET name = $1 WHERE id = $2', ['reporter', roleId]);
+      // `reset()` trunca usuarios, incidencias y comentarios
+      // pero NO `roles` (costo fijo del harness para tests
+      // que dependen de la presencia de `reporter`).
+      // Soft-delete del rol creado por el test para no
+      // contaminar el walk del WARNING-A.6, que asume
+      // `deleted_at IS NULL`.
+      await env.pg.query(
+        `UPDATE roles SET deleted_at = now() WHERE name = $1`,
+        [newRoleName],
+      );
     }
   });
 

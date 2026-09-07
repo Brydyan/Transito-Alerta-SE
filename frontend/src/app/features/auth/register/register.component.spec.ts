@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { of, throwError } from 'rxjs';
@@ -29,6 +29,13 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
 
   const validPayload = {
     email: 'nuevo@example.com',
+    // MAIL E.1/E.5 (ronda 14) — el `email_confirm` también
+    // es requerido y debe coincidir con `email` (validador
+    // de grupo). El default acá refleja un caso "feliz"
+    // para que los tests existentes no tengan que duplicar
+    // el valor; los tests que ejercitan la NO-coincidencia
+    // (E.5) lo sobreescriben explícitamente.
+    email_confirm: 'nuevo@example.com',
     password: 'Password123!@#',
     first_name: 'Ada',
     last_name: 'Lovelace',
@@ -126,6 +133,118 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
     http
       .expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'))
       .flush({ message: 'cualquier mensaje' });
+  });
+
+  // ───── MAIL (sc-327) — E.4 + E.5 — confirmación de correo ─────
+  //
+  // El formulario tiene un segundo campo `email_confirm` que
+  // NO viaja al servidor. La defensa contra «el dedazo humano
+  // mandó el OTP al buzón equivocado» se aplica antes del POST:
+  // si los dos correos no coinciden, el formulario es inválido
+  // y el `onSubmit` no llama a `authService.register`. Si
+  // coinciden, se envía el alta con exactamente las 4 claves
+  // que acepta el DTO del backend — `email_confirm` queda en
+  // el cliente. La razón: el `ValidationPipe` corre con
+  // `forbidNonWhitelisted` y rechaza el alta entera si llega
+  // una propiedad de más (E.4, staging 2026-09-06).
+  describe('email_confirm (MAIL E.4/E.5)', () => {
+    it('E.4: el cuerpo enviado al servidor tiene exactamente cuatro claves (no viaja email_confirm)', () => {
+      component.registerForm.patchValue({
+        ...validPayload,
+        email_confirm: 'nuevo@example.com',
+      });
+      component.onSubmit();
+
+      const req = http.expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'));
+      // La defensa: el body tiene EXACTAMENTE esas cuatro
+      // claves, en ese orden. `email_confirm` queda en el
+      // cliente. Si `onSubmit` se cambiara a
+      // `...this.registerForm.value`, esta assertion se
+      // rompe y el backend devuelve 400 con
+      // `property email_confirm should not exist`.
+      expect(Object.keys(req.request.body).sort()).toEqual(
+        ['email', 'first_name', 'last_name', 'password'],
+      );
+      expect('email_confirm' in req.request.body).toBe(false);
+      req.flush({ message: 'ok' });
+    });
+
+    it('E.5: dos correos distintos → formulario inválido y register no se llama', () => {
+      component.registerForm.patchValue({
+        ...validPayload,
+        email_confirm: 'OTRO@example.com',
+      });
+      expect(component.registerForm.valid).toBe(false);
+      // El validador de GRUPO pone `emailMatch: true` en los
+      // errores del FormGroup, no del control.
+      expect(component.registerForm.errors?.['emailMatch']).toBe(true);
+      component.onSubmit();
+      // No hay request encolada.
+      http.expectNone(() => true);
+    });
+
+    it('E.5: dos correos iguales → formulario válido y register se llama', () => {
+      component.registerForm.patchValue({
+        ...validPayload,
+        email_confirm: 'nuevo@example.com',
+      });
+      expect(component.registerForm.valid).toBe(true);
+      component.onSubmit();
+      const req = http.expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'));
+      req.flush({ message: 'ok' });
+    });
+
+    it('E.5: si después de confirmar el primer correo se edita, vuelve a inválido', () => {
+      // Caso explícito del spec: enganchar el validador sólo
+      // al segundo control dejaría el formulario válido con
+      // dos valores distintos. La defensa es el validador de
+      // GRUPO, que re-corre cuando CUALQUIER control cambia.
+      component.registerForm.patchValue({
+        ...validPayload,
+        email_confirm: 'nuevo@example.com',
+      });
+      expect(component.registerForm.valid).toBe(true);
+      component.registerForm.patchValue({ email: 'editado@example.com' });
+      expect(component.registerForm.errors?.['emailMatch']).toBe(true);
+      expect(component.registerForm.valid).toBe(false);
+      component.onSubmit();
+      http.expectNone(() => true);
+    });
+  });
+
+  // ───── MAIL (sc-327) — F.1/F.2 — el hint viene del backend ─────
+  describe('navigation hint (MAIL F.1/F.2)', () => {
+    // F.1: la pantalla de verificación muestra el `hint` que
+    // devuelve el backend, no una constante del cliente. Antes
+    // había una frase local «Si ya lo estaba, te avisamos al
+    // titular» que REG quitó del backend en la ronda 12 — el
+    // frontend quedó mostrando una frase muerta.
+    //
+    // F.2: el spec verifica que el componente pasa la respuesta
+    // del backend al query param `hint` del router, y NO usa
+    // una constante local.
+    it('F.2: la navegación al verify-email lleva el message del backend como hint', () => {
+      const router = TestBed.inject(Router);
+      const navigateSpy = jest.spyOn(router, 'navigate');
+
+      const backendMessage =
+        'Si el correo no estaba registrado, te enviamos un mensaje para verificar tu cuenta.';
+      component.registerForm.patchValue({ ...validPayload });
+      component.onSubmit();
+      http
+        .expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'))
+        .flush({ message: backendMessage });
+
+      expect(navigateSpy).toHaveBeenCalledWith(
+        ['/verify-email'],
+        expect.objectContaining({
+          queryParams: expect.objectContaining({
+            email: 'nuevo@example.com',
+            hint: backendMessage,
+          }),
+        }),
+      );
+    });
   });
 
   it('D4: 429 muestra el mensaje de rate limit (no se navega)', () => {

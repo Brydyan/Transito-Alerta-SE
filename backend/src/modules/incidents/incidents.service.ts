@@ -1,10 +1,14 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { InjectDataSource } from '@nestjs/typeorm';
 import type { Cache } from 'cache-manager';
 import type Redis from 'ioredis';
+import { DataSource } from 'typeorm';
 
 import { REDIS_CLIENT } from '../../core/core.module';
+import { AuthConfig } from '../../config/auth.config';
 import { IncidentStatus } from '../../entities/incident.entity';
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -56,6 +60,13 @@ export class IncidentsService {
     private readonly eventEmitter: EventEmitter2,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    // AUD (sc-327) D1/D3 — `DataSource` para resolver la fila
+    // máscara (`users.device_uuid = 'anonymous'`) y abrir la
+    // transacción que inserta `incidents` + `incident_reporters`
+    // atómicamente. `ConfigService` para leer `anonymousDeviceUuid`
+    // desde la config.
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -87,22 +98,94 @@ export class IncidentsService {
     const orgs = await this.organizationsService.findNotifiedFor(zoneId, null);
     const org = orgs[0] ?? null;
 
-    const row = await this.incidentsRepository.create({
-      title: dto.title,
-      description: dto.description ?? null,
-      lat: dto.lat,
-      lng: dto.lng,
-      priority: dto.priority ?? 'medium',
-      citizenId,
-      zoneId,
-      geofenceMatched: zoneId !== null,
-      organizationId: org?.id ?? null,
-    });
+    const isAnonymous = dto.is_anonymous === true;
+    // AUD (sc-327) D1 — si la publicación es anónima, el
+    // `citizen_id` que se persiste en `incidents` es el id
+    // de la fila máscara, no el del autor real. El autor real
+    // va a `incident_reporters` con la misma transacción.
+    const finalCitizenId = isAnonymous
+      ? await this.resolveMaskUserId()
+      : citizenId;
+
+    const row = isAnonymous
+      ? await this.dataSource.transaction(async (manager) => {
+          // FIX-1 (ronda 11): el INSERT de `incidents` debe
+          // correr sobre el `manager` de la transacción. Sin
+          // esto, la fila commitea inmediatamente y queda
+          // huérfana si el INSERT de `incident_reporters`
+          // falla después. Mismo patrón que `AuditService`.
+          const created = await this.incidentsRepository.create(
+            {
+              title: dto.title,
+              description: dto.description ?? null,
+              lat: dto.lat,
+              lng: dto.lng,
+              priority: dto.priority ?? 'medium',
+              citizenId: finalCitizenId,
+              zoneId,
+              geofenceMatched: zoneId !== null,
+              organizationId: org?.id ?? null,
+              isAnonymous: true,
+            },
+            manager,
+          );
+          // Sello del autor real. Misma transacción: si la
+          // inserción falla, el INSERT de `incidents` se
+          // revierte. D2 (diseño): "una acción cuyo rastro
+          // no se pudo guardar no debe quedar hecha".
+          await manager.query(
+            `INSERT INTO incident_reporters (incident_id, user_id) VALUES ($1, $2)`,
+            [created.id, citizenId],
+          );
+          return created;
+        })
+      : await this.incidentsRepository.create({
+          title: dto.title,
+          description: dto.description ?? null,
+          lat: dto.lat,
+          lng: dto.lng,
+          priority: dto.priority ?? 'medium',
+          citizenId: finalCitizenId,
+          zoneId,
+          geofenceMatched: zoneId !== null,
+          organizationId: org?.id ?? null,
+          isAnonymous: false,
+        });
 
     await this.purgeListCaches(zoneId);
     await this.publish('incident.created', row);
 
     return row;
+  }
+
+  /**
+   * AUD (sc-327) D1 — devuelve el id de la fila máscara
+   * (`users.device_uuid = 'anonymous'`). Esa fila existe por
+   * la siembra de 0001; ANON (sc-326) la dejó sin uso como
+   * identidad de autenticación; esta fase la recicla como
+   * autoría de publicaciones. Si la máscara no existe, la
+   * siembra de 0001/0048 no se aplicó — lanzamos para que el
+   * operador lo sepa, no para crear la fila sobre la marcha
+   * (la fila es identidad compartida, no se crea por
+   * publicación).
+   */
+  private async resolveMaskUserId(): Promise<string> {
+    const authConfig = this.configService.get<AuthConfig>('auth');
+    if (!authConfig) {
+      throw new Error('AuthConfig not loaded; AUD requires auth config');
+    }
+    const rows: Array<{ id: string }> = await this.dataSource.query(
+      `SELECT id FROM users WHERE device_uuid = $1 LIMIT 1`,
+      [authConfig.anonymousDeviceUuid],
+    );
+    const id = rows[0]?.id;
+    if (!id) {
+      throw new Error(
+        `Anonymous mask row not found (device_uuid='${authConfig.anonymousDeviceUuid}'). ` +
+          'Migrations 0001 and 0048 must be applied.',
+      );
+    }
+    return id;
   }
 
   /**

@@ -18,6 +18,58 @@ contra 8 rutas.
 
 ---
 
+## Los dos nombres · decidido 2026-09-06
+
+**TASE** es el proyecto. **GeoReporta** es la aplicación — el nombre que ve el ciudadano.
+
+```
+TASE          repositorio, ramas, tickets, este documento, conversación interna
+GeoReporta    título del navegador, marca en pantalla, remitente y cuerpo de los correos
+```
+
+No son sinónimos y no se sustituyen el uno por el otro.
+
+### La trampa: «GeoReporta» ya significa otra cosa en el código
+
+Hay **11 menciones en `backend/src`** que se refieren al **sistema viejo**, el que se
+migró y cuyo código se borró:
+
+```
+subject-scope.ts               «...GeoReporta's bug»
+incident-workflow.service.ts   «Mirrors GeoReporta's IncidentClaimService»
+app.controller.ts              «GeoReporta parity: GET /estados alias»
+```
+
+Con la aplicación llamándose igual, esos comentarios quedan ambiguos: dentro de unos meses
+nadie sabrá si «el bug de GeoReporta» es del sistema que migramos o del nuestro.
+
+**Regla para no empeorarlo**: al escribir código nuevo, referirse al sistema anterior como
+**«GeoReporta (el sistema anterior)»**, nunca a secas. Y el nombre del producto **no se
+escribe a mano** en ninguna parte: sale de una única constante.
+
+No se hace una pasada de renombrado sobre las 11 menciones existentes. Son comentarios
+históricos correctos en su contexto; reescribirlos en masa arriesga cambiar el sentido de
+notas que explican por qué el código es como es.
+
+### Dónde dice hoy el nombre equivocado
+
+| Superficie | Hoy | Dónde se arregla |
+|---|---|---|
+| Título del navegador | `TransitoAlertaSEFrontend` — el andamio de Angular, nunca tocado | MAIL |
+| Remitente del correo | la dirección pelada, sin nombre | MAIL |
+| Asunto de recuperar contraseña | `Reset your Transito Alerta SE password` | MAIL |
+| Respaldo de la invitación | `Transito Alerta SE` | MAIL |
+| Marca del sidebar | logo `assets/logo.svg` + «Tránsito Alerta» | **F6** — lleva un activo gráfico nuevo, es trabajo de diseño |
+| Título de Swagger | `Transito Alerta SE — API` | **no se toca** — no se sirve en producción |
+
+### Deuda anotada
+
+Las cuatro plantillas de correo de incidencias y comentarios están **redactadas en inglés**
+(«A new incident was reported») en una aplicación en castellano. Es otra superficie, con su
+propia revisión de texto. Sin dueño asignado.
+
+---
+
 ## Orden de ejecución
 
 ```
@@ -45,7 +97,8 @@ internamente — ver «Ciudadano» más abajo.
 | 4 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
 | — | **REG** Auto-registro ✅ | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano se registra, verifica su correo y publica — **completada y archivada 2026-09-05**, tras 10 rondas de verify y dos archivados revertidos |
 | — | **ANON** Cerrar sin sesión ✅ | [326](https://app.shortcut.com/upse/story/326) | 3 | El login anónimo devuelve 401; el techo de permisos queda vacío — **completada y archivada 2026-09-05** |
-| — | **AUD** Auditoría y revelación | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría |
+| — | **AUD** Auditoría y revelación ✅ | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría — **completada y archivada 2026-09-06**, tras 3 rondas de verify y un archivado prematuro revertido |
+| — | **MAIL** El correo nunca salió | [330](https://app.shortcut.com/upse/story/330) | 5 | Dos plantillas que no existían, `trust proxy`, confirmación de correo, la marca. **Bloquea F4** |
 | 5 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
 | 6 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
 | 7 | **F5** Menús dinámicos | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura |
@@ -168,14 +221,34 @@ fila máscara sobrevive**: AUD la recicla como identidad de publicación.
 Alcance quirúrgico: se cierra **la rama** `device_uuid === 'anonymous'`, no la forma de
 credencial `{device_uuid}` — los 122 tests e2e la usan.
 
-#### AUD — Auditoría y revelación · `back/2026-09-02-aud-audit-trail-and-identity-reveal/`
+#### AUD — Auditoría y revelación ✅ · `archive/2026-09-02-aud-audit-trail-and-identity-reveal/`
 La primera tabla de auditoría del proyecto. `incident_reporters` guarda al autor real de
 una publicación anónima; `incidents.citizen_id` apunta a la máscara, así que **la tabla
 principal no contiene la identidad**. Revelarla es un `POST` con motivo obligatorio que
 deja registro, y el permiso `REVEAL incidents` lo tiene **sólo `master`**.
 
+**Completada y archivada** (2026-09-06, 3 rondas de `sdd-verify`, 0 CRITICAL en la ronda 3,
+989/989 tests unitarios y 465/465 e2e). Spec consolidado en
+`openspec/specs/audit-trail/spec.md`: 6 requisitos, 30 escenarios.
+
 **Bloquea también a F7**, cuya decisión cerrada («excepción al tope con motivo y autor
 registrados») necesita la misma auditoría. Se construye una vez.
+
+**Lo que costó cerrarla, porque vuelve a pasar:** el sello no era atómico y *el comentario
+afirmaba lo contrario* — `repo.create()` abría su propia conexión, así que la incidencia
+commiteaba fuera de la transacción y podía quedar una publicación anónima sin autor,
+imposible de revelar nunca. No se veía porque el change no tenía **ningún** e2e: el test
+que decía cubrirlo mockeaba el repositorio.
+
+Y en la ronda 3, el mismo defecto que REG (sc-325) ya había tenido: **un control que
+compara contra un nombre de rol**. El guard de `REVEAL` vivía sólo en `syncPermissions`, y
+`update()` dejaba renombrar cualquier rol a `master`. Dos pasos y la puerta se abría sin
+error y sin log. Cerrado con `assertSeededNameNotRenamed` — los nombres sembrados son
+identificadores, no etiquetas, porque las migraciones conceden permisos por nombre
+(`0043`, `0047`: `WHERE name IN (...)`).
+
+**Deuda que deja:** la invalidación de caché de permisos se verifica leyendo el SQL de la
+migración, no con un test que provisione una sesión cacheada y compruebe que caduca.
 
 **El orden no es negociable:**
 

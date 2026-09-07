@@ -114,4 +114,117 @@ describe('EmailVerificationService', () => {
       await expect(service.generateAndSendOtp('user-1')).rejects.toBeInstanceOf(HttpException);
     });
   });
+
+  // ───── MAIL (sc-327) — C.1 — cobertura del template, no sólo del to ─────
+
+  describe('generateAndSendOtp — asserta la plantilla además del destinatario', () => {
+    // El test del round 0 (línea 99) assertaba sólo `{to: 'test@example.com'}`.
+    // El vecino en password-reset.service.spec.ts asserta también
+    // `template: 'password-reset'`. Este es el mismo: la omisión
+    // del assert sobre `template` fue el hueco que dejó pasar el
+    // defecto original (la plantilla se encolaba como string
+    // suelto, sin verificación de que existiera en el registro).
+    it('C.1: encola la plantilla email_verification con los datos { otp, expiresMinutes }', async () => {
+      userRepo.findOne.mockResolvedValue(makeUser());
+      userRepo.update.mockResolvedValue({});
+      mailService.enqueue.mockResolvedValue('stream-id');
+
+      await service.generateAndSendOtp('user-1');
+
+      expect(mailService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'test@example.com',
+          template: 'email_verification',
+          data: expect.objectContaining({
+            otp: expect.any(String),
+            expiresMinutes: 15,
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('notifyExistingAccountAttempt', () => {
+    it('C.1: encola la plantilla existing_account_attempt con los datos { ip, userAgent, attemptedAt }', async () => {
+      // Este método no tenía test en el round 0. La omisión
+      // es la causa raíz del defecto: nadie verificaba que
+      // la plantilla existiera en el registro. La ronda 14
+      // añade cobertura análoga a la de `generateAndSendOtp`.
+      userRepo.findOne.mockResolvedValue(makeUser({ email: 'titular@example.com' }));
+      mailService.enqueue.mockResolvedValue('stream-id');
+      const now = new Date('2026-09-06T19:33:41.123Z');
+
+      await service.notifyExistingAccountAttempt(
+        'user-1',
+        '190.15.142.87',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0',
+        now,
+      );
+
+      expect(mailService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'titular@example.com',
+          template: 'existing_account_attempt',
+          data: expect.objectContaining({
+            ip: '190.15.142.87',
+            userAgent: expect.stringContaining('Mozilla'),
+            attemptedAt: now.toISOString(),
+          }),
+        }),
+      );
+    });
+
+    it('C.1: sin IP ni userAgent, la cola recibe "desconocida" / "desconocido" (D9)', async () => {
+      // El service aplica los defaults; el render no se invoca
+      // acá (eso es cosa del consumer), pero la forma de los
+      // datos es el contrato con la plantilla.
+      userRepo.findOne.mockResolvedValue(makeUser());
+      mailService.enqueue.mockResolvedValue('stream-id');
+
+      await service.notifyExistingAccountAttempt('user-1', null, null);
+
+      expect(mailService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'existing_account_attempt',
+          data: expect.objectContaining({
+            ip: 'desconocida',
+            userAgent: 'desconocido',
+            attemptedAt: expect.any(String),
+          }),
+        }),
+      );
+    });
+
+    it('no encola si el usuario no existe (defensa contra input inválido)', async () => {
+      userRepo.findOne.mockResolvedValue(null);
+      mailService.enqueue.mockResolvedValue('stream-id');
+
+      await service.notifyExistingAccountAttempt('ghost', 'ip', 'ua');
+
+      expect(mailService.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('no encola si el usuario no tiene email (la entidad existe pero email = null)', async () => {
+      userRepo.findOne.mockResolvedValue(makeUser({ email: null }));
+      mailService.enqueue.mockResolvedValue('stream-id');
+
+      await service.notifyExistingAccountAttempt('user-1', 'ip', 'ua');
+
+      expect(mailService.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('usa la hora actual si no se pasa attemptedAt (default argument)', async () => {
+      userRepo.findOne.mockResolvedValue(makeUser());
+      mailService.enqueue.mockResolvedValue('stream-id');
+
+      const before = Date.now();
+      await service.notifyExistingAccountAttempt('user-1', 'ip', 'ua');
+      const after = Date.now();
+
+      const call = mailService.enqueue.mock.calls[0][0];
+      const attemptedAt = new Date(call.data.attemptedAt as string);
+      expect(attemptedAt.getTime()).toBeGreaterThanOrEqual(before);
+      expect(attemptedAt.getTime()).toBeLessThanOrEqual(after);
+    });
+  });
 });

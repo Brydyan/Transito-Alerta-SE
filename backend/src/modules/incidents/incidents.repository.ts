@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
 import { IncidentPriority, IncidentStatus } from '../../entities/incident.entity';
 import { SubjectScope } from '../../common/authz/subject-scope';
@@ -12,7 +12,17 @@ export interface IncidentRow {
   description: string | null;
   status: IncidentStatus;
   priority: IncidentPriority;
+  /**
+   * AUD (sc-327) D1 — `citizen_id` pasa de significar "la persona"
+   * a "la autoría mostrada". En publicaciones anónimas
+   * (`is_anonymous = true`) apunta a la máscara. El autor real
+   * vive en `incident_reporters`. Ver la cabecera de la
+   * migración 0046 y `IncidentReporterEntity`.
+   */
   citizen_id: string;
+  /** AUD (sc-327) D1 — `true` si la autoría se muestra sin
+   * revelar al autor real. */
+  is_anonymous: boolean;
   assigned_to: string | null;
   zone_id: string | null;
   geofence_matched: boolean;
@@ -52,11 +62,14 @@ export interface CreateIncidentInput {
   zoneId: string | null;
   geofenceMatched: boolean;
   organizationId: string | null;
+  /** AUD (sc-327) D1 — `true` para publicación anónima. */
+  isAnonymous: boolean;
 }
 
 const SELECT_COLUMNS = `
   id, title, description, status, priority,
-  citizen_id, assigned_to, zone_id, geofence_matched, organization_id,
+  citizen_id, is_anonymous,
+  assigned_to, zone_id, geofence_matched, organization_id,
   category_id, claimed_by, claimed_at, approved_by, approved_at, rejected_by, rejected_at,
   rejection_reason, closed_reason, resolution_date,
   ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng,
@@ -72,12 +85,27 @@ const SELECT_COLUMNS = `
 export class IncidentsRepository {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
-  async create(input: CreateIncidentInput): Promise<IncidentRow> {
-    const rows: IncidentRow[] = await this.dataSource.query(
+  /**
+   * AUD (sc-327) FIX-1 — la rama `is_anonymous=true` de
+   * `IncidentsService.create` ejecuta DOS inserts que DEBEN
+   * vivir en la misma transacción: `incidents` y
+   * `incident_reporters` (D2 del diseño: "una acción cuyo
+   * rastro no se pudo guardar no debe quedar hecha"). Si
+   * `repo.create` ejecuta la query contra `this.dataSource`,
+   * la fila de `incidents` commite inmediatamente y queda
+   * huérfana aunque `incident_reporters` falle.
+   *
+   * `runner` por defecto es `this.dataSource`; el llamador
+   * puede pasar el `EntityManager` de su transacción. Mismo
+   * patrón que `AuditService.record(input, manager?)`.
+   */
+  async create(input: CreateIncidentInput, manager?: EntityManager): Promise<IncidentRow> {
+    const runner = manager ?? this.dataSource;
+    const rows: IncidentRow[] = await runner.query(
       `INSERT INTO incidents
-         (title, description, location, status, priority, citizen_id, zone_id, geofence_matched, organization_id)
+         (title, description, location, status, priority, citizen_id, is_anonymous, zone_id, geofence_matched, organization_id)
        VALUES
-         ($1, $2, ST_SetSRID(ST_Point($3, $4), 4326), 'pending', $5, $6, $7, $8, $9)
+         ($1, $2, ST_SetSRID(ST_Point($3, $4), 4326), 'pending', $5, $6, $7, $8, $9, $10)
        RETURNING ${SELECT_COLUMNS}`,
       [
         input.title,
@@ -86,6 +114,7 @@ export class IncidentsRepository {
         input.lat,
         input.priority,
         input.citizenId,
+        input.isAnonymous,
         input.zoneId,
         input.geofenceMatched,
         input.organizationId,

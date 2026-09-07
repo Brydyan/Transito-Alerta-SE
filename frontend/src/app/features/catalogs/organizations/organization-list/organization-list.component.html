@@ -1,0 +1,178 @@
+<div class="p-4">
+  <!-- Page Header -->
+  <ui-page-header
+    kicker="CATÁLOGOS / ORGANIZACIONES"
+    title="Organizaciones"
+    subtitle="Gestiona las organizaciones para la administración de reclamos."
+  >
+    <button
+      page-header-actions
+      uiButton
+      variant="primary"
+      *hasPermission="'CREATE organizations'"
+      (click)="navigateToCreate()"
+    >
+      <ui-icon uiButtonIcon name="plus" [size]="16" />
+      Nueva organización
+    </button>
+  </ui-page-header>
+
+  <div class="border-none shadow-sm rounded-lg overflow-hidden">
+    <!-- Card Header (Search) -->
+    <div class="bg-bg-secondary border-b-0 pt-6 pb-4 px-6 flex justify-end items-center">
+      <div class="relative max-w-sm w-72">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+          <ui-icon name="search" [size]="16" />
+        </span>
+        <input
+          type="text"
+          class="w-full pl-9 pr-3 py-2 text-sm border border-border-subtle rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
+          placeholder="Buscar organizaciones..."
+          [value]="searchInput()"
+          (input)="onSearchInput($event)"
+          aria-label="Buscar organizaciones"
+        />
+      </div>
+    </div>
+
+    <!-- Loading skeleton -->
+    @if (isLoading()) {
+      <div class="px-6 pb-4">
+        <app-table-skeleton [rows]="5" [cols]="4" [showHeaders]="true" />
+      </div>
+    } @else if (organizations().length === 0) {
+      <!-- Empty state -->
+      <app-empty-state
+        icon="folder-open"
+        title="No se encontraron organizaciones"
+        description="Ninguna organización coincide con tu búsqueda o aún no se han creado organizaciones."
+        [actionLabel]="searchInput() ? '' : 'Crear organización'"
+        actionIcon="plus"
+        (actionClicked)="navigateToCreate()"
+      />
+    } @else {
+      <!-- Data Table -->
+      <ui-table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Localización</th>
+            <th>Creado el</th>
+            <th class="ui-table-cell-actions">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (organization of organizations(); track organization.id) {
+            <tr>
+              <td>
+                <span class="ui-table-title">{{ organization.name }}</span>
+              </td>
+              <td class="text-slate-500 text-sm">
+                <span class="inline-flex items-center gap-1.5">
+                  <ui-icon name="map-pin" [size]="14" class="text-slate-400" />
+                  {{ zoneName(organization.zone_id) }}
+                </span>
+              </td>
+              <td class="text-slate-500 text-sm">
+                {{ organization.created_at | date:'mediumDate' }}
+              </td>
+              <td class="ui-table-cell-actions">
+                <button
+                  uiButton
+                  variant="ghost"
+                  size="sm"
+                  *hasPermission="'UPDATE organizations'"
+                  (click)="navigateToEdit(organization)"
+                  aria-label="Editar organización"
+                >
+                  <ui-icon name="pencil" [size]="14" />
+                  Editar
+                </button>
+                <button
+                  uiButton
+                  variant="ghost"
+                  size="sm"
+                  *hasPermission="'DELETE organizations'"
+                  (click)="deleteOrganization(organization)"
+                  aria-label="Eliminar organización"
+                >
+                  <ui-icon name="trash-2" [size]="14" class="text-red-500" />
+                  Eliminar
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </ui-table>
+
+      <!-- Pagination -->
+      <div class="bg-bg-secondary border-t border-border-subtle px-6 py-4">
+        <app-pagination
+          [totalItems]="totalItems()"
+          [currentPage]="currentPage()"
+          [pageSize]="pageSize()"
+          [pageSizeOptions]="pageSizeOptions"
+          itemNameSingular="organización"
+          itemNamePlural="organizaciones"
+          (pageChange)="onPageChange($event)"
+          (pageSizeChange)="onPageSizeChange($event)"
+        />
+      </div>
+    }
+  </div>
+
+  <!-- Tarjetas de resumen (mock 08-01). Se calculan sobre el catálogo
+       completo, no sobre la página visible. -->
+  <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="bg-bg-secondary border border-border-subtle rounded-lg p-5">
+      <div class="flex items-start justify-between">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">
+          Total organizaciones
+        </p>
+        <span
+          class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700"
+        >
+          Activo
+        </span>
+      </div>
+      <p class="mt-2 text-3xl font-bold text-slate-800">{{ totalCount() }}</p>
+      <p class="mt-1 text-xs text-slate-500">
+        {{ totalCount() === 1 ? 'Entidad registrada' : 'Entidades registradas' }}
+      </p>
+    </div>
+
+    <div class="bg-bg-secondary border border-border-subtle rounded-lg p-5">
+      <div class="flex items-start justify-between">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">
+          Ciudades alcanzadas
+        </p>
+        <span
+          class="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-700"
+        >
+          Cobertura
+        </span>
+      </div>
+      <p class="mt-2 text-3xl font-bold text-slate-800">{{ citiesReached() }}</p>
+      <p class="mt-1 text-xs text-slate-500">
+        Zonas distintas con al menos una organización asignada.
+      </p>
+    </div>
+
+    <div class="bg-bg-secondary border border-border-subtle rounded-lg p-5">
+      <div class="flex items-start justify-between">
+        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">
+          Nuevas (este mes)
+        </p>
+        <span
+          class="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700"
+        >
+          Crecimiento
+        </span>
+      </div>
+      <p class="mt-2 text-3xl font-bold text-slate-800">{{ monthCount() }}</p>
+      <p class="mt-1 text-xs text-slate-500">
+        {{ monthCount() === 1 ? 'Registro nuevo' : 'Registros nuevos' }}
+      </p>
+    </div>
+  </div>
+</div>
