@@ -183,6 +183,22 @@ export class TestEnvironment {
     // sweep time to intercept and exhaust).
     process.env.MAIL_XREADGROUP_BLOCK_MS = '1000';
 
+    // mail.e2e-spec.ts contracts "SMTP_HOST is unset in this harness
+    // (log-only fallback)" — but backend/.env ships SMTP_HOST=localhost /
+    // SMTP_PORT=1025 (MailHog), which ConfigModule.forRoot loads below.
+    // Left as-is, `deliver` tries 127.0.0.1:1025, gets ECONNREFUSED,
+    // MailOutboxConsumer classifies it as a transient transport failure, and
+    // after `maxAttempts` sweep retries the entry lands in `mail:dead` —
+    // exactly the C.4 outcome the spec proves never happens. Re-seed the
+    // SMTP_* keys to empty strings before compile(): dotenv will not
+    // overwrite an already-present process.env key, so `smtpHost` resolves
+    // to undefined and the log-only transport is real. (Same cleanup the
+    // harness performs on DATABASE_URL above.)
+    process.env.SMTP_HOST = '';
+    process.env.SMTP_PORT = '';
+    process.env.SMTP_USER = '';
+    process.env.SMTP_PASSWORD = '';
+
     // StatusHistoryModule always loads (AppModule) — same shrink rationale
     // as Mail's tunables above (design D2): fast sweep/idle windows so the
     // e2e idempotency/redelivery scenarios don't wait out the 10s/30s
