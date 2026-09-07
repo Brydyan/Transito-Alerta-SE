@@ -49,24 +49,26 @@ export function availableActions(
   const hasUpdate = permissions.includes('UPDATE incidents');
   const hasClose = permissions.includes('CLOSE incidents');
   const hasAssign = permissions.includes('ASSIGN assignments');
+  const hasClaim = permissions.includes('CLAIM incidents');
+  const hasRelease = permissions.includes('RELEASE incidents');
 
   // `claim` is the `pending → in_progress` transition. The user needs
-  // UPDATE to flip the status; the wire enforces the per-org cap and
-  // the WRONG_ORGANIZATION guard server-side.
-  if (hasUpdate && status === 'pending' && incident.claimed_by === null) {
+  // CLAIM incidents.
+  if (hasClaim && status === 'pending' && incident.claimed_by === null) {
     out.push('claim');
   }
 
   // `release` is `in_progress → pending` semantically. The wire is
   // `POST /incidents/:id/release`; it requires the caller to be the
-  // current claimer. The frontend mirrors that by showing the button
-  // only when the user is the holder.
-  if (hasUpdate && status === 'in_progress' && incident.claimed_by === currentUserId) {
+  // current claimer AND have RELEASE incidents permission.
+  if (hasRelease && status === 'in_progress' && incident.claimed_by === currentUserId) {
     out.push('release');
   }
 
   // `resolve` is `in_progress → resolved`. The user must be the
-  // claimer — operator-only flow.
+  // claimer — operator-only flow. The wire is `PATCH /incidents/:id/status`
+  // with `to: 'resolved'`, protected by `@RequirePermission('UPDATE')`.
+  // Requires UPDATE incidents permission.
   if (hasUpdate && status === 'in_progress' && incident.claimed_by === currentUserId) {
     out.push('resolve');
   }
@@ -78,17 +80,8 @@ export function availableActions(
   // `to === 'closed'`. So the button is reachable only when the user
   // has BOTH permissions.
   //
-  // F3 (sc-303) W3 (ronda 2) — la implementación previa pedía sólo
-  // `hasClose`, lo que en la práctica nunca falla (porque la
-  // migración 0043 sólo concede `CLOSE incidents` a roles que ya
-  // tienen `UPDATE incidents`), pero deja una trampa: un hipotético
-  // usuario con `CLOSE` y sin `UPDATE` vería el botón y haría un
-  // clic que termina en 403. La doble puerta es más fiel al
-  // contrato y a la defensa en profundidad.
-  //
-  //   - `pending`: discard a duplicate / invalid report
-  //   - `in_progress`: cancel an assignment that can't resolve
-  //   - `resolved`/`closed`: never — son terminales
+  // F3 (sc-303) W2 (ronda 5) — close requiere `UPDATE incidents` Y `CLOSE incidents`.
+  // La implementación previa pedía `hasUpdate && hasClose`.
   if (
     hasUpdate &&
     hasClose &&
