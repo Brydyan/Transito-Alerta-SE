@@ -54,7 +54,7 @@ export class EmailVerificationService {
     await this.mailService.enqueue({
       to: user.email,
       subject: 'Se intentó crear una cuenta con tu correo',
-      // MAIL B.1 (ronda 14) — el cast `as never` se quita: el
+      // MAIL B.1 (sc-330) — el cast `as never` se quita: el
       // nombre es ahora un miembro válido de `TemplateName`.
       template: 'existing_account_attempt',
       data: {
@@ -118,7 +118,7 @@ export class EmailVerificationService {
       await this.mailService.enqueue({
         to: user.email,
         subject: 'Your email verification code',
-        // MAIL B.2 (ronda 14) — el cast `as never` se quita:
+        // MAIL B.2 (sc-330) — el cast `as never` se quita:
         // 'email_verification' ya es un miembro de `TemplateName`.
         template: 'email_verification',
         data: { otp, expiresMinutes: 15 },

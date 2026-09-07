@@ -54,7 +54,7 @@ export class PasswordResetService {
 
     await this.mailService.enqueue({
       to: email,
-      // H.4 (ronda 14, D11) — el asunto pasaba a llevar
+      // H.4 (sc-330, D11) — el asunto pasaba a llevar
       // "Transito Alerta SE" escrito a mano. Pasa a usar el
       // nombre del producto, que es lo que el usuario ve en
       // su bandeja y lo que decide si abre o marca como no

@@ -51,7 +51,7 @@ const TEMPLATES: Record<TemplateName, TemplateFn> = {
   // is still passed through `field()` like every other interpolated value
   // (task 7.1: "the token string itself must be escaped via field() like
   // every other interpolated value").
-  // H.4 (ronda 14, D11) — el respaldo "Transito Alerta SE"
+  // H.4 (sc-330, D11) — el respaldo "Transito Alerta SE"
   // era el nombre del proyecto (TASE), no del producto. Pasa
   // a ser `PRODUCT_NAME` (GeoReporta). El renombrado toca
   // sólo lo que el usuario ve; `main.ts:77` (título de
@@ -110,7 +110,7 @@ export function renderMailTemplate(name: TemplateName, data: Record<string, unkn
 // La cobertura del registro `TEMPLATES` está garantizada por el sistema
 // de tipos: `Record<TemplateName, TemplateFn>` exige que CADA miembro de
 // la unión `TemplateName` tenga una entrada, y un nombre que no esté en
-// la unión no compila. El test que vivía acá (C.2 de la ronda 14) era
+// la unión no compila. El test que vivía acá (C.2 de sc-330) era
 // una tautología que enforzaba al runtime lo que el compilador ya
 // garantiza.
 //

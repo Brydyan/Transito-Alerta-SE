@@ -44,7 +44,7 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, { logger });
 
-  // MAIL G.1 (ronda 14, D10) — confianza en el proxy acotada
+  // MAIL G.1 (sc-330, D10) — confianza en el proxy acotada
   // por DIRECCIÓN, no por número de saltos. La función
   // está extraída a `common/proxy-trust.ts` para que G.2/G.3
   // puedan probarla en aislamiento.

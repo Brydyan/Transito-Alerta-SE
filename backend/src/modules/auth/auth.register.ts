@@ -168,7 +168,7 @@ export class AuthRegisterService {
       // titular ya pidió con verify-email es suyo; este correo
       // es informativo, no es un canal de autenticación).
       //
-      // MAIL A.4 (ronda 14) — el momento del intento viaja en
+      // MAIL A.4 (sc-330) — el momento del intento viaja en
       // los datos del encolado, NO se calcula al renderizar.
       // El outbox es asíncrono: la hora de entrega puede ser
       // minutos después, y la que le importa al titular es la

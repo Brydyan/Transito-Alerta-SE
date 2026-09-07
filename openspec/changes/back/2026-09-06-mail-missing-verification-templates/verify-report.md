@@ -1,237 +1,214 @@
 # Verify Report: MAIL — Las plantillas de verificación que nunca existieron
 
 **Change**: `2026-09-06-mail-missing-verification-templates` (sc-330)
-**Ronda**: 2
+**Ronda**: 3
 **Rama verificada**: `brydyan/sc-330/mail-el-correo-de-verificacion-nunca-se-pudo`
-**HEAD**: `e50814c6ef1181bf497e690fcfc7cf09f3285be1`
-**Fecha**: 2026-09-06
+**HEAD**: `3f3a6fa8bbf1bde0f3e261368b20e5344af90e6`
+**Fecha**: 2026-09-06 / 2026-09-07
 **Modo**: Standard (verificación por ejecución real + mutación, exigencia explícita del usuario)
 
-**Nota de contexto (importante)**: los arreglos de esta ronda (CRITICAL-1 y el particionado
-de CI) los escribió el orquestador, no el implementador. Se auditaron con el mismo rigor
-que si los hubiera escrito cualquier otro agente — sin beneficio de la duda.
+**Nota de contexto (importante, y de desconfianza explícita)**: el arreglo del
+CRITICAL-CI de esta ronda (`ci.yml:226`, commit `3f3a6fa`) lo escribió el orquestador —
+la misma parte que ya se equivocó una vez en esta línea exacta durante la ronda 2, dejando
+`pnpm run test:e2e -- --shard=N/4` con el `--` que rompía el paso de la bandera a jest. Esta
+ronda auditó el segundo intento sin darle crédito por el primero: se ejecutó la línea
+literal del YAML, no se leyó y se dio por buena. Ver sección 1.
 
-**Nota de discrepancia de entorno (otra vez)**: se afirmó "árbol limpio" al iniciar esta
-ronda. **Era falso.** `git status --short` mostró, desde el primer momento, 4 archivos sin
-commitear:
-
-```
- M backend/src/modules/mail/templates/mail-templates.spec.ts
- M backend/src/modules/mail/templates/mail-templates.ts
- M openspec/changes/.../apply-progress.md
- M openspec/changes/.../tasks.md
-```
-
-Estos cambios **ya implementan la opción 1 de WARNING-A** (borrar `ENQUEUED_TEMPLATE_NAMES`
-y el `describe` de C.2, dejar un comentario que documenta que la cobertura real vive en
-`mail-outbox.consumer.spec.ts`) — exactamente lo que el brief de esta ronda pedía **no
-tocar** ("confirmalo, no lo arregles"). No lo escribí yo en esta sesión: ya estaba en el
-árbol al arrancar. Se verificó tal cual estaba, sin comittear y sin revertir, siguiendo el
-mismo criterio que la ronda 1 (auditar el árbol real, no el que se supone que hay). El
-contenido del cambio es correcto (ver sección WARNING-A abajo) pero **queda sin commitear**
-— no se puede archivar con un árbol sucio.
+**Estado del árbol**: `git status --short` idéntico antes y después de esta ronda —
+sólo `apply-progress.md` sin commitear (cambio narrativo, sin código), que ya estaba así al
+empezar. Ningún `.bak` quedó en el árbol tras las tres mutaciones de esta ronda.
 
 ---
 
 ## Veredicto
 
-**FAIL** — 1 CRITICAL nuevo bloquea el archivado. El CRITICAL-1 original (SMTP_HOST) sí
-está resuelto de verdad, con evidencia de mutación. El particionado de CI que se agregó
-para "resolver" la lentitud del e2e **no ejecuta ningún test en CI**: se rompe con "No
-tests found, exiting with code 1" en las cuatro particiones, por un problema de paso de
-flags de `pnpm run` que este mismo repo ya había sufrido antes (ver `CLAUDE.md`).
+**PASS.** El CRITICAL-CI de la ronda 2 está cerrado de verdad, confirmado por ejecución
+real de la línea literal del YAML (no por lectura) para las cuatro particiones, por
+comparación de conjuntos (no de conteo) y por una corrida real completa de una partición
+(no sólo `--listTests`). El borrado de `ENQUEUED_TEMPLATE_NAMES` (WARNING-A) no dejó nada
+colgando, compila, y las dos afirmaciones de su comentario de reemplazo se comprobaron
+independientes de lo que digan los reportes anteriores. La regresión de la suite unitaria
+es exactamente la esperada (−1 test, el tautológico borrado) y ninguna otra. Las 8
+compuertas exigidas cierran en los números objetivo. **0 CRITICAL, 0 WARNING nuevos.** Dos
+WARNING preexistentes (árbol sin commitear, `tsc` de frontend) siguen abiertos pero no
+bloquean.
 
 ---
 
-## 1 — CRITICAL-1 (SMTP_HOST): ¿cierra de verdad? → **Sí.**
+## 1 — El arreglo de CI (commit `3f3a6fa`), auditado con desconfianza explícita
 
-**Sin ningún override manual**, subconjunto de 6 e2e:
+### 1.1 — Confirmar entorno: pnpm de CI == pnpm local
 
-```
-npx jest --config ./test/jest-e2e.json --testPathPattern='mail\.e2e-spec|email-verification\.e2e-spec|email-verified-guard\.e2e-spec|registration-flow\.e2e-spec|registration-otp-flow\.e2e-spec|trust-proxy-rate-limit\.e2e-spec'
-→ 6 suites / 27 tests, 0 fallos, 125.187s
-```
+`backend/package.json` fija `"packageManager": "pnpm@11.20.0"`. `pnpm --version` local:
+`11.20.0`. Misma versión que instalaría `pnpm/action-setup@v4` en el runner — no hay
+discrepancia de entorno que invalide la prueba local, a diferencia del defecto de
+`SMTP_HOST` de la ronda 1 (rojo en local, verde en CI por un `.env` gitignoreado).
 
-`backend/.env` real del repo **sigue** trayendo `SMTP_HOST=localhost` (confirmado,
-`.env:47`) — el fix funciona pese a eso, no porque el `.env` haya cambiado.
+### 1.2 — La línea literal del YAML, ejecutada para las cuatro particiones
 
-**Mutación** — se quitó la línea `process.env.SMTP_HOST = '';` de
-`test-environment.ts` (backup con `cp`, restaurado después):
-
-```
-npx jest --config ./test/jest-e2e.json --testPathPattern='mail\.e2e-spec'
-→ 1 suite falla, 2 failed / 4 passed / 6 total
-● C.4: una entrada con `email_verification` se procesa y NO termina en mail:dead
-    expect(await deadCount()).toBe(before);  Expected: 0, Received: 1
-● C.4: una entrada con `existing_account_attempt` se procesa y NO termina en mail:dead
-    expect(await deadCount()).toBe(before);  Expected: 0, Received: 1
-```
-
-**Cayeron exactamente los mismos dos tests que en la ronda 1.** El arreglo es el que hace
-pasar el test, no una casualidad del entorno.
-
-**Confirmado en código** (no sólo por el resultado del test):
-`mail.config.ts:33` → `smtpHost: process.env.SMTP_HOST || undefined`. Con
-`SMTP_HOST=''`, `'' || undefined` evalúa `undefined` (cadena vacía es falsy en JS).
-`mail.service.ts:81` → `if (!mailConfig.smtpHost)` → `!undefined` → `true` → toma la
-rama de sólo-registro. La cadena vacía SÍ llega como `undefined`, no como `''` truthy.
-
-**Orden de ejecución**: `process.env.SMTP_HOST = ''` está en `test-environment.ts:197`,
-antes de `moduleFixture.createNestApplication()` (línea 218) — se fija antes de que
-`ConfigModule` lea el proceso. Correcto.
-
-**Ningún otro test depende de un `SMTP_HOST` truthy**: `grep -rn SMTP_HOST src test` da
-sólo `mail.config.ts` (lee `process.env`), `mail.service.spec.ts` (dos tests que mockean
-`ConfigService` directamente, no `process.env` — no afectados, confirmado: siguen en la
-corrida de 1024/1024 verdes) y los tres comentarios actualizados de `mail.e2e-spec.ts`.
-
-**Veredicto parcial: CRITICAL-1 CERRADO, con evidencia real y mutación.**
-
----
-
-## 2 — Particionado de CI: ¿las cuatro partes cubren el todo? → **Sí en teoría, NO EN LA PRÁCTICA — CRITICAL nuevo.**
-
-### 2.1 — Cobertura de la partición (unión = todo)
-
-`--listTests` directo con jest (sin pasar por `pnpm run`, para aislar la variable):
+`ci.yml:238` corre hoy `pnpm run test:e2e --shard=${{ matrix.shard }}/4` (sin `--`). Se
+ejecutó tal cual, con `--listTests` apendizado sólo para inspeccionar sin pagar el costo de
+una corrida completa cuatro veces:
 
 ```
-npx jest --config ./test/jest-e2e.json --listTests                → 54 archivos
-npx jest --config ./test/jest-e2e.json --shard=1/4 --listTests    → 14 archivos
-npx jest --config ./test/jest-e2e.json --shard=2/4 --listTests    → 14 archivos
-npx jest --config ./test/jest-e2e.json --shard=3/4 --listTests    → 13 archivos
-npx jest --config ./test/jest-e2e.json --shard=4/4 --listTests    → 13 archivos
+$ pnpm run test:e2e --shard=1/4 --listTests   → 14 archivos
+$ pnpm run test:e2e --shard=2/4 --listTests   → 14 archivos
+$ pnpm run test:e2e --shard=3/4 --listTests   → 13 archivos
+$ pnpm run test:e2e --shard=4/4 --listTests   → 13 archivos
 ```
 
-Unión de las cuatro particiones == conjunto completo de 54, comparado por `diff` de
-conjuntos ordenados (no por conteo): **coincide exactamente**. Sin solapamiento
-(`uniq -d` sobre la unión: vacío). El particionado en sí, a nivel de jest, es correcto.
+Ninguna partición dio "No tests found". Las cuatro reciben `--shard=N/4` como opción, no
+como patrón de ruta — el defecto de la ronda 2 (el `--` corrompiendo el parseo de yargs) no
+reaparece.
 
-### 2.2 — ¿`pnpm run test:e2e -- --shard=N/4` pasa la bandera a jest? → **NO. Se rompe.**
+### 1.3 — Comparación por conjuntos, no por conteo
 
-Esta es la línea exacta de `ci.yml:226`:
+```
+npx jest --config ./test/jest-e2e.json --listTests   → 54 archivos (conjunto de referencia)
+unión ordenada de shard1∪shard2∪shard3∪shard4        → 54 archivos
+diff (conjunto completo, conjunto unión)             → vacío, SETS IDENTICAL
+sort shard1..shard4 | uniq -d                         → vacío (cero repetidos entre particiones)
+14 + 14 + 13 + 13                                     → 54 (cero de más, cero de menos)
+```
+
+La unión de las cuatro particiones es **exactamente** el conjunto completo — ni un archivo
+de más, ni uno de menos, ni uno repetido entre particiones.
+
+### 1.4 — Al menos una partición completa, de verdad (no `--listTests`)
+
+```
+$ pnpm run test:e2e --shard=2/4
+Test Suites: 14 passed, 14 total
+Tests:       113 passed, 113 total
+Time:        141.813 s
+```
+
+14 suites reales ejecutadas y en verde, no una lista. Confirma que el fix no sólo hace que
+jest *liste* el subconjunto correcto sino que lo *corre* y termina en verde.
+
+### 1.5 — Revisión completa del YAML: `integration` + `integration-gate`
+
+Sintaxis del job `integration` (líneas 157-238): matriz `shard: [1,2,3,4]`, `fail-fast:
+false`, `defaults.run.working-directory: backend`, pasos idénticos al job `backend` salvo
+el último (`pnpm run test:e2e --shard=${{ matrix.shard }}/4`, sin `--`). Bien formada, sin
+errores de indentación ni de referencia a `matrix.shard`.
+
+Agregador `integration-gate` (líneas 254-266):
 
 ```yaml
-- run: pnpm run test:e2e -- --shard=${{ matrix.shard }}/4
+needs: integration
+if: always()
+steps:
+  - run: |
+      case "${{ needs.integration.result }}" in
+        success|skipped) exit 0 ;;
+        *)                exit 1 ;;
+      esac
 ```
 
-Ejecutada tal cual, para las cuatro particiones:
+**Los cuatro estados posibles de `needs.integration.result`, y qué hace el agregador con
+cada uno**:
 
-```
-$ pnpm run test:e2e -- --shard=1/4
-> jest --config ./test/jest-e2e.json -- --shard=1/4
-No tests found, exiting with code 1
-Pattern: --shard=1/4 - 0 matches
-[ELIFECYCLE] Command failed with exit code 1.
-```
+| Estado de `integration` | Cuándo ocurre | Qué hace `integration-gate` |
+|---|---|---|
+| `success` | Las 4 particiones de la matriz pasaron | `exit 0` — verde, correcto |
+| `skipped` | El job `integration` no corrió (PR sin paths de `integration`, `if` del job da falso) | `exit 0` — verde, correcto (no hay nada que probar) |
+| `failure` | Al menos una de las 4 particiones falló (con `fail-fast: false`, GitHub Actions marca el resultado agregado de un job matriz como `failure` si cualquier combinación falla, aunque las demás terminen) | Cae al `*` → `exit 1` — rojo, correcto |
+| `cancelled` | El job (o el workflow) se canceló antes de terminar | Cae al `*` → `exit 1` — rojo, correcto (falla cerrado, no abre una rendija) |
 
-**Exit code 1, 0 tests ejecutados, en las cuatro particiones.** Este repo (pnpm 11.20.0,
-fijado en `packageManager` y leído por `pnpm/action-setup@v4` en CI — misma versión que se
-usaría en el runner) **reenvía el `--` literal** al comando subyacente en lugar de
-eliminarlo, a diferencia de `npm run` (probado en paralelo: `npm run test:e2e --
---shard=1/4 --listTests` sí funciona, 14 archivos). El `--` extra queda como primer
-argumento posicional para el parser de jest (yargs), que a partir de ahí trata todo lo
-siguiente como patrón de ruta de test literal en vez de flags — de ahí
-`Pattern: --shard=1/4 - 0 matches`.
+**Ningún camino deja al agregador en verde con una partición rota.** `if: always()` es
+necesario y está presente — sin él, `integration-gate` heredaría el `skip` de `integration`
+cuando el job de arriba no corre por su propio `if`, en vez de evaluar el `case`; con
+`always()`, el step corre siempre y el `case` decide, incluyendo el camino `skipped` (que
+si no fuera por `always()` dejaría a `integration-gate` como "skipped" también — un check
+requerido que se salta bloquea igual, así que el resultado final es el mismo, pero la ruta
+por la que se llega importa para no romperlo por accidente en un futuro edit).
 
-**Confirmado que NO es "pnpm se come la bandera" sino algo peor: la corrompe.** Sin el
-`--` (`pnpm run test:e2e --shard=1/4 --listTests`), el paso a jest funciona perfecto:
-14 archivos, idéntico al `--listTests` directo de jest para el shard 1.
-
-**Impacto real**: en CI, las cuatro particiones de `integration` fallarían con "No tests
-found" — **cero tests e2e se ejecutarían nunca**, en cada push a `main`/`develop` y en cada
-PR que toque paths de `integration`. No es un falso verde (ver 2.3), es una compuerta que
-se vuelve permanentemente roja y bloquea todo merge sin ejecutar una sola prueba real.
-
-**Fix necesario** (no aplicado — sólo diagnóstico, según las reglas de esta ronda): quitar
-el `--` de la línea 226 → `pnpm run test:e2e --shard=${{ matrix.shard }}/4`. Verificado que
-así sí reenvía correctamente (mismo split 14/14/13/13 que el jest directo).
-
-### 2.3 — `integration-gate`: ¿algún camino queda en verde con una partición rota?
-
-Lógica revisada (`ci.yml:242-254`):
-
-```yaml
-integration-gate:
-  needs: integration
-  if: always()
-  steps:
-    - run: |
-        case "${{ needs.integration.result }}" in
-          success|skipped) exit 0 ;;
-          *)                exit 1 ;;
-        esac
-```
-
-- `success` → las 4 particiones (matrix) pasaron → OK.
-- `skipped` → el job `integration` no corrió (PR sin cambios en paths de integración) → OK,
-  correcto.
-- `failure` (cualquier partición falla, matrix agregada) → cae al `*` → exit 1. **Correcto.**
-- `cancelled` → cae al `*` → exit 1. **Correcto** (falla cerrado, no abre una rendija).
-
-**No encontré ningún camino que quede en verde con una partición rota.** El agregador en sí
-está bien diseñado — el problema NO es que `integration-gate` mienta, es que `integration`
-nunca corre ni un test real por el bug de 2.2. El gate sería consistentemente rojo (lo
-correcto dado el estado actual), pero eso significa que la suite de integración quedaría
-bloqueando cada push/PR de main indefinidamente hasta que alguien note por qué "no hay
-tests" en vez de un fallo de test real — un modo de fallo confuso, aunque no silencioso.
-
-**Veredicto parcial: la partición en sí es correcta y el agregador es correcto. La
-invocación de `pnpm run` está rota y es CRITICAL — el gate completo de integración queda
-inoperante en CI tal como está escrito hoy.**
+**Veredicto parcial: CRITICAL-CI CERRADO, con evidencia real, por conjuntos y por ejecución
+completa de al menos una partición. El agregador es correcto en los cuatro estados
+posibles.**
 
 ---
 
-## 3 — WARNING-A: ¿sigue abierto? → **No — ya estaba resuelto (sin commitear) al empezar esta ronda.**
+## 2 — El borrado de WARNING-A: ¿no se llevó nada por delante?
 
-Ver la nota de discrepancia de entorno arriba. El array `ENQUEUED_TEMPLATE_NAMES` y el
-`describe` de C.2 **ya no existen** en el árbol de trabajo (diff sin commitear,
-`mail-templates.ts` / `mail-templates.spec.ts`). Se aplicó la opción 1 de
-`fixes-required.md` ("Borrarlo"), con un comentario nuevo en `mail-templates.ts:110-122`
-que documenta correctamente que:
+### 2.1 — Imports colgando
 
-- la cobertura de `TEMPLATES: Record<TemplateName, TemplateFn>` la garantiza el compilador
-  (todo miembro del union `TemplateName` debe tener entrada, o no compila);
-- el caso real que el compilador no ve — un nombre que llega como cadena desde Redis —
-  está cubierto en runtime.
+```
+$ grep -rn "ENQUEUED_TEMPLATE_NAMES" backend/src backend/test
+(sin resultados)
+```
 
-**Confirmado con ejecución real**: `mail-templates.spec.ts` → 14/14 pasan (bajó de 15 a 14,
-consistente con la eliminación de 1 test tautológico).
+Cero referencias colgando. `mail-templates.spec.ts` ya no importa el símbolo (confirmado
+leyendo el diff del commit `3f3a6fa`: `import { ENQUEUED_TEMPLATE_NAMES, renderMailTemplate }`
+pasó a `import { renderMailTemplate }`).
 
-**Mutación pedida para la parte que sí importa** — romper la detección de nombre
-desconocido en el consumidor (`mail-outbox.consumer.ts:154`,
-`(err as Error).message?.startsWith('Unknown mail template')` → cambiado a una cadena que
-nunca matchea, backup con `cp`, restaurado después):
+### 2.2 — ¿Compila?
+
+`npx tsc --noEmit` → exit 0, sin errores (ver compuertas). Confirmado independiente de lo
+que diga cualquier reporte anterior.
+
+### 2.3 — Las dos afirmaciones del comentario de `mail-templates.ts:110-122`, comprobadas una por una
+
+El comentario que reemplazó a `ENQUEUED_TEMPLATE_NAMES` afirma dos cosas:
+
+**Afirmación 1**: "la cobertura la garantiza `Record<TemplateName, TemplateFn>` al
+compilar". **Comprobado por mutación** (no por lectura del tipo): se quitó la entrada
+`'email_verification'` de `TEMPLATES` dejando el nombre en el union `TemplateName`
+(backup con `cp`, restaurado después con `mv`):
+
+```
+npx tsc --noEmit
+→ src/modules/mail/templates/mail-templates.ts(41,7): error TS2741:
+  Property 'email_verification' is missing in type '{ ... }' but required
+  in type 'Record<TemplateName, TemplateFn>'.
+```
+
+`TS2741` exactamente como afirma el comentario, en la línea de la declaración de
+`TEMPLATES` (41). **Verdadera.**
+
+**Afirmación 2**: "el caso runtime vive en `mail-outbox.consumer.spec.ts`". **Comprobado
+por dos vías**:
+
+1. El test existe donde el comentario dice: `grep -n "sends an unknown template straight
+   to mail:dead" backend/src/modules/mail/mail-outbox.consumer.spec.ts` → línea 133.
+2. **Tiene red real, no es un nombre de test vacío**: se rompió la detección en el
+   consumidor (`mail-outbox.consumer.ts:154`,
+   `(err as Error).message?.startsWith('Unknown mail template')` → cambiado a una cadena
+   que nunca matchea, backup con `cp`, restaurado con `mv`):
 
 ```
 npx jest src/modules/mail/mail-outbox.consumer.spec.ts
 → 1 failed / 8 passed / 9 total
 ● sends an unknown template straight to mail:dead (data defect)
-    expect(jest.fn()).toHaveBeenCalledWith(...)  Number of calls: 0
+    expect(jest.fn()).toHaveBeenCalledWith(...)
+    Number of calls: 0
 ```
 
-**Cayó exactamente el test esperado.** La protección real (bloque B, tipo + este test de
-runtime) tiene red; el WARNING-A queda cerrado y bien cerrado — pero **sin commitear**.
-Este verify-report lo trata como "resuelto, pendiente de commit", no como abierto.
+Cayó exactamente el test que el comentario nombra. **Verdadera.**
+
+Ninguna de las dos afirmaciones se aceptó por lectura del reporte de la ronda 2 — ambas se
+re-verificaron desde cero esta ronda, independientemente.
+
+**Veredicto parcial: el borrado no dejó nada colgando, compila, y las dos afirmaciones del
+comentario de reemplazo son ciertas y están comprobadas por mutación, no por lectura.**
 
 ---
 
-## 4 — IPv4-mapped IPv6 en `proxy-trust.ts`: ¿tiene red? → **Sí.**
-
-Mutación: se quitó el strip de `::ffff:` (`isTrustedProxyAddress`, línea 75:
-`const ipv4 = addr.startsWith('::ffff:') ? addr.slice(7) : addr;` → `const ipv4 = addr;`,
-backup con `cp`, restaurado después):
+## 3 — Regresión: ¿el borrado bajó la cobertura real?
 
 ```
-npx jest src/common/proxy-trust.spec.ts
-→ 1 failed / 13 passed / 14 total
-● IPv4-mapped IPv6 (::ffff:127.0.0.1) SÍ es de confianza (G.4 — Node dual-stack)
-    expect(isTrustedProxyAddress('::ffff:127.0.0.1')).toBe(true);
-    Expected: true, Received: false
+Backend unit (ronda 2, con el borrado sin commitear):  111 suites / 1024 tests
+Backend unit (ronda 3, con el borrado commiteado):     111 suites / 1023 tests
 ```
 
-**Cayó exactamente el test que declara la garantía.** El arreglo del commit `9581104` tiene
-red real, no es cosmético.
+**Diferencia: −1 test, 0 suites.** Explica exactamente: `mail-templates.spec.ts` pasó de 15
+a 14 tests con el borrado del único `describe`/`it` de C.2 (el bloque tautológico completo
+era un solo `it` dentro de un `describe` propio — un test, no varios). El número de suites
+no cambió porque el archivo sigue existiendo con el resto de sus tests (A.5, invitation,
+password-reset, existing_account_attempt). **No bajó más de lo que se borró: la
+regresión es exactamente 1:1 con el test eliminado, sin efectos colaterales en ninguna otra
+suite.**
 
 ---
 
@@ -240,32 +217,33 @@ red real, no es cosmético.
 | Compuerta | Resultado | Detalle |
 |-----------|-----------|---------|
 | backend `npx tsc --noEmit` | ✅ exit 0 | Sin errores |
-| backend `pnpm run lint` | ✅ exit 0, 24 warnings | Idéntico a la línea base de ronda 1 (mismos 5 archivos, mismo patrón `no-explicit-any`) |
+| backend `pnpm run lint` | ✅ exit 0, 24 warnings | Idéntico a la línea base (mismos 6 archivos, mismo patrón `no-explicit-any`) |
 | backend `nest build` | ✅ exit 0 | |
-| backend unit (jest) | ✅ **111 suites / 1024 tests**, 0 fallos, 19.99s | Incluye el árbol tal cual (con WARNING-A ya resuelto sin commitear) |
-| backend e2e SUBCONJUNTO (6 archivos) | ✅ **6/6 suites, 27/27 tests**, 125.19s | Sin override manual de `SMTP_HOST` |
-| backend e2e COMPLETO (54 archivos) | ✅ **54/54 suites, 470/470 tests**, 614.28s | Objetivo cumplido exactamente: 54/54 y 470/470 |
-| frontend `npx tsc -b --noEmit` | ❌ exit 2 (preexistente, no de este change) | Mismos 3 archivos que ronda 1: `auth.service.spec.ts:227`, `placeholder.component.spec.ts`, `layout-tokens.regression.spec.ts` — ninguno tocado por commits de MAIL |
-| frontend unit (jest) | ✅ **60 suites / 415 tests**, 0 fallos, 5.11s | |
-| frontend build | No re-ejecutado esta ronda (sin cambios de frontend en round 2; ronda 1 ya confirmó exit 0) | |
+| backend unit (jest) | ✅ **111 suites / 1023 tests**, 0 fallos, 23.3s | −1 test vs. ronda 2 (1024), explicado en full por el borrado del tautológico C.2 |
+| backend e2e SUBCONJUNTO (6 archivos) | ✅ **6/6 suites, 27/27 tests**, 86.9s | Sin override manual de `SMTP_HOST`, idéntico a ronda 2 |
+| backend e2e COMPLETO (54 archivos) | ✅ **54/54 suites, 470/470 tests**, 638.6s | Objetivo cumplido exactamente: 54/54 y 470/470 |
+| frontend `npx tsc -b --noEmit` | ❌ exit 2 (preexistente, no de este change) | Mismos 3 archivos que rondas 1-2: `auth.service.spec.ts:227`, `placeholder.component.spec.ts`, `layout-tokens.regression.spec.ts` — ninguno tocado por commits de MAIL |
+| frontend unit (jest) | ✅ **60 suites / 415 tests**, 0 fallos, 4.6s | Idéntico a ronda 2 |
+| frontend build | ✅ exit 0 | `ng build`, bundle generado sin errores |
 
-**Tiempo del subconjunto vs. completo, otra vez confirmado**: 125s vs 614s (≈4.9×). Sin
-falsos negativos: el subconjunto predijo correctamente el resultado (todo verde) de la
-suite completa. La estrategia sigue valiendo la pena para iterar.
+**CI e2e (particionado), verificado esta ronda**: unión de 4 particiones == 54/54 archivos
+del `--listTests` completo, comparado por conjuntos (diff vacío, `uniq -d` vacío,
+14+14+13+13=54). Al menos una partición (2/4) corrida de verdad: 14/14 suites, 113/113
+tests, verde. Ninguna partición dio "No tests found".
 
 ---
 
 ## Mutaciones de esta ronda — resumen
 
-| # | Mutación | Archivo | Test(s) que cayeron | Restaurado |
+| # | Mutación | Archivo | Test(s)/verificación que cayó | Restaurado |
 |---|----------|---------|----------------------|------------|
-| 1 | Quitar `process.env.SMTP_HOST = ''` | `test-environment.ts` | `C.4: email_verification...`, `C.4: existing_account_attempt...` (mail.e2e-spec.ts) — los mismos 2 de ronda 1 | ✅ |
-| 2 | Quitar el strip `::ffff:` | `proxy-trust.ts` | `IPv4-mapped IPv6 (::ffff:127.0.0.1) SÍ es de confianza (G.4)` | ✅ |
-| 3 | Romper el `startsWith('Unknown mail template')` del consumidor | `mail-outbox.consumer.ts` | `sends an unknown template straight to mail:dead (data defect)` | ✅ |
-| 4 | Quitar el `--` de `pnpm run test:e2e -- --shard=N/4` (verificación positiva, no mutación de regresión) | invocación directa, no archivo | N/A — confirma que SIN el `--` el flag llega bien (14/14/13/13) | N/A (no tocó archivos) |
+| 1 | Quitar la entrada `'email_verification'` de `TEMPLATES`, dejando el nombre en el union `TemplateName` | `mail-templates.ts` | `npx tsc --noEmit` → `TS2741` en línea 41 (no un test runtime — el typecheck es la primera barrera) | ✅ (`mv` desde `.bak`) |
+| 2 | Romper el `startsWith('Unknown mail template')` del consumidor (cambiado a una cadena que nunca matchea) | `mail-outbox.consumer.ts` | `sends an unknown template straight to mail:dead (data defect)` (`mail-outbox.consumer.spec.ts`) | ✅ (`mv` desde `.bak`) |
+| 3 | Ejecutar la línea literal de `ci.yml:238` para las 4 particiones (verificación positiva, no mutación de regresión) | invocación directa, no archivo | N/A — confirma que las 4 particiones listan y una corre de verdad, sin "No tests found" | N/A (no tocó archivos) |
 
-`git status --short` idéntico antes y después de las mutaciones 1-3 (mismo estado sucio de
-las 4 archivos preexistentes, ver nota de discrepancia). Ningún `.bak` quedó en el árbol.
+`git status --short` idéntico antes y después de las mutaciones 1-2 (sólo el
+`apply-progress.md` preexistente sin commitear). Ningún `.bak` quedó en el árbol — ambos se
+restauraron con `mv` sobre el archivo original.
 
 ---
 
@@ -273,57 +251,45 @@ las 4 archivos preexistentes, ver nota de discrepancia). Ningún `.bak` quedó e
 
 ### CRITICAL (bloquean el archivado)
 
-**CRITICAL-CI — El particionado de e2e no ejecuta ningún test en CI.**
-`ci.yml:226`: `pnpm run test:e2e -- --shard=${{ matrix.shard }}/4`. El `--` se reenvía
-literal al comando subyacente (comportamiento de pnpm 11.20.0, distinto de `npm run`,
-confirmado por ejecución directa), lo que hace que jest interprete `--shard=N/4` como un
-patrón de ruta de test en vez de una opción, matcheando 0 archivos, saliendo con código 1
-("No tests found"). Las cuatro particiones de la matriz fallarían así en cualquier push a
-`main`/`develop` o PR que toque paths de integración. El agregador `integration-gate` no
-miente (reportaría `failure`, no un falso verde), pero el efecto práctico es que **la
-compuerta de e2e queda permanentemente roja sin ejecutar un solo test real**, bloqueando
-todo merge. Fix sugerido (no aplicado): quitar el `--` → `pnpm run test:e2e --shard=${{ matrix.shard }}/4` (verificado que reenvía correctamente).
+Ninguno.
 
 ### WARNING (deberían atenderse antes de archivar)
 
-- **Árbol sin commitear con el fix de WARNING-A y el ajuste de G.5 en tasks.md.** Ambos
-  cambios son correctos (verificados con ejecución real + mutación en las secciones 3 y 4
-  de este reporte) pero no están comiteados. No se puede archivar sobre un árbol sucio.
-  Alguien tiene que decidir si se comitean como parte de este change o se descartan
-  intencionalmente — no es una decisión que le corresponda a esta fase de verify.
+- **Árbol sin commitear**: `apply-progress.md` tiene un diff narrativo sin commitear
+  (actualiza fechas, rama, y resume los commits `3f3a6fa`/`e50814c`/`9581104`). No es
+  código — no afecta ninguna compuerta ni comportamiento — pero técnicamente sigue siendo
+  un árbol no limpio. Recomendado: commitearlo antes de archivar, o el propio `sdd-archive`
+  puede absorberlo como parte del cierre.
 - **Frontend `npx tsc -b --noEmit` sigue en rojo** (exit 2), deuda preexistente no tocada
-  por este change (confirmado, mismos 3 archivos que ronda 1). Sigue sin ticket propio.
+  por este change (confirmado otra vez, mismos 3 archivos que rondas 1-2). Sigue sin
+  ticket propio.
 
 ### SUGGESTION
 
-- El comentario nuevo de `mail-templates.ts:113` dice "C.2 de la ronda 14" — probablemente
-  un cambio de nomenclatura entre rondas que quedó pegado (el resto del proyecto habla de
-  "ronda 1"/"ronda 2" para sc-330). No afecta la lógica, pero puede confundir a quien lo lea
-  después.
+- El comentario de `mail-templates.ts:113` dice "C.2 de la ronda 14" — nomenclatura de una
+  convención de rondas anterior a sc-330 que quedó pegada. No afecta la lógica; ya señalado
+  en la ronda 2, sigue sin corregirse, pero no bloquea.
 
 ---
 
 ## Completeness
 
-`tasks.md` (versión sin commitear, la que refleja el estado real del árbol): C.2 pasó de
-"nuevo test" a "rebajado a WARNING por la auditoría de la ronda 1, bloque borrado" y G.5 se
-ajustó para pedir sólo la caída de G.4. Ambos cambios de texto son consistentes con el
-código verificado en las secciones 3 y 4. El resto de tareas ([x]) tiene evidencia
-estructural y de ejecución consistente con lo reportado en ronda 1 (no re-verificado línea
-por línea esta ronda, salvo los bloques tocados por el CRITICAL-1 y las 4 mutaciones de
-arriba, conforme a la instrucción explícita de esta ronda de no re-tocar B/D/E/F/H).
+`tasks.md`: C.2 documentado como rebajado a WARNING y borrado (consistente con el código),
+C.3 documentado como verificado por typecheck en vez de test runtime (consistente con la
+mutación 1 de esta ronda), G.5 aclarado para pedir sólo la caída de G.4 (no re-verificado
+esta ronda — fuera del alcance del material nuevo, sigue en pie desde la ronda 2 con
+evidencia de mutación propia). El resto de bloques (B, D, E, F, H) no se re-tocó esta ronda,
+conforme al alcance explícito del material nuevo a auditar.
 
 ---
 
 ## Qué queda abierto
 
-1. **CRITICAL-CI**: sacar el `--` de `ci.yml:226` para que `pnpm run test:e2e` reciba
-   `--shard=N/4` como opción, no como patrón de test. Sin esto, el particionado de CI que
-   se agregó esta ronda no ejecuta ni un solo test e2e en el pipeline real.
-2. Decidir qué hacer con el árbol sin commitear (WARNING-A resuelto + ajuste de G.5 en
-   tasks.md): comitearlo como parte de este change (recomendado, ya está verificado y
-   correcto) o descartarlo explícitamente.
-3. Frontend `tsc -b --noEmit`: deuda preexistente, sigue sin ticket propio.
+1. Decidir si commitear el diff narrativo de `apply-progress.md` como parte de este change
+   antes de archivar (recomendado, no bloqueante).
+2. Frontend `tsc -b --noEmit`: deuda preexistente, sigue sin ticket propio.
 
-**Next recommended**: `sdd-apply` para corregir CRITICAL-CI (una línea) y decidir sobre el
-árbol sin commitear, antes de reintentar `sdd-verify`. No archivar.
+**Next recommended**: `sdd-archive`. El change está listo para archivarse: 0 CRITICAL, 0
+WARNING nuevos, todas las compuertas objetivo cumplidas, y el material nuevo de esta ronda
+(el arreglo de CI y el borrado de WARNING-A) auditado con evidencia de ejecución real y
+mutación, sin darle crédito al autor del fix.

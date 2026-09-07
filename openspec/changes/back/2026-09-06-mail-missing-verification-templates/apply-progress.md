@@ -1,8 +1,8 @@
 # Apply Progress: MAIL — Las plantillas de verificación que nunca existieron
 
-**Change**: `2026-09-06-mail-missing-verification-templates`
+**Change**: `2026-09-06-mail-missing-verification-templates` (sc-330)
 **Implementer**: MiniMax (Mavis)
-**Branch**: `brydyan/mail/plantillas-de-verificacion-ausentes`
+**Branch**: `brydyan/sc-330/mail-el-correo-de-verificacion-nunca-se-pudo`
 **Date**: 2026-09-06 (ronda 1), 2026-09-06 (ronda 2 — segunda pasada por `fixes-required.md`)
 **Status**: READY FOR RE-VERIFY
 
@@ -10,24 +10,21 @@
 
 ## Segunda pasada (ronda 2) — qué cambió desde `fixes-required.md`
 
-- **CRITICAL-1**: ya estaba resuelto en la ronda 1 — `test-environment.ts` fuerza
-  `SMTP_HOST=''` y los comentarios de `mail.e2e-spec.ts` reflejan el arreglo. Los
-  tests de C.4 pasan sin override manual.
-- **WARNING-A (C.2)**: borrado. `ENQUEUED_TEMPLATE_NAMES` y el `describe` que
-  recorría la «costura» eran una tautología: `Record<TemplateName, TemplateFn>`
-  garantiza al compilar que toda entrada del union esté en el registro, y el caso
-  runtime (nombre que llega como cadena desde Redis) ya está cubierto por
-  `mail-outbox.consumer.spec.ts:133`. El comentario en `mail-templates.ts` ahora
-  documenta la cobertura real.
-- **C.3**: la mutación de quitar `'email_verification'` de `TEMPLATES` ahora
-  demuestra que el typecheck falla con `TS2741: Property 'email_verification' is
-  missing in type ... but required in type 'Record<TemplateName, TemplateFn>'`.
-  La barrera de tipos es la primera línea de defensa (D2).
-- **WARNING G.5**: `tasks.md` aclarado — G.2 no puede caer por la mutación de
-  quitar el `app.set` (prueba la función pura en aislamiento). El único test que
-  depende del cableado real es G.4.
-- **WARNING frontend `tsc`**: ya documentado en la ronda 1; el `fixes-required.md`
-  pide un ticket propio. Anotado en "Deuda de operaciones" abajo.
+El `fixes-required.md` de la ronda 2 abre con un nuevo **CRITICAL-CI**: la partición del e2e en `ci.yml:226` usa `pnpm run test:e2e -- --shard=N/4`, pero pnpm reenvía el `--` literal a jest, que lo trata como patrón de ruta y reporta `No tests found`. Las 4 particiones quedan en rojo sin ejecutar un solo test. **Fix aplicado** en `ci.yml:226`: el `run:` pasa a `pnpm run test:e2e --shard=${{ matrix.shard }}/4` (sin el `--`), con un comentario en el archivo explicando por qué **no** debe volver a ponerse. **Verificado**: la unión de `pnpm run test:e2e --shard=N/4 --listTests` para N=1..4 da exactamente los 54 archivos que devuelve `npx jest --config ./test/jest-e2e.json --listTests` (diff: cero).
+
+El `fixes-required.md` también confirma que los hallazgos de la ronda 1 están resueltos:
+
+- **CRITICAL-1 (SMTP_HOST)**: confirmado con ejecución real + mutación. `test-environment.ts:197` fuerza `process.env.SMTP_HOST = ''`. Sin overrides manuales, los 6/6 tests del subconjunto `mail.e2e-spec` pasan (27/27 tests).
+- **WARNING-A (C.2 tautológico)**: borrado. `ENQUEUED_TEMPLATE_NAMES` y el `describe` que recorría la «costura» eran una tautología: `Record<TemplateName, TemplateFn>` garantiza al compilar que toda entrada del union esté en el registro, y el caso runtime (nombre que llega como cadena desde Redis) ya está cubierto por `mail-outbox.consumer.spec.ts:133`. El comentario en `mail-templates.ts` documenta la cobertura real.
+- **C.3**: la mutación de quitar `'email_verification'` de `TEMPLATES` ahora demuestra que el typecheck falla con `TS2741: Property 'email_verification' is missing in type ... but required in type 'Record<TemplateName, TemplateFn>'`. La barrera de tipos es la primera línea de defensa (D2).
+- **WARNING G.5**: `tasks.md` aclarado — G.2 no puede caer por la mutación de quitar el `app.set` (prueba la función pura en aislamiento). El único test que depende del cableado real es G.4.
+- **WARNING frontend `tsc`**: ya documentado en la ronda 1; el `fixes-required.md` pide un ticket propio. Anotado en "Deuda de operaciones" abajo.
+
+Commits que cierran los hallazgos de la ronda 2:
+
+- `3f3a6fa` — fix(ci): quitar el `--` que dejaba el e2e particionado sin ejecutar nada + WARNING-A (C.2 borrado)
+- `e50814c` — fix(test): el arnés e2e fuerza SMTP_HOST, y CI particiona la suite en cuatro
+- `9581104` — fix(proxy): reconocer IPv4-mapped IPv6, y registrar el verify de la ronda 1
 
 ---
 

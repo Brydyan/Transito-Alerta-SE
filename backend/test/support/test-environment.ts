@@ -224,7 +224,7 @@ export class TestEnvironment {
     // T4.3a — keep the harness in lockstep with main.ts so security-headers
     // e2e assertions see what production sees.
     app.use(helmet());
-    // MAIL G.1 (ronda 14, D10) — `trust proxy` por dirección,
+    // MAIL G.1 (sc-330, D10) — `trust proxy` por dirección,
     // mismo ajuste que `main.ts`. Sin esto, los tests que
     // simulan peticiones a través de nginx (G.4, dos IPs
     // distintas con X-Forwarded-For) verían `req.ip =
