@@ -219,6 +219,42 @@ exactamente los mismos 54 archivos, verificado por conjuntos.
 
 ---
 
+## Addendum — un defecto que el archivado no vio (2026-09-06, tras el PR)
+
+El PR contra `develop` falló en CI con un test de este mismo change, después de que las
+tres rondas de verify lo dieran por verde. Vale registrarlo porque **la causa es la tercera
+aparición del mismo patrón** en este change: comportamiento que depende de dónde corre.
+
+`formatAttemptTime` sumaba `date.getTimezoneOffset()` —el offset del **runtime**— antes de
+aplicar el de Ecuador:
+
+```
+instante 19:33 UTC, que en Ecuador son las 14:33
+
+runtime GMT-5 (la máquina del dev)   los dos términos se cancelan  →  19:33  ✗
+runtime UTC   (CI)                                                 →  14:33  ✓
+```
+
+Y el test se escribió contra el resultado equivocado (`/19:33 \(GMT-5\)/`), con un
+comentario que afirmaba *«la aserción no compara contra una hora exacta (depende del
+timezone del runtime)»*. Comparaba contra una hora exacta, y esa dependencia era el
+defecto: el comentario describía la garantía contraria a la del código, igual que en AUD y
+que en el test de C.2.
+
+**Los dos errores se cancelaban en local y se separaron en CI.** Las tres rondas de verify
+corrieron en la máquina del dev, así que ninguna pudo verlo.
+
+Arreglado: el helper ya no lee la zona del runtime —`getTime()` ya es epoch UTC, basta
+restar el offset fijo de Ecuador— y el test asserta la hora correcta más un caso que cruza
+el día (`02:15Z` del 7 → `21:15` del 6), que es el que delata un error de signo. Verificado
+en `America/Guayaquil`, `UTC`, `Asia/Tokyo` y `Pacific/Kiritimati` (UTC+14): idéntico en
+las cuatro. Suite completa con `TZ=UTC`: 111 suites / 1024 tests.
+
+La lección quedó anotada en `openspec/ROADMAP.md`, sección «Lo que corre distinto en tu
+máquina que en CI», con los tres casos y cómo detectarlos antes de que lo haga CI.
+
+---
+
 ## Deuda conocida
 
 1. **Los contenedores por archivo de spec.** El particionado reparte el trabajo pero no baja

@@ -18,6 +18,36 @@ contra 8 rutas.
 
 ---
 
+## Lo que corre distinto en tu máquina que en CI · anotado 2026-09-06
+
+Tres veces en un solo change (sc-330). No es casualidad: es la forma de defecto que este
+proyecto produce con más facilidad, y la que menos se ve, porque **cada lado sólo mira el
+suyo**.
+
+| Qué | Lado permisivo | Por qué |
+|---|---|---|
+| `SMTP_HOST` en el arnés e2e | **CI** | `.env` está en `.gitignore`: en CI no existe, la variable queda sin definir y el test pasa. En local, el `.env` del dev se colaba y fallaba |
+| `pnpm run … -- --flag` | local | pnpm reenvía el `--` literal; sólo se notaba al ejecutar la línea exacta del workflow |
+| Hora de Ecuador en el correo | **local** | el helper sumaba `getTimezoneOffset()` del runtime; en una máquina GMT-5 el error se cancelaba y en CI (UTC) no |
+
+**La regla que sale de esto**: cuando un valor forma parte del producto —una hora, un
+remitente, un límite— no puede depender de dónde se calcula. Y cuando un test verde
+depende del entorno, es peor que no tenerlo, porque afirma una garantía que no da.
+
+**Cómo detectarlo antes de que lo haga CI**:
+
+```bash
+TZ=UTC pnpm test          # CI corre en UTC; tu máquina, no
+env -i PATH=$PATH …       # sin el .env del dev, como el checkout limpio de CI
+```
+
+El caso de la hora venía además con un comentario que afirmaba *«la aserción no compara
+contra una hora exacta (depende del timezone del runtime)»* — comparaba contra una hora
+exacta, y esa dependencia era justamente el defecto. Un comentario que describe la
+garantía contraria a la del código es el patrón que ya apareció en AUD y en C.2 de sc-330.
+
+---
+
 ## Los dos nombres · decidido 2026-09-06
 
 **TASE** es el proyecto. **GeoReporta** es la aplicación — el nombre que ve el ciudadano.

@@ -153,18 +153,35 @@ describe('renderMailTemplate — existing_account_attempt (MAIL A.2/A.5, D4/D9)'
     expect(html).not.toMatch(/<a[^>]+href/i);
   });
 
-  it('el momento del intento se muestra en hora local (no UTC)', () => {
-    // El helper convierte a GMT-5 (Ecuador). Una fecha que en
-    // UTC es 00:33:41, en Ecuador es 19:33:41 del día
-    // anterior. La aserción no compara contra una hora exacta
-    // (depende del timezone del runtime), pero verifica que
-    // aparece una hora en formato "HH:MM" y el sufijo "(GMT-5)".
+  it('el momento del intento se muestra en hora de Ecuador, no en UTC', () => {
+    // 19:33:41 UTC son las 14:33 en Ecuador (GMT-5, sin horario
+    // de verano). La aserción es la hora EXACTA a propósito: la
+    // versión anterior esperaba `19:33 (GMT-5)` —la hora UTC sin
+    // convertir, con la etiqueta puesta igual— y pasaba sólo
+    // porque el helper sumaba el offset del runtime y en una
+    // máquina en Ecuador los dos errores se cancelaban. En CI,
+    // que corre en UTC, se separaron.
     const html = renderMailTemplate('existing_account_attempt', {
       ip: '190.15.142.87',
       userAgent: 'Chrome/120',
       attemptedAt: '2026-09-06T19:33:41.123Z',
     });
-    expect(html).toMatch(/19:33 \(GMT-5\)/);
+    expect(html).toContain('14:33 (GMT-5)');
+    expect(html).toContain('6 de septiembre de 2026');
+  });
+
+  it('la conversión cruza el día correctamente', () => {
+    // 02:15 UTC del día 7 son las 21:15 del día 6 en Ecuador.
+    // Este caso es el que delata un error de signo o un offset
+    // tomado del runtime: comprueba la hora Y el día, así que
+    // una conversión que no ocurre o que va al revés no puede
+    // pasarlo por casualidad.
+    const html = renderMailTemplate('existing_account_attempt', {
+      ip: '190.15.142.87',
+      userAgent: 'Chrome/120',
+      attemptedAt: '2026-09-07T02:15:00.000Z',
+    });
+    expect(html).toContain('6 de septiembre de 2026, 21:15 (GMT-5)');
   });
 
   it('escapa user-agent con marcado HTML (R13)', () => {
