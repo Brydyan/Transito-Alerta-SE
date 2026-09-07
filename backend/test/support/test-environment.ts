@@ -241,7 +241,16 @@ export class TestEnvironment {
     // RedisIoAdapter.createIOServer only binds once a real HTTP server is
     // listening; app.init() alone would leave the socket.io server never
     // constructed, silently diverging from main.ts.
-    await app.listen(0);
+    //
+    // Explicit IPv4 loopback host: with the default (dual-stack) listen,
+    // Node 17+ accepts the harness's own localhost connection as
+    // `::ffff:127.0.0.1`, `isTrustedProxyAddress` (IPv4-only by design)
+    // rejects it, Express treats every request as coming from the same
+    // `req.ip`, and trust-proxy-rate-limit.e2e-spec.ts (G.4) fails with A
+    // and B sharing one rate-limit bucket. Binding to 127.0.0.1 makes
+    // `req.socket.remoteAddress` plain IPv4, matching both the trust-proxy
+    // contract and that spec's documented assumption.
+    await app.listen(0, '127.0.0.1');
 
     const appRedisClient = app.get<Redis>(REDIS_CLIENT);
     const cacheManager = app.get<Cache<RedisStore>>(CACHE_MANAGER);
