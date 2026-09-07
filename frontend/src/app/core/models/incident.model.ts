@@ -89,3 +89,17 @@ export interface IncidentListResult {
   page: number;
   limit: number;
 }
+
+/**
+ * F3 (sc-303) C2 (ronda 5): Tipo derivado del wire para `POST /incidents/:id/release`.
+ * Debe coincidir con `ClaimReleaseResponseDto` tras `SnakeCaseResponseInterceptor`.
+ */
+export interface ClaimReleaseResult {
+  id: string;
+  title: string;
+  status: IncidentStatus;
+  priority: IncidentPriority;
+  claimed_by: string | null;
+  organization_id: string | null;
+  updated_at: Date;
+}

@@ -1,7 +1,10 @@
 # Spec Driven Development (SDD)
 
-> Este proyecto sigue un flujo Kiro-style: requirements → design → tasks → code.
-> El código no se escribe hasta que el spec está aprobado por un humano.
+> NOTA: el arnés Kiro (feature_list.json, init.sh, progress/, specs/ raíz) fue
+> retirado. Las referencias a esos archivos en este doc son históricas. El
+> flujo activo es **OpenSpec**: `openspec/changes/<scope>/<change>/...` y
+> specs canónicos en `openspec/specs/<dominio>/`. La metodología EARS de este
+> doc sigue aplicando a los delta specs de OpenSpec.
 
 ## Estructura
 

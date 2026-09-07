@@ -44,10 +44,7 @@ CHECKPOINTS.md
 CLAUDE.md
 AGENTS.md
 IA.md
-init.sh
 load-tests/
-progress/
-feature_list.json
 .spec/
 
 # ── Seeds scripts — sólo se necesitan los .js ya compilados ───────────

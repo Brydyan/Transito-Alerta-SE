@@ -86,17 +86,19 @@ export function describeDevice(userAgent: string | null | undefined): string {
  * runtime). `getTimezoneOffset` en GMT-5 devuelve 300 (minutos).
  */
 export function formatAttemptTime(date: Date): string {
-  // El proyecto se sirve en hora de Ecuador. Si el runtime no
-  // tiene zona horaria configurada, `getTimezoneOffset` es
-  // 0 (UTC) y el resultado se verá en UTC. La constante es
-  // deliberada: la documentación dice «hora local» y la
-  // zona es parte del producto.
+  // El proyecto se sirve en hora de Ecuador (GMT-5, fijo). Un
+  // `Date` es un instante absoluto (epoch ms): `getTime()` no
+  // depende de la zona del runtime, así que el offset de la
+  // máquina NO debe participar — antes se sumaba
+  // `getTimezoneOffset()` y el resultado cambiaba según la TZ
+  // del proceso (flaky e2e/unit). La conversión correcta a
+  // "wall time" de Ecuador es restar 5h al instante y leer los
+  // componentes como UTC.
   const ecuadorOffsetMinutes = 5 * 60; // GMT-5
 
-  // Convertir a "wall time" en Ecuador: restar el offset del
-  // runtime y aplicar el offset de Ecuador.
-  const utcMs = date.getTime() + date.getTimezoneOffset() * 60 * 1000;
-  const ecuador = new Date(utcMs - ecuadorOffsetMinutes * 60 * 1000);
+  const ecuador = new Date(
+    date.getTime() - ecuadorOffsetMinutes * 60 * 1000,
+  );
 
   const day = ecuador.getUTCDate();
   const month = ecuador.getUTCMonth() + 1;

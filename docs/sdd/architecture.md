@@ -1,5 +1,9 @@
 # Arquitectura — Qué significa "hacer un buen trabajo"
 
+> NOTA: el arnés Kiro (feature_list.json, init.sh, progress/, specs/ raíz) fue
+> retirado. Las referencias a esos archivos en este doc son históricas; el
+> estado real vive en OpenSpec (`openspec/`).
+
 > Este documento define el estándar de calidad. Los agentes revisores
 > evalúan código contra este archivo. Si no está aquí, no es un requisito.
 
