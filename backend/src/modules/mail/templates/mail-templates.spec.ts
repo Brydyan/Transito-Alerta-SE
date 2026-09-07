@@ -155,16 +155,19 @@ describe('renderMailTemplate — existing_account_attempt (MAIL A.2/A.5, D4/D9)'
 
   it('el momento del intento se muestra en hora local (no UTC)', () => {
     // El helper convierte a GMT-5 (Ecuador). Una fecha que en
-    // UTC es 00:33:41, en Ecuador es 19:33:41 del día
-    // anterior. La aserción no compara contra una hora exacta
-    // (depende del timezone del runtime), pero verifica que
-    // aparece una hora en formato "HH:MM" y el sufijo "(GMT-5)".
+    // UTC es 19:33:41, en Ecuador es 14:33:41 del mismo día. La
+    // aserción es determinista: `formatAttemptTime` NO depende
+    // de la zona horaria del runtime (regresión: sumaba
+    // `getTimezoneOffset()` y el resultado cambiaba según la TZ
+    // del proceso).
     const html = renderMailTemplate('existing_account_attempt', {
       ip: '190.15.142.87',
       userAgent: 'Chrome/120',
       attemptedAt: '2026-09-06T19:33:41.123Z',
     });
-    expect(html).toMatch(/19:33 \(GMT-5\)/);
+    expect(html).toMatch(/14:33 \(GMT-5\)/);
+    // Y no muestra la hora UTC sin convertir.
+    expect(html).not.toMatch(/19:33 \(GMT-5\)/);
   });
 
   it('escapa user-agent con marcado HTML (R13)', () => {
