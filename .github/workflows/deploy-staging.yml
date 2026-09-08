@@ -288,6 +288,7 @@ jobs:
         if: steps.users.outputs.empty == 'true'
         env:
           SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: |
           # Sin el secret, `users.js` cae a DEFAULT_SEED_PASSWORD, que es una
           # constante en claro del repo (database/seeds/users.js). Staging
@@ -297,6 +298,30 @@ jobs:
             echo "::error::falta el secret SEED_PASSWORD — sin él el seed usaría la contraseña por defecto del repo, y staging es público"
             exit 1
           fi
+
+          # E2E_PASSWORD es optativo: si no está, el usuario e2e NO se
+          # siembra (D3 del change `2026-09-03-e2e-test-user-and-credentials`).
+          # No es un error: el seed de los seis de demo sigue siendo
+          # completo y la suite e2e en CI se salteará por "no
+          # configurado" (D4). Es la única forma de mantener el contrato
+          # de "ningún password de e2e en el repo" cuando este paso
+          # corre en bootstrap sobre una base recién creada.
+          #
+          # OJO — REQUISITO OPERATIVO: este paso sólo corre con la tabla
+          # `users` vacía (lógica de `steps.users.outputs.empty`). Si
+          # querés sembrar al usuario e2e en un staging YA POBLADO, tenés
+          # que correr el seed a mano:
+          #
+          #   SEED_PASSWORD=… E2E_PASSWORD=… \
+          #     docker compose --profile staging run --rm \
+          #       -e SEED_ALLOW_PRODUCTION=1 \
+          #       -e SEED_PASSWORD -e E2E_PASSWORD \
+          #       -v /mnt/storage/projects/tase/database:/app/database:ro \
+          #       backend node /app/database/seeds/users.js --force
+          #
+          # La idempotencia del seeder (ON CONFLICT DO NOTHING) hace
+          # que la corrida a mano sea segura: no duplica los seis, sólo
+          # agrega al e2e si no estaba.
 
           # `-e SEED_PASSWORD` sin `=valor`: compose lo resuelve del entorno
           # del paso. Escribir `-e SEED_PASSWORD="$SEED_PASSWORD"` metería el
@@ -314,6 +339,7 @@ jobs:
           docker compose --profile staging run --rm \
             -e SEED_ALLOW_PRODUCTION=1 \
             -e SEED_PASSWORD \
+            -e E2E_PASSWORD \
             -v /mnt/storage/projects/tase/database:/app/database:ro \
             backend node /app/database/seeds/users.js --force
 
@@ -325,19 +351,39 @@ jobs:
 
       - name: Verify seeded users
         if: steps.users.outputs.empty == 'true'
+        env:
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: |
           # `users.js` sale con 0 aunque no inserte nada (ON CONFLICT DO
           # NOTHING no es un error), así que su código de salida no prueba que
           # las filas existan. Se cuenta.
-          count=$(docker compose exec -T postgres psql \
+          #
+          # Antes este chequeo esperaba 6. Con el cambio
+          # `2026-09-03-e2e-test-user-and-credentials` el seeder agrega
+          # un séptimo (`e2e@tase.local`) cuando `E2E_PASSWORD` está
+          # definida. Si no está, se queda en 6. La aserción distingue
+          # los dos casos en vez de fijar un número.
+          demo_count=$(docker compose exec -T postgres psql \
                     -U postgres -d transito_alerta \
-                    -tAc "SELECT count(*) FROM users WHERE email LIKE '%@tase.local'" \
+                    -tAc "SELECT count(*) FROM users WHERE email LIKE '%@tase.local' AND email <> 'e2e@tase.local'" \
                   | tr -d '[:space:]')
-          if [ "$count" != "6" ]; then
-            echo "::error::se esperaban 6 usuarios sembrados, hay '${count}'"
+          e2e_count=$(docker compose exec -T postgres psql \
+                    -U postgres -d transito_alerta \
+                    -tAc "SELECT count(*) FROM users WHERE email = 'e2e@tase.local'" \
+                  | tr -d '[:space:]')
+          if [ "$demo_count" != "6" ]; then
+            echo "::error::se esperaban 6 usuarios de demo, hay '${demo_count}'"
             exit 1
           fi
-          echo "6 usuarios sembrados"
+          if [ -z "$E2E_PASSWORD" ] && [ "$e2e_count" != "0" ]; then
+            echo "::error::E2E_PASSWORD ausente pero e2e@tase.local existe (count=${e2e_count})"
+            exit 1
+          fi
+          if [ -n "$E2E_PASSWORD" ] && [ "$e2e_count" != "1" ]; then
+            echo "::error::E2E_PASSWORD presente pero e2e@tase.local no se sembró (count=${e2e_count})"
+            exit 1
+          fi
+          echo "Sembrado ok · demo=${demo_count} e2e=${e2e_count:-0}"
 
       # T8 — Cutover rehearsal NO corre en cada push a develop. Se dispara
       # manualmente desde la UI de GitHub Actions vía el workflow
