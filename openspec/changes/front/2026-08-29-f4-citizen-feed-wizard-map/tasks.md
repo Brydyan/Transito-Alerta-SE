@@ -93,15 +93,15 @@
 
 ## B.3 — Feed
 
-- [ ] **B.3.1** — Crear `features/citizen/feed/` con el composer superior que navega al asistente.
-- [ ] **B.3.2** — `components/incident-card/` según mock 09-01: autor, ubicación, antigüedad relativa, badges, título, código, etiquetas, coordenadas, «Ver Mapa» y pie de acciones.
-- [ ] **B.3.3** — «Seguir» con actualización optimista y **reversión ante error** (D7).
-- [ ] **B.3.4** — «Yo también reporto» **sin** optimismo: espera la confirmación del servidor porque es irreversible (D7). Ya corroborada o autor ⇒ control deshabilitado desde la carga.
-- [ ] **B.3.5** — Carga incremental al llegar al final, sin perder la posición de desplazamiento.
-- [ ] **B.3.6** — Estado final «Has visto todas las incidencias recientes» — nunca un cargador perpetuo.
-- [ ] **B.3.7** — `components/feed-filters/`: chips de estado y árbol de categorías **tri-estado** (D11) — padre marcado selecciona hijos; selección parcial deja el padre indeterminado.
-- [ ] **B.3.8** — Panel lateral: estadísticas del día y ranking de zonas.
-- [ ] **B.3.9** — Specs: reversión optimista, corroboración sin optimismo, indeterminado del árbol, fin del feed.
+- [x] **B.3.1** — Crear `features/citizen/feed/` con el composer superior que navega al asistente.
+- [x] **B.3.2** — `components/incident-card/` según mock 09-01: autor, ubicación, antigüedad relativa, badges, título, código, etiquetas, coordenadas, «Ver Mapa» y pie de acciones.
+- [x] **B.3.3** — «Seguir» con actualización optimista y **reversión ante error** (D7).
+- [x] **B.3.4** — «Yo también reporto» **sin** optimismo: espera la confirmación del servidor porque es irreversible (D7). Ya corroborada o autor ⇒ control deshabilitado desde la carga.
+- [x] **B.3.5** — Carga incremental al llegar al final, sin perder la posición de desplazamiento.
+- [x] **B.3.6** — Estado final «Has visto todas las incidencias recientes» — nunca un cargador perpetuo.
+- [x] **B.3.7** — `components/feed-filters/`: chips de estado y árbol de categorías **tri-estado** (D11) — padre marcado selecciona hijos; selección parcial deja el padre indeterminado.
+- [x] **B.3.8** — Panel lateral: estadísticas del día y ranking de zonas.
+- [x] **B.3.9** — Specs: reversión optimista, corroboración sin optimismo, indeterminado del árbol, fin del feed.
 
 ## B.4 — Mapa
 

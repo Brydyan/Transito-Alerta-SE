@@ -23,3 +23,15 @@
   - Implementación de la publicación de fotos en `IncidentService` y subida anónima de reportes con la constante correcta (`is_anonymous`).
   - Bloqueo de acceso y redirección a login/registro cuando el usuario no tiene sesión.
 - Pasa satisfactoriamente tests y validaciones en todo el scope, sin dejar commiteado el working tree para revisión.
+
+## Fase B (Slice 2) Implementada
+- Tareas B.3 completadas:
+  - Creado `feed.component.ts` (ruta `/inicio`) con el composer superior que navega a `/reportar` (B.3.1).
+  - Creado `incident-card.component.ts` con todos los elementos del mock 09-01 (B.3.2).
+  - Lógica de "Seguir" implementada con actualización optimista y reversión en caso de error (B.3.3).
+  - Lógica de "Yo también reporto" (corroboración) implementada SIN optimismo. Control deshabilitado si el usuario es el autor de la incidencia o si ya está corroborada (B.3.4).
+  - Soporte para carga incremental (B.3.5) y estado final del feed (B.3.6), adaptado a la API actual (que aún no pagina real).
+  - Creado `feed-filters.component.ts` con chips de estado y un árbol de categorías de 3 estados (indeterminado) con emisión de filtros para recargar el feed (B.3.7).
+  - Panel lateral con estadísticas del día derivadas calculadas localmente como placeholder (B.3.8).
+  - 11 specs verificando reversión optimista, corroboración, árbol de tres estados y fin de feed (B.3.9).
+- Validación estricta superada (0 errores de lint, typecheck ok, build ok, tests unitarios en verde).
