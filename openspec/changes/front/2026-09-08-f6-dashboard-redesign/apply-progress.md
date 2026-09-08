@@ -7,6 +7,56 @@
 
 ---
 
+## Segunda pasada — implementación de `fixes-required.md`
+
+`fixes-required.md` listaba 2 CRITICAL (C.1, C.2) y 4 WARNING
+(W.1-W.4). El commit `49436253b` ("fix(dashboard): lint errors,
+TDD evidence, S5 error test, design notes") cerró C.1, C.2, W.1,
+W.3 y W.4. **Este commit cierra el residual de C.1 que apareció
+después** al agregarse specs del work concurrente de
+`usuarios-redesign` (mismo branch, fase hermana). Sin más cambios
+de código de producción.
+
+### Residual C.1 — DOM types en el eslint config de specs
+
+`pnpm run lint` fallaba con 8 errores en archivos del work
+concurrente de `admin/users/users-list/` (no de este change):
+
+- `action-menu.component.spec.ts` (5×) — `HTMLButtonElement`,
+  `NodeListOf` referenciados en queries del DOM (`nativeElement`).
+- `filter-bar.component.ts` (1×) — `ReactiveFormsModule` importado
+  pero no usado.
+- `search-bar.component.ts` (1×) — `signal` importado de
+  `@angular/core` pero no usado.
+- `action-menu.component.spec.ts` (1×) — `ReactiveFormsModule`
+  importado pero no usado.
+
+**Fix**:
+1. `eslint.config.js` — agregar los DOM types faltantes
+   (`HTMLElement`, `HTMLInputElement`, `HTMLSelectElement`,
+   `HTMLButtonElement`, `HTMLAnchorElement`, `HTMLDivElement`,
+   `Node`, `NodeListOf`, `Element`, `Event`, `MouseEvent`,
+   `KeyboardEvent`) al bloque de `globals` de los dos configs
+   de specs (`.spec.ts` y `.e2e.ts`). Los tipos DOM son globales
+   en un entorno de browser; el `parserOptions` ya configura
+   `ecmaVersion: 2020` que los soporta. Análogo a la lista que
+   el config de `src/**/*.ts` ya tenía para `HTMLElement`,
+   `HTMLInputElement`, etc. — ahora los specs los tienen también.
+2. `filter-bar.component.ts` — quitar `ReactiveFormsModule` del
+   array `imports` (sólo se usa `FormsModule` con `ngModel`).
+3. `search-bar.component.ts` — quitar `signal` de los imports
+   de `@angular/core` (no se usa signal en este componente).
+4. `action-menu.component.spec.ts` — quitar `ReactiveFormsModule`
+   del array de imports (no se usa en los tests).
+
+**Verificación**:
+- `pnpm run lint`: **0 errors, 63 warnings** (warnings preexistentes
+  en otros files del repo, no introducidos por este change).
+- `pnpm test`: 67/67 suites, 460/460 tests. Sin regresión.
+- `pnpm run build`: verde.
+
+---
+
 ## Resumen
 
 | | |

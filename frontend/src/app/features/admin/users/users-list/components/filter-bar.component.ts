@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 
 import { UiIconComponent } from '../../../../../shared/components/ui-icon/ui-icon.component';
 import { Organization, Role } from '../../models/user.interface';
@@ -19,7 +19,7 @@ import { Organization, Role } from '../../models/user.interface';
 @Component({
   selector: 'app-filter-bar',
   standalone: true,
-  imports: [FormsModule, ReactiveFormsModule, UiIconComponent],
+  imports: [FormsModule, UiIconComponent],
   template: `
     <div class="filter-bar">
       <label class="field">
