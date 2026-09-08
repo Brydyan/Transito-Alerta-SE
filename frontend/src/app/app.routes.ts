@@ -104,8 +104,8 @@ export const routes: Routes = [
                 path: '',
                 pathMatch: 'full',
                 loadComponent: () =>
-                  import('./features/admin/users/user-management/user-management.component').then(
-                    (m) => m.UserManagementComponent,
+                  import('./features/admin/users/users-list/users-list.component').then(
+                    (m) => m.UsersListComponent,
                   ),
               },
               {
@@ -154,18 +154,18 @@ export const routes: Routes = [
       },
 
       // Sección Reportes
+      //
+      // F6.6.4 (change `2026-08-29-f6-redesign-existing-screens`):
+      // `kpi-dashboard` era un scaffold vacío de Angular CLI
+      // (`<p>dashboard-kpi works!</p>`) sin contraparte funcional.
+      // La ruta `reportes/dashboard` se elimina junto con el
+      // componente. Si en el futuro se necesita un dashboard de
+      // reportes, debe aterrizar por su propio change y
+      // aparecerá con mock + specs.
       {
         path: 'reportes',
         data: { breadcrumb: 'Reportes' },
         children: [
-          {
-            path: 'dashboard',
-            data: { breadcrumb: 'Dashboard KPI' },
-            loadComponent: () =>
-              import('./features/reports/kpi-dashboard/kpi-dashboard').then(
-                (m) => m.KpiDashboardComponent,
-              ),
-          },
           {
             path: 'listado-clientes',
             data: { breadcrumb: 'Listado de Clientes' },

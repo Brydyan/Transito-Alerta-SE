@@ -1,25 +1,36 @@
-<div class="dashboard-container">
-  <!-- Mensaje de Bienvenida -->
-  @if (authService.currentUser(); as user) {
-    <div class="bg-bg-secondary border border-border-subtle rounded-lg mb-6 p-4">
-      <div class="flex items-center">
-        <div
-          class="avatar bg-brand-navy text-white rounded-full flex items-center justify-center mr-4 overflow-hidden w-12 h-12 text-xl shrink-0"
-        >
-          @if (user?.avatar) {
-            <img [src]="user?.avatar" [alt]="user?.name" class="w-full h-full object-cover" />
-          } @else {
-            {{ user?.name?.charAt(0)?.toUpperCase() }}
-          }
-        </div>
-        <div>
-          <h5 class="mb-1 text-lg font-medium">¡Bienvenido, {{ user?.name }}!</h5>
-          <p class="mb-0 text-slate-500 text-sm">
-            <i class="bi bi-shield-check mr-1"></i>
-            Rol: <strong>{{ user.roleName }}</strong> | Email: {{ user.email }}
-          </p>
-        </div>
-      </div>
-    </div>
+<ui-page-header
+  kicker="Inicio"
+  title="Dashboard"
+  subtitle="Resumen de actividad e incidencias"
+>
+  <button page-header-actions type="button" class="btn-secondary">Filtros</button>
+  <button page-header-actions type="button" class="btn-primary">Exportar</button>
+</ui-page-header>
+
+@if (error()) {
+  <div class="error-banner" role="alert">
+    <strong>Algunos datos no se cargaron.</strong>
+    {{ error() }}
+  </div>
+}
+
+<section class="kpi-grid" aria-label="Tarjetas de indicadores">
+  @for (kpi of kpis(); track kpi.key) {
+    <ui-kpi-card
+      [label]="kpi.label"
+      [value]="kpi.value"
+      [iconName]="kpi.icon"
+      [tone]="kpi.tone"
+      [trend]="kpi.trend"
+    />
   }
-</div>
+</section>
+
+<section class="grid-2" aria-label="Gráficos principales">
+  <app-top-categories-chart [data]="topCategories()" />
+  <app-recent-activity [rows]="activity()" />
+</section>
+
+<section class="grid-1" aria-label="Gráfico semanal">
+  <app-weekly-performance-chart [data]="weeklyDays()" />
+</section>
