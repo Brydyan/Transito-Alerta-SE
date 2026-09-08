@@ -24,7 +24,7 @@ test.describe('Dashboard rediseñado (F6)', () => {
   test.skip(!HAS_BACKEND, 'Requiere staging con E2E_PASSWORD (cambio `e2e-test-user-and-credentials`).');
 
   test('S1 — Dashboard carga con 5 KPI cards', async ({ page }) => {
-    const creds = await login(page);
+    await login(page);
     await page.goto('/app/dashboard');
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
     // 5 tarjetas — `ui-kpi-card` se renderiza como contenedor con
@@ -40,7 +40,7 @@ test.describe('Dashboard rediseñado (F6)', () => {
   });
 
   test('S2 — % change muestra signo correcto', async ({ page }) => {
-    const creds = await login(page);
+    await login(page);
     // Interceptamos stats con un valor conocido para validar el
     // formato del pie de tendencia.
     await page.route('**/api/incidents/stats', async (route: Route) => {
@@ -73,7 +73,7 @@ test.describe('Dashboard rediseñado (F6)', () => {
   });
 
   test('S3 — Actividad reciente muestra los items del feed', async ({ page }) => {
-    const creds = await login(page);
+    await login(page);
     await page.route('**/api/incidents/feed**', async (route: Route) => {
       await route.fulfill({
         status: 200,
@@ -96,7 +96,7 @@ test.describe('Dashboard rediseñado (F6)', () => {
   });
 
   test('S4 — Chart semanal renderiza 7 columnas (una por día)', async ({ page }) => {
-    const creds = await login(page);
+    await login(page);
     await page.route('**/api/incidents/weekly-stats', async (route: Route) => {
       const days = ['Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Lun', 'Mar'];
       await route.fulfill({
@@ -118,7 +118,7 @@ test.describe('Dashboard rediseñado (F6)', () => {
   });
 
   test('S5 — Error de stats enciende el banner y los bloques degradan', async ({ page }) => {
-    const creds = await login(page);
+    await login(page);
     await page.route('**/api/incidents/stats', async (route: Route) => {
       await route.fulfill({ status: 500, body: 'boom' });
     });

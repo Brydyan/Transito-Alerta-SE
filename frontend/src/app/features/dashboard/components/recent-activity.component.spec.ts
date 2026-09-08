@@ -66,7 +66,10 @@ describe('RecentActivityComponent (F6 redesign)', () => {
 
   it('footer link navega a /app/incidencias', () => {
     render(fixtureRows);
-    const link = fixture.nativeElement.querySelector('.footer-link') as HTMLAnchorElement;
+    // `Element` (no `HTMLAnchorElement`) alcanza — sólo se leen
+    // `textContent` y `getAttributeNames()`, ambos de `Element`;
+    // `Element` ya está declarado como global en `eslint.config.js`.
+    const link = fixture.nativeElement.querySelector('.footer-link') as Element;
     expect(link).toBeTruthy();
     // `routerLink` opera como directiva de Angular: en este
     // test el router resuelve con la ruta declarada en

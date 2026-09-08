@@ -291,3 +291,63 @@ ejecución real del e2e (5 specs contra staging) queda
 pendiente de la primera corrida del job `frontend-e2e` con
 `vars.STAGING_BASE_URL` y `secrets.E2E_PASSWORD` configurados,
 igual que en el change anterior.
+
+---
+
+## Fix batch (2026-09-08) — respuesta a `fixes-required.md`
+
+> `sdd-verify` marcó FAIL (2 CRITICAL, 4 WARNING). Este batch
+> resuelve C.1, C.2, W.1, W.3, W.4 según lo indicado en
+> `fixes-required.md`. W.2 no requiere acción (comportamiento
+> esperado, ya documentado en `verify-report.md`).
+
+### C.1 — Lint (7 errores → 0)
+
+| Archivo | Error original | Fix |
+|---|---|---|
+| `frontend/e2e/dashboard.e2e.ts` (líneas 27, 43, 76, 99, 121) | `creds` sin usar (5×) | Se removió la asignación (`await login(page);` sin `const creds =`) — `login()` sigue devolviendo `{user, password}` por compatibilidad con otros specs, pero este archivo no necesita el valor |
+| `.../recent-activity.component.spec.ts:69` | `HTMLAnchorElement` no declarado (`no-undef`) | El cast se cambió a `as Element` — el test sólo lee `textContent` y `getAttributeNames()`, ambos de `Element` (ya declarado como global en `eslint.config.js`); no se tocó la config de ESLint |
+| `.../top-categories-chart.component.spec.ts:54` | `component` sin usar | Se removió la variable local no usada (el test no necesitaba leer `componentInstance`, sólo mutar el input vía `fixture.componentRef`) |
+
+Verificado con `pnpm exec eslint e2e/dashboard.e2e.ts src/app/features/dashboard/**/*.ts`: **0 errores, 3 warnings preexistentes** (`Unused eslint-disable directive` en `dashboard.component.ts` para `no-console` — no forma parte de los 7 errores reportados, no se tocó).
+
+### W.1 — S5 error handling test
+
+Se agregó `dashboard.component.spec.ts`: `'S5: muestra el banner de error si un endpoint del forkJoin falla'`. El markup del banner (`.error-banner`, `role="alert"`) **ya existía** en `dashboard.component.html` desde la implementación original — sólo faltaba el test.
+
+**Hallazgo no trivial durante el TDD (RED real, no cosmético):** el primer intento del test fallaba con `component.error()` = `null` incluso sobreescribiendo el mock de `getStats` con `throwError(...)` antes del assert. Root cause: en Angular 21 (`_ChangeDetectionSchedulerImpl`), `fixture.whenStable()` dispara un `ApplicationRef.tick()` — y por tanto `ngOnInit()` — **dentro del propio `await`**, antes de que el cuerpo del test alcance a sobreescribir el mock. El `beforeEach` compartido llamaba `whenStable()` inmediatamente después de `TestBed.createComponent()`, así que `ngOnInit` ya corría con el mock por defecto (`of(null)`) antes de que cualquier `it()` pudiera personalizarlo.
+
+**Fix**: se refactorizó el spec para que `TestBed.createComponent()` + `whenStable()` vivan en un helper `createComponent()` invocado explícitamente al INICIO de cada test — así los overrides de `mockDashboardService` (hechos con `jest.fn().mockReturnValue(...)`, no `of(...)` fijo) se aplican antes de que el fixture se estabilice. No se tocó el comportamiento de `should create`, sólo el punto donde se crea el fixture.
+
+### C.2 — TDD Cycle Evidence
+
+| Requirement | Unit Tests | E2E Tests | Coverage |
+|-------------|-----------|-----------|----------|
+| D.3.1: KPI card rendering | `dashboard.component.spec.ts` (`should create` + proyección de `kpis()` vía template) | `dashboard.e2e.ts:S1` (5/5 skipped local, corre en CI con staging) | ✅ Unit PASS · ⚠️ E2E skip local (esperado, D4) |
+| D.4.1: Top Categories Chart | `top-categories-chart.component.spec.ts` (4 tests: orden, `widthPct`, estado vacío, `maxItems`) | `dashboard.e2e.ts:S4` (weekly, no top-categories — S4 cubre el chart semanal; top-categories no tiene escenario e2e dedicado, sólo unit) | ✅ Unit PASS · ⚠️ Sin e2e dedicado |
+| D.5.1: Recent Activity | `recent-activity.component.spec.ts` (6 tests: filas, estado vacío, tonos de status/priority, humanize, footer link) | `dashboard.e2e.ts:S3` (skipped local) | ✅ Unit PASS · ⚠️ E2E skip local |
+| D.6.1: Dashboard container (signals + forkJoin) | `dashboard.component.spec.ts` — `should create` (caso feliz) **+ `S5` (nuevo, este batch): error de un endpoint enciende `error()` y `.error-banner`** | `dashboard.e2e.ts:S1,S2,S5` (skipped local) | ✅ Unit PASS (2/2, incluye camino de error) · ⚠️ E2E skip local |
+| D.7.1-D.7.6: E2E suite | N/A | `dashboard.e2e.ts` (5 specs S1-S5) | ⚠️ Todos skip local (sin `BASE_URL`/`E2E_PASSWORD`); corren en CI (`frontend-e2e` con `vars.STAGING_BASE_URL` + `secrets.E2E_PASSWORD`, confirmado en `.github/workflows/ci.yml`) |
+
+RED→GREEN de este batch (S5, único test nuevo de código):
+1. **RED**: se escribió el test S5 con el mock `getStats` sobrescrito a `throwError(...)` y el assert de `component.error()` + `.error-banner` — falló primero por el bug de timing de `whenStable()` documentado en W.1 (no por lógica de producción incorrecta).
+2. **GREEN**: se refactorizó el helper `createComponent()` en el spec (no se tocó `dashboard.component.ts`, la lógica de `catchError`/`error.set()` ya era correcta desde la implementación original) — el test pasa.
+3. **REFACTOR**: se limpiaron los `console.log` de depuración usados para diagnosticar el timing (tanto del spec como de `dashboard.component.ts`, donde se habían agregado temporalmente).
+
+### W.3 — Endpoints de `design.md`
+
+Corregido en `design.md` → sección "Endpoints (Consumed)". La tabla original asumía 3 endpoints inexistentes (`/incidents/stats/by-category`, `/incidents/activity`, `/incidents/stats/weekly`); se reemplazó por los 3 reales, ya documentados en la sección "Inventario previo (F6.4.1)" de este mismo archivo: `/api/incidents/stats` (con `top_categories[]` embebido), `/api/incidents/weekly-stats`, `/api/incidents/feed?limit=5`.
+
+### W.4 — Nota de desviación KPI "En proceso"
+
+**D.3.1 Deviation**: la tarjeta KPI "En proceso" (cyan) reutiliza `trends.total_pct` (el mismo dato que "Total") en `dashboard.component.ts:111`, en vez de una métrica de "% en progreso" dedicada. Motivo: `IncidentStats.trends` del backend sólo expone `total_pct`, `pendientes_pct` y `resolution_rate_pct` — no existe un `in_progress_pct`. Funciona sin errores (el número base — `by_status['in_progress']` — es correcto; sólo el badge de tendencia porcentual es una aproximación), pero no está documentado como desviación intencional hasta este batch. Aceptable para M1; pendiente de que el backend exponga la métrica dedicada (no bloqueante, no forma parte de los criterios de aceptación del spec S1-S5).
+
+### Verificación de este batch
+
+- `pnpm exec eslint e2e/dashboard.e2e.ts src/app/features/dashboard/**/*.ts`: 0 errores (3 warnings preexistentes, no relacionados)
+- `pnpm exec jest --testPathPatterns="dashboard"`: 5 suites, **21/21 tests** (20 previos + 1 nuevo S5)
+- `pnpm test` (suite completa del repo): **67 suites, 460/460 tests** — verde
+- `ng build`: **BLOQUEADO por código ajeno a este change.** `users-list.component.ts/.html` (feature `admin/users/users-list`, sin commit, en desarrollo concurrente en el mismo working tree — branch `brydyan/sc-308/f6-rediseno-dashboard-usuarios-roles-y-perfil` cubre tanto "dashboard" como "usuarios/roles/perfil") tiene 5 errores de compilación de plantilla (`app-table-skeleton`, `ui-table` no declarados en imports, `ConfirmDialogConfig.tone` inexistente, etc.) — ninguno relacionado con el dashboard. Verificado aislando el problema: con `users-list/` + sus dependencias stasheadas temporalmente, `ng build` sigue fallando porque `app.routes.ts` (también modificado por el trabajo concurrente, fuera de este change) ya importa `users-list.component` — el archivo está referenciado pero no compila. **Ninguna de las 3 correcciones de este batch toca `app.routes.ts` ni `users-list/`.** Se recomienda re-correr `ng build` una vez que el trabajo de `usuarios-roles-y-perfil` (fuera del alcance de `2026-09-08-f6-dashboard-redesign`) esté completo o revertido.
+- `pnpm exec eslint .` (repo completo): 8 errores preexistentes, todos en `admin/users/users-list/*` — no relacionados con este change (ver mismo bloqueo que `ng build`).
+
+**Riesgo detectado**: el working tree tiene ediciones concurrentes de otro proceso/sesión sobre `frontend/src/app/app.routes.ts`, `frontend/src/app/features/admin/users/**` (incluyendo un rename `user-management/` → `_old_user-management/`) que aparecieron DURANTE esta sesión de fixes, no estaban presentes al inicio. Este batch NO modifica, hace `git add`, ni hace commit de ningún archivo bajo `admin/users/**` ni de `app.routes.ts` — el commit de este batch se limita estrictamente a los archivos de `dashboard`/`fixes-required.md` scope.

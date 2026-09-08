@@ -51,7 +51,6 @@ describe('TopCategoriesChartComponent (F6 redesign)', () => {
 
   it('respeta maxItems: trunca después de N', () => {
     render(fixtureData);
-    const component = fixture.componentInstance;
     fixture.componentRef.setInput('maxItems', 2);
     fixture.detectChanges();
     const rows = fixture.nativeElement.querySelectorAll('.bar-row');

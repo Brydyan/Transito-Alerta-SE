@@ -95,14 +95,21 @@ DashboardComponent
 
 ## Endpoints (Consumed)
 
+> **Corrected 2026-09-08 (apply fix batch, W.3 from `fixes-required.md`).**
+> The original table below listed 3 endpoints that do not exist in the
+> backend (`/incidents/stats/by-category`, `/incidents/activity`,
+> `/incidents/stats/weekly`). F6.4.1 (inventory phase, documented in
+> `apply-progress.md`) verified the actual backend contract against
+> `backend/src/modules/incidents/` — the top-5 categories are embedded
+> in the stats payload (`top_categories[]`), not a separate endpoint.
+
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/incidents/stats` | GET | Aggregate: total, in_progress, resolved, pending, avg_resolution_time |
-| `/incidents/stats/by-category?limit=5` | GET | Top 5 categories by incident count |
-| `/incidents/activity?limit=5` | GET | Recent activity (category, status, timestamps) |
-| `/incidents/stats/weekly` | GET | Weekly breakdown (received, resolved per day) |
+| `/api/incidents/stats` | GET | Aggregate: `total`, `by_status`, `by_priority`, `recent_count`, `locations_count`, `average_resolution_time`, `trends`, and `top_categories[]` (top 5 embedded — no separate by-category endpoint) |
+| `/api/incidents/weekly-stats` | GET | Weekly breakdown (`days[]` with `recibidas`/`resueltas` per day) |
+| `/api/incidents/feed?limit=5` | GET | Recent activity (paginated feed, already consumed by F3; projected to flat `ActivityRow[]` by `DashboardService`) |
 
-**Note**: Backend may need implementation for some endpoints. F6.4.1 (inventory phase) should confirm.
+**Superseded (do not use)**: `/incidents/stats/by-category?limit=5`, `/incidents/activity?limit=5`, `/incidents/stats/weekly` — these were design-phase assumptions; the backend never implemented them under these names.
 
 ## CSS & Styling
 
