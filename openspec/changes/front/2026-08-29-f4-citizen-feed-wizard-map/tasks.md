@@ -106,11 +106,13 @@
 ## B.4 — Mapa
 
 - [ ] **B.4.1** — Crear `features/citizen/map/` a pantalla completa con Leaflet.
-- [ ] **B.4.2** — Agrupación de marcadores con `leaflet.markercluster` (D8). **Anotar en el código el umbral de ~5.000 incidencias** a partir del cual la agrupación debe pasar al servidor.
-- [ ] **B.4.3** — Panel de filtros flotante (estado, prioridad, categoría) con acción de limpiar todo.
-- [ ] **B.4.4** — Contador de incidencias mostradas y marca de última actualización.
-- [ ] **B.4.5** — Marcador activado ⇒ resumen con enlace al detalle.
-- [ ] **B.4.6** — Sin resultados ⇒ mapa vacío con aviso explícito, distinguible de un fallo de carga.
+- [ ] **B.4.2** — Capa de segmentos: cargar zonas geográficas activas (`GeoZoneService`) y renderizar sus polígonos con `L.geoJSON` sobre el mapa base (D12). Tipar `IGeoZone.polygon` como `IGeoJsonPolygon | IGeoJsonMultiPolygon`.
+- [ ] **B.4.3** — Hover sobre un polígono de segmento ⇒ se resalta visualmente (cambio de estilo en `mouseover`/`mouseout`).
+- [ ] **B.4.4** — Agrupación de marcadores con `leaflet.markercluster` (D8). **Anotar en el código el umbral de ~5.000 incidencias** a partir del cual la agrupación debe pasar al servidor.
+- [ ] **B.4.5** — Panel de filtros flotante (estado, prioridad, categoría) con acción de limpiar todo.
+- [ ] **B.4.6** — Contador de incidencias mostradas y marca de última actualización.
+- [ ] **B.4.7** — Marcador activado ⇒ resumen con enlace al detalle.
+- [ ] **B.4.8** — Sin resultados ⇒ mapa vacío con aviso explícito, distinguible de un fallo de carga; **los segmentos de zonas siguen interactivos**.
 
 ## B.5 — Cierre
 

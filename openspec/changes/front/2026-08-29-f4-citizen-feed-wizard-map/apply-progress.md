@@ -13,3 +13,13 @@
 - **A.5.5**: Validaciones (`lint`, `typecheck`, `test`) corriendo con éxito. Las suites E2E están fallando por problemas de ambiente local de Testcontainers.
 - **Registro del Módulo**: `IncidentSocialModule` registrado correctamente en `app.module.ts`.
 - Se solucionaron errores de TS detectados en los decoradores `@RequirePermission` y firmas del servicio.
+
+## Fase B (Slice 1) Implementada
+- Tareas B.1 completadas: Instalación de `leaflet.markercluster`, creación de `incident-social.service.ts` y de `MapPickerComponent` con su spec y exportación.
+- Tareas B.2 completadas:
+  - Creado `report-draft.service.ts` con Dexie para almacenar borradores offline incluyendo adjuntos.
+  - El formulario en `CitizenReportComponent` fue reescrito para utilizar el formato Wizard de 4 pasos (D10).
+  - Integración con `MapPickerComponent` y con validaciones en cada paso.
+  - Implementación de la publicación de fotos en `IncidentService` y subida anónima de reportes con la constante correcta (`is_anonymous`).
+  - Bloqueo de acceso y redirección a login/registro cuando el usuario no tiene sesión.
+- Pasa satisfactoriamente tests y validaciones en todo el scope, sin dejar commiteado el working tree para revisión.
