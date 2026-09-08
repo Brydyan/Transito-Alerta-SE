@@ -270,7 +270,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted-text);
+  color: var(--color-on-tint-slate);
 }
 
 .nav-link-custom {
