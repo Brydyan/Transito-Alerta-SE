@@ -20,11 +20,10 @@ import {
 import { Router } from '@angular/router';
 
 import { AuthService } from '../../core/services/auth.service';
-import { UsersService } from '../admin/users/services/users.service';
+import { UserService } from '../../core/services/user.service';
 import { ToastService } from '../../shared/components/toast/toast.service';
 import { UiPageHeaderComponent } from '../../shared/components/ui-page-header/ui-page-header.component';
 import { UiIconComponent } from '../../shared/components/ui-icon/ui-icon.component';
-import { UserDetail } from '../admin/users/models/user.interface';
 
 import { ProfilePhotoUploaderComponent } from './components/profile-photo-uploader.component';
 import { ProfileActionCardsComponent } from './components/profile-action-cards.component';
@@ -70,8 +69,8 @@ export function ecuadorPhoneValidator(): ValidatorFn {
  *  - **No `*hasPermission`**: el perfil es universal para usuarios
  *    autenticados.
  *  - **Sin `forkJoin`**: mismo argumento que `users-list` y
- *    `roles-list` — `loadProfile()` y `updateMe()` se llaman
- *    directamente.
+ *    `roles-list` — `ngOnInit()` (carga) y `onSubmit()` (guardado)
+ *    se llaman directamente.
  *  - **D1**: este componente SÍ tenía implementación previa. La
  *    nueva implementación refactoriza la misma clase en el mismo
  *    archivo (mismo selector, misma ruta, mismo export). Los
@@ -79,6 +78,22 @@ export function ecuadorPhoneValidator(): ValidatorFn {
  *    Como no había spec file preexistente, D1 no aplica a un
  *    assertion — pero la cobertura del comportamiento preexistente
  *    se preserva en el nuevo spec.
+ *
+ * Fixes aplicados (`fixes-required.md`, post `sdd-verify` FAIL):
+ *  - **C.1**: `currentUser.id` se usaba con `Number()` → `NaN` →
+ *    `GET /users/NaN` (400). Ya no se necesita el id: se usa
+ *    `UserService.getCurrentUser()` (`GET /users/me`, resuelto del
+ *    JWT en el backend).
+ *  - **C.2/C.4**: se reemplazó la reutilización de la
+ *    `UsersService` admin (`/users/:id`, DTOs en español,
+ *    `@RequirePermission` → 403 para no-admins) por el
+ *    `UserService` dedicado (`core/services/user.service.ts`),
+ *    con los nombres de campo reales del backend
+ *    (`first_name`/`last_name`/`phone`) y sin guard de permiso.
+ *  - **C.3**: el upload de avatar ya no viaja junto al submit del
+ *    formulario — `ProfilePhotoUploaderComponent` sube el archivo
+ *    directamente al seleccionarlo (`POST /users/me/avatar`, campo
+ *    `avatar`) y emite `photoUploaded(url)`.
  */
 @Component({
   selector: 'app-profile',
@@ -97,7 +112,7 @@ export function ecuadorPhoneValidator(): ValidatorFn {
 })
 export class ProfileComponent implements OnInit {
   private readonly authService = inject(AuthService);
-  private readonly usersService = inject(UsersService);
+  private readonly userService = inject(UserService);
   private readonly toastService = inject(ToastService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
@@ -105,18 +120,15 @@ export class ProfileComponent implements OnInit {
 
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
-  readonly roleName = signal<string | null>(null);
   readonly lastUpdatedAt = signal<string | null>(null);
 
   /** Email que se muestra como readonly (del usuario autenticado). */
   readonly displayEmail = signal<string>('');
 
-  /** URL del avatar actual (del usuario o de la preview). Se pasa
-   *  al `ProfilePhotoUploaderComponent` vía `initialUrl`. */
+  /** URL del avatar actual (del usuario o del último upload
+   *  confirmado por el servidor). Se pasa al
+   *  `ProfilePhotoUploaderComponent` vía `initialUrl`. */
   readonly avatarUrl = signal<string | null>(null);
-
-  private pendingAvatarFile: File | null = null;
-  private userId = 0;
 
   readonly profileForm: FormGroup = this.fb.group({
     nombres: ['', [Validators.required, Validators.minLength(2)]],
@@ -135,26 +147,30 @@ export class ProfileComponent implements OnInit {
       this.router.navigate(['/login']);
       return;
     }
-    this.userId = Number(currentUser.id);
+    // C.1 fix: `currentUser.id` es un UUID string — `Number(uuid)`
+    // producía `NaN` y el backend rechazaba `GET /users/NaN` con
+    // 400. `UserService.getCurrentUser()` no necesita el id: pega a
+    // `/users/me`, resuelto por el backend desde el JWT.
     this.displayEmail.set(currentUser.email ?? '');
     this.isLoading.set(true);
 
-    this.usersService
-      .getUserById(this.userId)
+    this.userService
+      .getCurrentUser()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (user: UserDetail) => {
-          this.avatarUrl.set(user.avatar?.url ?? null);
-          this.roleName.set(user.rol?.nombre ?? null);
+        next: (user) => {
+          this.avatarUrl.set(user.avatar_url ?? null);
           this.profileForm.patchValue({
-            nombres: user.nombres,
-            apellidos: user.apellidos,
-            telefono: user.telefono,
+            nombres: user.first_name ?? '',
+            apellidos: user.last_name ?? '',
+            telefono: user.phone ?? '',
           });
-          // `lastUpdatedAt` no viene del backend; lo dejamos en
-          // null para que el template no muestre el timestamp
-          // cuando el backend aún no lo expone. (Ver
-          // apply-progress.md — D1 de esta fase.)
+          // `lastUpdatedAt` no se puebla desde `user.updated_at`:
+          // la columna `updated_at` tiene `update: false` en
+          // `UserEntity` (no se refresca automáticamente en cada
+          // save), así que no es una fuente confiable (ver
+          // fixes-required.md W.3). Se deja en null hasta el
+          // primer `onSubmit()` exitoso de esta sesión.
           this.isLoading.set(false);
         },
         error: () => {
@@ -164,8 +180,11 @@ export class ProfileComponent implements OnInit {
       });
   }
 
-  onAvatarFileSelected(file: File): void {
-    this.pendingAvatarFile = file;
+  /** El upload ya ocurrió en `ProfilePhotoUploaderComponent` (C.3);
+   *  acá sólo reflejamos la URL confirmada por el servidor. */
+  onAvatarUploaded(avatarUrl: string): void {
+    this.avatarUrl.set(avatarUrl);
+    this.authService.updateCurrentUser({ avatar: avatarUrl ? { url: avatarUrl } : null });
   }
 
   onSubmit(): void {
@@ -177,24 +196,20 @@ export class ProfileComponent implements OnInit {
     this.isSaving.set(true);
     const form = this.profileForm.value;
     const payload = {
-      email: this.displayEmail(), // readonly, se envía tal cual
-      nombres: form.nombres,
-      apellidos: form.apellidos,
-      telefono: form.telefono,
+      first_name: form.nombres,
+      last_name: form.apellidos,
+      phone: form.telefono,
     };
 
-    this.usersService
-      .updateMe(payload, this.pendingAvatarFile ?? undefined)
+    this.userService
+      .updateProfile(payload)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (updatedUser) => {
+        next: () => {
           this.authService.updateCurrentUser({
             name: `${form.nombres} ${form.apellidos}`,
             email: this.displayEmail(),
-            avatar: updatedUser.avatar ?? null,
           });
-          this.avatarUrl.set(updatedUser.avatar?.url ?? null);
-          this.pendingAvatarFile = null;
           this.lastUpdatedAt.set(this.formatNow());
           this.toastService.success('Perfil actualizado correctamente.', 'Éxito');
           this.isSaving.set(false);

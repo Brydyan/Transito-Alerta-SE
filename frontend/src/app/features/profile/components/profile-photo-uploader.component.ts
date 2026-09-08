@@ -3,6 +3,7 @@ import {
   Component,
   effect,
   ElementRef,
+  inject,
   input,
   output,
   signal,
@@ -10,26 +11,32 @@ import {
 } from '@angular/core';
 
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
+import { UserService } from '../../../core/services/user.service';
+import { ToastService } from '../../../shared/components/toast/toast.service';
 
 /**
  * ProfilePhotoUploaderComponent — F6 (`2026-09-08-f6-perfil-redesign`).
  *
  * Avatar 128×128 con preview, file input oculto, validación de
- * tamaño (≤ 0.78 MB según spec P.3.1). Emite `fileSelected(File)`
- * cuando el usuario elige un archivo válido. El padre es
- * responsable del upload (spec P.4.1: `onSubmit()` orquesta
- * `updateProfile` + `uploadProfileImage` si hay file pendiente).
+ * tamaño (≤ 0.78 MB según spec P.3.1). Sube el archivo directamente
+ * (`UserService.uploadProfileImage`) al seleccionarlo — el upload no
+ * depende de `onSubmit()` del formulario padre (fix
+ * `fixes-required.md` C.3: el endpoint real es `POST
+ * /users/me/avatar` con campo `avatar`, no `POST /users/me` con
+ * campo `file`). Emite `photoUploaded(url)` cuando el servidor
+ * confirma el nuevo `avatar_url`.
  *
  * Decisiones:
  * - Spec dice "JPG, PNG, WEBP". El input `accept="image/jpeg,image/png,image/webp"`
  *   filtra el file picker del browser; `file.type` lo valida
  *   adicionalmente en runtime.
  * - Spec dice "tamaño máximo 0.78 MB" — `MAX_BYTES = 800_000`
- *   (≈ 0.78 MB). Si el file excede, emite un toast via
- *   `ToastService` y descarta el archivo (no emite `fileSelected`).
- * - El preview usa `FileReader.readAsDataURL` (síncrono al
- *   load). Si el file es > 800 KB no llegamos acá — la validación
- *   se hace antes de setear `pendingFile`.
+ *   (≈ 0.78 MB). Si el file excede (o el tipo es inválido), se
+ *   muestra un toast de error y se descarta — no se sube.
+ * - El preview usa `FileReader.readAsDataURL` (síncrono al load) y
+ *   se muestra de inmediato, en paralelo al upload al servidor.
+ * - Errores de upload se muestran via `ToastService.error()` (C.5
+ *   W.2 — antes se perdían silenciosamente).
  */
 @Component({
   selector: 'app-profile-photo-uploader',
@@ -189,10 +196,14 @@ export class ProfilePhotoUploaderComponent {
     'image/webp',
   ];
 
-  readonly fileSelected = output<File>();
+  /** Emite el nuevo `avatar_url` cuando el servidor confirma el upload. */
+  readonly photoUploaded = output<string>();
+
+  private readonly userService = inject(UserService);
+  private readonly toastService = inject(ToastService);
 
   /** URL inicial del avatar (poblada por el padre con
-   *  `user.avatar?.url`). Después de la carga, se puede seguir
+   *  `user.avatar_url`). Después de la carga, se puede seguir
    *  actualizando vía `setInitial`. */
   readonly initialUrl = input<string | null>(null);
   readonly previewUrl = signal<string | null>(null);
@@ -229,24 +240,37 @@ export class ProfilePhotoUploaderComponent {
     const file = input.files?.[0];
     input.value = ''; // reset para permitir re-selección del mismo archivo
     if (!file) return;
+
     if (!this.isValidType(file)) {
-      // El padre va a enterarse vía el toast (no emitimos).
-      // El componente no inyecta ToastService para mantenerse
-      // presentacional: el padre puede hacer una verificación
-      // previa si quiere.
+      this.toastService.error('Formato no soportado. Use JPG, PNG o WEBP.');
       return;
     }
     if (file.size > ProfilePhotoUploaderComponent.MAX_BYTES) {
+      this.toastService.error('La foto no puede superar 0.78 MB.');
       return;
     }
-    this.isUploading.set(true);
+
+    // Preview local, inmediato (no depende del upload).
     const reader = new FileReader();
     reader.onload = () => {
       this.previewUrl.set(reader.result as string);
-      this.isUploading.set(false);
-      this.fileSelected.emit(file);
     };
     reader.readAsDataURL(file);
+
+    // Upload al servidor (C.3 — endpoint real: POST /users/me/avatar,
+    // campo `avatar`).
+    this.isUploading.set(true);
+    this.userService.uploadProfileImage(file).subscribe({
+      next: (user) => {
+        this.isUploading.set(false);
+        this.photoUploaded.emit(user.avatar_url ?? '');
+        this.toastService.success('Foto de perfil actualizada.');
+      },
+      error: () => {
+        this.isUploading.set(false);
+        this.toastService.error('Error al subir la foto de perfil.');
+      },
+    });
   }
 
   isValidType(file: File): boolean {

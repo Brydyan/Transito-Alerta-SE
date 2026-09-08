@@ -30,7 +30,7 @@
           <h3 class="col-label">Foto de Perfil</h3>
           <app-profile-photo-uploader
             [initialUrl]="avatarUrl()"
-            (fileSelected)="onAvatarFileSelected($event)"
+            (photoUploaded)="onAvatarUploaded($event)"
           />
         </div>
 

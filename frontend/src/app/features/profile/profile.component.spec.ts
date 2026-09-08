@@ -5,45 +5,54 @@ import { of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 
 import { AuthService } from '../../core/services/auth.service';
-import { UsersService } from '../admin/users/services/users.service';
+import { UserService, UserProfile } from '../../core/services/user.service';
 import { ToastService } from '../../shared/components/toast/toast.service';
 
 import { ProfileComponent } from './profile.component';
 
-describe('ProfileComponent (F6 rediseño)', () => {
+/**
+ * F6 perfil-redesign fixes (`fixes-required.md` C.1/C.2/C.4) — el
+ * componente ya no usa la `UsersService` admin (`/users/:id`), sino
+ * el `UserService` dedicado (`/users/me`), con los campos reales del
+ * backend (`first_name`/`last_name`/`phone`).
+ */
+describe('ProfileComponent (F6 rediseño — fixes C.1/C.2/C.4)', () => {
   let component: ProfileComponent;
   let fixture: ComponentFixture<ProfileComponent>;
-  let mockUsersService: {
-    getUserById: jest.Mock;
-    updateMe: jest.Mock;
+  let mockUserService: {
+    getCurrentUser: jest.Mock;
+    updateProfile: jest.Mock;
+    uploadProfileImage: jest.Mock;
   };
   let mockToast: { success: jest.Mock; error: jest.Mock };
 
-  const fixtureUser = {
-    usuarioId: 1,
-    nombres: 'Juan',
-    apellidos: 'Pérez',
+  const fixtureUser: UserProfile = {
+    id: 'c3b1a2d4-0000-4000-8000-000000000001',
+    first_name: 'Juan',
+    last_name: 'Pérez',
     email: 'juan@test.com',
-    telefono: '+593991234567',
-    rol: { rolId: 1, nombre: 'ADMIN ORG' },
-    avatar: { url: 'https://cdn.example.com/avatar.jpg' },
+    phone: '+593991234567',
+    avatar_url: 'https://cdn.example.com/avatar.jpg',
+    updated_at: '2026-09-08T12:00:00.000Z',
   };
 
   /** Crea TestBed, instancia el component, espera la carga
-   *  asíncrona del `getUserById()` y aplica `detectChanges`. */
+   *  asíncrona del `getCurrentUser()` y aplica `detectChanges`. */
   function createComponent(): void {
     const mockAuthService = {
+      // C.1: `id` es un UUID string, no numérico.
       currentUser: signal({
-        id: 1,
+        id: 'c3b1a2d4-0000-4000-8000-000000000001',
         email: 'juan@test.com',
         name: 'Juan Pérez',
         roleName: 'ADMIN ORG',
       }),
       updateCurrentUser: jest.fn(),
     };
-    mockUsersService = {
-      getUserById: jest.fn().mockReturnValue(of(fixtureUser)),
-      updateMe: jest.fn().mockReturnValue(of(fixtureUser)),
+    mockUserService = {
+      getCurrentUser: jest.fn().mockReturnValue(of(fixtureUser)),
+      updateProfile: jest.fn().mockReturnValue(of(fixtureUser)),
+      uploadProfileImage: jest.fn().mockReturnValue(of(fixtureUser)),
     };
     mockToast = { success: jest.fn(), error: jest.fn() };
 
@@ -52,7 +61,7 @@ describe('ProfileComponent (F6 rediseño)', () => {
       providers: [
         provideRouter([]),
         { provide: AuthService, useValue: mockAuthService },
-        { provide: UsersService, useValue: mockUsersService },
+        { provide: UserService, useValue: mockUserService },
         { provide: ToastService, useValue: mockToast },
       ],
     }).compileComponents();
@@ -61,16 +70,17 @@ describe('ProfileComponent (F6 rediseño)', () => {
     fixture.detectChanges();
   }
 
-  it('se crea y carga los datos del usuario', waitForAsync(() => {
+  it('se crea y carga los datos del usuario vía UserService.getCurrentUser()', waitForAsync(() => {
     createComponent();
     fixture.whenStable().then(() => {
       fixture.detectChanges();
       expect(component).toBeTruthy();
+      expect(mockUserService.getCurrentUser).toHaveBeenCalledTimes(1);
       expect(component.profileForm.get('nombres')?.value).toBe('Juan');
       expect(component.profileForm.get('apellidos')?.value).toBe('Pérez');
       expect(component.profileForm.get('telefono')?.value).toBe('+593991234567');
       expect(component.displayEmail()).toBe('juan@test.com');
-      expect(component.roleName()).toBe('ADMIN ORG');
+      expect(component.avatarUrl()).toBe('https://cdn.example.com/avatar.jpg');
     });
   }));
 
@@ -121,13 +131,19 @@ describe('ProfileComponent (F6 rediseño)', () => {
     expect(component.profileForm.get('telefono')?.touched).toBe(true);
   });
 
-  it('onSubmit exitoso: llama updateMe, muestra toast y actualiza timestamp', waitForAsync(() => {
+  it('onSubmit exitoso: llama updateProfile con payload snake_case, muestra toast y actualiza timestamp', waitForAsync(() => {
     createComponent();
     fixture.whenStable().then(() => {
       fixture.detectChanges();
       component.onSubmit();
       fixture.whenStable().then(() => {
-        expect(mockUsersService.updateMe).toHaveBeenCalledTimes(1);
+        expect(mockUserService.updateProfile).toHaveBeenCalledTimes(1);
+        // C.2: campos en inglés/snake_case, no {nombres, apellidos, telefono}.
+        expect(mockUserService.updateProfile).toHaveBeenCalledWith({
+          first_name: 'Juan',
+          last_name: 'Pérez',
+          phone: '+593991234567',
+        });
         expect(mockToast.success).toHaveBeenCalledWith(
           'Perfil actualizado correctamente.',
           'Éxito',
@@ -142,7 +158,7 @@ describe('ProfileComponent (F6 rediseño)', () => {
     createComponent();
     fixture.whenStable().then(() => {
       fixture.detectChanges();
-      mockUsersService.updateMe.mockReturnValue(
+      mockUserService.updateProfile.mockReturnValue(
         throwError(() => new HttpErrorResponse({ status: 500 })),
       );
       component.onSubmit();
@@ -157,30 +173,22 @@ describe('ProfileComponent (F6 rediseño)', () => {
     });
   }));
 
-  it('onAvatarFileSelected guarda el file pendiente', waitForAsync(() => {
+  it('onAvatarUploaded refleja la url que confirma el servidor (upload ya ocurrió en el hijo)', waitForAsync(() => {
     createComponent();
     fixture.whenStable().then(() => {
       fixture.detectChanges();
-      const file = new File(['x'], 'avatar.jpg', { type: 'image/jpeg' });
-      component.onAvatarFileSelected(file);
-      mockUsersService.updateMe.mockClear();
-      component.onSubmit();
-      fixture.whenStable().then(() => {
-        expect(mockUsersService.updateMe).toHaveBeenCalledWith(
-          expect.objectContaining({}),
-          file,
-        );
-      });
+      component.onAvatarUploaded('https://cdn.example.com/new-avatar.jpg');
+      expect(component.avatarUrl()).toBe('https://cdn.example.com/new-avatar.jpg');
     });
   }));
 
-  it('getUserById 500: muestra toast de error y termina loading', waitForAsync(() => {
+  it('getCurrentUser 500: muestra toast de error y termina loading', waitForAsync(() => {
     createComponent();
     fixture.whenStable().then(() => {
       // Sobrescribe el mock y re-crea el component para que el
-      // ngOnInit corra con la falla. Es el patrón más simple
-      // sin re-arquitecturarlo.
-      mockUsersService.getUserById.mockReturnValue(
+      // ngOnInit corra con la falla. Es el patrón más simple sin
+      // re-arquitecturarlo.
+      mockUserService.getCurrentUser.mockReturnValue(
         throwError(() => new HttpErrorResponse({ status: 500 })),
       );
       const newFixture = TestBed.createComponent(ProfileComponent);
