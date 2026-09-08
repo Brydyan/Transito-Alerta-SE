@@ -62,7 +62,7 @@
 .date-picker-label {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--dark-text);
+  color: var(--color-on-tint-graphite);
 }
 
 .date-picker-nav {
@@ -114,7 +114,7 @@
   border-radius: 8px;
   background-color: transparent;
   font-size: 0.82rem;
-  color: var(--dark-text);
+  color: var(--color-on-tint-graphite);
   transition: all 0.15s ease;
 }
 
