@@ -37,12 +37,16 @@ export class RolesService {
       params = params.set('search', search.trim());
     }
     return this.http
-      .get<RoleListItem[] | { data: RoleListItem[]; meta?: { total?: number } }>(
-        this.rolesUrl,
-        { params, withCredentials: true },
-      )
+      .get<any[]>(this.rolesUrl, { params, withCredentials: true })
       .pipe(
-        map((res) => (Array.isArray(res) ? res : (res.data ?? []))),
+        map((res) => {
+          const roles = Array.isArray(res) ? res : res?.data ?? [];
+          return roles.map((r) => ({
+            rolId: r.id,
+            nombre: r.name,
+            permissionCount: r.permissions?.length ?? 0,
+          }));
+        })
       );
   }
 
