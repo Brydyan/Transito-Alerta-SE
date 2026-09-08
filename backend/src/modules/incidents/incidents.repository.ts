@@ -66,6 +66,7 @@ export interface CreateIncidentInput {
   zoneId: string | null;
   geofenceMatched: boolean;
   organizationId: string | null;
+  categoryId?: string | null;
   /** AUD (sc-327) D1 — `true` para publicación anónima. */
   isAnonymous: boolean;
 }
@@ -111,9 +112,9 @@ export class IncidentsRepository {
     const runner = manager ?? this.dataSource;
     const rows: IncidentRow[] = await runner.query(
       `INSERT INTO incidents
-         (title, description, location, status, priority, citizen_id, is_anonymous, zone_id, geofence_matched, organization_id)
+         (title, description, location, status, priority, citizen_id, is_anonymous, zone_id, geofence_matched, organization_id, category_id)
        VALUES
-         ($1, $2, ST_SetSRID(ST_Point($3, $4), 4326), 'pending', $5, $6, $7, $8, $9, $10)
+         ($1, $2, ST_SetSRID(ST_Point($3, $4), 4326), 'pending', $5, $6, $7, $8, $9, $10, $11)
        RETURNING ${getSelectColumns(input.citizenId)}`,
       [
         input.title,
@@ -126,6 +127,7 @@ export class IncidentsRepository {
         input.zoneId,
         input.geofenceMatched,
         input.organizationId,
+        input.categoryId ?? null,
       ],
     );
     return rows[0];

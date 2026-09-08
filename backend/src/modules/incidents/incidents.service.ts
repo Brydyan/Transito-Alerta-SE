@@ -126,6 +126,7 @@ export class IncidentsService {
               geofenceMatched: zoneId !== null,
               organizationId: org?.id ?? null,
               isAnonymous: true,
+              categoryId: dto.category_id ?? null,
             },
             manager,
           );
@@ -150,6 +151,7 @@ export class IncidentsService {
           geofenceMatched: zoneId !== null,
           organizationId: org?.id ?? null,
           isAnonymous: false,
+          categoryId: dto.category_id ?? null,
         });
 
     await this.purgeListCaches(zoneId);
