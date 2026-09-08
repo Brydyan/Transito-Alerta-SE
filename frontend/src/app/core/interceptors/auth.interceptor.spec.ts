@@ -6,7 +6,6 @@ import {
   withXsrfConfiguration,
 } from '@angular/common/http';
 import {
-  HttpClientTestingModule,
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';

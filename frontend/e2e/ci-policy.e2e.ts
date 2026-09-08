@@ -168,7 +168,7 @@ test.describe('C — Gate de actionlint en `.github/workflows/ci.yml`', () => {
   // describe: la mutación de C.3 puede invalidar cualquier lectura
   // previa).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const freshCi = () => readFileSync(CI_YML, 'utf8');
+  const _freshCi = () => readFileSync(CI_YML, 'utf8');
 
   test('C.1 — Job `workflows-lint` declarado y usa el contenedor oficial', () => {
     // El job debe estar en `ci.yml` (no en un workflow separado) y
