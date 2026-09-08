@@ -78,7 +78,7 @@
 
 ## Fix batch aplicado (`fixes-required.md`, post sdd-verify)
 
-- **C.1** `tasks.md` — 15/15 marcadas `[x]`, desviaciones anotadas
+- **C.1** `tasks.md` — 14/14 marcadas `[x]`, desviaciones anotadas
   inline.
 - **C.2** `apply-progress.md` — restaurado (se había escrito pero
   el commit original lo omitió por sync del filesystem; este
