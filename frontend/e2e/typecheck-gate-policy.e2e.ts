@@ -144,7 +144,7 @@ test.describe('D — El typecheck bloquea, sin excepciones', () => {
       cwd: FRONTEND_DIR,
       encoding: 'utf8',
     });
-    expect(result.status).toBe(1);
+    expect(result.status, `tsc -b exited with ${result.status} (expected non-zero)`).not.toBe(0);
     const combined = (result.stdout ?? '') + (result.stderr ?? '');
     expect(combined).toMatch(/auth\.service\.spec\.ts.*227/);
     expect(combined).toMatch(/TS2345/);

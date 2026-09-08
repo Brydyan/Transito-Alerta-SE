@@ -144,13 +144,13 @@ test.describe('B — El script `lint` existe y es ejecutable', () => {
     expect(
       require('fs').existsSync(resolve(frontendDir, 'node_modules/.bin/eslint')),
     ).toBe(true);
-    // Y —la condición de "sin reglas nuevas"— el repo no debe
-    // haber ganado un config NUEVO con este change. Lo que ya
-    // existía antes se respeta; lo que se añade acá queda
-    // registrado en `apply-progress.md` y se revierte.
+    // eslint.config.js fue añadido por 2026-09-03-tool-ci-gates de forma
+    // permanente (Section B). No se revierte. Los demás configs no deben
+    // existir.
+    const newConfigs = present.filter((f) => f !== 'eslint.config.js');
     expect(
-      present,
-      `este change añadió un config de eslint nuevo: ${present.join(', ')}`,
+      newConfigs,
+      `este change añadió un config de eslint nuevo: ${newConfigs.join(', ')}`,
     ).toEqual([]);
   });
 });
