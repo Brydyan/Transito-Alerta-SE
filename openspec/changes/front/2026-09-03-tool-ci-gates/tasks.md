@@ -56,6 +56,27 @@
 - [ ] **D.3** — Specs: falla por el defecto conocido, sin excepción temporal, anotado con
   dueño.
 
+## E · Limpieza de comentarios e2e contra staging
+
+Deuda anotada en `2026-09-03-e2e-test-user-and-credentials`: los specs de comentarios
+fueron dejados con `test.skip()` y TODOs pendientes de las features SC-208 y SC-209
+(incident-detail page + image upload).
+
+**Contexto**: el backend de comentarios existe desde SC-203, pero el frontend nunca terminó
+la página de detalle de incidentes. Los tests quedaron skiped y usaron una id dummy
+(`INCIDENT_ID = '123'`), pendientes de un seed real.
+
+- [ ] **E.1** — Leer `frontend/e2e/comment-flow.e2e.ts` completo. Documentar en
+  `apply-progress.md` el estado actual: qué TODOs hay, qué features son bloqueantes, cuál
+  es el criterio para re-habilitar.
+- [ ] **E.2** — Si SC-208 + SC-209 están en backlog sin fecha: registrar en
+  `openspec/ROADMAP.md`, en «Deuda técnica», que los specs de comentarios están skiped
+  hasta que la incident-detail page + composer UI estén listos. Especificar: qué test, qué
+  linea, qué bloqueante.
+- [ ] **E.3** — Si SC-208 + SC-209 terminan esta rama o anterior: actualizar
+  `comment-flow.e2e.ts`, ejecutar `pnpm test:e2e` contra staging, confirmar que pasan, y
+  marcar como completado. Sin este paso, el test sigue siendo un no-op.
+
 ---
 
 ## Qué NO hacer
