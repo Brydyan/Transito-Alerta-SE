@@ -4,6 +4,7 @@ import { map, tap } from 'rxjs/operators';
 import { HttpService } from './http.service';
 import {
   Incident,
+  IncidentImage,
   IncidentListFilters,
   IncidentListResult,
   CreateIncidentDto,
@@ -72,13 +73,13 @@ export class IncidentService {
     );
   }
 
-  uploadImages(incidentId: string, files: Blob[]): Observable<any> {
+  uploadImages(incidentId: string, files: Blob[]): Observable<IncidentImage[]> {
     const formData = new FormData();
     files.forEach((file, index) => {
       // Multer needs a filename with extension; raw Blobs have none.
       formData.append('images', file, `image_${index}.jpg`);
     });
-    return this.httpService.post<any>(`/incidents/${incidentId}/images`, formData);
+    return this.httpService.post<IncidentImage[]>(`/incidents/${incidentId}/images`, formData);
   }
 
   /**

@@ -104,3 +104,16 @@ export interface ClaimReleaseResult {
   organization_id: string | null;
   updated_at: Date;
 }
+
+/**
+ * F4 B.2 — Wire model for `POST /incidents/:id/images` and
+ * `DELETE /incidents/:id/images/:imageId`. Mirrors `IncidentImageDto`
+ * (backend) after `SnakeCaseResponseInterceptor` (snake_case throughout).
+ */
+export interface IncidentImage {
+  id: string;
+  url: string;
+  mime_type: string;
+  file_size: number;
+  created_at: Date;
+}
