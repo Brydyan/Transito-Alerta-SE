@@ -107,26 +107,8 @@ export class RolesComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadRoles();
-    this.loadStats();
   }
 
-  private loadStats(): void {
-    this.rolesService
-      .getRoleStats()
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        catchError((err: unknown) => {
-          // eslint-disable-next-line no-console
-          console.error('[Roles] stats failed:', err);
-          return of<RoleStats>({
-            totalPermissions: 0,
-            protectedModules: 0,
-            assignedUsers: 0,
-          });
-        }),
-      )
-      .subscribe((stats) => this.stats.set(stats));
-  }
 
   protected loadRoles(): void {
     this.isLoading.set(true);
