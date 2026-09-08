@@ -15,41 +15,41 @@
 
 ## A.1 — Migración
 
-- [ ] **A.1.1** — Consultar `database/MIGRATION_LOG.md` y reservar el número siguiente (la última aplicada es `0042`).
-- [ ] **A.1.2** — Escribir la migración con la tabla `incident_followers`: `id` uuid PK, `incident_id` FK → `incidents`, `user_id` FK → `users`, `created_at`, `UNIQUE (incident_id, user_id)`, índice sobre `user_id`.
-- [ ] **A.1.3** — Añadir `incident_corroborations`: mismas columnas más `comment` text NULL, `UNIQUE (incident_id, user_id)`, índice sobre `incident_id`.
-- [ ] **A.1.4** — Registrar en el catálogo de permisos `CREATE incident-followers`, `DELETE incident-followers` y `CREATE incident-corroborations`.
-- [ ] **A.1.5** — Actualizar `roles.permissions` en los cuatro roles (`master`, `operador_sistema`, `admin_org`, `operador_org`).
-- [ ] **A.1.6** — **Actualizar `users.permissions` de los usuarios ya existentes** (D5). `users.permissions` es una copia tomada al asignar el rol: tocar sólo `roles` deja a los usuarios actuales sin los permisos nuevos. Este es exactamente el fallo que ya se vivió en este proyecto.
-- [ ] **A.1.7** — Añadir la entrada correspondiente a `database/MIGRATION_LOG.md`.
-- [ ] **A.1.8** — Test de migración: aplicada sobre una base con usuarios preexistentes, su `users.permissions` contiene los permisos nuevos. Es la aserción que blinda A.1.6.
+- [x] **A.1.1** — Consultar `database/MIGRATION_LOG.md` y reservar el número siguiente (la última aplicada es `0042`).
+- [x] **A.1.2** — Escribir la migración con la tabla `incident_followers`: `id` uuid PK, `incident_id` FK → `incidents`, `user_id` FK → `users`, `created_at`, `UNIQUE (incident_id, user_id)`, índice sobre `user_id`.
+- [x] **A.1.3** — Añadir `incident_corroborations`: mismas columnas más `comment` text NULL, `UNIQUE (incident_id, user_id)`, índice sobre `incident_id`.
+- [x] **A.1.4** — Registrar en el catálogo de permisos `CREATE incident-followers`, `DELETE incident-followers` y `CREATE incident-corroborations`.
+- [x] **A.1.5** — Actualizar `roles.permissions` en los cuatro roles (`master`, `operador_sistema`, `admin_org`, `operador_org`).
+- [x] **A.1.6** — **Actualizar `users.permissions` de los usuarios ya existentes** (D5). `users.permissions` es una copia tomada al asignar el rol: tocar sólo `roles` deja a los usuarios actuales sin los permisos nuevos. Este es exactamente el fallo que ya se vivió en este proyecto.
+- [x] **A.1.7** — Añadir la entrada correspondiente a `database/MIGRATION_LOG.md`.
+- [x] **A.1.8** — Test de migración: aplicada sobre una base con usuarios preexistentes, su `users.permissions` contiene los permisos nuevos. Es la aserción que blinda A.1.6.
 
 ## A.2 — Entidades
 
-- [ ] **A.2.1** — `incident-follower.entity.ts`: entidad TypeORM con índice único compuesto. **Sin borrado lógico** (D3): dejar de seguir es retractación, y una fila marcada como borrada rompería el `UNIQUE` que sostiene la idempotencia.
-- [ ] **A.2.2** — `incident-corroboration.entity.ts`: ídem, con `comment` nullable.
+- [x] **A.2.1** — `incident-follower.entity.ts`: entidad TypeORM con índice único compuesto. **Sin borrado lógico** (D3): dejar de seguir es retractación, y una fila marcada como borrada rompería el `UNIQUE` que sostiene la idempotencia.
+- [x] **A.2.2** — `incident-corroboration.entity.ts`: ídem, con `comment` nullable.
 
 ## A.3 — Servicio
 
-- [ ] **A.3.1** — Specs primero de `incident-social.service.ts`: seguir idempotente; dejar de seguir algo no seguido devuelve éxito sin cambiar el conteo; corroborar dos veces ⇒ 409; el autor corroborando su propia incidencia ⇒ 409.
-- [ ] **A.3.2** — Implementar `follow()` idempotente: la violación de `UNIQUE` se traduce en éxito, no en error (D2).
-- [ ] **A.3.3** — Implementar `unfollow()` idempotente.
-- [ ] **A.3.4** — Implementar `corroborate()`: la violación de `UNIQUE` se traduce en 409 (D2, asimetría deliberada respecto a seguir).
-- [ ] **A.3.5** — Rechazar con 409 la corroboración del propio autor: crear el reporte ya es su testimonio.
+- [x] **A.3.1** — Specs primero de `incident-social.service.ts`: seguir idempotente; dejar de seguir algo no seguido devuelve éxito sin cambiar el conteo; corroborar dos veces ⇒ 409; el autor corroborando su propia incidencia ⇒ 409.
+- [x] **A.3.2** — Implementar `follow()` idempotente: la violación de `UNIQUE` se traduce en éxito, no en error (D2).
+- [x] **A.3.3** — Implementar `unfollow()` idempotente.
+- [x] **A.3.4** — Implementar `corroborate()`: la violación de `UNIQUE` se traduce en 409 (D2, asimetría deliberada respecto a seguir).
+- [x] **A.3.5** — Rechazar con 409 la corroboración del propio autor: crear el reporte ya es su testimonio.
 
 ## A.4 — Conteos agregados
 
-- [ ] **A.4.1** — Ampliar `incidents.service.ts` para exponer `follower_count`, `corroboration_count`, `is_followed_by_me` e `is_corroborated_by_me` (D4).
-- [ ] **A.4.2** — Resolver los conteos por agregación en la consulta (`LEFT JOIN LATERAL` o subconsulta) y las banderas con `EXISTS` parametrizado por el usuario actual.
-- [ ] **A.4.3** — **Test de número de consultas**: un listado paginado no emite una consulta por fila. Se afirma sobre la cantidad de consultas, no sobre el tiempo — el feed es la pantalla más visitada y el N+1 aquí es el más caro del sistema.
+- [x] **A.4.1** — Ampliar `incidents.service.ts` para exponer `follower_count`, `corroboration_count`, `is_followed_by_me` e `is_corroborated_by_me` (D4).
+- [x] **A.4.2** — Resolver los conteos por agregación en la consulta (`LEFT JOIN LATERAL` o subconsulta) y las banderas con `EXISTS` parametrizado por el usuario actual.
+- [x] **A.4.3** — **Test de número de consultas**: un listado paginado no emite una consulta por fila. Se afirma sobre la cantidad de consultas, no sobre el tiempo — el feed es la pantalla más visitada y el N+1 aquí es el más caro del sistema.
 
 ## A.5 — Controlador y notificaciones
 
-- [ ] **A.5.1** — `incident-social.controller.ts`: `POST`/`DELETE /api/incidents/:id/followers`, `POST /api/incidents/:id/corroborations`, con sus guards de permiso.
-- [ ] **A.5.2** — Incidencia inexistente ⇒ 404; petición sin sesión ⇒ 401.
-- [ ] **A.5.3** — Notificar a los seguidores al cambiar el estado de una incidencia, **excluyendo a quien provocó el cambio**.
-- [ ] **A.5.4** — Test: incidencia sin seguidores cambia de estado sin generar notificaciones y sin fallar.
-- [ ] **A.5.5** — `npm run lint && npm run typecheck && npm test && npm run test:e2e` desde `backend/`.
+- [x] **A.5.1** — `incident-social.controller.ts`: `POST`/`DELETE /api/incidents/:id/followers`, `POST /api/incidents/:id/corroborations`, con sus guards de permiso.
+- [x] **A.5.2** — Incidencia inexistente ⇒ 404; petición sin sesión ⇒ 401.
+- [x] **A.5.3** — Notificar a los seguidores al cambiar el estado de una incidencia, **excluyendo a quien provocó el cambio**.
+- [x] **A.5.4** — Test: incidencia sin seguidores cambia de estado sin generar notificaciones y sin fallar.
+- [x] **A.5.5** — `npm run lint && npm run typecheck && npm test && npm run test:e2e` desde `backend/`.
 
 ## A.6 — Despliegue
 
