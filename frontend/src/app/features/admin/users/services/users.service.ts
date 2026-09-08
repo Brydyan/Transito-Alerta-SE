@@ -136,11 +136,11 @@ export class UsersService {
 
   getRoles(): Observable<Role[]> {
     return this.http
-      .get<any[]>(this.rolesUrl, { withCredentials: true })
+      .get<any[] | { data: any[] }>(this.rolesUrl, { withCredentials: true })
       .pipe(
         map((res) => {
           const roles = Array.isArray(res) ? res : res?.data ?? [];
-          return roles.map((r) => ({
+          return roles.map((r: any) => ({
             rolId: r.id,
             nombre: r.name,
           }));
