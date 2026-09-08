@@ -36,24 +36,24 @@ describe('ActionMenuComponent (F6 rediseño)', () => {
   });
 
   it('emite edit al elegir Editar en el menú', () => {
-    component.open.set(true);
+    (component as any).open.set(true);
     fixture.detectChanges();
     const emitted: (string | number)[] = [];
     component.edit.subscribe((id) => emitted.push(id));
     const items = fixture.nativeElement.querySelectorAll('.menu-item') as NodeListOf<HTMLButtonElement>;
     items[0].click();
     expect(emitted).toEqual([42]);
-    expect(component.open()).toBe(false);
+    expect((component as any).open()).toBe(false);
   });
 
   it('emite delete al elegir Eliminar en el menú', () => {
-    component.open.set(true);
+    (component as any).open.set(true);
     fixture.detectChanges();
     const emitted: (string | number)[] = [];
     component.delete.subscribe((id) => emitted.push(id));
     const items = fixture.nativeElement.querySelectorAll('.menu-item') as NodeListOf<HTMLButtonElement>;
     items[1].click();
     expect(emitted).toEqual([42]);
-    expect(component.open()).toBe(false);
+    expect((component as any).open()).toBe(false);
   });
 });

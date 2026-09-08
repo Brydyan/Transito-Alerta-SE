@@ -34,8 +34,8 @@ describe('ProfileActionCardsComponent (F6 rediseño)', () => {
 
   it('las 3 secciones del mock 10-01 están presentes', () => {
     const titles = Array.from(
-      fixture.nativeElement.querySelectorAll('.card-title'),
-    ).map((t: Element) => t.textContent?.trim().toLowerCase() ?? '');
+      fixture.nativeElement.querySelectorAll('.card-title') as NodeListOf<Element>,
+    ).map((t) => t.textContent?.trim().toLowerCase() ?? '');
     expect(titles.some((t) => t.includes('contraseña'))).toBe(true);
     expect(titles.some((t) => t.includes('zona'))).toBe(true);
     expect(titles.some((t) => t.includes('soporte'))).toBe(true);

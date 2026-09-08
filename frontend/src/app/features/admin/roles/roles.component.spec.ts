@@ -156,7 +156,7 @@ describe('RolesComponent (F6 rediseño)', () => {
     mockRolesService.getRoles.mockReturnValue(of([
       { rolId: 99, nombre: 'sin_permisos' /* sin permissionCount */ },
     ]));
-    component.loadRoles();
+    (component as any).loadRoles();
     fixture.detectChanges();
     const badge = fixture.nativeElement.querySelector('.permission-badge') as HTMLElement;
     expect(badge.textContent).toContain('—');
