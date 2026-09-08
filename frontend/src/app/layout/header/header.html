@@ -69,10 +69,9 @@
               />
             </div>
           </button>
+          @if (userDropdownOpen()) {
           <ul
             class="absolute right-0 mt-2 w-48 bg-white border border-border-subtle rounded-lg shadow-lg py-1 z-[1000]"
-            [class.hidden]="!userDropdownOpen()"
-            [class.block]="userDropdownOpen()"
           >
             <li>
               <a
@@ -104,6 +103,7 @@
               </button>
             </li>
           </ul>
+          }
         </div>
       }
     </div>
