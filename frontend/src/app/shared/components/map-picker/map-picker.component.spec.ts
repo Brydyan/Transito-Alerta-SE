@@ -1,13 +1,23 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MapPickerComponent } from './map-picker.component';
+import { GeolocationService } from '../../../core/services/geolocation.service';
+import { of } from 'rxjs';
 
 describe('MapPickerComponent', () => {
   let component: MapPickerComponent;
   let fixture: ComponentFixture<MapPickerComponent>;
+  let geolocationServiceMock: any;
 
   beforeEach(async () => {
+    geolocationServiceMock = {
+      getCurrentLocation: jest.fn().mockReturnValue(of({ latitude: 10, longitude: 20 }))
+    };
+
     await TestBed.configureTestingModule({
-      imports: [MapPickerComponent]
+      imports: [MapPickerComponent],
+      providers: [
+        { provide: GeolocationService, useValue: geolocationServiceMock }
+      ]
     }).compileComponents();
 
     fixture = TestBed.createComponent(MapPickerComponent);
