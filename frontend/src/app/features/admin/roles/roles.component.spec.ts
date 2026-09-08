@@ -136,4 +136,29 @@ describe('RolesComponent (F6 rediseño)', () => {
     component.onDelete(5);
     expect(mockRolesService.deleteRole).not.toHaveBeenCalled();
   });
+
+  // F6 fix batch (W.1) — los badges de permisos muestran el
+  // `permissionCount` del backend. Mock 04-01 los espera como
+  // 48 / 32 / 24 / 18 / 8 (en el orden de la lista). La aserción
+  // cuenta los badges y verifica el orden — sin depender del
+  // backend en el spec.
+  it('S3: los badges de permisos muestran el permissionCount del backend en orden', () => {
+    fixture.detectChanges();
+    const badges = fixture.nativeElement.querySelectorAll('.permission-badge');
+    expect(badges.length).toBe(5);
+    const labels = Array.from(badges as NodeListOf<HTMLElement>).map((b) =>
+      b.textContent?.trim() ?? '',
+    );
+    expect(labels).toEqual(['48', '32', '24', '18', '8']);
+  });
+
+  it('S3: un rol sin permissionCount muestra "—" (D5: cero es un valor, no un placeholder)', () => {
+    mockRolesService.getRoles.mockReturnValue(of([
+      { rolId: 99, nombre: 'sin_permisos' /* sin permissionCount */ },
+    ]));
+    component.loadRoles();
+    fixture.detectChanges();
+    const badge = fixture.nativeElement.querySelector('.permission-badge') as HTMLElement;
+    expect(badge.textContent).toContain('—');
+  });
 });
