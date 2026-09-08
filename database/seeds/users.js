@@ -32,6 +32,8 @@
  */
 'use strict';
 
+require('dotenv').config({ path: __dirname + '/.env' });
+
 const { Client, bcrypt } = require('./lib/deps');
 const { enforce } = require('./lib/guard');
 

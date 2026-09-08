@@ -1,4 +1,5 @@
-import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { LayoutService } from '../../core/services/layout.service';
@@ -6,10 +7,9 @@ import { UiIconComponent } from '../../shared/components/ui-icon/ui-icon.compone
 
 @Component({
   selector: 'app-header',
-  imports: [RouterModule, UiIconComponent],
+  imports: [CommonModule, RouterModule, UiIconComponent],
   templateUrl: './header.html',
   styleUrl: './header.css',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:click)': 'onDocumentClick($event)',
   },
@@ -18,14 +18,14 @@ export class Header {
   readonly authService = inject(AuthService);
   readonly layoutService = inject(LayoutService);
   readonly router = inject(Router);
-  readonly userDropdownOpen = signal(false);
+  userDropdownOpen = signal(false);
 
   toggleSidebar(): void {
     this.layoutService.toggleSidebar();
   }
 
   toggleUserDropdown(): void {
-    this.userDropdownOpen.update((value) => !value);
+    this.userDropdownOpen.set(!this.userDropdownOpen());
   }
 
   closeUserDropdown(): void {

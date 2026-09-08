@@ -34,7 +34,7 @@
 
       <!-- User Profile Dropdown -->
       @if (authService.currentUser(); as user) {
-        <div class="relative">
+        <div class="relative dropdown">
           <button
             class="flex items-center gap-2 p-0 bg-transparent border-none cursor-pointer"
             type="button"
@@ -69,8 +69,8 @@
               />
             </div>
           </button>
-          @if (userDropdownOpen()) {
           <ul
+            *ngIf="userDropdownOpen()"
             class="absolute right-0 mt-2 w-48 bg-white border border-border-subtle rounded-lg shadow-lg py-1 z-[1000]"
           >
             <li>
@@ -103,7 +103,6 @@
               </button>
             </li>
           </ul>
-          }
         </div>
       }
     </div>

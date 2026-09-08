@@ -35,7 +35,32 @@ export class UsersService {
     let params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
     if (role) params = params.set('role', role);
     if (org) params = params.set('org', org);
-    return this.http.get<PaginatedUsersResponse>(this.usersUrl, { params, withCredentials: true });
+    return this.http
+      .get<{ items: any[]; total: number }>(this.usersUrl, { params, withCredentials: true })
+      .pipe(
+        map((res) => ({
+          data: res.items.map((item) => ({
+            usuarioId: item.id,
+            email: item.email,
+            nombres: item.first_name || '',
+            apellidos: item.last_name || '',
+            telefono: item.phone || '',
+            avatar: null,
+            rol: item.role ? { rolId: item.role_id, nombre: item.role } : null,
+            organizationId: item.organization_id,
+          })),
+          meta: {
+            total: res.total,
+            page,
+            limit,
+            ultimaPagina: Math.ceil(res.total / limit),
+            paginaActual: page,
+            porPagina: limit,
+            anterior: page > 1 ? page - 1 : null,
+            siguiente: page < Math.ceil(res.total / limit) ? page + 1 : null,
+          },
+        }))
+      );
   }
 
   getUserById(id: number): Observable<UserDetail> {
