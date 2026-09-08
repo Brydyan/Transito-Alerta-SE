@@ -5,6 +5,7 @@ import { map } from 'rxjs/operators';
 import { environment } from '../../../../../environments/environment';
 import {
   RoleListItem,
+  RoleStats,
   PermissionItem,
   RoleDetail,
   UpdateRolePayload,
@@ -15,9 +16,62 @@ export class RolesService {
   private readonly http = inject(HttpClient);
   private readonly rolesUrl = `${environment.apiUrl}/roles`;
   private readonly permissionsUrl = `${environment.apiUrl}/permissions`;
+  private readonly statsUrl = `${environment.apiUrl}/roles/stats`;
 
-  getRoles(): Observable<RoleListItem[]> {
-    return this.http.get<RoleListItem[]>(this.rolesUrl, { withCredentials: true });
+  /**
+   * GET /api/roles — lista paginada con búsqueda opcional.
+   * F6 (`2026-09-08-f6-roles-redesign`).
+   *
+   * El backend puede responder con un array plano o un envelope
+   * `{ data, meta }` — el `map` aplana a `RoleListItem[]`. La forma
+   * de cada item se enriquece con `permissionCount` e `isSystemRole`
+   * (backend lo devuelve como parte del rol en el wire shape).
+   */
+  getRoles(
+    page: number = 1,
+    limit: number = 25,
+    search?: string,
+  ): Observable<RoleListItem[]> {
+    let params = new HttpParams().set('page', String(page)).set('limit', String(limit));
+    if (search && search.trim().length > 0) {
+      params = params.set('search', search.trim());
+    }
+    return this.http
+      .get<RoleListItem[] | { data: RoleListItem[]; meta?: { total?: number } }>(
+        this.rolesUrl,
+        { params, withCredentials: true },
+      )
+      .pipe(
+        map((res) => (Array.isArray(res) ? res : (res.data ?? []))),
+      );
+  }
+
+  /**
+   * GET /api/roles/stats — métricas agregadas para las 3 cards del
+   * pie. Aplana envelope a un `RoleStats` (con fallback a ceros).
+   */
+  getRoleStats(): Observable<RoleStats> {
+    return this.http
+      .get<RoleStats | { data: RoleStats }>(this.statsUrl, { withCredentials: true })
+      .pipe(
+        map((res) => {
+          const stats = (res && 'data' in res ? (res as { data: RoleStats }).data : (res as RoleStats)) ?? ({} as RoleStats);
+          return {
+            totalPermissions: stats.totalPermissions ?? 0,
+            protectedModules: stats.protectedModules ?? 0,
+            assignedUsers: stats.assignedUsers ?? 0,
+          };
+        }),
+      );
+  }
+
+  /**
+   * DELETE /api/roles/{id} — backend devuelve 204 No Content
+   * usualmente. El 403 se traduce a un mensaje claro en el
+   * componente (D7: sin `*hasPermission`).
+   */
+  deleteRole(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.rolesUrl}/${id}`, { withCredentials: true });
   }
 
   getRoleById(id: number): Observable<RoleDetail> {
