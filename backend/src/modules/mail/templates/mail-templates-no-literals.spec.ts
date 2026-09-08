@@ -70,7 +70,7 @@ describe('mail-templates.ts — el nombre del producto no se escribe a mano (MAI
     // remitente y la recuperación de contraseña de otro.
     // El conteo de invocaciones a `productFooter()` debe
     // ser ≥ la cantidad de entradas en `TEMPLATES` (8 en
-    // la ronda 14). Usar `≥` en vez de `=` tolera que una
+    // sc-330). Usar `≥` en vez de `=` tolera que una
     // plantilla use el footer en más de un punto (p.ej.
     // `existing_account_attempt` lo concatena al final
     // del return).

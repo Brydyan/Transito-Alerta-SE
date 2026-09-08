@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/angular';
+import { render, waitFor } from '@testing-library/angular';
 import { of, throwError } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 import { LocationFormComponent } from './location-form.component';

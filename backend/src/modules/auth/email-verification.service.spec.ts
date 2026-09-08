@@ -148,7 +148,7 @@ describe('EmailVerificationService', () => {
     it('C.1: encola la plantilla existing_account_attempt con los datos { ip, userAgent, attemptedAt }', async () => {
       // Este método no tenía test en el round 0. La omisión
       // es la causa raíz del defecto: nadie verificaba que
-      // la plantilla existiera en el registro. La ronda 14
+      // la plantilla existiera en el registro. sc-330
       // añade cobertura análoga a la de `generateAndSendOtp`.
       userRepo.findOne.mockResolvedValue(makeUser({ email: 'titular@example.com' }));
       mailService.enqueue.mockResolvedValue('stream-id');

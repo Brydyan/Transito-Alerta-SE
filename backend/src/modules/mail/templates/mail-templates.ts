@@ -51,7 +51,7 @@ const TEMPLATES: Record<TemplateName, TemplateFn> = {
   // is still passed through `field()` like every other interpolated value
   // (task 7.1: "the token string itself must be escaped via field() like
   // every other interpolated value").
-  // H.4 (ronda 14, D11) — el respaldo "Transito Alerta SE"
+  // H.4 (sc-330, D11) — el respaldo "Transito Alerta SE"
   // era el nombre del proyecto (TASE), no del producto. Pasa
   // a ser `PRODUCT_NAME` (GeoReporta). El renombrado toca
   // sólo lo que el usuario ve; `main.ts:77` (título de
@@ -107,20 +107,16 @@ export function renderMailTemplate(name: TemplateName, data: Record<string, unkn
   return fn(data);
 }
 
-/** Nombres que el código encola. Exportado para que el spec
- * (MAIL C.2) pueda derivar la cobertura sin enumerarlos a mano
- * en el test: lo que el código encola tiene que estar cubierto
- * por `TEMPLATES`. Si el código añade un nombre y olvida el
- * registro, este array NO se actualiza automáticamente — el test
- * sigue enumerando sólo los nombres que ya están en el union.
- * La protección real contra "nombre inventado" es el tipo. */
-export const ENQUEUED_TEMPLATE_NAMES: ReadonlyArray<TemplateName> = [
-  'incident.created',
-  'incident.assigned',
-  'incident.status_changed',
-  'comment.created',
-  'invitation',
-  'password-reset',
-  'email_verification',
-  'existing_account_attempt',
-];
+// La cobertura del registro `TEMPLATES` está garantizada por el sistema
+// de tipos: `Record<TemplateName, TemplateFn>` exige que CADA miembro de
+// la unión `TemplateName` tenga una entrada, y un nombre que no esté en
+// la unión no compila. El test que vivía acá (C.2 de sc-330) era
+// una tautología que enforzaba al runtime lo que el compilador ya
+// garantiza.
+//
+// El caso que el compilador NO puede ver — una entrada que llega desde
+// Redis con un nombre que ya no existe en el union — está cubierto por
+// `mail-outbox.consumer.spec.ts` ('sends an unknown template straight to
+// mail:dead'), que es donde el nombre entra como dato y la comprobación
+// runtime sirve de algo. Esa es la costura real de este módulo, no la
+// que el C.2 afirmaba recorrer.

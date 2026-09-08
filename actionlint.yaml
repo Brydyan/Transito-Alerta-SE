@@ -1,0 +1,15 @@
+# actionlint configuration — change `2026-09-03-tool-ci-gates`, D4.
+#
+# `rehearsal-staging.yml:43` corre con `runs-on: [self-hosted, staging]`.
+# `staging` es una etiqueta del runner self-hosted del proyecto, no una
+# de las que GitHub Actions provee por defecto; actionlint la marca
+# como "unknown label" sin este mapa.
+#
+# Sin esta config, el gate entraría en rojo desde el día uno por un
+# hallazgo que NO es un defecto: el runner existe y el workflow corre.
+# "Un gate con excepción temporal es un gate con excepción permanente"
+# (D3). Declarar la etiqueta acá deja el gate limpio y protege
+# contra regresiones reales (claves mal puestas, schedule suelto, etc.).
+self-hosted-runner:
+  labels:
+    - staging

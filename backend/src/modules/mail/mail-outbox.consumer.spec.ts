@@ -118,7 +118,7 @@ describe('MailOutboxConsumer', () => {
       await consumer.processEntry('3-0', entryFields({ data: 'not-json' }));
 
       expect(mailService.deliver).not.toHaveBeenCalled();
-      // D.1 (ronda 14) — el XADD lleva `MAXLEN ~ 1000` para
+      // D.1 (sc-330) — el XADD lleva `MAXLEN ~ 1000` para
       // acotar el crecimiento de `mail:dead` (el cuerpo puede
       // incluir el OTP en claro).
       expect(redis.xadd).toHaveBeenCalledWith(
@@ -170,7 +170,7 @@ describe('MailOutboxConsumer', () => {
       await consumer.sweep();
 
       expect(redis.xclaim).not.toHaveBeenCalled();
-      // D.1 (ronda 14) — `deadLetterById` es el otro path al
+      // D.1 (sc-330) — `deadLetterById` es el otro path al
       // stream de dead; a diferencia de `deadLetter`, NO
       // recibe el MAXLEN porque el caller ya pasó por el
       // consumer principal y la entrada está siendo

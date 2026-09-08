@@ -164,7 +164,7 @@ export class MailOutboxConsumer implements OnModuleInit, OnModuleDestroy {
 
   private async deadLetter(entryId: string, fields: string[]): Promise<void> {
     this.logger.error(`[deadLetter] Entry ${entryId} moved to ${MAIL_DEAD_STREAM_KEY} (unretryable - data defect)`);
-    // D.1 (ronda 14) — acotar el crecimiento de `mail:dead`.
+    // D.1 (sc-330) — acotar el crecimiento de `mail:dead`.
     // Las entradas guardan el cuerpo del mensaje, y para la
     // verificación eso incluye el OTP en claro. Cada fallo
     // deja un código legible para cualquiera con acceso a

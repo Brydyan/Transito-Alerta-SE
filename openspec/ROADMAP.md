@@ -18,6 +18,36 @@ contra 8 rutas.
 
 ---
 
+## Lo que corre distinto en tu máquina que en CI · anotado 2026-09-06
+
+Tres veces en un solo change (sc-330). No es casualidad: es la forma de defecto que este
+proyecto produce con más facilidad, y la que menos se ve, porque **cada lado sólo mira el
+suyo**.
+
+| Qué | Lado permisivo | Por qué |
+|---|---|---|
+| `SMTP_HOST` en el arnés e2e | **CI** | `.env` está en `.gitignore`: en CI no existe, la variable queda sin definir y el test pasa. En local, el `.env` del dev se colaba y fallaba |
+| `pnpm run … -- --flag` | local | pnpm reenvía el `--` literal; sólo se notaba al ejecutar la línea exacta del workflow |
+| Hora de Ecuador en el correo | **local** | el helper sumaba `getTimezoneOffset()` del runtime; en una máquina GMT-5 el error se cancelaba y en CI (UTC) no |
+
+**La regla que sale de esto**: cuando un valor forma parte del producto —una hora, un
+remitente, un límite— no puede depender de dónde se calcula. Y cuando un test verde
+depende del entorno, es peor que no tenerlo, porque afirma una garantía que no da.
+
+**Cómo detectarlo antes de que lo haga CI**:
+
+```bash
+TZ=UTC pnpm test          # CI corre en UTC; tu máquina, no
+env -i PATH=$PATH …       # sin el .env del dev, como el checkout limpio de CI
+```
+
+El caso de la hora venía además con un comentario que afirmaba *«la aserción no compara
+contra una hora exacta (depende del timezone del runtime)»* — comparaba contra una hora
+exacta, y esa dependencia era justamente el defecto. Un comentario que describe la
+garantía contraria a la del código es el patrón que ya apareció en AUD y en C.2 de sc-330.
+
+---
+
 ## Los dos nombres · decidido 2026-09-06
 
 **TASE** es el proyecto. **GeoReporta** es la aplicación — el nombre que ve el ciudadano.
@@ -98,7 +128,7 @@ internamente — ver «Ciudadano» más abajo.
 | — | **REG** Auto-registro ✅ | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano se registra, verifica su correo y publica — **completada y archivada 2026-09-05**, tras 10 rondas de verify y dos archivados revertidos |
 | — | **ANON** Cerrar sin sesión ✅ | [326](https://app.shortcut.com/upse/story/326) | 3 | El login anónimo devuelve 401; el techo de permisos queda vacío — **completada y archivada 2026-09-05** |
 | — | **AUD** Auditoría y revelación ✅ | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría — **completada y archivada 2026-09-06**, tras 3 rondas de verify y un archivado prematuro revertido |
-| — | **MAIL** El correo nunca salió | [330](https://app.shortcut.com/upse/story/330) | 5 | Dos plantillas que no existían, `trust proxy`, confirmación de correo, la marca. **Bloquea F4** |
+| — | **MAIL** El correo nunca salió ✅ | [330](https://app.shortcut.com/upse/story/330) | 5 | Dos plantillas que no existían, `trust proxy`, confirmación de correo, la marca — **completada y archivada 2026-09-06**, 3 rondas de verify. Desbloquea F4 |
 | 5 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
 | 6 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
 | 7 | **F5** Menús dinámicos | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura |
@@ -392,7 +422,8 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 | 🔶 **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos. ANON cerró el camino; falta que AUD selle la autoría del reporte anónimo del ciudadano autenticado | `auth.config.ts` | ANON ✅ archivada 2026-09-05 · AUD pendiente |
 | **No hay tabla de auditoría** — F7 la necesita para la excepción al tope | — | AUD |
 | «Volver al inicio» del login es `href="#!"` | `login.component.html:147` | REG (apunta a `/registro`) |
-| **Compuerta de typecheck es un no-op** — `npx tsc -p tsconfig.json --noEmit` revisa 0 archivos (`files: []`); el comando real es `npx tsc -b tsconfig.json --noEmit` | `frontend/tsconfig.json` + `frontend/tsconfig.spec.json` | Sin ticket — detectado en sc-324; afecta toda ejecución de verificación de tipos en el frontend |
+| **Compuerta de typecheck es un no-op** — `npx tsc -p tsconfig.json --noEmit` revisa 0 archivos (`files: []`); el comando real es `npx tsc -b tsconfig.json --noEmit` | `frontend/tsconfig.json` + `frontend/tsconfig.spec.json` | TOOL ✅ (cambio `2026-09-03-tool-ci-gates`) |
+| **`TS2345` en `InvitationPreview.organization_name`** — `string \| null` no asignable a `string` en `auth.service.spec.ts:227`. TOOL lo **expone** (la compuerta arreglada ahora lo ve) y no lo arregla: decidir si `organization_name` puede ser nulo en una preview de invitación es una pregunta de modelo de dominio, no de herramientas. Mientras esto siga en rojo, el typecheck del frontend falla — eso es lo correcto, el gate está haciendo su trabajo. | `frontend/src/app/core/services/auth.service.spec.ts:227` ↔ `InvitationPreview` (modelo) | Primer work item que cierre el gate. **Esta fase lo documenta con dueño y NO lo arregla.** |
 
 **Patrón común: reglas implementadas a medias** — aplicadas en el camino por donde entró
 la funcionalidad y no en el añadido después.
@@ -458,6 +489,29 @@ resultan indistinguibles.
 Hoy no es alcanzable (10 entradas, 2 rutas multi-segmento, ambas reales). **Se vuelve
 alcanzable a medida que el menú crezca**, y F2, F3 y F4 añaden destinos. **Dueño natural:
 F5**, que sustituye `MENU_MAP` por tablas en BD y rehace ese test igual.
+
+### `comment-flow.e2e.ts` queda como no-op hasta la incident-detail page
+
+El spec `frontend/e2e/comment-flow.e2e.ts` está `test.skip()` desde SC-203
+(2026-08-27). El test afirma sobre un composer de comentarios que existe en backend
+pero nunca terminó de aterrizar en el frontend. La cobertura real del flujo vive en
+`src/app/features/incidents/...` specs unitarios; este e2e es la red anti-regresión
+cuando el camino completo está listo.
+
+- **Test / línea**: `frontend/e2e/comment-flow.e2e.ts:25` (F2.1) — único caso
+  restante, con un `test.skip()` explícito.
+- **Bloqueante**: incident-detail page (frontend) + composer UI. SC-208 cerró
+  la **mitad backend** de la historia (POST `/comments` con image upload) pero
+  la página de detalle que la monta en la SPA no existe. SC-209 quedó registrada
+  como SC-208 + image-upload, sin cierre formal en una fase.
+- **Criterio de re-habilitar**: el spec vuelve a correr cuando ambos
+  (SC-208 frontend + composer) estén cerrados. `apply-progress.md` del change
+  que cierre el último lo actualiza.
+- **Riesgo de no hacerlo**: los specs crean comentarios contra staging
+  compartido y nada los limpia. Crece con cada corrida. **Bloqueado por
+  E.3 (no-op hasta entonces) y por la pregunta de quién es el dueño del
+  cleanup** — anotado en `2026-09-03-e2e-test-user-and-credentials/apply-progress.md`
+  como Q1 sin resolver.
 
 ---
 

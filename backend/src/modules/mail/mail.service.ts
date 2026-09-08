@@ -102,7 +102,7 @@ export class MailService {
       to,
       subject,
       html,
-      // H.2 (ronda 14, D11) — el remitente lleva nombre visible,
+      // H.2 (sc-330, D11) — el remitente lleva nombre visible,
       // no la dirección pelada. Sin nombre, en la bandeja se
       // lee «no-reply@georeporta.twintailcs.xyz», y eso es lo
       // primero que decide si el titular abre o marca como no

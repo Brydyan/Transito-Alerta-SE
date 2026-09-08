@@ -53,7 +53,7 @@ export class OfflineSyncService {
 
     for (const incident of pending) {
       try {
-        const createdIncident = await lastValueFrom(this.incidentService.createIncident({
+        const _createdIncident = await lastValueFrom(this.incidentService.createIncident({
           title: incident.title,
           description: incident.description,
           lat: incident.latitude,

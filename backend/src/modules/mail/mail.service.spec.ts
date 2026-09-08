@@ -108,7 +108,7 @@ describe('MailService', () => {
           auth: { user: 'user', pass: 'secret' },
         }),
       );
-      // H.2 (ronda 14, D11) — el `from` lleva el nombre del
+      // H.2 (sc-330, D11) — el `from` lleva el nombre del
       // producto delante de la dirección. Sin nombre, en la
       // bandeja se leería sólo la dirección pelada y eso es
       // lo que decide si el titular abre o marca como no

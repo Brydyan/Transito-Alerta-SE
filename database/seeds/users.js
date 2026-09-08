@@ -48,6 +48,19 @@ const SEED_USERS = Object.freeze([
   { role: 'operador_org', email: 'operador-org-2@tase.local', firstName: 'Operador', lastName: 'Org Dos' },
 ]);
 
+// Usuario dedicado a la suite e2e. NO entra en SEED_USERS porque su
+// siembra es CONDICIONAL a la presencia de E2E_PASSWORD (D3 del change
+// `2026-09-03-e2e-test-user-and-credentials`). Su rol es `operador_org`
+// (D1): atraviesa los guards de permiso como un usuario real, en vez
+// de saltárselos como haría un master. La organización es la misma
+// que los seis de demo (CTE - Santa Elena).
+const E2E_USER = Object.freeze({
+  role: 'operador_org',
+  email: 'e2e@tase.local',
+  firstName: 'E2E',
+  lastName: 'Test',
+});
+
 const DEFAULT_SEED_PASSWORD = 'ChangeMe!Demo2026';
 const DEFAULT_ORG_NAME = 'CTE - Santa Elena';
 
@@ -70,6 +83,32 @@ function readBcryptCost(opts) {
     return envCost;
   }
   return DEFAULT_BCRYPT_COST;
+}
+
+/**
+ * Resuelve la contraseña del usuario e2e desde el entorno.
+ *
+ * Decisión deliberada (D3 del change `2026-09-03-e2e-test-user-and-credentials`):
+ * NO existe una constante `DEFAULT_E2E_PASSWORD` análoga a
+ * `DEFAULT_SEED_PASSWORD`. Staging está publicado a internet por el Tailscale
+ * Funnel; una cuenta `operador_org` con contraseña pública es una cuenta
+ * regalada. Si `E2E_PASSWORD` está ausente o vacía, el usuario e2e no se
+ * siembra — y eso es lo correcto, no una falla.
+ *
+ * A diferencia de `SEED_PASSWORD`, este secret pertenece al ciclo de vida
+ * de la máquina, no al del humano: la contraseña de los seis de demo se
+ * rota a mano, la del e2e vive en un secret del runner. Mezclar ambas
+ * variables acoplaría la rotación humana a la disponibilidad de CI.
+ *
+ * Devuelve `null` cuando no hay contraseña — el caller trata `null` como
+ * "no se siembra", no como error.
+ */
+function readE2ePassword() {
+  const envPassword = process.env.E2E_PASSWORD;
+  if (typeof envPassword === 'string' && envPassword.length > 0) {
+    return envPassword;
+  }
+  return null;
 }
 
 /**
@@ -173,6 +212,11 @@ async function upsertUser(client, params) {
  * (los tests E2E inyectan uno contra MigrationHarness) o crea/abre/cierra
  * uno propio si el caller pasa un objeto `connection`.
  *
+ * Siembra primero los seis usuarios de demo (siempre que haya
+ * `DEFAULT_SEED_PASSWORD`/`SEED_PASSWORD` o el secret del caller) y,
+ * condicionalmente, al usuario e2e (`E2E_PASSWORD`). El usuario e2e
+ * NUNCA se siembra con una contraseña por defecto: ver `readE2ePassword`.
+ *
  * @param {import('pg').Client} client
  * @param {object} [opts]
  * @param {boolean} [opts.force]
@@ -191,6 +235,12 @@ async function run(client, opts = {}) {
   const roleIds = new Map();
   for (const u of SEED_USERS) {
     if (!roleIds.has(u.role)) roleIds.set(u.role, await resolveRoleId(client, u.role));
+  }
+  // El rol del usuario e2e puede coincidir con uno de los seis, pero
+  // resolverlo acá evita una query repetida y deja una sola fuente de
+  // verdad sobre qué roles se asumieron existentes.
+  if (!roleIds.has(E2E_USER.role)) {
+    roleIds.set(E2E_USER.role, await resolveRoleId(client, E2E_USER.role));
   }
   const orgId = await resolveOrganizationId(client, DEFAULT_ORG_NAME);
 
@@ -218,6 +268,34 @@ async function run(client, opts = {}) {
     if (r.inserted) inserted += 1;
     else skipped += 1;
     users.push({ email: u.email, role: u.role, ...r });
+  }
+
+  // Usuario e2e: sembrado CONDICIONAL a la presencia de E2E_PASSWORD.
+  // Si no está, no es un error — es la decisión de diseño D3: sin
+  // secret, no se crea una cuenta `operador_org` con contraseña que
+  // cualquiera pueda leer en el repo.
+  const e2ePassword = readE2ePassword();
+  if (e2ePassword !== null) {
+    if (!orgId) {
+      throw new Error(
+        `users.js: el usuario e2e (rol "${E2E_USER.role}") requiere la organización ` +
+          `"${DEFAULT_ORG_NAME}" pero no existe. Aplica 0041_geography_organizations_seed.sql antes.`,
+      );
+    }
+    const e2eHash = await bcrypt.hash(e2ePassword, cost);
+    const r = await upsertUser(client, {
+      deviceUuid: deviceUuidFor(E2E_USER.email),
+      email: E2E_USER.email,
+      passwordHash: e2eHash,
+      firstName: E2E_USER.firstName,
+      lastName: E2E_USER.lastName,
+      role: E2E_USER.role,
+      roleId: roleIds.get(E2E_USER.role),
+      organizationId: orgId,
+    });
+    if (r.inserted) inserted += 1;
+    else skipped += 1;
+    users.push({ email: E2E_USER.email, role: E2E_USER.role, ...r });
   }
 
   return { inserted, skipped, users };
@@ -253,7 +331,7 @@ async function main() {
   }
 }
 
-module.exports = { run, SEED_USERS, DEFAULT_ORG_NAME, DEFAULT_SEED_PASSWORD };
+module.exports = { run, SEED_USERS, E2E_USER, DEFAULT_ORG_NAME, DEFAULT_SEED_PASSWORD };
 
 if (require.main === module) {
   main();

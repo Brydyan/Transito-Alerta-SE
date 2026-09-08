@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { AuthService } from './auth.service';
+import { InvitationPreview } from '../models/auth.model';
 import { environment } from '../../../environments/environment';
 
 /**
@@ -223,7 +224,7 @@ describe('AuthService', () => {
   };
 
   it('SC-207.5: previewInvitation sends the token as a query param and resolves the preview', () => {
-    const results: Array<typeof preview> = [];
+    const results: InvitationPreview[] = [];
     service.previewInvitation('inv-token-123').subscribe((res) => results.push(res));
     const req = http.expectOne(
       (r) => r.url === `${environment.apiUrl}/invitations/preview` && r.params.get('token') === 'inv-token-123',

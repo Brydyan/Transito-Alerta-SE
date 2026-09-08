@@ -2,7 +2,6 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { of, throwError } from 'rxjs';
 
 import { RegisterComponent } from './register.component';
 import { AuthService } from '../../../core/services/auth.service';
@@ -25,7 +24,7 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
   let component: RegisterComponent;
   let fixture: import('@angular/core/testing').ComponentFixture<RegisterComponent>;
   let http: HttpTestingController;
-  const base = 'http://localhost:3001/api';
+  const _base = 'http://localhost:3001/api';
 
   const validPayload = {
     email: 'nuevo@example.com',

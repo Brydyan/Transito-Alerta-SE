@@ -176,12 +176,48 @@ export class TestEnvironment {
     // MailModule always loads (AppModule) — shrink the sweep/idle windows
     // so mail.e2e-spec.ts's retry scenario doesn't wait out the 10s/30s
     // production defaults, without faking timers around real Redis I/O.
+    // sc-330 CRITICAL-1 — el arnés sobreescribe TODA la infraestructura
+    // (base, Redis, JWT, rate limit) y hasta acá dejaba fuera el correo.
+    // `CoreModule` carga `backend/.env` incondicionalmente, así que el
+    // valor de la máquina de quien corre los tests se colaba: con un
+    // `SMTP_HOST=localhost:1025` apuntando a un MailHog que nadie levanta,
+    // `deliverViaSmtp` intenta una conexión real, falla, y la entrada
+    // termina en `mail:dead` — justo lo que los tests de C.4 comprueban
+    // que NO debe pasar.
+    //
+    // Peor que un test frágil: `.env` está en `.gitignore`, así que en CI
+    // no existe y la variable queda sin definir. El resultado era rojo en
+    // local y verde en CI, con CI del lado permisivo. La misma ceguera que
+    // la compuerta de migraciones de `ci.yml` (ver el archive-report de
+    // ANON): el comportamiento difería entre los dos lados y el que
+    // decidía era el que no veía el problema.
+    //
+    // Vacío fuerza el camino de sólo-registro de `deliverViaSmtp`, que es
+    // lo que el arnés quiere: recorrer el camino entero sin mandar correo.
+    process.env.SMTP_HOST = '';
+
     process.env.MAIL_SWEEP_INTERVAL_MS = '300';
     process.env.MAIL_CLAIM_IDLE_MS = '500';
     // XREADGROUP BLOCK timeout: 1s in tests (vs 5s prod) so entries
     // enqueued between loop calls are seen within ~1s, not ~5s (which gives
     // sweep time to intercept and exhaust).
     process.env.MAIL_XREADGROUP_BLOCK_MS = '1000';
+
+    // mail.e2e-spec.ts contracts "SMTP_HOST is unset in this harness
+    // (log-only fallback)" — but backend/.env ships SMTP_HOST=localhost /
+    // SMTP_PORT=1025 (MailHog), which ConfigModule.forRoot loads below.
+    // Left as-is, `deliver` tries 127.0.0.1:1025, gets ECONNREFUSED,
+    // MailOutboxConsumer classifies it as a transient transport failure, and
+    // after `maxAttempts` sweep retries the entry lands in `mail:dead` —
+    // exactly the C.4 outcome the spec proves never happens. Re-seed the
+    // SMTP_* keys to empty strings before compile(): dotenv will not
+    // overwrite an already-present process.env key, so `smtpHost` resolves
+    // to undefined and the log-only transport is real. (Same cleanup the
+    // harness performs on DATABASE_URL above.)
+    process.env.SMTP_HOST = '';
+    process.env.SMTP_PORT = '';
+    process.env.SMTP_USER = '';
+    process.env.SMTP_PASSWORD = '';
 
     // StatusHistoryModule always loads (AppModule) — same shrink rationale
     // as Mail's tunables above (design D2): fast sweep/idle windows so the
@@ -204,7 +240,7 @@ export class TestEnvironment {
     // T4.3a — keep the harness in lockstep with main.ts so security-headers
     // e2e assertions see what production sees.
     app.use(helmet());
-    // MAIL G.1 (ronda 14, D10) — `trust proxy` por dirección,
+    // MAIL G.1 (sc-330, D10) — `trust proxy` por dirección,
     // mismo ajuste que `main.ts`. Sin esto, los tests que
     // simulan peticiones a través de nginx (G.4, dos IPs
     // distintas con X-Forwarded-For) verían `req.ip =
@@ -225,7 +261,16 @@ export class TestEnvironment {
     // RedisIoAdapter.createIOServer only binds once a real HTTP server is
     // listening; app.init() alone would leave the socket.io server never
     // constructed, silently diverging from main.ts.
-    await app.listen(0);
+    //
+    // Explicit IPv4 loopback host: with the default (dual-stack) listen,
+    // Node 17+ accepts the harness's own localhost connection as
+    // `::ffff:127.0.0.1`, `isTrustedProxyAddress` (IPv4-only by design)
+    // rejects it, Express treats every request as coming from the same
+    // `req.ip`, and trust-proxy-rate-limit.e2e-spec.ts (G.4) fails with A
+    // and B sharing one rate-limit bucket. Binding to 127.0.0.1 makes
+    // `req.socket.remoteAddress` plain IPv4, matching both the trust-proxy
+    // contract and that spec's documented assumption.
+    await app.listen(0, '127.0.0.1');
 
     const appRedisClient = app.get<Redis>(REDIS_CLIENT);
     const cacheManager = app.get<Cache<RedisStore>>(CACHE_MANAGER);

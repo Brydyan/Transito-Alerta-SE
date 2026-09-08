@@ -32,8 +32,12 @@ const baseIncident: Pick<Incident, 'status' | 'claimed_by' | 'priority' | 'id'> 
   priority: 'medium',
 };
 
-const ALL_USER_PERMS = ['UPDATE incidents', 'CLOSE incidents', 'ASSIGN assignments'];
+const ALL_USER_PERMS = ['UPDATE incidents', 'CLOSE incidents', 'ASSIGN assignments', 'CLAIM incidents', 'RELEASE incidents'];
 const UPDATE_ONLY = ['UPDATE incidents'];
+const CLAIM_ONLY = ['CLAIM incidents'];
+const RELEASE_ONLY = ['RELEASE incidents'];
+const _CLAIM_RELEASE = ['CLAIM incidents', 'RELEASE incidents'];
+const OPERATOR_PERMS = ['UPDATE incidents', 'CLAIM incidents', 'RELEASE incidents'];
 const CLOSE_ONLY = ['CLOSE incidents'];
 const NO_PERMS: string[] = [];
 const ASSIGN_ONLY = ['ASSIGN assignments'];
@@ -53,8 +57,8 @@ function actions(
 
 describe('availableActions (F3.3.2 — status × permissions × claim)', () => {
   describe('pending', () => {
-    it('+ UPDATE, unclaimed ⇒ claim', () => {
-      expect(actions('pending', UPDATE_ONLY, null)).toEqual(['claim']);
+    it('+ CLAIM, unclaimed ⇒ claim', () => {
+      expect(actions('pending', CLAIM_ONLY, null)).toEqual(['claim']);
     });
 
     it('+ CLOSE only (without UPDATE) ⇒ empty (W3 — doble puerta del backend)', () => {
@@ -65,7 +69,7 @@ describe('availableActions (F3.3.2 — status × permissions × claim)', () => {
       expect(actions('pending', CLOSE_ONLY, null)).toEqual([]);
     });
 
-    it('+ UPDATE + CLOSE + ASSIGN ⇒ claim + close + assign (order: claim, close, assign)', () => {
+    it('+ ALL_USER_PERMS, unclaimed ⇒ claim + close + assign (order: claim, close, assign)', () => {
       expect(actions('pending', ALL_USER_PERMS, null)).toEqual([
         'claim',
         'close',
@@ -73,15 +77,15 @@ describe('availableActions (F3.3.2 — status × permissions × claim)', () => {
       ]);
     });
 
-    it('+ UPDATE, claimed by another ⇒ no claim (and no release — you don\'t hold it)', () => {
-      expect(actions('pending', UPDATE_ONLY, OTHER_USER)).toEqual([]);
+    it('+ CLAIM, claimed by another ⇒ no claim (and no release — you don\'t hold it)', () => {
+      expect(actions('pending', CLAIM_ONLY, OTHER_USER)).toEqual([]);
     });
 
-    it('+ UPDATE, claimed by the same user (rare but legal) ⇒ no claim', () => {
+    it('+ CLAIM, claimed by the same user (rare but legal) ⇒ no claim', () => {
       // claimed_by === currentUserId but status is still pending.
       // This is a data anomaly; availableActions is conservative and
       // offers neither claim (already yours) nor release (not in_progress).
-      expect(actions('pending', UPDATE_ONLY, MOCK_USER)).toEqual([]);
+      expect(actions('pending', CLAIM_ONLY, MOCK_USER)).toEqual([]);
     });
 
     it('+ ASSIGN only ⇒ assign (admin can route unassigned work)', () => {
@@ -94,15 +98,15 @@ describe('availableActions (F3.3.2 — status × permissions × claim)', () => {
   });
 
   describe('in_progress', () => {
-    it('+ UPDATE, claimed by me ⇒ release + resolve (no claim — I already hold it)', () => {
+    it('+ RELEASE + UPDATE, claimed by me ⇒ release + resolve (no claim — I already hold it)', () => {
       // The order is the order the buttons render in the detail page.
-      expect(actions('in_progress', UPDATE_ONLY, MOCK_USER)).toEqual([
+      expect(actions('in_progress', OPERATOR_PERMS, MOCK_USER)).toEqual([
         'release',
         'resolve',
       ]);
     });
 
-    it('+ UPDATE + CLOSE + ASSIGN, claimed by me ⇒ release + resolve + close + assign', () => {
+    it('+ RELEASE + UPDATE + CLOSE + ASSIGN, claimed by me ⇒ release + resolve + close + assign', () => {
       // Close is a viable outcome for me too: "I can\'t resolve, admin
       // let me give up" — the button is reachable for the claimer
       // when they also hold CLOSE. The claimer with ASSIGN can also
@@ -115,9 +119,9 @@ describe('availableActions (F3.3.2 — status × permissions × claim)', () => {
       ]);
     });
 
-    it('+ UPDATE, claimed by another ⇒ no claim, no release, no resolve', () => {
+    it('+ OPERATOR_PERMS, claimed by another ⇒ no claim, no release, no resolve', () => {
       // F3.3.2 — the third scenario in the spec.
-      expect(actions('in_progress', UPDATE_ONLY, OTHER_USER)).toEqual([]);
+      expect(actions('in_progress', OPERATOR_PERMS, OTHER_USER)).toEqual([]);
     });
 
     it('+ UPDATE + CLOSE, claimed by another ⇒ close (admin overrides the claimer)', () => {
@@ -127,12 +131,17 @@ describe('availableActions (F3.3.2 — status × permissions × claim)', () => {
       expect(actions('in_progress', ['UPDATE incidents', 'CLOSE incidents'], OTHER_USER)).toEqual(['close']);
     });
 
+    it('+ RELEASE only (without UPDATE), claimed by me ⇒ release only (operador_sistema)', () => {
+      // operador_sistema tiene CLAIM/RELEASE pero no UPDATE incidents en los seeds (0015+0019).
+      // Puede liberar, pero no resolver (PATCH status exige UPDATE incidents).
+      expect(actions('in_progress', RELEASE_ONLY, MOCK_USER)).toEqual(['release']);
+    });
+
+    it('+ UPDATE only (without RELEASE), claimed by me ⇒ resolve only', () => {
+      expect(actions('in_progress', UPDATE_ONLY, MOCK_USER)).toEqual(['resolve']);
+    });
+
     it('+ CLOSE only (without UPDATE) ⇒ empty even in_progress (W3)', () => {
-      // Doble puerta: cerrar exige ambos permisos. El escenario
-      // `+ CLOSE only, in_progress, claimed by me` ya está cubierto
-      // por el in_progress×CLOSE-only anterior; acá fijamos el
-      // caso "sin UPDATE" para que un futuro refactor no introduzca
-      // la trampa del 403 sorpresivo.
       expect(actions('in_progress', CLOSE_ONLY, MOCK_USER)).toEqual([]);
     });
 

@@ -1,4 +1,4 @@
-import { ENQUEUED_TEMPLATE_NAMES, renderMailTemplate } from './mail-templates';
+import { renderMailTemplate } from './mail-templates';
 
 describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', () => {
   describe('invitation', () => {
@@ -153,18 +153,35 @@ describe('renderMailTemplate — existing_account_attempt (MAIL A.2/A.5, D4/D9)'
     expect(html).not.toMatch(/<a[^>]+href/i);
   });
 
-  it('el momento del intento se muestra en hora local (no UTC)', () => {
-    // El helper convierte a GMT-5 (Ecuador). Una fecha que en
-    // UTC es 00:33:41, en Ecuador es 19:33:41 del día
-    // anterior. La aserción no compara contra una hora exacta
-    // (depende del timezone del runtime), pero verifica que
-    // aparece una hora en formato "HH:MM" y el sufijo "(GMT-5)".
+  it('el momento se muestra en hora de Santa Elena (UTC-5), no en UTC', () => {
+    // 19:33:41 UTC son las 14:33 en Ecuador (GMT-5, sin horario
+    // de verano). La aserción es la hora EXACTA a propósito: la
+    // versión anterior esperaba `19:33 (GMT-5)` —la hora UTC sin
+    // convertir, con la etiqueta puesta igual— y pasaba sólo
+    // porque el helper sumaba el offset del runtime y en una
+    // máquina en Ecuador los dos errores se cancelaban. En CI,
+    // que corre en UTC, se separaron.
     const html = renderMailTemplate('existing_account_attempt', {
       ip: '190.15.142.87',
       userAgent: 'Chrome/120',
       attemptedAt: '2026-09-06T19:33:41.123Z',
     });
-    expect(html).toMatch(/19:33 \(GMT-5\)/);
+    expect(html).toContain('14:33 (GMT-5)');
+    expect(html).toContain('6 de septiembre de 2026');
+  });
+
+  it('la conversión cruza el día correctamente', () => {
+    // 02:15 UTC del día 7 son las 21:15 del día 6 en Ecuador.
+    // Este caso es el que delata un error de signo o un offset
+    // tomado del runtime: comprueba la hora Y el día, así que
+    // una conversión que no ocurre o que va al revés no puede
+    // pasarlo por casualidad.
+    const html = renderMailTemplate('existing_account_attempt', {
+      ip: '190.15.142.87',
+      userAgent: 'Chrome/120',
+      attemptedAt: '2026-09-07T02:15:00.000Z',
+    });
+    expect(html).toContain('6 de septiembre de 2026, 21:15 (GMT-5)');
   });
 
   it('escapa user-agent con marcado HTML (R13)', () => {
@@ -177,20 +194,5 @@ describe('renderMailTemplate — existing_account_attempt (MAIL A.2/A.5, D4/D9)'
     // Si el user-agent es HTML, el helper no puede describir
     // nada reconocible; el fallback es "desconocido".
     expect(html).toContain('desconocido');
-  });
-});
-
-describe('renderMailTemplate — todos los nombres encolados están cubiertos (MAIL C.2)', () => {
-  // El test recorre la costura: por cada nombre que el código
-  // encola (derivado de `ENQUEUED_TEMPLATE_NAMES`), `renderMailTemplate`
-  // lo acepta sin lanzar. El test NO enumera los nombres a mano:
-  // eso volvería a partir la costura en dos (lo que este test
-  // existe para evitar).
-  it('todos los `ENQUEUED_TEMPLATE_NAMES` se renderizan sin error', () => {
-    for (const name of ENQUEUED_TEMPLATE_NAMES) {
-      expect(() =>
-        renderMailTemplate(name, { _placeholder: 'x' }),
-      ).not.toThrow();
-    }
   });
 });

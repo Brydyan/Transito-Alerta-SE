@@ -111,6 +111,34 @@ jobs:
           list-files: none
           initial-fetch-depth: 100
 
+  # ─── actionlint: gate de workflows (D4) ────────────────────────────
+  # Sin coste real y atrapa regresiones estructurales: claves
+  # mal puestas, `schedule:` suelto a nivel raíz, referencias
+  # inválidas. Es la red que habría cazado el `ci.yml` inválido que
+  # permaneció días en `351eec0`.
+  #
+  # - `-config-file /repo/actionlint.yaml` es OBLIGATORIO: actionlint
+  #   auto-descubre su config sólo cuando se llama sin argumentos; con
+  #   paths explícitos hay que pasarla por flag. El config declara la
+  #   etiqueta `staging` del runner self-hosted (ver
+  #   `actionlint.yaml`).
+  # - `docker run --rm` con el contenedor oficial `rhysd/actionlint`,
+  #   no una action de terceros (D4).
+  workflows-lint:
+    name: Workflows — actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint workflows
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            -w /repo \
+            rhysd/actionlint:latest \
+            -config-file /repo/actionlint.yaml \
+            .github/workflows/*.yml
+
   backend:
     # En push (merge a develop/main) SIEMPRE corre. En PR, sólo si el
     # filtro `changes` detectó paths del set `backend`.
@@ -155,7 +183,7 @@ jobs:
       - run: pnpm test
 
   integration:
-    name: Integration — e2e harness against real Postgres+PostGIS and Redis
+    name: Integration — e2e ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
     # Skip en PR si nada del set `integration` cambió. En push SIEMPRE
     # corre como gate final. Reemplaza el filtro anterior (que sólo
@@ -164,6 +192,37 @@ jobs:
     if: |
       github.event_name == 'push' ||
       needs.changes.outputs.integration == 'true'
+
+    # sc-330 — la suite e2e se PARTICIONA en cuatro, no se recorta.
+    #
+    # `test-environment.ts` levanta un PostGIS y un Redis por archivo de
+    # spec (su propio comentario: "una instancia por archivo"), y
+    # `jest-e2e.json` fija `maxWorkers: 1`. Con 50 archivos eso son ~11
+    # minutos en serie, y crece con cada spec nuevo.
+    #
+    # `--shard=N/4` reparte los ARCHIVOS entre cuatro corredores. Los
+    # cuatro juntos ejecutan exactamente la misma suite que antes: esto
+    # divide el trabajo, no lo reduce. Recortar la suite en la compuerta
+    # de merge sería lo contrario de lo que la compuerta existe para
+    # hacer — es el único sitio donde nadie va a mirar lo que se saltó.
+    #
+    # Es seguro porque no hay estado compartido entre archivos: cada uno
+    # trae sus propios contenedores y los tira al terminar. Por eso mismo
+    # el particionado no ahorra arranques de contenedor, sólo los pone en
+    # paralelo. Bajar ese coste pide reutilizar contenedores entre
+    # archivos, que es la deuda que el propio `test-environment.ts`
+    # anota ("revisar si ese supuesto deja de valer" — ya dejó de valer,
+    # con 50 archivos).
+    #
+    # `fail-fast: false` para ver TODAS las particiones que fallan en una
+    # corrida. Con el valor por defecto, la primera en romperse cancela
+    # las otras tres y el informe queda incompleto justo cuando más hace
+    # falta.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
     defaults:
       run:
         working-directory: backend
@@ -192,7 +251,47 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm run test:e2e
+      # SIN el separador `--`, y no es un descuido: pnpm lo reenvía LITERAL
+      # al comando de abajo en vez de consumirlo (npm sí lo consume). El `--`
+      # llega a jest como primer argumento posicional, su parser deja de
+      # reconocer `--shard=N/4` como opción y lo trata como patrón de ruta:
+      #
+      #   $ pnpm run test:e2e -- --shard=1/4
+      #   Pattern: --shard=1/4 - 0 matches
+      #   No tests found, exiting with code 1
+      #
+      # Las cuatro particiones fallarían así en cada push, en rojo y sin
+      # haber ejecutado un solo test. Si alguien "arregla" esto volviendo a
+      # poner el `--`, eso es lo que rompe.
+      - run: pnpm run test:e2e --shard=${{ matrix.shard }}/4
+
+  # sc-330 — Agregador. Existe SÓLO para conservar el nombre de check que
+  # tenía el job `integration` antes de particionarse.
+  #
+  # Al añadir una matriz, GitHub renombra los checks a "… (1)", "… (2)"…
+  # Si `develop` o `main` exigen la comprobación con el nombre viejo, esos
+  # checks dejan de existir y los PR se quedan esperando indefinidamente
+  # uno que nunca va a llegar — bloqueados sin un error que lo explique.
+  # Este job mantiene el contrato: mismo nombre, verde sólo si las cuatro
+  # particiones pasaron.
+  #
+  # `if: always()` es obligatorio: sin él, el agregador se salta cuando se
+  # salta `integration`, y un check requerido que se salta bloquea igual.
+  # Por eso la condición distingue "skipped" (correcto: el PR no tocó nada
+  # de integración) de "failure"/"cancelled" (no correcto).
+  integration-gate:
+    name: Integration — e2e harness against real Postgres+PostGIS and Redis
+    runs-on: ubuntu-latest
+    needs: integration
+    if: always()
+    steps:
+      - name: Comprobar el resultado de las cuatro particiones
+        run: |
+          echo "resultado de integration: ${{ needs.integration.result }}"
+          case "${{ needs.integration.result }}" in
+            success|skipped) echo "OK"; exit 0 ;;
+            *)               echo "alguna partición no pasó"; exit 1 ;;
+          esac
 
   migrations:
     name: Migrations — apply to a clean PostGIS database
@@ -376,6 +475,25 @@ jobs:
       # desincronizados, falla en vez de resolver silenciosamente.
       - run: pnpm install --frozen-lockfile
 
+      # TOOL (`2026-09-03-tool-ci-gates`, D1) — typecheck real con `-b`.
+      # `frontend/tsconfig.json` es un *solution tsconfig* (files: [],
+      # sólo `references`); el comando viejo `npx tsc --noEmit -p
+      # tsconfig.json` compilaba cero archivos y siempre pasaba. Con
+      # `-b` recorre los dos proyectos referenciados (app + spec) y
+      # falla con cualquier error de tipos.
+      #
+      # Esta compuerta **nace en rojo a propósito** (D3): aflora un
+      # TS2345 legítimo en `auth.service.spec.ts:227` (decidir si
+      # `InvitationPreview.organization_name` puede ser nulo es una
+      # pregunta de dominio, no de tooling). El primer work item que
+      # cierre el typecheck tiene que arreglar ese error. Mientras
+      # tanto, el gate cumple su trabajo de no mentir.
+      #
+      # Sin `continue-on-error`, sin exenciones, sin lista de archivos
+      # exentos: un gate con excepción temporal es un gate con
+      # excepción permanente (D3).
+      - run: pnpm exec tsc -b tsconfig.json --noEmit --force
+
       # ts-jest (transpila + typecheck) corre los .spec.ts que
       # importan los services. Si un cambio rompe la firma de
       # `auth.service.ts` o del interceptor, jest falla acá.
@@ -439,9 +557,23 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Cambio `2026-09-03-e2e-test-user-and-credentials` (D5): cachear
+      # `~/.cache/ms-playwright` ata al lockfile de pnpm, no a una
+      # versión de Playwright a mano. Si el lockfile cambia, la versión
+      # del navegador puede cambiar con él; atar al lockfile evita el
+      # escenario "lockfile estable + navegador desactualizado" sin
+      # obligar a editar el workflow cada vez que Playwright bumpea.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
       # Playwright necesita el browser binary. `--with-deps`
       # instala también las libs del sistema (libnss, libxss, etc.)
-      # que el browser usa en Linux.
+      # que el browser usa en Linux. **No** lo cubre la caché de
+      # arriba (son paquetes apt), pero reinstalarlos es barato
+      # comparado con el navegador.
       - run: pnpm exec playwright install --with-deps chromium
 
       # Sin `BASE_URL`, playwright arranca el dev server local vía
@@ -451,9 +583,15 @@ jobs:
       # that hid every prior failure). If the backend is unreachable
       # in CI the job goes red — the proposal accepts that trade-off
       # because a green-by-default frontend e2e gate proves nothing.
+      #
+      # Cambio `2026-09-03-e2e-test-user-and-credentials` (D4 + C.1):
+      # `E2E_PASSWORD` se inyecta como secret. El helper distingue
+      # "sin backend" (skip) de "backend sin secret" (falla); sin
+      # este env, el segundo caso era un skip silencioso.
       - name: Run Playwright tests
         env:
           BASE_URL: ${{ vars.STAGING_BASE_URL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: pnpm run test:e2e --reporter=list
 
       - name: Upload Playwright report

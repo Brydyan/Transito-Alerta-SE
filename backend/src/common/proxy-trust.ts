@@ -48,21 +48,36 @@ export function ipToLong(ip: string): number {
 /**
  * Devuelve `true` si la IP declarada está dentro de
  * `TRUSTED_PROXY_NETWORKS`, `false` en cualquier otro
- * caso (incluida IP vacía, IPv6 o CIDR desconocido).
+ * caso (incluida IP vacía, IPv6 puro o CIDR desconocido).
  *
  * Es la función que `main.ts` pasa a `app.set('trust
  * proxy', …)`. Express la invoca con
  * `req.socket.remoteAddress` y, según el resultado,
  * acepta o descarta el `X-Forwarded-For` que el cliente
  * incluyó.
+ *
+ * **IPv4-mapped IPv6** (`::ffff:127.0.0.1`): Node resuelve
+ * una conexión TCP entrante en IPv6 cuando el socket está
+ * en modo dual-stack, aunque la peer sea IPv4. Sin el
+ * strip del prefijo, la comparación contra redes IPv4
+ * siempre falla y `trust proxy` queda inactivo. La
+ * consecuencia sería que `req.ip` siempre es la dirección
+ * del peer TCP (no la del `X-Forwarded-For`), lo que en
+ * este proyecto rompe el rate limit por IP del alta
+ * (G.4): todos los clientes que llegan por el mismo
+ * balanceador compartirían el cupo de 5 intentos/hora.
  */
 export function isTrustedProxyAddress(addr: string | undefined | null): boolean {
   if (!addr) return false;
+  // Strip `::ffff:` (IPv4-mapped IPv6) para llegar al
+  // IPv4 subyacente. La red interna del proyecto es IPv4
+  // only; una conexión IPv6 pura se descarta.
+  const ipv4 = addr.startsWith('::ffff:') ? addr.slice(7) : addr;
   for (const cidr of TRUSTED_PROXY_NETWORKS) {
     const [net, bits = '32'] = cidr.split('/');
     const network = ipToLong(net);
     const mask = bits === '32' ? -1 : ~((1 << (32 - Number(bits))) - 1);
-    const addrLong = ipToLong(addr);
+    const addrLong = ipToLong(ipv4);
     if (((addrLong & mask) >>> 0) === ((network & mask) >>> 0)) {
       return true;
     }

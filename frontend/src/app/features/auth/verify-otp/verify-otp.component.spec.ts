@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { of, throwError } from 'rxjs';
+import { of } from 'rxjs';
 
 import { VerifyOtpComponent } from './verify-otp.component';
 import { AuthService } from '../../../core/services/auth.service';
@@ -37,7 +37,7 @@ import { AuthService } from '../../../core/services/auth.service';
  *    → los tests de form-invalid caen.
  */
 describe('VerifyOtpComponent (REG sc-325 C.6)', () => {
-  const base = 'http://localhost:3001/api';
+  const _base = 'http://localhost:3001/api';
 
   function setup() {
     // Stub de AuthService con `fetchUser` que devuelve un
