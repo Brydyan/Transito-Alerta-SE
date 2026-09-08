@@ -20,9 +20,9 @@ Redesign roles admin list with ui-table, search, and permissions badge. Reuse ui
 - Out: Edit role form (separate change)
 
 ## Definition of Done
-- [x] List renders 5 roles per mock
-- [x] Search filters by name
-- [x] Permissions badge shows count (48, 32, 24, etc.)
-- [x] Stats cards display correct numbers
-- [x] `pnpm test` passes
-- [x] E2E suite green
+- [ ] List renders 5 roles per mock
+- [ ] Search filters by name
+- [ ] Permissions badge shows count (48, 32, 24, etc.)
+- [ ] Stats cards display correct numbers
+- [ ] `pnpm test` passes
+- [ ] E2E suite green
