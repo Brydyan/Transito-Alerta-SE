@@ -329,7 +329,7 @@ export class IncidentWorkflowService {
                 resolution_date = CASE WHEN $4 THEN NOW() ELSE NULL END
           WHERE id = $1
         RETURNING id, title, status, priority, claimed_by, organization_id,
-                  zone_id, closed_reason`,
+                  zone_id, closed_reason, citizen_id, assigned_to`,
         [incidentId, to, closedReasonValue, isResolution],
       );
       const updated = unwrapReturningRows<IncidentRow>(result)[0];
@@ -376,6 +376,9 @@ export class IncidentWorkflowService {
       status: committed.updated.status,
       previous_status: committed.from,
       zone_id: committed.updated.zone_id,
+      citizen_id: committed.updated.citizen_id,
+      assigned_to: committed.updated.assigned_to,
+      actor_id: actorId,
     });
 
     return committed.updated;
