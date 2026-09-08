@@ -1,14 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { render, screen } from '@testing-library/angular';
-// @ts-expect-error -- `@types/node` no está en `tsconfig.spec.json:types`;
-// mismo gap que afecta a `contrast.regression.spec.ts`,
-// `layout-tokens.regression.spec.ts`, `sidebar.spec.ts`,
-// `auth.interceptor.regression.spec.ts`. Resolver globalmente en un
-// change dedicado (agregar `@types/node` a devDependencies) — no
-// hacerlo aquí silencia los 3 errores preexistentes del patrón sin
-// sumar archivos al problema.
+// `@types/node` ya está en devDependencies y `tsconfig.spec.json:types`
+// (change `2026-09-03-tool-ci-gates`, D2). Los @ts-expect-error de este
+// archivo eran workarounds del gap y se retiraron con el fix raíz.
 import * as fs from 'node:fs';
-// @ts-expect-error -- ver import anterior.
 import * as path from 'node:path';
 import { PlaceholderComponent } from './placeholder.component';
 
@@ -66,7 +61,6 @@ describe('PlaceholderComponent (F1, D2)', () => {
   it('cableado de producción: withComponentInputBinding está en app.config.ts', () => {
     // Verifica que el binding que cierra CRITICAL-1 está aplicado.
     // Si alguien lo retira, las 6 rutas placeholder vuelven al bug.
-    // @ts-expect-error -- `__dirname` requiere `@types/node`; ver imports.
     const here: string = __dirname;
     const appConfigPath = path.resolve(here, '../../app.config.ts');
     const appConfigSrc = fs.readFileSync(appConfigPath, 'utf8');
@@ -78,7 +72,6 @@ describe('PlaceholderComponent (F1, D2)', () => {
     // La convención F1 marca las rutas placeholder con `// PLACEHOLDER F<n>`.
     // Para cada comentario, encontramos el bloque de ruta que lo contiene
     // y verificamos que su data incluye `title` y `phase`.
-    // @ts-expect-error -- `__dirname` requiere `@types/node`; ver imports.
     const here: string = __dirname;
     const routesPath = path.resolve(here, '../../app.routes.ts');
     const routesSrc = fs.readFileSync(routesPath, 'utf8');

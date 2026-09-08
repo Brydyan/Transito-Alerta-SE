@@ -422,7 +422,8 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 | 🔶 **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos. ANON cerró el camino; falta que AUD selle la autoría del reporte anónimo del ciudadano autenticado | `auth.config.ts` | ANON ✅ archivada 2026-09-05 · AUD pendiente |
 | **No hay tabla de auditoría** — F7 la necesita para la excepción al tope | — | AUD |
 | «Volver al inicio» del login es `href="#!"` | `login.component.html:147` | REG (apunta a `/registro`) |
-| **Compuerta de typecheck es un no-op** — `npx tsc -p tsconfig.json --noEmit` revisa 0 archivos (`files: []`); el comando real es `npx tsc -b tsconfig.json --noEmit` | `frontend/tsconfig.json` + `frontend/tsconfig.spec.json` | Sin ticket — detectado en sc-324; afecta toda ejecución de verificación de tipos en el frontend |
+| **Compuerta de typecheck es un no-op** — `npx tsc -p tsconfig.json --noEmit` revisa 0 archivos (`files: []`); el comando real es `npx tsc -b tsconfig.json --noEmit` | `frontend/tsconfig.json` + `frontend/tsconfig.spec.json` | TOOL ✅ (cambio `2026-09-03-tool-ci-gates`) |
+| **`TS2345` en `InvitationPreview.organization_name`** — `string \| null` no asignable a `string` en `auth.service.spec.ts:227`. TOOL lo **expone** (la compuerta arreglada ahora lo ve) y no lo arregla: decidir si `organization_name` puede ser nulo en una preview de invitación es una pregunta de modelo de dominio, no de herramientas. Mientras esto siga en rojo, el typecheck del frontend falla — eso es lo correcto, el gate está haciendo su trabajo. | `frontend/src/app/core/services/auth.service.spec.ts:227` ↔ `InvitationPreview` (modelo) | Primer work item que cierre el gate. **Esta fase lo documenta con dueño y NO lo arregla.** |
 
 **Patrón común: reglas implementadas a medias** — aplicadas en el camino por donde entró
 la funcionalidad y no en el añadido después.
@@ -488,6 +489,29 @@ resultan indistinguibles.
 Hoy no es alcanzable (10 entradas, 2 rutas multi-segmento, ambas reales). **Se vuelve
 alcanzable a medida que el menú crezca**, y F2, F3 y F4 añaden destinos. **Dueño natural:
 F5**, que sustituye `MENU_MAP` por tablas en BD y rehace ese test igual.
+
+### `comment-flow.e2e.ts` queda como no-op hasta la incident-detail page
+
+El spec `frontend/e2e/comment-flow.e2e.ts` está `test.skip()` desde SC-203
+(2026-08-27). El test afirma sobre un composer de comentarios que existe en backend
+pero nunca terminó de aterrizar en el frontend. La cobertura real del flujo vive en
+`src/app/features/incidents/...` specs unitarios; este e2e es la red anti-regresión
+cuando el camino completo está listo.
+
+- **Test / línea**: `frontend/e2e/comment-flow.e2e.ts:25` (F2.1) — único caso
+  restante, con un `test.skip()` explícito.
+- **Bloqueante**: incident-detail page (frontend) + composer UI. SC-208 cerró
+  la **mitad backend** de la historia (POST `/comments` con image upload) pero
+  la página de detalle que la monta en la SPA no existe. SC-209 quedó registrada
+  como SC-208 + image-upload, sin cierre formal en una fase.
+- **Criterio de re-habilitar**: el spec vuelve a correr cuando ambos
+  (SC-208 frontend + composer) estén cerrados. `apply-progress.md` del change
+  que cierre el último lo actualiza.
+- **Riesgo de no hacerlo**: los specs crean comentarios contra staging
+  compartido y nada los limpia. Crece con cada corrida. **Bloqueado por
+  E.3 (no-op hasta entonces) y por la pregunta de quién es el dueño del
+  cleanup** — anotado en `2026-09-03-e2e-test-user-and-credentials/apply-progress.md`
+  como Q1 sin resolver.
 
 ---
 

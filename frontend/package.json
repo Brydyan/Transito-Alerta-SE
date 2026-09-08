@@ -7,7 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "jest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "lint": "pnpm exec eslint \"src/**/*.{ts,html}\" \"e2e/**/*.ts\""
   },
   "private": true,
   "packageManager": "pnpm@11.22.0",
@@ -47,6 +48,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/angular": "^19.4.2",
     "@types/jest": "^30.0.0",
+    "@types/node": "26.4.0",
     "@types/pdfmake": "^0.3.3",
     "@types/uuid": "^11.0.0",
     "autoprefixer": "^10.5.4",

@@ -108,6 +108,9 @@ importers:
       '@types/jest':
         specifier: ^30.0.0
         version: 30.0.0
+      '@types/node':
+        specifier: 26.4.0
+        version: 26.4.0
       '@types/pdfmake':
         specifier: ^0.3.3
         version: 0.3.3

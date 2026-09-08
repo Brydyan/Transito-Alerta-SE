@@ -111,6 +111,34 @@ jobs:
           list-files: none
           initial-fetch-depth: 100
 
+  # ─── actionlint: gate de workflows (D4) ────────────────────────────
+  # Sin coste real y atrapa regresiones estructurales: claves
+  # mal puestas, `schedule:` suelto a nivel raíz, referencias
+  # inválidas. Es la red que habría cazado el `ci.yml` inválido que
+  # permaneció días en `351eec0`.
+  #
+  # - `-config-file /repo/actionlint.yaml` es OBLIGATORIO: actionlint
+  #   auto-descubre su config sólo cuando se llama sin argumentos; con
+  #   paths explícitos hay que pasarla por flag. El config declara la
+  #   etiqueta `staging` del runner self-hosted (ver
+  #   `actionlint.yaml`).
+  # - `docker run --rm` con el contenedor oficial `rhysd/actionlint`,
+  #   no una action de terceros (D4).
+  workflows-lint:
+    name: Workflows — actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint workflows
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            -w /repo \
+            rhysd/actionlint:latest \
+            -config-file /repo/actionlint.yaml \
+            .github/workflows/*.yml
+
   backend:
     # En push (merge a develop/main) SIEMPRE corre. En PR, sólo si el
     # filtro `changes` detectó paths del set `backend`.
@@ -446,6 +474,25 @@ jobs:
       # --frozen-lockfile: si package.json y pnpm-lock.yaml están
       # desincronizados, falla en vez de resolver silenciosamente.
       - run: pnpm install --frozen-lockfile
+
+      # TOOL (`2026-09-03-tool-ci-gates`, D1) — typecheck real con `-b`.
+      # `frontend/tsconfig.json` es un *solution tsconfig* (files: [],
+      # sólo `references`); el comando viejo `npx tsc --noEmit -p
+      # tsconfig.json` compilaba cero archivos y siempre pasaba. Con
+      # `-b` recorre los dos proyectos referenciados (app + spec) y
+      # falla con cualquier error de tipos.
+      #
+      # Esta compuerta **nace en rojo a propósito** (D3): aflora un
+      # TS2345 legítimo en `auth.service.spec.ts:227` (decidir si
+      # `InvitationPreview.organization_name` puede ser nulo es una
+      # pregunta de dominio, no de tooling). El primer work item que
+      # cierre el typecheck tiene que arreglar ese error. Mientras
+      # tanto, el gate cumple su trabajo de no mentir.
+      #
+      # Sin `continue-on-error`, sin exenciones, sin lista de archivos
+      # exentos: un gate con excepción temporal es un gate con
+      # excepción permanente (D3).
+      - run: pnpm exec tsc -b tsconfig.json --noEmit --force
 
       # ts-jest (transpila + typecheck) corre los .spec.ts que
       # importan los services. Si un cambio rompe la firma de
