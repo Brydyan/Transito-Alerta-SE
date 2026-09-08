@@ -44,6 +44,11 @@ export interface Incident {
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
+  // Social (F4 Phase A)
+  follower_count: number;
+  corroboration_count: number;
+  is_followed_by_me: boolean;
+  is_corroborated_by_me: boolean;
 }
 
 export interface CreateIncidentDto {
@@ -52,7 +57,7 @@ export interface CreateIncidentDto {
   lat: number;
   lng: number;
   priority?: IncidentPriority;
-  category_ids?: string[];
+  category_id?: string;
   is_anonymous?: boolean;
 }
 

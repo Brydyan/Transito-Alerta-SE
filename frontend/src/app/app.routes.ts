@@ -191,10 +191,10 @@ export const routes: Routes = [
         path: 'inicio',
         data: { breadcrumb: 'Inicio', title: 'Inicio', phase: 'F4' },
         loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
+          import('./features/citizen/feed/feed.component').then(
+            (m) => m.FeedComponent,
           ),
-        // PLACEHOLDER F4
+        // F4 B.3 - Replaced placeholder with FeedComponent
       },
       // F3 (sc-303) — Incidencias: listado + detalle. El placeholder
       // de F1 se sustituye por el componente real. El `:id` del
