@@ -6,6 +6,7 @@ import { ReportDraftService } from '../../core/services/report-draft.service';
 import { GeolocationService } from '../../core/services/geolocation.service';
 import { IncidentService } from '../../core/services/incident.service';
 import { ImageCompressorService } from '../../core/services/image-compressor.service';
+import { HttpService } from '../../core/services/http.service';
 import { MapPickerComponent } from '../../shared/components';
 import { lastValueFrom, Subscription } from 'rxjs';
 import { ANONYMOUS_DISCLOSURE_NOTICE } from '../../core/constants/anonymous-disclosure-notice.constant';
@@ -29,7 +30,8 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
   isSubmitting = false;
   submitError: string | null = null;
   locationCoords: { lat: number, lng: number } | null = null;
-  
+  categories: { id: string, name: string, isLeaf: boolean }[] = [];
+
   private formSub?: Subscription;
 
   constructor(
@@ -38,12 +40,13 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
     private geolocationService: GeolocationService,
     private incidentService: IncidentService,
     private imageCompressor: ImageCompressorService,
+    private httpService: HttpService,
     private router: Router,
     public authService: AuthService
   ) {
     this.form = this.fb.group({
       title: ['', Validators.required],
-      description: ['', Validators.required],
+      description: [''],
       priority: ['medium', Validators.required],
       categoryId: ['', Validators.required],
       isAnonymous: [false]
@@ -51,6 +54,14 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
+    this.httpService.get<any[]>('/incident-categories/tree')
+      .subscribe({
+        next: (res) => {
+          this.categories = this.flattenCategories(res || []);
+        },
+        error: (err) => console.error('Error fetching categories:', err)
+      });
+
     // Restore from draft
     const draft = await this.draftService.getDraft();
     if (draft) {
@@ -166,7 +177,7 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
         title: val.title,
         description: val.description,
         priority: val.priority,
-        category_ids: [val.categoryId],
+        category_id: val.categoryId,
         lat: this.locationCoords.lat,
         lng: this.locationCoords.lng,
         is_anonymous: val.isAnonymous
@@ -183,5 +194,24 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
     } finally {
       this.isSubmitting = false;
     }
+  }
+
+  getCategoryName(id: string): string {
+    const cat = this.categories.find(c => c.id === id);
+    // Remove the non-breaking spaces for the summary display
+    return cat ? cat.name.replace(/&nbsp;/g, '').trim() : id;
+  }
+
+  private flattenCategories(nodes: any[], prefix = ''): { id: string, name: string, isLeaf: boolean }[] {
+    let result: { id: string, name: string, isLeaf: boolean }[] = [];
+    for (const node of nodes) {
+      const isLeaf = !node.children || node.children.length === 0;
+      // Using &nbsp; for HTML rendering in options
+      result.push({ id: node.id, name: prefix + node.name, isLeaf });
+      if (!isLeaf) {
+        result = result.concat(this.flattenCategories(node.children, prefix + '\u00A0\u00A0\u00A0\u00A0'));
+      }
+    }
+    return result;
   }
 }
