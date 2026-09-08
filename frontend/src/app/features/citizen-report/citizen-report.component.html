@@ -1,22 +1,112 @@
-<div class="p-4 max-w-md mx-auto">
-  <h2 class="text-xl font-bold mb-4">Reportar Incidente</h2>
-  
-  <div *ngIf="(isOnline$ | async) === false" class="bg-yellow-100 p-2 mb-4 rounded">
-    Modo Offline. El reporte se enviará cuando haya conexión.
-  </div>
-  <div *ngIf="isSyncing$ | async" class="bg-blue-100 p-2 mb-4 rounded">
-    Sincronizando reportes pendientes...
+<div class="p-4 max-w-2xl mx-auto">
+  <div *ngIf="!authService.currentUser()" class="bg-yellow-100 p-4 rounded text-center mb-4">
+    <p class="mb-4">Debes iniciar sesión para reportar un incidente.</p>
+    <div class="flex justify-center gap-4">
+      <a routerLink="/login" class="text-blue-600 underline">Iniciar sesión</a>
+      <a routerLink="/registro" class="text-blue-600 underline">Registrarse</a>
+    </div>
   </div>
 
-  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
-    <input type="text" formControlName="title" placeholder="Título" class="border p-2 rounded" />
-    <textarea formControlName="description" placeholder="Descripción" class="border p-2 rounded"></textarea>
+  <div *ngIf="authService.currentUser()">
+    <div class="flex justify-between items-center mb-6">
+    <h2 class="text-xl font-bold">Reportar Incidente</h2>
+    <div class="text-sm text-gray-500">Paso {{ currentStep }} de 4</div>
+  </div>
+
+  <div class="flex gap-2 mb-8 text-xs font-semibold text-gray-400">
+    <span [class.text-blue-600]="currentStep === 1">INFORMACIÓN BÁSICA</span> >
+    <span [class.text-blue-600]="currentStep === 2">CATEGORIZACIÓN Y ARCHIVOS</span> >
+    <span [class.text-blue-600]="currentStep === 3">UBICACIÓN</span> >
+    <span [class.text-blue-600]="currentStep === 4">REVISIÓN</span>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="currentStep === 4 ? onSubmit() : goNext()" class="flex flex-col gap-4">
     
-    <input type="file" accept="image/*" (change)="onPhotoSelected($event)" class="border p-2 rounded" />
-    <img *ngIf="photoPreview" [src]="photoPreview" class="w-full h-48 object-cover rounded" />
+    <!-- Paso 1 -->
+    <div *ngIf="currentStep === 1" class="flex flex-col gap-4">
+      <div>
+        <label class="block font-bold mb-1">Título</label>
+        <input type="text" formControlName="title" class="border p-2 rounded w-full" />
+      </div>
+      <div>
+        <label class="block font-bold mb-1">Prioridad</label>
+        <select formControlName="priority" class="border p-2 rounded w-full">
+          <option value="low">Baja</option>
+          <option value="medium">Media</option>
+          <option value="high">Alta</option>
+          <option value="critical">Crítica (Emergencia)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block font-bold mb-1">Descripción</label>
+        <textarea formControlName="description" rows="4" class="border p-2 rounded w-full"></textarea>
+      </div>
+    </div>
 
-    <button type="submit" [disabled]="!form.valid || !selectedPhoto" class="bg-blue-500 text-white p-2 rounded">
-      Enviar Reporte
-    </button>
+    <!-- Paso 2 -->
+    <div *ngIf="currentStep === 2" class="flex flex-col gap-4">
+      <div>
+        <label class="block font-bold mb-1">Categoría</label>
+        <input type="text" formControlName="categoryId" placeholder="ID de la categoría" class="border p-2 rounded w-full" />
+      </div>
+      <div>
+        <label class="block font-bold mb-1">Adjuntos (máx 5)</label>
+        <input type="file" accept="image/*" multiple (change)="onPhotosSelected($event)" [disabled]="selectedPhotos.length >= 5" class="border p-2 rounded w-full" />
+        <div class="flex flex-wrap gap-2 mt-2">
+          <div *ngFor="let preview of photoPreviews; let i = index" class="relative">
+            <img [src]="preview" class="w-24 h-24 object-cover rounded" />
+            <button type="button" (click)="removePhoto(i)" class="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 text-xs leading-none">X</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paso 3 -->
+    <div *ngIf="currentStep === 3" class="flex flex-col gap-4">
+      <p class="text-sm mb-2">Por favor, indica la ubicación en el mapa:</p>
+      <app-map-picker [initialLocation]="locationCoords" (locationSelected)="onLocationSelected($event)"></app-map-picker>
+    </div>
+
+    <!-- Paso 4 -->
+    <div *ngIf="currentStep === 4" class="flex flex-col gap-4">
+      <h3 class="font-bold text-lg">Resumen</h3>
+      <div class="bg-gray-100 p-4 rounded text-sm">
+        <p><strong>Título:</strong> {{ form.value.title }}</p>
+        <p><strong>Prioridad:</strong> {{ form.value.priority }}</p>
+        <p><strong>Descripción:</strong> {{ form.value.description }}</p>
+        <p><strong>Categoría:</strong> {{ form.value.categoryId }}</p>
+        <p><strong>Ubicación:</strong> {{ locationCoords?.lat | number:'1.4-4' }}, {{ locationCoords?.lng | number:'1.4-4' }}</p>
+        <p><strong>Fotos:</strong> {{ selectedPhotos.length }}</p>
+      </div>
+
+      <div class="mt-4 border-t pt-4">
+        <label class="flex items-center gap-2 font-bold cursor-pointer">
+          <input type="checkbox" formControlName="isAnonymous" />
+          Publicar de forma anónima
+        </label>
+        <p class="text-xs text-gray-600 mt-2">
+          {{ anonymousNotice }}
+        </p>
+      </div>
+
+      <div *ngIf="submitError" class="bg-red-100 text-red-800 p-2 rounded text-sm mt-2">
+        {{ submitError }}
+      </div>
+    </div>
+
+    <!-- Botones de acción -->
+    <div class="flex justify-between mt-6">
+      <button type="button" *ngIf="currentStep > 1" (click)="goBack()" [disabled]="isSubmitting" class="px-4 py-2 bg-gray-200 rounded text-gray-800">
+        Atrás
+      </button>
+      <div class="flex-1"></div>
+      <button type="submit" *ngIf="currentStep < 4" [disabled]="(currentStep === 1 && (form.get('title')?.invalid || form.get('description')?.invalid)) || (currentStep === 2 && form.get('categoryId')?.invalid) || (currentStep === 3 && !locationCoords)" class="px-4 py-2 bg-blue-600 rounded text-white font-bold">
+        Siguiente
+      </button>
+      <button type="submit" *ngIf="currentStep === 4" [disabled]="isSubmitting" class="px-4 py-2 bg-green-600 rounded text-white font-bold">
+        {{ isSubmitting ? 'Enviando...' : 'Enviar Reporte' }}
+      </button>
+    </div>
   </form>
 </div>
+  </div>

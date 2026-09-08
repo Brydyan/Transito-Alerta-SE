@@ -72,6 +72,15 @@ export class IncidentService {
     );
   }
 
+  uploadImages(incidentId: string, files: Blob[]): Observable<any> {
+    const formData = new FormData();
+    files.forEach((file, index) => {
+      // Multer needs a filename with extension; raw Blobs have none.
+      formData.append('images', file, `image_${index}.jpg`);
+    });
+    return this.httpService.post<any>(`/incidents/${incidentId}/images`, formData);
+  }
+
   /**
    * PATCH /api/incidents/:id/status — body `{ status, closed_reason? }`.
    * The backend now enforces the machine via

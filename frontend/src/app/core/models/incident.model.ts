@@ -53,6 +53,7 @@ export interface CreateIncidentDto {
   lng: number;
   priority?: IncidentPriority;
   category_ids?: string[];
+  is_anonymous?: boolean;
 }
 
 // F3.1.3 (D2 + F3.2.9) — typed filters for the listing. Sent as query
