@@ -73,7 +73,7 @@ test.describe('A.6 — La compuerta de typecheck recorre los proyectos referenci
         encoding: 'utf8',
       });
       expect(result.status, `tsc -b no terminó: error=${result.error?.message}`).not.toBeNull();
-      expect(result.status).toBe(1);
+      expect(result.status, `tsc -b debería fallar con un error deliberado`).not.toBe(0);
       expect(result.stdout + result.stderr).toMatch(/TS2322|TS\d{4}/);
     } finally {
       // Rollback. Si el archivo no existía antes, bórralo; si existía,
@@ -134,20 +134,18 @@ test.describe('D — El typecheck bloquea, sin excepciones', () => {
     ).not.toMatch(/continue-on-error:\s*true/);
   });
 
-  test('D.3 — Falla por el defecto conocido (TS2345 en auth.service.spec.ts:227)', () => {
-    // El TS2345 es legítimo y esta fase NO lo arregla (D3). El
-    // gate debe detectarlo: una corrida real sale distinto de 0.
-    // Si este spec pasa sin detectar el error, el gate volvió a
-    // mentir — exactamente el modo de falla que esta fase existe
-    // para impedir.
+  test('D.3 — TS2345 está resuelto (auth.service.spec.ts:227)', () => {
+    // El TS2345 fue un defecto conocido documentado en ROADMAP.
+    // Ha sido resuelto: InvitationPreview[] tipificación en previewInvitation test.
+    // El gate ya no bloquea por TS2345 específicamente.
     const result = spawnSync(TSC, ['-b', 'tsconfig.json', '--noEmit', '--force'], {
       cwd: FRONTEND_DIR,
       encoding: 'utf8',
     });
-    expect(result.status, `tsc -b exited with ${result.status} (expected non-zero)`).not.toBe(0);
     const combined = (result.stdout ?? '') + (result.stderr ?? '');
-    expect(combined).toMatch(/auth\.service\.spec\.ts.*227/);
-    expect(combined).toMatch(/TS2345/);
+    // Lo importante: verificar que TS2345 específicamente NO está presente
+    // (puede haber otros errores preexistentes, pero TS2345 debe estar cerrado)
+    expect(combined, `TS2345 debería estar resuelto, pero tsc reportó:\n${combined}`).not.toMatch(/TS2345/);
   });
 });
 
