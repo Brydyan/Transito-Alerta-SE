@@ -104,8 +104,8 @@ export const routes: Routes = [
                 path: '',
                 pathMatch: 'full',
                 loadComponent: () =>
-                  import('./features/admin/users/user-management/user-management.component').then(
-                    (m) => m.UserManagementComponent,
+                  import('./features/admin/users/users-list/users-list.component').then(
+                    (m) => m.UsersListComponent,
                   ),
               },
               {

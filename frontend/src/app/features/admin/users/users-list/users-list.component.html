@@ -1,0 +1,128 @@
+<ui-page-header
+  kicker="ADMINISTRACIÓN"
+  title="Usuarios"
+  subtitle="Gestione el acceso del personal municipal, asigne roles específicos por organización y supervise el estado de las cuentas del sistema."
+>
+  <button
+    page-header-actions
+    type="button"
+    class="btn-primary"
+    [routerLink]="['/app/admin/usuarios', 'nuevo']"
+  >
+    <ui-icon name="plus" [size]="16" [strokeWidth]="2" />
+    Nuevo usuario
+  </button>
+</ui-page-header>
+
+<section class="toolbar">
+  <app-search-bar
+    class="toolbar__search"
+    placeholder="Buscar por nombre, email o cargo..."
+    (searchChange)="onSearch($event)"
+  />
+  <app-filter-bar
+    [roles]="roles()"
+    [organizations]="organizations()"
+    (filterChange)="onFilterChange($event)"
+  />
+</section>
+
+@if (errorMessage()) {
+  <div class="error-banner" role="alert">
+    <ui-icon name="alert-triangle" [size]="20" [strokeWidth]="2" />
+    <div>
+      <strong>No se pudieron cargar los usuarios.</strong>
+      <p>Verificá tu conexión o intentá recargar la página.</p>
+    </div>
+    <button type="button" class="btn-secondary" (click)="loadUsers()">Reintentar</button>
+  </div>
+}
+
+@if (isLoading()) {
+  <app-table-skeleton [cols]="7" [rows]="5" />
+} @else {
+  <ui-table caption="Listado de usuarios">
+    <thead>
+      <tr>
+        <th>Foto</th>
+        <th>Nombre completo</th>
+        <th>Email / Contacto</th>
+        <th>Rol asignado</th>
+        <th>Organización</th>
+        <th>Estado</th>
+        <th class="ui-table-cell-actions">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (user of visibleUsers(); track user.usuarioId) {
+        <tr>
+          <td>
+            @if (user.avatar; as avatar) {
+              <img
+                class="avatar"
+                [src]="avatar.url"
+                [alt]="user.nombres + ' ' + user.apellidos"
+              />
+            } @else {
+              <div class="avatar avatar-initials" aria-hidden="true">
+                {{ user.nombres.charAt(0) }}{{ user.apellidos.charAt(0) }}
+              </div>
+            }
+          </td>
+          <td>
+            <div class="ui-table-title">{{ user.nombres }} {{ user.apellidos }}</div>
+            <div class="ui-table-subtitle">ID #{{ user.usuarioId }}</div>
+          </td>
+          <td>
+            <div class="ui-table-title">{{ user.email }}</div>
+            @if (user.telefono) {
+              <div class="ui-table-subtitle">{{ user.telefono }}</div>
+            }
+          </td>
+          <td>
+            @if (user.rol) {
+              <span class="role-badge">{{ user.rol.nombre }}</span>
+            } @else {
+              <span class="muted">Sin rol</span>
+            }
+          </td>
+          <td class="muted">—</td>
+          <td>
+            @if (statusOf(user) === 'activo') {
+              <ui-badge [variant]="'resuelto'" [label]="'Activo'"></ui-badge>
+            } @else {
+              <ui-badge [variant]="'cerrada'" [label]="'Inactivo'"></ui-badge>
+            }
+          </td>
+          <td class="ui-table-cell-actions">
+            <app-action-menu
+              [userId]="user.usuarioId"
+              (view)="onView($event)"
+              (edit)="onEdit($event)"
+              (delete)="onDelete($event)"
+            />
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="7">
+            <app-empty-state
+              icon="users"
+              title="Sin usuarios"
+              message="No hay usuarios registrados. Creá el primero desde el botón «Nuevo usuario»."
+            />
+          </td>
+        </tr>
+      }
+    </tbody>
+  </ui-table>
+
+  <app-pagination
+    [totalItems]="total()"
+    [currentPage]="currentPage()"
+    [pageSize]="pageSize()"
+    itemNameSingular="usuario"
+    itemNamePlural="usuarios"
+    (pageChange)="onPageChange($event)"
+  />
+}

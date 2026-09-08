@@ -1,0 +1,118 @@
+/* UsersListComponent — F6 rediseño
+   (`2026-09-08-f6-usuarios-redesign`).
+   Layout: header + toolbar (search + filters) + table + pagination.
+   El grid de la tabla viene de F0 `ui-table`; este CSS sólo
+   estiliza la grilla de la página y la fila de estado vacío. */
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+.toolbar__search {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--color-status-pendiente, #fef3c7);
+  border: 1px solid var(--color-prio-medium, #f59e0b);
+  border-radius: 0.5rem;
+  color: var(--color-on-tint-slate, #92400e);
+}
+
+.error-banner > div {
+  flex: 1;
+  font-size: 0.875rem;
+}
+
+.error-banner > div p {
+  margin: 0;
+  color: var(--color-slate-600, #475569);
+  font-size: 0.8125rem;
+}
+
+.avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-brand-primary, #6d28d9);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--color-brand-primary-soft, #ede9fe);
+  color: var(--color-on-tint-violet, #5b21b6);
+  border-radius: 0.25rem;
+}
+
+.muted {
+  color: var(--color-slate-500, #64748b);
+  font-size: 0.875rem;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: var(--color-brand-primary, #6d28d9);
+  color: white;
+  border: 0;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary:hover {
+  background: var(--color-brand-primary-hover, #5b21b6);
+}
+
+.btn-secondary {
+  padding: 0.5rem 0.875rem;
+  background: transparent;
+  color: var(--color-slate-700, #334155);
+  border: 1px solid var(--color-border-subtle, #e2e8f0);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--color-bg-primary, #f1f5f9);
+}

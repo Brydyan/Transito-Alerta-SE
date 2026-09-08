@@ -73,3 +73,29 @@ export interface UpdateUserPayload {
   avatar?: Avatar;
   directPermissions?: { permisoId: number; permitido: boolean }[];
 }
+
+/**
+ * F6 (`2026-09-08-f6-usuarios-redesign`) — organización
+ * mínima para el dropdown de filtro. El backend
+ * (`/api/organizations`) devuelve un envelope `{ data, meta }`;
+ * acá proyectamos sólo lo que el filtro necesita.
+ */
+export interface Organization {
+  readonly id: string;
+  readonly nombre: string;
+}
+
+/**
+ * F6 (`2026-09-08-f6-usuarios-redesign`) — proyección de
+ * `User` para la grilla. La columna de estado del mock 03-01
+ * ('Activo'/'Pendiente'/'Inactivo') se mapea desde
+ * `is_active: boolean` del backend: `true` ⇒ `activo`,
+ * `false` ⇒ `inactivo`. La etiqueta `pendiente` existe en el
+ * mock pero el backend actual no modela el estado intermedio
+ * — ver apply-progress del change para la desviación.
+ */
+export type UserStatus = 'activo' | 'inactivo';
+
+export function toUserStatus(isActive: boolean | null | undefined): UserStatus {
+  return isActive ? 'activo' : 'inactivo';
+}
