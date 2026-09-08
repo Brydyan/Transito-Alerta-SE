@@ -40,12 +40,17 @@ export class RolesService {
       .get<any[]>(this.rolesUrl, { params, withCredentials: true })
       .pipe(
         map((res) => {
+          console.log('[getRoles] API response:', res);
           const roles = Array.isArray(res) ? res : res?.data ?? [];
-          return roles.map((r) => ({
-            rolId: r.id,
+          console.log('[getRoles] extracted roles:', roles);
+          const mapped = roles.map((r) => ({
+            rolId: r.id as unknown as number,
             nombre: r.name,
             permissionCount: r.permissions?.length ?? 0,
+            isSystemRole: r.name && ['master', 'operador_sistema'].includes(r.name),
           }));
+          console.log('[getRoles] mapped result:', mapped);
+          return mapped;
         })
       );
   }
