@@ -262,3 +262,168 @@ saltean sin `BASE_URL`+`E2E_PASSWORD` (D4 del change
 - `apply-progress.md` documenta las 3 desviaciones del
   design (path, status pendiente faltante, filtros backend
   no aceptados) y los pendientes fuera de alcance.
+
+---
+
+## Fix batch — post `sdd-verify` FAIL (`fixes-required.md`)
+
+> Aplicado 2026-09-08 sobre `brydyan/sc-328-f6-usuarios`. `sdd-verify`
+> encontró 4 CRITICAL + 5 WARNING + 2 SUGGESTION. Este batch resuelve
+> los 4 CRITICAL y 3/4 de las WARNING recomendadas (las otras 2 ya
+> estaban correctas, sólo requerían verificación).
+
+### C.1 — Columna Organización resuelta
+
+- **Antes**: `<td class="muted">—</td>` hardcodeado en
+  `users-list.component.html`.
+- **Ahora**: `<td>{{ getOrganizationName(user.organizationId) }}</td>`.
+  Nuevo método en `users-list.component.ts`:
+  ```ts
+  getOrganizationName(orgId: string | null | undefined): string {
+    if (!orgId) return '—';
+    return this.organizations().find((o) => o.id === orgId)?.nombre ?? '—';
+  }
+  ```
+- **Modelo**: `User.organizationId?: string | null` agregado a
+  `models/user.interface.ts` (no existía; el backend
+  (`UserEntity.organizationId`) lo tiene, pero el DTO/response del
+  listado (`GET /users`) no estaba modelado en el frontend hasta ahora).
+- **Riesgo detectado (fuera de alcance de este fix)**: el `User`
+  interface del frontend usa `nombres`/`apellidos`/`telefono`, pero el
+  `UserEntity` del backend expone `firstName`/`lastName`/`phone`
+  (`backend/src/entities/user.entity.ts`). No hay DTO/serializer que
+  traduzca esos nombres — es un desalineamiento preexistente,
+  independiente de `organizationId`, y no se toca en este batch (afecta
+  a todo el módulo de usuarios, no sólo a la columna Organización).
+  Anotado para un change de contrato API↔FE aparte.
+
+### C.2 — Filtros de rol/organización funcionales
+
+- **Componente**: `onFilterChange()` ahora llama a un nuevo método
+  privado `refetch()` (resetea `currentPage` a 1 y recarga) en vez de
+  sólo guardar los signals.
+- **Servicio**: `UsersService.getUsers(page, limit, role?, org?)` — los
+  dos nuevos params son opcionales y se agregan como `HttpParams` sólo
+  si tienen valor.
+- **`loadUsers()`** pasa `this.selectedRole() || undefined` y
+  `this.selectedOrg() || undefined` al servicio.
+- **Deviation mantenida**: `search` sigue sin viajar al backend — la
+  búsqueda es local por diseño (`SearchBarComponent`, «Instant feedback,
+  no server overhead»). No se cambia — cambiarlo contradiría el
+  comment de diseño explícito y los tests existentes de búsqueda local.
+- **Backend**: `GET /users` (`users.controller.ts` → `list()`) sólo lee
+  `page`/`limit` hoy. Los params `role`/`org` viajan en la query string
+  pero el backend los ignora — hasta que un change de backend los
+  soporte, el filtro server-side no tiene efecto real. La UI ya no
+  miente (dispara la request con los params), pero el resultado no
+  cambia todavía. **Esto sigue siendo una desviación documentada**, no
+  resuelta al 100% porque requiere un cambio de backend fuera de
+  alcance de este change de frontend.
+
+### C.3 — Tarjetas del pie agregadas
+
+- 3 `<article class="info-card">` dentro de `<section
+  class="info-cards-grid">`, después del bloque `@if(isLoading){…}@else{…}`
+  (siempre visibles, no dependen de loading state):
+  - Políticas de Seguridad → `routerLink` a `/app/admin/roles` (ruta
+    real).
+  - Gestión de Organizaciones → `routerLink` a `/app/organizaciones`
+    (ruta real, catálogo F2).
+  - Auditoría de Acceso → `href="#"` — no existe ruta de auditoría en
+    el proyecto; placeholder cosmético igual que el mock 03-01 (el spec
+    sólo pide el texto del link, no navegación funcional).
+- CSS: `.info-cards-grid` (grid 3 columnas, colapsa a 1 en `≤768px`) +
+  `.info-card` en `users-list.component.css`, usando los mismos
+  CSS custom properties (`--color-brand-primary`, `--color-slate-*`,
+  `--color-border-subtle`) que el resto del componente — sin inventar
+  tokens nuevos.
+
+### C.4 — `tasks.md` sincronizado
+
+Las 22 tareas originales + la sección "Fix batch aplicado" quedaron
+marcadas `[x]` en `tasks.md`, con las desviaciones de cada una anotadas
+inline (path del componente, filtros search/role/org, estados
+Activo/Inactivo, etc.) en vez de vivir sólo en este archivo.
+
+### W.2 — Búsqueda: verificado, sin cambios
+
+`app-search-bar` ya emitía `(searchChange)="onSearch($event)"` en el
+template, y `onSearch()` seteaba `searchTerm` (consumido por el
+`computed` `visibleUsers`). El wiring ya estaba completo — no había
+nada que arreglar.
+
+### W.3 — Reset de paginación: cubierto por C.2
+
+`refetch()` hace `this.currentPage.set(1)` antes de `loadUsers()` — se
+comparte entre `onFilterChange` y cualquier futuro caller.
+
+### W.4 — Toast de error agregado
+
+`loadUsers()`'s `catchError` ahora llama
+`this.toastService.error('No se pudieron cargar los usuarios. Intenta
+nuevamente.', 'Error')` además de setear `errorMessage` (que sigue
+alimentando el banner inline existente). Mismo patrón que `onDelete()`
+ya usaba para sus toasts.
+
+### W.5 — Diálogo de borrado: verificado, sin cambios
+
+`onDelete()` ya llamaba `dialogService.confirm({ title, message,
+confirmText, cancelText, isDanger: true })` con contenido específico
+del usuario (`¿Eliminar a {nombre}? Esta acción no se puede deshacer.`).
+Cumplía W.5 desde el batch original.
+
+### W.1, S.1, S.2 — sin acción
+
+- **W.1** (S3/S4 e2e enmascarados): se resuelve solo en CI contra
+  staging una vez el backend soporte `role`/`org`; no accionable desde
+  frontend.
+- **S.1** (keyboard nav en `ActionMenuComponent`) y **S.2** (breakpoint
+  responsive de la tabla): SUGGESTION, no bloqueantes, no aplicadas en
+  este batch.
+
+### Tests actualizados
+
+`users-list.component.spec.ts`:
+- `onPageChange recarga del backend con la página nueva` — actualizado
+  a `expect(mockUsersService.getUsers).toHaveBeenCalledWith(2, 25,
+  undefined, undefined)` (firma nueva del servicio).
+- `onFilterChange guarda role/org...` — renombrado y extendido para
+  cubrir el refetch: verifica `selectedRole`/`selectedOrg`,
+  `currentPage() === 1`, y que `getUsers` se llama con `(1, 25, '1',
+  'org-1')`.
+- Nuevo: `getOrganizationName resuelve el nombre desde el signal
+  organizations` — cubre `undefined`/`null` → `'—'`, match → nombre,
+  no-match → `'—'`.
+
+### Verificación (fix batch)
+
+- `pnpm run lint`: exit 0 (0 errores; warnings preexistentes sin
+  relación con este batch).
+- `pnpm test`: 67/67 suites, **461/461 tests** (460 previos + 1 test
+  nuevo neto — se agregó 1 test y se editó 1 existente sin agregar
+  tests adicionales en ese caso).
+- `ng build`: verde, `users-list-component` chunk 22.02 kB / 5.79 kB
+  transfer.
+
+### Archivos modificados en este batch
+
+| Archivo | Cambio |
+|---|---|
+| `frontend/src/app/features/admin/users/models/user.interface.ts` | `+organizationId?: string \| null` en `User` |
+| `frontend/src/app/features/admin/users/services/users.service.ts` | `getUsers()` acepta `role`/`org` opcionales |
+| `frontend/src/app/features/admin/users/users-list/users-list.component.ts` | `getOrganizationName()`, `refetch()`, `onFilterChange()` dispara refetch, `loadUsers()` pasa filtros, toast de error |
+| `frontend/src/app/features/admin/users/users-list/users-list.component.html` | Columna Organización resuelta, sección `.info-cards-grid` |
+| `frontend/src/app/features/admin/users/users-list/users-list.component.css` | Estilos `.info-cards-grid` / `.info-card` |
+| `frontend/src/app/features/admin/users/users-list/users-list.component.spec.ts` | Tests actualizados/agregados (ver arriba) |
+| `openspec/changes/front/2026-09-08-f6-usuarios-redesign/tasks.md` | 22 tareas + fix batch marcadas `[x]`, desviaciones inline |
+| `openspec/changes/front/2026-09-08-f6-usuarios-redesign/apply-progress.md` | Esta sección |
+
+### Estado final
+
+**Batch original**: 22/22 tareas ✅ (ya estaba, pero `tasks.md`
+desincronizado — corregido en C.4).
+**Fix batch**: 4/4 CRITICAL ✅, 3/4 WARNING accionables ✅ (W.2 y W.5 ya
+cumplían sin cambios; W.1 no accionable desde frontend), 0/2 SUGGESTION
+(no bloqueantes, quedan fuera de alcance).
+
+Listo para `sdd-verify` de re-chequeo.

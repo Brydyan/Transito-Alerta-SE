@@ -108,13 +108,29 @@ describe('UsersListComponent (F6 rediseño)', () => {
 
   it('onPageChange recarga del backend con la página nueva', () => {
     component.onPageChange(2);
-    expect(mockUsersService.getUsers).toHaveBeenCalledWith(2, 25);
+    expect(mockUsersService.getUsers).toHaveBeenCalledWith(2, 25, undefined, undefined);
   });
 
-  it('onFilterChange guarda role/org en signals (backend los ignora por ahora)', () => {
+  it('onFilterChange guarda role/org en signals, resetea la página y refetch con los filtros (fix batch C.2)', () => {
+    component.onPageChange(2);
+    mockUsersService.getUsers.mockClear();
+
     component.onFilterChange({ role: '1', org: 'org-1' });
+
     expect(component.selectedRole()).toBe('1');
     expect(component.selectedOrg()).toBe('org-1');
+    expect(component.currentPage()).toBe(1);
+    expect(mockUsersService.getUsers).toHaveBeenCalledWith(1, 25, '1', 'org-1');
+  });
+
+  it('getOrganizationName resuelve el nombre desde el signal organizations (fix batch C.1)', () => {
+    expect(component.getOrganizationName(undefined)).toBe('—');
+    expect(component.getOrganizationName(null)).toBe('—');
+
+    component.organizations.set([{ id: 'org-1', nombre: 'GAD Guayaquil - Norte' }]);
+
+    expect(component.getOrganizationName('org-1')).toBe('GAD Guayaquil - Norte');
+    expect(component.getOrganizationName('org-404')).toBe('—');
   });
 
   it('delete llama al service y recarga la lista', () => {

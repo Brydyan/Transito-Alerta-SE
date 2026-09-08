@@ -86,7 +86,7 @@
               <span class="muted">Sin rol</span>
             }
           </td>
-          <td class="muted">—</td>
+          <td>{{ getOrganizationName(user.organizationId) }}</td>
           <td>
             @if (statusOf(user) === 'activo') {
               <ui-badge [variant]="'resuelto'" [label]="'Activo'"></ui-badge>
@@ -126,3 +126,27 @@
     (pageChange)="onPageChange($event)"
   />
 }
+
+<section class="info-cards-grid">
+  <article class="info-card">
+    <ui-icon name="shield" [size]="28" [strokeWidth]="1.75" />
+    <h3>Políticas de Seguridad</h3>
+    <p>Actualiza las políticas de contraseña y autenticación.</p>
+    <a [routerLink]="['/app/admin/roles']">Configurar seguridad...</a>
+  </article>
+  <article class="info-card">
+    <ui-icon name="building-2" [size]="28" [strokeWidth]="1.75" />
+    <h3>Gestión de Organizaciones</h3>
+    <p>Administra organizaciones y sus permisos.</p>
+    <a [routerLink]="['/app/organizaciones']">Ver organizaciones...</a>
+  </article>
+  <article class="info-card">
+    <ui-icon name="clipboard-list" [size]="28" [strokeWidth]="1.75" />
+    <h3>Auditoría de Acceso</h3>
+    <p>Revisa logs de acceso de usuarios.</p>
+    <!-- Sin ruta de auditoría todavía (fuera de alcance de este
+         change) — placeholder cosmético per spec.md, igual que en
+         el mock 03-01. -->
+    <a href="#">Descargar reporte CSV...</a>
+  </article>
+</section>

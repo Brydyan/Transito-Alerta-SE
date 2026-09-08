@@ -116,3 +116,60 @@
 .btn-secondary:hover {
   background: var(--color-bg-primary, #f1f5f9);
 }
+
+/* F6 fix batch (C.3) — 3 tarjetas de accesos rápidos al pie de la
+   lista, per spec.md "Bottom Cards". */
+.info-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-border-subtle, #e2e8f0);
+}
+
+@media (max-width: 768px) {
+  .info-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.info-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem;
+  background: var(--color-bg-secondary, #fff);
+  border: 1px solid var(--color-border-subtle, #e2e8f0);
+  border-radius: 0.75rem;
+  text-align: center;
+}
+
+.info-card ui-icon {
+  color: var(--color-brand-primary, #6d28d9);
+  margin-bottom: 0.75rem;
+}
+
+.info-card h3 {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-slate-900, #0f172a);
+}
+
+.info-card p {
+  margin: 0.25rem 0 1rem;
+  font-size: 0.8125rem;
+  color: var(--color-slate-600, #475569);
+}
+
+.info-card a {
+  color: var(--color-brand-primary, #6d28d9);
+  text-decoration: none;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.info-card a:hover {
+  text-decoration: underline;
+}

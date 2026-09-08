@@ -45,6 +45,15 @@ export interface User {
   telefono: string;
   avatar?: Avatar | null;
   rol: Role | null;
+  /**
+   * F6 fix batch (`fixes-required.md` C.1) — id de la organización a la
+   * que pertenece el usuario. Resuelto contra el signal `organizations()`
+   * (poblado por `UsersService.getOrganizations()`) para mostrar el
+   * nombre en la columna «Organización» de la tabla. Opcional: el
+   * backend puede omitirlo o devolver `null` para usuarios sin
+   * organización asignada.
+   */
+  organizationId?: string | null;
 }
 
 export interface UserDetail extends User {

@@ -25,8 +25,16 @@ export class UsersService {
   private readonly permissionsUrl = `${environment.apiUrl}/permissions`;
   private readonly organizationsUrl = `${environment.apiUrl}/organizations`;
 
-  getUsers(page = 1, limit = 10): Observable<PaginatedUsersResponse> {
-    const params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
+  /**
+   * F6 fix batch (`fixes-required.md` C.2) — `role`/`org` viajan como
+   * query params opcionales para que el backend pueda filtrar server-side
+   * en cuanto `GET /users` los soporte (hoy el endpoint sólo lee
+   * `page`/`limit`; los params extra se ignoran sin romper la request).
+   */
+  getUsers(page = 1, limit = 10, role?: string, org?: string): Observable<PaginatedUsersResponse> {
+    let params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
+    if (role) params = params.set('role', role);
+    if (org) params = params.set('org', org);
     return this.http.get<PaginatedUsersResponse>(this.usersUrl, { params, withCredentials: true });
   }
 

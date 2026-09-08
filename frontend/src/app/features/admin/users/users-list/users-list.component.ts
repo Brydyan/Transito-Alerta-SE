@@ -158,15 +158,36 @@ export class UsersListComponent implements OnInit {
       });
   }
 
+  /** F6 fix batch (C.1) — resuelve el id de organización del usuario
+   *  contra el signal `organizations()` (poblado por
+   *  `UsersService.getOrganizations()` en `loadLookups()`). `—` si no
+   *  hay id o si el id no matchea ninguna organización cargada. */
+  getOrganizationName(orgId: string | null | undefined): string {
+    if (!orgId) return '—';
+    return this.organizations().find((o) => o.id === orgId)?.nombre ?? '—';
+  }
+
   protected loadUsers(): void {
     this.isLoading.set(true);
     this.errorMessage.set(null);
     this.usersService
-      .getUsers(this.currentPage(), this.pageSize())
+      .getUsers(
+        this.currentPage(),
+        this.pageSize(),
+        this.selectedRole() || undefined,
+        this.selectedOrg() || undefined,
+      )
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError((err: unknown) => {
           this.errorMessage.set('No se pudieron cargar los usuarios.');
+          // F6 fix batch (W.4) — el banner de error ya existe en el
+          // template, pero un toast hace la falla visible aunque el
+          // usuario tenga la vista scrolleada más abajo de la tabla.
+          this.toastService.error(
+            'No se pudieron cargar los usuarios. Intenta nuevamente.',
+            'Error',
+          );
           // eslint-disable-next-line no-console
           console.error('[UsersList] load failed:', err);
           return of(null);
@@ -193,19 +214,28 @@ export class UsersListComponent implements OnInit {
   }
 
   onFilterChange(filters: { role: string; org: string }): void {
-    // El diseño dice que los filtros de rol y organización
-    // disparan reload. En la fase actual el backend no acepta
-    // esos query params en `getUsers`, así que sólo los
-    // conservamos en signal — la UI los muestra aplicados pero la
-    // lista es la del backend sin filtrar. Documentado en
-    // apply-progress como desviación; cerrar cuando el backend
-    // extienda `getUsers` con `role` y `org`.
+    // F6 fix batch (C.2) — `getUsers` ahora acepta `role`/`org` como
+    // query params opcionales, así que un cambio de filtro dispara un
+    // refetch real (no sólo guarda el valor en signal). El backend hoy
+    // sólo lee `page`/`limit` en `GET /users` (ver
+    // `backend/src/modules/users/users.controller.ts`); los params
+    // extra viajan pero se ignoran server-side hasta que el endpoint
+    // los soporte — deviation documentada en apply-progress.
     this.selectedRole.set(filters.role);
     this.selectedOrg.set(filters.org);
+    this.refetch();
   }
 
   onPageChange(page: number): void {
     this.currentPage.set(page);
+    this.loadUsers();
+  }
+
+  /** F6 fix batch (C.2/W.3) — resetea a página 1 y recarga. Usado por
+   *  `onFilterChange` para que un filtro nuevo no deje al usuario
+   *  varado en una página que ya no tiene datos con el filtro activo. */
+  private refetch(): void {
+    this.currentPage.set(1);
     this.loadUsers();
   }
 
