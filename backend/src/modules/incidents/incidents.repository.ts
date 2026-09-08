@@ -50,6 +50,10 @@ export interface IncidentRow {
   deleted_at: Date | null;
   claimed_at: Date | null;
   resolution_date: Date | null;
+  follower_count: number;
+  corroboration_count: number;
+  is_followed_by_me: boolean;
+  is_corroborated_by_me: boolean;
 }
 
 export interface CreateIncidentInput {
@@ -66,14 +70,18 @@ export interface CreateIncidentInput {
   isAnonymous: boolean;
 }
 
-const SELECT_COLUMNS = `
+export const getSelectColumns = (actorId?: string) => `
   id, title, description, status, priority,
   citizen_id, is_anonymous,
   assigned_to, zone_id, geofence_matched, organization_id,
   category_id, claimed_by, claimed_at, approved_by, approved_at, rejected_by, rejected_at,
   rejection_reason, closed_reason, resolution_date,
   ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng,
-  created_at, updated_at, deleted_at
+  created_at, updated_at, deleted_at,
+  COALESCE((SELECT COUNT(*) FROM incident_followers WHERE incident_id = incidents.id)::int, 0) AS follower_count,
+  COALESCE((SELECT COUNT(*) FROM incident_corroborations WHERE incident_id = incidents.id)::int, 0) AS corroboration_count,
+  EXISTS(SELECT 1 FROM incident_followers WHERE incident_id = incidents.id AND user_id = ${actorId ? `'${actorId.replace(/'/g, "''")}'::uuid` : 'NULL'}) AS is_followed_by_me,
+  EXISTS(SELECT 1 FROM incident_corroborations WHERE incident_id = incidents.id AND user_id = ${actorId ? `'${actorId.replace(/'/g, "''")}'::uuid` : 'NULL'}) AS is_corroborated_by_me
 `;
 
 /**
@@ -106,7 +114,7 @@ export class IncidentsRepository {
          (title, description, location, status, priority, citizen_id, is_anonymous, zone_id, geofence_matched, organization_id)
        VALUES
          ($1, $2, ST_SetSRID(ST_Point($3, $4), 4326), 'pending', $5, $6, $7, $8, $9, $10)
-       RETURNING ${SELECT_COLUMNS}`,
+       RETURNING ${getSelectColumns(input.citizenId)}`,
       [
         input.title,
         input.description,
@@ -131,6 +139,7 @@ export class IncidentsRepository {
   async findAll(
     filters: { zoneId?: string; status?: IncidentStatus },
     scope: SubjectScope,
+    actorId?: string
   ): Promise<IncidentRow[]> {
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -153,16 +162,16 @@ export class IncidentsRepository {
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     return this.dataSource.query(
-      `SELECT ${SELECT_COLUMNS} FROM incidents ${where} ORDER BY created_at DESC LIMIT 1000`,
+      `SELECT ${getSelectColumns(actorId)} FROM incidents ${where} ORDER BY created_at DESC LIMIT 1000`,
       params,
     );
   }
 
-  async findOne(id: string, scope: SubjectScope): Promise<IncidentRow | null> {
+  async findOne(id: string, scope: SubjectScope, actorId?: string): Promise<IncidentRow | null> {
     const scopeSql = scopeToSql(scope, { table: 'incidents', paramOffset: 2 });
     const rows: IncidentRow[] = await this.dataSource.query(
       // T6.2: filter out soft-deleted incidents
-      `SELECT ${SELECT_COLUMNS} FROM incidents WHERE id = $1 AND ${scopeSql.fragment} AND deleted_at IS NULL`,
+      `SELECT ${getSelectColumns(actorId)} FROM incidents WHERE id = $1 AND ${scopeSql.fragment} AND deleted_at IS NULL`,
       [id, ...scopeSql.params],
     );
     return rows[0] ?? null;
@@ -183,6 +192,7 @@ export class IncidentsRepository {
   async update(
     id: string,
     values: { title: string; description: string | null; categoryId: string | null },
+    actorId?: string
   ): Promise<IncidentRow> {
     const result = await this.dataSource.query(
       `UPDATE incidents
@@ -190,7 +200,7 @@ export class IncidentsRepository {
              description = $3,
              category_id = $4
        WHERE id = $1
-       RETURNING ${SELECT_COLUMNS}`,
+       RETURNING ${getSelectColumns(actorId)}`,
       [id, values.title, values.description, values.categoryId],
     );
     const row = unwrapReturningRows<IncidentRow>(result)[0];

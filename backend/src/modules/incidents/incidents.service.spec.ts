@@ -218,7 +218,7 @@ describe('IncidentsService', () => {
       const row = makeRow();
       cache.get.mockResolvedValue([row]);
 
-      const result = await service.findAll('zone-1', undefined, GLOBAL_SCOPE);
+      const result = await service.findAll({ zoneId: 'zone-1' }, GLOBAL_SCOPE);
 
       expect(result).toEqual([row]);
       expect(repo.findAll).not.toHaveBeenCalled();
@@ -229,9 +229,9 @@ describe('IncidentsService', () => {
       cache.get.mockResolvedValue(undefined);
       repo.findAll.mockResolvedValue([row]);
 
-      const result = await service.findAll('zone-1', undefined, GLOBAL_SCOPE);
+      const result = await service.findAll({ zoneId: 'zone-1' }, GLOBAL_SCOPE);
 
-      expect(repo.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1', status: undefined }, GLOBAL_SCOPE);
+      expect(repo.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1' }, GLOBAL_SCOPE, undefined);
       expect(cache.set).toHaveBeenCalled();
       expect(result).toEqual([row]);
     });
@@ -243,8 +243,8 @@ describe('IncidentsService', () => {
       cache.get.mockResolvedValue(undefined);
       repo.findAll.mockResolvedValue([]);
 
-      await service.findAll('zone-1', undefined, GLOBAL_SCOPE);
-      await service.findAll('zone-1', undefined, ORG_A_SCOPE);
+      await service.findAll({ zoneId: 'zone-1' }, GLOBAL_SCOPE);
+      await service.findAll({ zoneId: 'zone-1' }, ORG_A_SCOPE);
 
       const keysUsed = cache.set.mock.calls.map((call) => call[0]);
       expect(new Set(keysUsed).size).toBe(2);
@@ -258,7 +258,7 @@ describe('IncidentsService', () => {
 
       const result = await service.findOne('inc-1', GLOBAL_SCOPE);
 
-      expect(repo.findOne).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE);
+      expect(repo.findOne).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE, undefined);
       expect(result).toEqual(row);
     });
 
