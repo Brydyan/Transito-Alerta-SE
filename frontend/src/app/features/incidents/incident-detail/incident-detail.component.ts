@@ -217,16 +217,18 @@ export class IncidentDetailComponent implements OnInit {
         this.runStatusTransition(inc.id, 'resolved');
         break;
       case 'close':
-        // F3.4.9 + D4 — el motivo es obligatorio. Pedimos al usuario
-        // mediante un prompt simple; en F3.6 se sustituye por un
-        // modal dedicado.
-        const reason = window.prompt('Motivo del cierre:');
-        if (!reason || !reason.trim()) {
-          this.toast.show('El cierre requiere un motivo.', 'warning');
-          return;
+        {
+          // F3.4.9 + D4 — el motivo es obligatorio. Pedimos al usuario
+          // mediante un prompt simple; en F3.6 se sustituye por un
+          // modal dedicado.
+          const reason = window.prompt('Motivo del cierre:');
+          if (!reason || !reason.trim()) {
+            this.toast.show('El cierre requiere un motivo.', 'warning');
+            return;
+          }
+          this.runStatusTransition(inc.id, 'closed', reason.trim());
+          break;
         }
-        this.runStatusTransition(inc.id, 'closed', reason.trim());
-        break;
       case 'assign':
         // F3.4.8 — la asignación consume GET /available-operators
         // y POST /assignments/:id. El endpoint de assignments no

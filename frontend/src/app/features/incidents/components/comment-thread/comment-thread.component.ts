@@ -14,7 +14,6 @@ import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommentService } from '../../../../core/services/comment.service';
 import { ImageCompressorService } from '../../../../core/services/image-compressor.service';
 import { Comment } from '../../../../core/models/comment.model';
-import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
 
 /**

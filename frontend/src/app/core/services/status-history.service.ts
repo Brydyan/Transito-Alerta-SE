@@ -1,6 +1,5 @@
 import { Injectable } from '@angular/core';
 import { Observable, tap } from 'rxjs';
-import { BehaviorSubject } from 'rxjs';
 import { HttpService } from './http.service';
 import {
   StatusHistoryEntry,

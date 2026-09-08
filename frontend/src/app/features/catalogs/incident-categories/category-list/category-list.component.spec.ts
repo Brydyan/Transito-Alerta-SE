@@ -1,5 +1,4 @@
-import { TestBed } from '@angular/core/testing';
-import { render, screen, fireEvent } from '@testing-library/angular';
+import { render, screen } from '@testing-library/angular';
 import { CategoryListComponent } from './category-list.component';
 import { IncidentCategoryService } from '../services/incident-category.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';

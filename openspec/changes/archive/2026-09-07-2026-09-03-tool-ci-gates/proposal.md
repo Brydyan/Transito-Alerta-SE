@@ -48,6 +48,9 @@ para no repetir un falso negativo de F0, y era ella misma un falso negativo.
 - **Script `lint`** en `frontend/package.json`
 - **`actionlint` como gate de CI** — ambos workflows ya pasan limpios, así que entra sin
   ruido y evita repetir el `schedule:` fuera de `on:` que dejó `ci.yml` inválido
+- **Limpieza de comentarios e2e** — tests `comment-flow.e2e.ts` skiped desde SC-203, en
+  espera de la incident-detail page (SC-208 + SC-209). Registrar deuda en ROADMAP, o
+  re-habilitar si el bloqueante se cerró
 
 ### Out of Scope
 - Corregir el `TS2345` real de `frontend/src/app/core/services/auth.service.spec.ts:227`
@@ -58,6 +61,8 @@ para no repetir un falso negativo de F0, y era ella misma un falso negativo.
 - Añadir reglas de lint nuevas. El script ejecuta la configuración que ya existe
 - Corregir los artefactos archivados que declaran typechecks vacíos. Son registro
   histórico: se deja constancia acá, no se reescribe el pasado
+- **Implementar SC-208 (incident-detail page) o SC-209 (image upload)** — E.3 depende de
+  que esos se cierren. Esta fase registra la deuda, no la resuelve
 
 ## Capabilities
 
