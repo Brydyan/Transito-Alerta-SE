@@ -40,17 +40,13 @@ export class RolesService {
       .get<any[]>(this.rolesUrl, { params, withCredentials: true })
       .pipe(
         map((res) => {
-          console.log('[getRoles] API response:', res);
           const roles = Array.isArray(res) ? res : res?.data ?? [];
-          console.log('[getRoles] extracted roles:', roles);
-          const mapped = roles.map((r) => ({
-            rolId: r.id as unknown as number,
+          return roles.map((r) => ({
+            rolId: r.id,
             nombre: r.name,
             permissionCount: r.permissions?.length ?? 0,
             isSystemRole: r.name && ['master', 'operador_sistema'].includes(r.name),
           }));
-          console.log('[getRoles] mapped result:', mapped);
-          return mapped;
         })
       );
   }
@@ -79,7 +75,7 @@ export class RolesService {
    * usualmente. El 403 se traduce a un mensaje claro en el
    * componente (D7: sin `*hasPermission`).
    */
-  deleteRole(id: number): Observable<void> {
+  deleteRole(id: string | number): Observable<void> {
     return this.http.delete<void>(`${this.rolesUrl}/${id}`, { withCredentials: true });
   }
 

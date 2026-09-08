@@ -149,17 +149,15 @@ export class RolesComponent implements OnInit {
       )
       .subscribe({
         next: (list) => {
-          console.log('[Roles component] received list:', list);
           this.isLoading.set(false);
           if (!list) {
-            console.log('[Roles component] list is null/undefined');
             return;
           }
           this.roles.set(list);
           this.total.set(list.length);
         },
         error: (err) => {
-          console.error('[Roles component] subscription error:', err);
+          console.error('[Roles] subscription error:', err);
           this.isLoading.set(false);
         }
       });

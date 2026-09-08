@@ -1,5 +1,5 @@
 export interface RoleListItem {
-  rolId: number;
+  rolId: string;
   nombre: string;
   /**
    * F6 (`2026-09-08-f6-roles-redesign`) — proyección del wire shape.
