@@ -85,17 +85,25 @@
 - [x] **D.7.4** Test S3: recent activity
 - [x] **D.7.5** Test S4: charts render
 - [x] **D.7.6** Test S5: error handling
-  — **Desviación**: los 5 specs se saltean sin
+  — **Desviación**: los 5 specs e2e se saltean sin
   `BASE_URL`+`E2E_PASSWORD` (D4 del change
   `e2e-test-user-and-credentials`). En CI contra staging
-  corren de verdad.
+  corren de verdad. **Actualización 2026-09-08 (fix batch,
+  W.1)**: se agregó cobertura unitaria de S5 en
+  `dashboard.component.spec.ts` (antes tenía 0 cobertura en
+  cualquier capa, per `sdd-verify`) — el camino de error
+  (`catchError` → `error()` signal → `.error-banner`) ahora
+  tiene test verde sin depender de staging.
 
 ## Phase 8: Linting & Compliance
 
 - [x] **D.8.1** Run `pnpm run lint` — fix all new errors
-  — **Cubierto por la ausencia de config eslint**: el
-  script `pnpm lint` corre y sale con código propio (no
-  "script not found"). Ver `ci-policy.e2e.ts` B.*
+  — **Corrección 2026-09-08 (fix batch, C.1 de `fixes-required.md`)**:
+  la nota original de esta tarea era incorrecta — `sdd-verify`
+  encontró 7 errores reales de lint en 3 archivos de este
+  change. Corregidos y verificados con
+  `pnpm exec eslint e2e/dashboard.e2e.ts src/app/features/dashboard/**/*.ts`
+  → 0 errores. Detalle completo en `apply-progress.md` §"Fix batch".
 - [x] **D.8.2** Run `ng build` — verify compilation
 - [x] **D.8.3** Run `pnpm test` — all tests pass (437/437)
 - [x] **D.8.4** Check for regression: spec `expect(component).toBeTruthy()`
