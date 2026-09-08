@@ -13,3 +13,4 @@ export { UiButtonComponent, type UiButtonVariant, type UiButtonSize } from './ui
 export { UiPageHeaderComponent } from './ui-page-header';
 export { UiKpiCardComponent, type UiKpiTone } from './ui-kpi-card';
 export { UiTableComponent } from './ui-table';
+export { MapPickerComponent } from './map-picker/map-picker.component';
