@@ -147,13 +147,21 @@ export class RolesComponent implements OnInit {
           return of<RoleListItem[] | null>(null);
         }),
       )
-      .subscribe((list) => {
-        this.isLoading.set(false);
-        if (!list) return;
-        this.roles.set(list);
-        // El backend puede traer `total` aparte o como parte de
-        // la respuesta. Defensivo: caer al length si falta.
-        this.total.set(list.length);
+      .subscribe({
+        next: (list) => {
+          console.log('[Roles component] received list:', list);
+          this.isLoading.set(false);
+          if (!list) {
+            console.log('[Roles component] list is null/undefined');
+            return;
+          }
+          this.roles.set(list);
+          this.total.set(list.length);
+        },
+        error: (err) => {
+          console.error('[Roles component] subscription error:', err);
+          this.isLoading.set(false);
+        }
       });
   }
 
