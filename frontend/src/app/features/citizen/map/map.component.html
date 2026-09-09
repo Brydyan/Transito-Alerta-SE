@@ -1,0 +1,38 @@
+<div class="p-4 md:p-6 h-[calc(100vh-var(--header-height,64px))] relative flex flex-col">
+  <div class="relative flex-1 bg-gray-100 rounded-2xl overflow-hidden shadow-sm border border-gray-200">
+    <!-- Map Container -->
+    <div #mapContainer class="absolute inset-0 z-0"></div>
+
+    <!-- Floating Filters Panel -->
+    <div class="absolute top-4 right-4 z-[500]">
+      <app-map-filters (filtersChange)="onFiltersChange($event)"></app-map-filters>
+    </div>
+
+    <!-- Floating Stats (Bottom Left) -->
+    <div class="absolute bottom-6 left-6 z-[400] pointer-events-none">
+      <div class="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-md border border-gray-200 pointer-events-auto">
+        <div class="text-sm font-bold text-gray-800">
+          {{ displayedCount }} incidencias mostradas
+        </div>
+        <div class="text-[10px] text-gray-500 font-medium" *ngIf="lastUpdated">
+          Actualizado: {{ lastUpdated | date:'HH:mm:ss' }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State Overlay -->
+    @if (displayedCount === 0) {
+  <div class="absolute inset-0 z-[400] pointer-events-none flex items-center justify-center">
+    <div class="bg-white/95 backdrop-blur-sm px-6 py-5 rounded-2xl shadow-xl border border-gray-200 pointer-events-auto text-center max-w-sm">
+      <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <h3 class="text-gray-800 font-bold mb-1">Sin resultados</h3>
+      <p class="text-sm text-gray-500">No se encontraron incidencias activas con los filtros actuales. Intenta cambiar tu selección.</p>
+    </div>
+  </div>
+}
+  </div>
+</div>

@@ -23,6 +23,10 @@ export interface Incident {
   // Geo
   lat: number;
   lng: number;
+  geom?: {
+    type: string;
+    coordinates: [number, number]; // [lng, lat]
+  };
   zone_id: string | null;
   geofence_matched: boolean;
   organization_id: string | null;
