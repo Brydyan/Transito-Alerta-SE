@@ -31,8 +31,11 @@ export class IncidentCardComponent implements OnInit {
     const lng = this.incident.lng;
     if (!lat || !lng) return;
 
-    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
-      .then(res => res.json())
+    window
+      .fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      )
+      .then((res) => res.json())
       .then(data => {
         if (data && data.display_name) {
           const parts = data.display_name.split(',');

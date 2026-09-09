@@ -41,12 +41,12 @@ export class FeedComponent implements OnInit, OnDestroy {
   loadIncidents() {
     if (this.isLoading) return;
     this.isLoading = true;
-    
+
     this.sub.add(
       this.incidentService.getIncidents(this.filters).subscribe({
         next: () => {
           // No pagination supported yet by backend so hasMore is false after load
-          this.hasMore = false; 
+          this.hasMore = false;
           this.isLoading = false;
         },
         error: () => {
@@ -63,7 +63,7 @@ export class FeedComponent implements OnInit, OnDestroy {
   }
 
   goToReport() {
-    this.router.navigate(['/reportar']);
+    this.router.navigate(['/app/reportar']);
   }
 
   getDailyStats() {
@@ -77,7 +77,7 @@ export class FeedComponent implements OnInit, OnDestroy {
     for (const inc of this.incidents) {
       const created = new Date(inc.created_at);
       if (created >= today) newCount++;
-      
+
       if (inc.status === 'resolved' || inc.status === 'closed') {
         const updated = new Date(inc.updated_at);
         if (updated >= today) resolvedCount++;
