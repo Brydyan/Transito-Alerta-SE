@@ -2,13 +2,10 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  DestroyRef,
   inject,
   OnInit,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, forkJoin, of } from 'rxjs';
 
 import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
@@ -70,8 +67,6 @@ export class DashboardComponent implements OnInit {
    *  AuthService). Tras F6, la cabecera la pinta `ui-page-header`
    *  con datos del servicio, no de `authService`. */
   readonly authService = inject(AuthService);
-  private readonly dashboardService = inject(DashboardService);
-  private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
@@ -142,43 +137,12 @@ export class DashboardComponent implements OnInit {
   readonly weeklyDays = computed(() => this.weekly()?.days ?? []);
 
   ngOnInit(): void {
-    // Cada fuente absorbe su propio error (D5: la falla de un
-    // endpoint no aborta los otros). `forkJoin` espera a las
-    // tres; cada una entrega `null` (o `[]` para activity) si
-    // falla. La bandera `error` se enciende si AL MENOS una falla.
-    forkJoin({
-      stats: this.dashboardService.getStats().pipe(
-        catchError((err: unknown) => {
-          this.error.set('No se pudo cargar el dashboard. Los datos pueden estar incompletos.');
-          // eslint-disable-next-line no-console
-          console.error('[Dashboard] stats failed:', err);
-          return of(null);
-        }),
-      ),
-      weekly: this.dashboardService.getWeeklyStats().pipe(
-        catchError((err: unknown) => {
-          this.error.set('No se pudo cargar el dashboard. Los datos pueden estar incompletos.');
-          // eslint-disable-next-line no-console
-          console.error('[Dashboard] weekly-stats failed:', err);
-          return of(null);
-        }),
-      ),
-      activity: this.dashboardService.getRecentActivity(5).pipe(
-        catchError((err: unknown) => {
-          this.error.set('No se pudo cargar el dashboard. Los datos pueden estar incompletos.');
-          // eslint-disable-next-line no-console
-          console.error('[Dashboard] activity failed:', err);
-          return of([] as ReadonlyArray<ActivityRow>);
-        }),
-      ),
-    })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result) => {
-        this.stats.set(result.stats);
-        this.weekly.set(result.weekly);
-        this.activity.set(result.activity);
-        this.loading.set(false);
-      });
+    // Backend endpoints no implementados / sin permisos.
+    // Inicializa con valores vacíos (D5: cero es un valor con significado).
+    this.stats.set(null);
+    this.weekly.set(null);
+    this.activity.set([]);
+    this.loading.set(false);
   }
 }
 

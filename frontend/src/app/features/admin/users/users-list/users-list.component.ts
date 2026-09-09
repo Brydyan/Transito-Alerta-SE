@@ -97,7 +97,7 @@ export class UsersListComponent implements OnInit {
   // Filtros. Combinan AND: search es local (filtra `users()`),
   // role+org disparan reload al backend.
   readonly currentPage = signal(1);
-  readonly pageSize = signal(25);
+  readonly pageSize = signal(10);
   readonly searchTerm = signal('');
   readonly selectedRole = signal('');
   readonly selectedOrg = signal('');
@@ -228,6 +228,12 @@ export class UsersListComponent implements OnInit {
 
   onPageChange(page: number): void {
     this.currentPage.set(page);
+    this.loadUsers();
+  }
+
+  onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.currentPage.set(1);
     this.loadUsers();
   }
 
