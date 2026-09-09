@@ -107,8 +107,35 @@ export class RolesComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadRoles();
+    this.loadStats();
   }
 
+  /**
+   * Change `2026-09-09-roles-stats-endpoint` — restaurado del commit
+   * `9d19888c1` (2026-09-08) que lo había quitado porque el endpoint
+   * backend no existía. Ahora `GET /api/roles/stats` está implementado
+   * en `backend/src/modules/roles/roles.controller.ts` y devuelve
+   * `{totalPermissions, protectedModules, assignedUsers}`. El
+   * `catchError` degrada a ceros si el endpoint falla, así que la UI
+   * nunca rompe (sólo muestra 0/0/0).
+   */
+  private loadStats(): void {
+    this.rolesService
+      .getRoleStats()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        catchError((err: unknown) => {
+          // eslint-disable-next-line no-console
+          console.error('[Roles] stats failed:', err);
+          return of<RoleStats>({
+            totalPermissions: 0,
+            protectedModules: 0,
+            assignedUsers: 0,
+          });
+        }),
+      )
+      .subscribe((stats) => this.stats.set(stats));
+  }
 
   protected loadRoles(): void {
     this.isLoading.set(true);

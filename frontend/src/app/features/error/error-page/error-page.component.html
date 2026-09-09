@@ -12,6 +12,15 @@
     <h2 class="error-title">{{ errorTitle }}</h2>
     <p class="error-desc">{{ errorDescription }}</p>
 
+    <!-- F6 (debug) — muestra la URL intentada y avisa que hay
+         un log en consola con el dump de rutas. -->
+    <p class="text-xs text-slate-500 mt-3 mb-2 font-mono" data-testid="attempted-url">
+      URL intentada: <code>{{ attemptedUrl }}</code>
+    </p>
+    <p class="text-xs text-slate-400 mb-4">
+      Revisá la consola del navegador (F12 → Console) para ver las rutas configuradas.
+    </p>
+
     <button
       routerLink="/app/dashboard"
       class="btn btn-primary btn-lg rounded-pill px-4 fw-semibold"

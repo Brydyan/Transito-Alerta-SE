@@ -222,18 +222,41 @@ export class UsersService {
    * password that the user resets on first login. Marked as a known
    * simplification vs. the design; the invitation route remains the
    * canonical onboarding path for non-admin flows (T3.6).
+   *
+   * F6 / 2026-09-08-f6-new-user-form (D2) — when `dto.role_id` is
+   * present, denormalize the role's permissions onto the new user
+   * (and bump `permission_version` to 2), exactly mirroring the
+   * existing branch in `adminUpdate()`. Without `role_id`, keep the
+   * T5.6 behavior (`permissions: []`, `permissionVersion: 1`) so
+   * pre-existing callers stay green. The new `phone` field from D1
+   * is persisted; its `users.phone` column was added in migration
+   * 0035, so no schema change here.
    */
   async adminCreate(dto: AdminCreateUserDto): Promise<UserEntity> {
+    let permissions: string[] = [];
+    let permissionVersion = 1;
+
+    if (dto.role_id) {
+      const role = await this.roleRepo.findOne({ where: { id: dto.role_id } });
+      if (!role) {
+        throw new NotFoundException(`Role ${dto.role_id} not found`);
+      }
+      permissions = role.permissions ?? [];
+      permissionVersion = 2;
+    }
+
     const tempDeviceUuid = `admin-bootstrap-${dto.email}-${Date.now()}`;
     const user = this.userRepo.create({
       email: dto.email,
       deviceUuid: tempDeviceUuid,
       firstName: dto.first_name ?? null,
       lastName: dto.last_name ?? null,
+      phone: dto.phone ?? null,
       organizationId: dto.organization_id ?? null,
       roleId: dto.role_id ?? null,
       isActive: true,
-      permissions: [],
+      permissions,
+      permissionVersion,
     });
     return this.userRepo.save(user);
   }

@@ -246,13 +246,13 @@ export class UsersListComponent implements OnInit {
   }
 
   onView(userId: string | number): void {
-    // El detalle vive como ruta `/app/admin/usuarios/:id`; el
+    // El detalle vive como ruta `/app/admin/users/:id`; el
     // follow-up del change F6.5.2 (forms) la implementará.
-    this.router.navigate(['/app/admin/usuarios', userId]);
+    this.router.navigate(['/app/admin/users', userId]);
   }
 
   onEdit(userId: string | number): void {
-    this.router.navigate(['/app/admin/usuarios', userId, 'edit']);
+    this.router.navigate(['/app/admin/users', userId, 'edit']);
   }
 
   onDelete(userId: string | number): void {

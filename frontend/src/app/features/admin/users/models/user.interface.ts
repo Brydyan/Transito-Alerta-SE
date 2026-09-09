@@ -108,3 +108,82 @@ export type UserStatus = 'activo' | 'inactivo';
 export function toUserStatus(isActive: boolean | null | undefined): UserStatus {
   return isActive ? 'activo' : 'inactivo';
 }
+
+// =====================================================================
+// F6 — `2026-09-08-f6-new-user-form` (admin user creation form)
+// =====================================================================
+
+/**
+ * F6 (D-frontend-3) — estado interno del `NewUserFormComponent`.
+ * Mantenido como un único `signal<NewUserFormData>` (no `FormGroup`).
+ *
+ * Los campos `initialStatus` y `notificationChannel` son **fijos hasta
+ * F7** (D-frontend-9) — se modelan en el estado para que el template
+ * pueda atarlos sin filtraciones, pero el submit no los envía.
+ */
+export interface NewUserFormData {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  organizationId: string | null;
+  roleId: string | null;
+  sendInvitation: boolean;
+  initialStatus: 'activo';
+  notificationChannel: 'email';
+}
+
+/**
+ * Defaults que el componente usa en `signal<NewUserFormData>(DEFAULT_NEW_USER_FORM)`.
+ * Coinciden con D-frontend-9 (`sendInvitation: true` por defecto).
+ */
+export const DEFAULT_NEW_USER_FORM: NewUserFormData = {
+  email: '',
+  firstName: '',
+  lastName: '',
+  phone: '',
+  organizationId: null,
+  roleId: null,
+  sendInvitation: true,
+  initialStatus: 'activo',
+  notificationChannel: 'email',
+};
+
+/**
+ * F6 (D-frontend-5) — opción de rol en el dropdown. `id` es UUID
+ * (matches `RoleEntity.id`); `name` viene de la columna `roles.name`
+ * y se usa para las reglas "admin_org/operador_org requieren org".
+ * `permissions` se carga on-demand (no upfront) — ver
+ * `UsersService.getRolePermissions()`.
+ */
+export interface RoleOption {
+  readonly id: string;
+  readonly name: string;
+  readonly permissions?: ReadonlyArray<string>;
+}
+
+/**
+ * F6 (D-frontend-5.a) — vista que pinta la tarjeta de preview. La lista
+ * de "sin acceso" se deriva del catálogo de permisos (ver
+ * `UsersService.getPermissionsCatalog()`): son permisos del catálogo
+ * que el rol **no** tiene, hasta un máximo de 2.
+ */
+export interface RolePermissionsView {
+  readonly access: ReadonlyArray<string>;
+  readonly noAccess: ReadonlyArray<string>;
+}
+
+/**
+ * F6 (D-frontend-4, D-frontend-6) — payload que se envía a
+ * `POST /api/users` con la convención snake_case del proyecto
+ * (ver `UsersService.createUserJson()`). El backend acepta `phone`
+ * desde el change paralelo `back/2026-09-08-f6-new-user-form/`.
+ */
+export interface CreateUserJsonPayload {
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  role_id: string | null;
+  organization_id: string | null;
+}

@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../../environments/environment';
 import {
   PaginatedUsersResponse,
@@ -11,6 +11,7 @@ import {
   RoleDetail,
   PermissionItem,
   CreateUserPayload,
+  CreateUserJsonPayload,
   UpdateUserPayload,
   Organization,
 } from '../models/user.interface';
@@ -108,6 +109,96 @@ export class UsersService {
     }
 
     return this.http.post<User>(this.usersUrl, formData, { withCredentials: true });
+  }
+
+  /**
+   * F6 (`2026-09-08-f6-new-user-form`, D-frontend-4) — variante JSON
+   * del alta. Se usa desde `NewUserFormComponent` con el payload
+   * snake_case que `AdminCreateUserDto` espera (ver
+   * `backend/src/modules/users/dto/admin-create-user.dto.ts`).
+   *
+   * **Por qué convive con `createUser` (FormData)**: `createUser` lo
+   * sigue usando `UserFormComponent` (create path de la ruta
+   * `:id/edit`-que-cuelga-de-`new`); refactorizar el método a JSON
+   * rompería ese path. El edit queda en FormData hasta que se rediseñe
+   * (F6.5.2). Documentado en `apply-progress.md`.
+   */
+  createUserJson(payload: CreateUserJsonPayload): Observable<User> {
+    return this.http.post<User>(this.usersUrl, payload, { withCredentials: true });
+  }
+
+  /**
+   * F6 (D-frontend-4) — sube el avatar DESPUÉS del `POST /users`
+   * exitoso. `UsersController.updateAvatar` espera multipart con la
+   * clave `avatar` (`@UseInterceptors(FileInterceptor('avatar'))`).
+   */
+  uploadAvatar(id: string, file: File): Observable<User> {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return this.http.patch<User>(`${this.usersUrl}/${id}/avatar`, formData, {
+      withCredentials: true,
+    });
+  }
+
+  /**
+   * F6 (D-frontend-5) — `GET /api/users/form-data` (T5.4,
+   * `UsersController.getFormData`). Devuelve la forma cruda del
+   * backend: `{ roles: [{id, name}], organizations: [{id, name}] }`.
+   * El componente la usa para poblar los dropdowns.
+   */
+  getFormData(): Observable<{ roles: ReadonlyArray<{ id: string; name: string }>; organizations: ReadonlyArray<Organization> }> {
+    return this.http
+      .get<{
+        roles: { id: string; name: string }[];
+        organizations: Organization[];
+      }>(`${this.usersUrl}/form-data`, { withCredentials: true })
+      .pipe(
+        map((res) => ({
+          roles: (res.roles ?? []).map((r) => ({ id: r.id, name: r.name })),
+          organizations: res.organizations ?? [],
+        })),
+      );
+  }
+
+  /**
+   * F6 (D-frontend-5) — `GET /api/roles/:id/permissions` (R6,
+   * `RolesController.listPermissions`). Devuelve un array de strings
+   * con los permisos del rol (formato "ACTION resource", p. ej.
+   * "READ dashboard"). On-demand al seleccionar el rol.
+   */
+  getRolePermissions(id: string): Observable<ReadonlyArray<string>> {
+    return this.http
+      .get<string[]>(`${this.rolesUrl}/${id}/permissions`, { withCredentials: true })
+      .pipe(map((res) => (Array.isArray(res) ? res : [])));
+  }
+
+  /**
+   * F6 (D-frontend-5.a) — `GET /api/permissions?limit=100`. Se usa
+   * para derivar la lista "SIN ACCESO" del role preview (permisos del
+   * catálogo que el rol NO tiene, slice 0-2). El backend devuelve un
+   * envelope `{ data, meta }` con objetos `PermissionItem`; acá
+   * proyectamos a `string[]` con el formato `"ACTION resource"`.
+   */
+  getPermissionsCatalog(): Observable<ReadonlyArray<string>> {
+    const params = new HttpParams().set('limit', '100');
+    return this.http
+      .get<PermissionItem[] | { data: PermissionItem[] }>(this.permissionsUrl, {
+        params,
+        withCredentials: true,
+      })
+      .pipe(
+        // El catálogo es opcional (sólo alimenta "SIN ACCESO" del role
+        // preview). Si el rol actual no tiene `READ permissions`, el
+        // endpoint 403 y la lista debe quedar vacía sin spamear al
+        // usuario con un toast de "permisos insuficientes".
+        catchError(() => of([] as PermissionItem[])),
+        map((res) => {
+          const items = Array.isArray(res) ? res : (res.data ?? []);
+          return items
+            .map((p) => `${p.accion} ${p.recurso}`.trim())
+            .filter((s) => s.length > 0);
+        }),
+      );
   }
 
   updateUser(id: number, payload: UpdateUserPayload, file?: File): Observable<User> {

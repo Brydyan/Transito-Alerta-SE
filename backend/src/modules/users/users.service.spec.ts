@@ -19,7 +19,13 @@ const PUBLIC_SCOPE: SubjectScope = { kind: 'public' };
 const DENY_SCOPE: SubjectScope = { kind: 'deny', reason: 'staff_without_organization' };
 
 describe('UsersService', () => {
-  let userRepo: { findOne: jest.Mock; update: jest.Mock; findAndCount: jest.Mock };
+  let userRepo: {
+    findOne: jest.Mock;
+    update: jest.Mock;
+    findAndCount: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+  };
   let avatarStorage: { upload: jest.Mock };
   let roleRepo: { find: jest.Mock; findOne: jest.Mock };
   let orgRepo: { find: jest.Mock; findOne: jest.Mock };
@@ -31,7 +37,13 @@ describe('UsersService', () => {
   let service: UsersService;
 
   beforeEach(() => {
-    userRepo = { findOne: jest.fn(), update: jest.fn(), findAndCount: jest.fn() };
+    userRepo = {
+      findOne: jest.fn(),
+      update: jest.fn(),
+      findAndCount: jest.fn(),
+      create: jest.fn((input) => ({ id: 'new-user', ...input })),
+      save: jest.fn((input) => Promise.resolve({ id: 'new-user', ...input })),
+    };
     avatarStorage = { upload: jest.fn() };
     roleRepo = { find: jest.fn(), findOne: jest.fn() };
     orgRepo = { find: jest.fn(), findOne: jest.fn() };
@@ -433,6 +445,65 @@ describe('UsersService', () => {
     it('throws NotFoundException when findOne returns null (user deleted)', async () => {
       userRepo.findOne.mockResolvedValue(null);
       await expect(service.findById('deleted-user')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  // F6 / 2026-09-08-f6-new-user-form — D2: adminCreate() denormalizes
+  // role permissions (when role_id is provided) and persists phone.
+  // Backward compat: no role_id → permissions: [], version: 1 (T5.6).
+  describe('adminCreate() (F6 D2 — denormalize role permissions + persist phone)', () => {
+    it('with role_id: copies role.permissions onto the user and bumps permissionVersion to 2', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: ['READ dashboard', 'READ incidents'],
+      });
+
+      const result = await service.adminCreate({
+        email: 'juan@municipio.ec',
+        role_id: 'role-admin',
+      });
+
+      expect(roleRepo.findOne).toHaveBeenCalledWith({ where: { id: 'role-admin' } });
+      expect(userRepo.create).toHaveBeenCalledTimes(1);
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.permissions).toEqual(['READ dashboard', 'READ incidents']);
+      expect(createArg.permissionVersion).toBe(2);
+      expect(createArg.roleId).toBe('role-admin');
+      expect(createArg.isActive).toBe(true);
+      expect(result.permissions).toEqual(['READ dashboard', 'READ incidents']);
+      expect(result.permissionVersion).toBe(2);
+    });
+
+    it('without role_id: keeps permissions: [] and permissionVersion: 1 (backward compat T5.6)', async () => {
+      await service.adminCreate({ email: 'juan@municipio.ec' });
+
+      expect(roleRepo.findOne).not.toHaveBeenCalled();
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.permissions).toEqual([]);
+      expect(createArg.permissionVersion).toBe(1);
+      expect(createArg.roleId).toBeNull();
+      expect(createArg.isActive).toBe(true);
+    });
+
+    it('with unknown role_id: throws NotFoundException and does not create the user', async () => {
+      roleRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.adminCreate({ email: 'juan@municipio.ec', role_id: 'uuid-x' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(userRepo.create).not.toHaveBeenCalled();
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('persists dto.phone onto the user row (F6 D1)', async () => {
+      await service.adminCreate({
+        email: 'juan@municipio.ec',
+        phone: '+593 99 999 9999',
+      });
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.phone).toBe('+593 99 999 9999');
     });
   });
 });

@@ -111,10 +111,14 @@ export const routes: Routes = [
               {
                 path: 'new',
                 data: { breadcrumb: 'Nuevo Usuario' },
+                // F6 (`2026-09-08-f6-new-user-form`, D-frontend-1) — el
+                // alta de usuarios usa `NewUserFormComponent` (mock 03-02,
+                // PAGE no modal). El `UserFormComponent` genérico se
+                // reserva para `:id/edit`.
                 loadComponent: () =>
-                  import('./features/admin/users/user-form/user-form.component').then(
-                    (m) => m.UserFormComponent,
-                  ),
+                  import(
+                    './features/admin/users/new-user-form/new-user-form.component'
+                  ).then((m) => m.NewUserFormComponent),
               },
               {
                 path: ':id/edit',

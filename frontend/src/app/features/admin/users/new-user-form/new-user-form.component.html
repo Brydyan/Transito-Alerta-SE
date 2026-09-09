@@ -1,0 +1,365 @@
+<!--
+  NewUserFormComponent — F6 (`2026-09-08-f6-new-user-form`).
+  Mock 03-02: 6 secciones inline (D-frontend-2), 2 columnas,
+  sin sub-componentes. Header con `ui-page-header` (F0).
+-->
+
+<ui-page-header
+  kicker="GESTIÓN > USUARIOS > NUEVO REGISTRO"
+  title="Nuevo Usuario"
+  subtitle="Complete los datos personales y configure los permisos de acceso para el nuevo integrante del sistema GeoReporta."
+>
+  <button
+    page-header-actions
+    type="button"
+    class="btn btn-outline-secondary font-medium px-4 py-2 flex items-center gap-2"
+    [disabled]="isSaving()"
+    (click)="onCancel()"
+    data-testid="cancel-button"
+  >
+    <ui-icon name="x" [size]="16" [strokeWidth]="2" />
+    Cancelar
+  </button>
+  <button
+    page-header-actions
+    type="button"
+    class="btn btn-primary font-medium px-4 py-2 flex items-center gap-2"
+    [disabled]="!isFormValid() || isSaving()"
+    (click)="onSubmit()"
+    data-testid="submit-button"
+  >
+    @if (isSaving()) {
+      <span class="spinner-border spinner-border-sm w-4 h-4 border-2" role="status" aria-hidden="true"></span>
+    }
+    <ui-icon name="save" [size]="16" [strokeWidth]="2" />
+    Guardar Usuario
+  </button>
+</ui-page-header>
+
+@if (errorMessage(); as err) {
+  <div class="error-banner" role="alert" data-testid="error-banner">
+    <ui-icon name="alert-triangle" [size]="20" [strokeWidth]="2" />
+    <div>
+      <strong>{{ err }}</strong>
+    </div>
+  </div>
+}
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+  <!-- ============ COLUMNA IZQUIERDA ============ -->
+
+  <!-- Sección 1: Perfil de Usuario (foto) -->
+  <article class="form-card" data-testid="section-profile">
+    <header class="form-card__header">
+      <span class="form-card__icon">
+        <ui-icon name="user-circle" [size]="20" [strokeWidth]="2" />
+      </span>
+      <div>
+        <h2 class="form-card__title">Perfil de Usuario</h2>
+        <p class="form-card__subtitle">Identificación básica y contacto</p>
+      </div>
+    </header>
+    <div class="form-card__body flex flex-col items-center gap-3 py-6">
+      <div class="avatar-preview" data-testid="avatar-preview">
+        @if (avatarPreview(); as src) {
+          <img [src]="src" alt="Vista previa del avatar" class="avatar-preview__img" />
+        } @else {
+          <ui-icon name="user" [size]="40" [strokeWidth]="1.5" />
+        }
+      </div>
+      <label class="btn btn-primary cursor-pointer" data-testid="avatar-upload">
+        Subir foto de perfil
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          class="hidden"
+          (change)="onAvatarSelect($event)"
+          aria-label="Seleccionar archivo de imagen"
+        />
+      </label>
+      <p class="text-xs text-slate-500 uppercase tracking-wider">
+        JPG, PNG, WEBP. MÁX. 2MB
+      </p>
+    </div>
+  </article>
+
+  <!-- Sección 2: Datos Personales -->
+  <article class="form-card" data-testid="section-personal-data">
+    <header class="form-card__header">
+      <span class="form-card__icon">
+        <ui-icon name="user" [size]="20" [strokeWidth]="2" />
+      </span>
+      <div>
+        <h2 class="form-card__title">Datos Personales</h2>
+      </div>
+    </header>
+    <div class="form-card__body grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label for="new-user-firstname" class="form-label">Nombre <span class="text-status-critical">*</span></label>
+        <div class="form-control-icon">
+          <ui-icon name="user" [size]="16" [strokeWidth]="2" extraClass="text-slate-400 mr-2" />
+          <input
+            id="new-user-firstname"
+            type="text"
+            class="form-control"
+            placeholder="Ej: Juan"
+            data-testid="input-firstName"
+            [value]="formData().firstName"
+            (input)="onFieldChange('firstName', $any($event.target).value)"
+          />
+        </div>
+      </div>
+      <div>
+        <label for="new-user-lastname" class="form-label">Apellido <span class="text-status-critical">*</span></label>
+        <div class="form-control-icon">
+          <ui-icon name="user" [size]="16" [strokeWidth]="2" extraClass="text-slate-400 mr-2" />
+          <input
+            id="new-user-lastname"
+            type="text"
+            class="form-control"
+            placeholder="Ej: Pérez"
+            data-testid="input-lastName"
+            [value]="formData().lastName"
+            (input)="onFieldChange('lastName', $any($event.target).value)"
+          />
+        </div>
+      </div>
+      <div class="md:col-span-2">
+        <label for="new-user-email" class="form-label">Email Corporativo <span class="text-status-critical">*</span></label>
+        <div class="form-control-icon">
+          <ui-icon name="mail" [size]="16" [strokeWidth]="2" extraClass="text-slate-400 mr-2" />
+          <input
+            id="new-user-email"
+            type="email"
+            class="form-control"
+            placeholder="juan.perez@municipio.gob.ec"
+            data-testid="input-email"
+            [value]="formData().email"
+            (input)="onFieldChange('email', $any($event.target).value)"
+            (blur)="onFieldChange('email', $any($event.target).value)"
+          />
+        </div>
+      </div>
+      <div class="md:col-span-2">
+        <label for="new-user-phone" class="form-label">Teléfono de Contacto</label>
+        <div class="form-control-icon">
+          <ui-icon name="phone" [size]="16" [strokeWidth]="2" extraClass="text-slate-400 mr-2" />
+          <input
+            id="new-user-phone"
+            type="tel"
+            class="form-control"
+            placeholder="+593 99 999 9999"
+            data-testid="input-phone"
+            [value]="formData().phone"
+            (input)="onFieldChange('phone', $any($event.target).value)"
+          />
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Sección 3: Asignación de Entidad (organización) -->
+  <article class="form-card lg:col-span-2" data-testid="section-organization">
+    <header class="form-card__header">
+      <span class="form-card__icon">
+        <ui-icon name="building-2" [size]="20" [strokeWidth]="2" />
+      </span>
+      <div>
+        <h2 class="form-card__title">Asignación de Entidad</h2>
+      </div>
+    </header>
+    <div class="form-card__body">
+      <label for="new-user-org" class="form-label">Organización Pertinente @if (requiresOrganization()) { <span class="text-status-critical">*</span> }</label>
+      <select
+        id="new-user-org"
+        class="form-control"
+        data-testid="select-organization"
+        [disabled]="isLoadingLookups()"
+        [value]="formData().organizationId ?? ''"
+        (change)="onOrganizationChange($any($event.target).value || null)"
+      >
+        <option value="" disabled>Seleccione organización...</option>
+        @for (org of organizations(); track org.id) {
+          <option [value]="org.id">{{ org.nombre }}</option>
+        }
+      </select>
+      <p class="text-xs text-slate-500 mt-2 italic">
+        Obligatorio si el rol corresponde a Administrador u Operador de Organización.
+      </p>
+    </div>
+  </article>
+
+  <!-- ============ COLUMNA DERECHA ============ -->
+
+  <!-- Sección 4: Tarjeta de Vista Previa del Rol -->
+  <article class="form-card lg:col-span-2" data-testid="section-role-preview">
+    <header class="form-card__header">
+      <span class="form-card__icon">
+        <ui-icon name="shield" [size]="20" [strokeWidth]="2" />
+      </span>
+      <div>
+        <h2 class="form-card__title">Tarjeta de Vista Previa del Rol</h2>
+        <p class="form-card__subtitle">Resumen de capacidades según el rol seleccionado</p>
+      </div>
+    </header>
+    <div class="form-card__body space-y-4">
+      <div>
+        <label for="new-user-role" class="form-label">Tipo de Rol Seleccionado</label>
+        <select
+          id="new-user-role"
+          class="form-control"
+          data-testid="select-role"
+          [disabled]="isLoadingLookups()"
+          [value]="formData().roleId ?? ''"
+          (change)="onRoleChange($any($event.target).value || null)"
+        >
+          <option value="" disabled>Asignar rol...</option>
+          @for (role of roles(); track role.id) {
+            <option [value]="role.id">{{ role.name }}</option>
+          }
+        </select>
+      </div>
+      @if (formData().roleId === null) {
+        <p class="text-sm text-slate-500 text-center py-4" data-testid="role-preview-empty">
+          Selecciona un rol para ver sus permisos
+        </p>
+      } @else {
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="permission-card permission-card--access" data-testid="role-access">
+            <header class="permission-card__header">
+              <ui-icon name="check" [size]="16" [strokeWidth]="2.5" />
+              <span>ACCESO A</span>
+            </header>
+            <div class="permission-card__body">
+              @if (selectedRolePermissions().access.length === 0) {
+                <p class="text-sm text-slate-500">Sin permisos asignados</p>
+              } @else {
+                @for (perm of selectedRolePermissions().access; track perm) {
+                  <span class="permission-pill">{{ perm }}</span>
+                }
+              }
+            </div>
+          </div>
+          <div class="permission-card permission-card--noaccess" data-testid="role-noaccess">
+            <header class="permission-card__header">
+              <ui-icon name="shield-off" [size]="16" [strokeWidth]="2.5" />
+              <span>SIN ACCESO A</span>
+            </header>
+            <div class="permission-card__body">
+              @if (selectedRolePermissions().noAccess.length === 0) {
+                <p class="text-sm text-slate-500">Sin permisos restringidos</p>
+              } @else {
+                @for (perm of selectedRolePermissions().noAccess; track perm) {
+                  <span class="permission-pill">{{ perm }}</span>
+                }
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  </article>
+
+  <!-- Sección 5: Alcance Territorial / Jurisdicción (F7, disabled) -->
+  <article class="form-card lg:col-span-2" data-testid="section-geolocation">
+    <header class="form-card__header">
+      <span class="form-card__icon">
+        <ui-icon name="map-pin" [size]="20" [strokeWidth]="2" />
+      </span>
+      <div>
+        <h2 class="form-card__title">Alcance Territorial / Jurisdicción</h2>
+        <p class="form-card__subtitle">Defina el área de operación del usuario</p>
+      </div>
+    </header>
+    <div class="form-card__body space-y-4">
+      <div class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <ui-icon name="map-pin" [size]="18" [strokeWidth]="2" />
+        Ubicación Geográfica
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="new-user-canton" class="form-label">Cantón / Parroquia Asignada</label>
+          <select
+            id="new-user-canton"
+            class="form-control"
+            disabled
+            title="Disponible en F7"
+            data-testid="select-canton"
+          >
+            <option>Seleccionar lugar...</option>
+          </select>
+        </div>
+        <div>
+          <label for="new-user-zona" class="form-label">Zona / Sector Operativo</label>
+          <input
+            id="new-user-zona"
+            type="text"
+            class="form-control"
+            disabled
+            title="Disponible en F7"
+            placeholder="Ej: Sector Norte / Centro"
+            data-testid="input-zona"
+          />
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Sección 6: Configuración de Cuenta e Invitación -->
+  <article class="form-card lg:col-span-2" data-testid="section-account-config">
+    <header class="form-card__header">
+      <span class="form-card__icon">
+        <ui-icon name="bell" [size]="20" [strokeWidth]="2" />
+      </span>
+      <div>
+        <h2 class="form-card__title">Configuración de Cuenta e Invitación</h2>
+        <p class="form-card__subtitle">Estado y métodos de comunicación</p>
+      </div>
+    </header>
+    <div class="form-card__body space-y-4">
+      <div class="invitation-card">
+        <div>
+          <p class="font-semibold text-slate-800">Envío de invitación</p>
+          <p class="text-sm text-slate-500">Enviar credenciales temporales por correo electrónico</p>
+        </div>
+        <label class="toggle" data-testid="toggle-send-invitation">
+          <input
+            type="checkbox"
+            [checked]="formData().sendInvitation"
+            (change)="onSendInvitationChange($any($event.target).checked)"
+          />
+          <span class="toggle__track">
+            <span class="toggle__thumb"></span>
+          </span>
+        </label>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="new-user-initial-status" class="form-label">Estado inicial</label>
+          <select
+            id="new-user-initial-status"
+            class="form-control"
+            disabled
+            title="Disponible en F7"
+            data-testid="select-initial-status"
+          >
+            <option>Activo</option>
+          </select>
+        </div>
+        <div>
+          <label for="new-user-channel" class="form-label">Canal de notificaciones preferido</label>
+          <select
+            id="new-user-channel"
+            class="form-control"
+            disabled
+            title="Disponible en F7"
+            data-testid="select-channel"
+          >
+            <option>Correo Electrónico</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </article>
+</div>
