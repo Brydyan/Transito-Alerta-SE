@@ -227,10 +227,9 @@ export const routes: Routes = [
         path: 'mapa',
         data: { breadcrumb: 'Mapa', title: 'Mapa', phase: 'F4' },
         loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
+          import('./features/citizen/map/map.component').then(
+            (m) => m.MapComponent,
           ),
-        // PLACEHOLDER F4
       },
       // F1.5.3 — `citizen-report` era código muerto (sólo importable).
       // F1 lo registra como ruta real del menú `Reportar`. La pantalla
