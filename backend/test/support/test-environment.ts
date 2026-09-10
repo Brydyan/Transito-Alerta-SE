@@ -466,8 +466,13 @@ export class TestEnvironment {
    * catálogo, la descartamos y logueamos un warning — un
    * permiso fantasma nunca debería llegar a un user insertado
    * por el harness.
+   *
+   * Público: el helper `createRole` de `roles.e2e-spec.ts` lo
+   * reutiliza para insertar roles con `roles.permissions` en
+   * formato UUID (post-0051), consistente con el wire del
+   * backend.
    */
-  private async resolvePermissionUuids(permissions: string[]): Promise<string[]> {
+  async resolvePermissionUuids(permissions: string[]): Promise<string[]> {
     if (permissions.length === 0) return [];
     const { rows: catalog } = await this.pg.query<{
       id: string;
@@ -492,7 +497,7 @@ export class TestEnvironment {
         resolved.push(uuid);
       } else {
         // eslint-disable-next-line no-console
-        console.warn(`[test-env] provisionUser: permission "${perm}" not in catalog, dropping`);
+        console.warn(`[test-env] permission "${perm}" not in catalog, dropping`);
       }
     }
     return resolved;

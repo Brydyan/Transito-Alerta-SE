@@ -53,11 +53,17 @@ describe('Roles + Permissions e2e (T3.1)', () => {
   }
 
   async function createRole(name: string, permissions: string[]): Promise<string> {
+    // F6 fix (post-0051): la columna `roles.permissions` ahora
+    // almacena UUIDs (no strings formateados). El helper acepta
+    // strings formateados por ergonomía y los traduce via el
+    // catálogo (mismo patrón que `provisionUser` en
+    // test-environment). Si una entrada ya es UUID, la deja.
+    const permissionUuids = await env.resolvePermissionUuids(permissions);
     const { rows } = await env.pg.query<{ id: string }>(
       `INSERT INTO roles (name, description, permissions)
        VALUES ($1, 'e2e role', $2::jsonb)
        RETURNING id`,
-      [name, JSON.stringify(permissions)],
+      [name, JSON.stringify(permissionUuids)],
     );
     return rows[0].id;
   }

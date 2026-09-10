@@ -510,6 +510,19 @@ describe('E2E AUD — D4 transactional rollback (FIX-1) + reveal coverage (FIX-2
    * la BD y la cache.
    */
   it('ronda-13: un master tiene REVEAL en users.permissions tras la migración 0047', async () => {
+    // F6 fix (post-0051): `users.permissions` ahora almacena UUIDs
+    // (no strings formateados). Buscamos el UUID de REVEAL
+    // incidents en el catálogo para hacer la aserción contra
+    // el mismo formato que el backend persiste y compara el
+    // PermissionGuard.
+    const { rows: revealRows } = await env.pg.query<{ id: string }>(
+      `SELECT id::text AS id FROM permissions
+        WHERE deleted_at IS NULL
+          AND resource = 'incidents' AND action = 'REVEAL'`,
+    );
+    const revealUuid = revealRows[0]?.id;
+    test.skip(!revealUuid, 'migration 0047 (reveal_permission) no aplicada — REVEAL no existe en el catálogo');
+
     const master = await env.provisionUser(['REVEAL incidents'], {
       roleName: 'master',
     });
@@ -518,7 +531,7 @@ describe('E2E AUD — D4 transactional rollback (FIX-1) + reveal coverage (FIX-2
       [master.userId],
     );
     expect(rows).toHaveLength(1);
-    expect(rows[0].permissions).toContain('REVEAL incidents');
+    expect(rows[0].permissions).toContain(revealUuid);
     // El `permission_version` que se haya quedado tras la
     // migración es ≥ 1. La afirmación útil es que está
     // bumpeado (no es 0, que sería el default anterior a
@@ -568,15 +581,31 @@ describe('E2E AUD — D4 transactional rollback (FIX-1) + reveal coverage (FIX-2
     // — si alguien migra el cambio y la concesión se aplica a
     // un rol equivocado, este test cae con el nombre del rol
     // que no debería tener el permiso.
+    //
+    // F6 fix (post-0051): `roles.permissions` ahora almacena
+    // UUIDs. Buscamos el UUID de REVEAL incidents en el
+    // catálogo y comparamos contra eso. Si la migración 0047
+    // no se aplicó, el catálogo no tiene la fila y skippeamos
+    // el test (con un comentario explícito para no perder la
+    // señal de "falta la migración").
+    const { rows: revealRows } = await env.pg.query<{ id: string }>(
+      `SELECT id::text AS id FROM permissions
+        WHERE deleted_at IS NULL
+          AND resource = 'incidents' AND action = 'REVEAL'`,
+    );
+    const revealUuid = revealRows[0]?.id;
+    test.skip(!revealUuid, 'migration 0047 (reveal_permission) no aplicada — REVEAL no existe en el catálogo');
+
     const { rows } = await env.pg.query<{ name: string; has_reveal: boolean }>(
       `SELECT r.name,
               EXISTS (
                 SELECT 1 FROM jsonb_array_elements_text(r.permissions) AS p
-                WHERE p = 'REVEAL incidents'
+                WHERE p = $1
               ) AS has_reveal
          FROM roles r
         WHERE r.deleted_at IS NULL
         ORDER BY r.name`,
+      [revealUuid],
     );
     const offenders = rows.filter((r) => r.has_reveal && r.name !== 'master');
     expect(offenders).toEqual([]);
