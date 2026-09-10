@@ -34,6 +34,8 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { SearchBarComponent } from './components/search-bar.component';
 import { FilterBarComponent } from './components/filter-bar.component';
 import { ActionMenuComponent } from './components/action-menu.component';
+import { UserDetailModalComponent } from '../user-detail-modal/user-detail-modal.component';
+import { UserDetailModalService } from '../user-detail-modal/user-detail-modal.service';
 
 /**
  * UsersListComponent — F6 (`2026-09-08-f6-usuarios-redesign`).
@@ -69,6 +71,7 @@ import { ActionMenuComponent } from './components/action-menu.component';
     SearchBarComponent,
     FilterBarComponent,
     ActionMenuComponent,
+    UserDetailModalComponent,
   ],
   templateUrl: './users-list.component.html',
   styleUrl: './users-list.component.css',
@@ -78,6 +81,7 @@ export class UsersListComponent implements OnInit {
   private readonly usersService = inject(UsersService);
   private readonly toastService = inject(ToastService);
   private readonly dialogService = inject(ConfirmDialogService);
+  private readonly userDetailModalService = inject(UserDetailModalService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   // Conservado por consistencia con el patrón de las otras
@@ -246,9 +250,21 @@ export class UsersListComponent implements OnInit {
   }
 
   onView(userId: string | number): void {
-    // El detalle vive como ruta `/app/admin/users/:id`; el
-    // follow-up del change F6.5.2 (forms) la implementará.
-    this.router.navigate(['/app/admin/users', userId]);
+    // F6 fix: el ojo en la fila abre un modal read-only con los
+    // datos del user (NO navega a una ruta separada). Antes
+    // intentaba navegar a `/app/admin/users/:id` que NO estaba
+    // montada en el router (sólo `:id/edit`), así que el ojo
+    // navegaba a una ruta inexistente y caía en el error page.
+    // El detalle es read-only; para editar existe el menú
+    // three-dot → Editar que sí navega a `:id/edit`.
+    const user = this.users().find((u) => String(u.usuarioId) === String(userId));
+    if (!user) {
+      this.toastService.error('No se encontró el usuario.', 'Error');
+      return;
+    }
+    // Pasamos la lista de orgs para que el modal pueda resolver
+    // `organizationId` → nombre sin un round-trip extra.
+    this.userDetailModalService.open(user, this.organizations());
   }
 
   onEdit(userId: string | number): void {

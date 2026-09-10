@@ -151,3 +151,9 @@
     <a href="#">Descargar reporte CSV...</a>
   </article>
 </section>
+
+<!-- F6 fix: modal read-only de detalle. Se abre desde el ojo en
+     cada fila (action-menu emit `view`). El estado vive en
+     `UserDetailModalService.activeUser` (signal global); el
+     modal se auto-renderiza/oculta según el signal sea no-null. -->
+<app-user-detail-modal />
