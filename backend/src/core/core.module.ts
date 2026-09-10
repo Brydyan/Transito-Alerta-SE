@@ -12,6 +12,7 @@ import cacheConfig from '../config/cache.config';
 import { CacheConfig } from '../config/cache.config';
 import mailConfig from '../config/mail.config';
 import storageConfig from '../config/storage.config';
+import { PermissionEntity } from '../entities/permission.entity';
 import { PermissionLookupService } from '../common/permissions/permission-lookup.service';
 
 /**
@@ -87,6 +88,12 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => config.get('database')!,
     }),
+    // F6 fix (post-0051): el `PermissionLookupService` necesita el repo
+    // de `permissions` para construir el índice `"ACTION resource" → uuid`.
+    // El módulo es `@Global()` y la entity se importa acá para que
+    // cualquier feature module pueda inyectar el lookup sin tener que
+    // declarar `forFeature([PermissionEntity])` en cada uno.
+    TypeOrmModule.forFeature([PermissionEntity]),
     CacheModule.registerAsync({
       isGlobal: true,
       inject: [ConfigService],
