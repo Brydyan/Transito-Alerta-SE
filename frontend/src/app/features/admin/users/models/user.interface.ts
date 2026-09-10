@@ -4,25 +4,41 @@ import { Avatar } from '../../../../core/models/auth.model';
 export type { Avatar };
 
 export interface Role {
-  rolId: number;
+  // F6 fix: `rolId` es UUID (string) — el backend devuelve
+  // `id: "uuid"`. Antes era `number`, no matcheaba con el wire.
+  rolId: string;
   nombre: string;
 }
 
 export interface RolePermission {
-  rolPermisoId: number;
-  permisoId: number;
+  rolPermisoId: string;
+  permisoId: string;
   nombre: string;
   descripcion: string;
   recurso: string;
   accion: string;
 }
 
+/**
+ * F6 fix: `permisos` es `string[]` (el wire real del backend es
+ * `permissions: string[]` desde `GET /api/roles/:id`). Antes
+ * estaba tipado como `RolePermission[]` con campos estructurados
+ * (`permisoId, nombre, recurso, accion, …`) que el backend NO
+ * devuelve — el template sólo necesita contar los permisos y el
+ * form los itera como strings. Mantener la forma vieja hacía
+ * que el `map` del service no encajara con el tipo y el código
+ * no compilara.
+ */
 export interface RoleDetail extends Role {
-  permisos: RolePermission[];
+  permisos: string[];
 }
 
 export interface PermissionItem {
-  permisoId: number;
+  // F6 fix: `permisoId` ahora es `string` (UUID) — el backend
+  // `GET /api/permissions` devuelve `id: "uuid"`. El type
+  // legacy `number` no matcheaba con el wire y los `Set<number>`
+  // del form siempre quedaban vacíos.
+  permisoId: string;
   nombre: string;
   descripcion: string;
   recurso: string;
@@ -30,15 +46,20 @@ export interface PermissionItem {
 }
 
 export interface DirectPermission {
-  usuarioPermisoId: number;
-  permisoId: number;
+  usuarioPermisoId: string;
+  permisoId: string;
   recurso: string;
   accion: string;
   permitido: boolean;
 }
 
 export interface User {
-  usuarioId: number;
+  // F6 fix: `usuarioId` es UUID (string), no number. El backend
+  // devuelve `id: "uuid"` (no `id: number`). El type legacy
+  // `number` rompía: `deleteUser(user.usuarioId)` mandaba el
+  // id como number al PATCH/DELETE, y el backend buscaba un
+  // usuario por id numérico (no encontrado) → 404 silencioso.
+  usuarioId: string;
   email: string;
   nombres: string;
   apellidos: string;
@@ -54,6 +75,17 @@ export interface User {
    * organización asignada.
    */
   organizationId?: string | null;
+  /**
+   * F6 (`2026-09-08-f6-new-user-form`) — estado activo/inactivo del
+   * usuario. Mapeado desde `is_active: boolean` del backend en
+   * `users.service.ts:getUsers()` (el wire es snake_case vía
+   * `SnakeCaseResponseInterceptor`). SC-209 lesson: si la
+   * `User` interface no declara este campo, el componente lo
+   * lee como `undefined` y `toUserStatus(undefined)` cae a
+   * `'inactivo'` para todos. Se agrega explícitamente para
+   * que la columna ESTADO de la tabla refleje datos reales.
+   */
+  isActive?: boolean;
 }
 
 export interface UserDetail extends User {
@@ -69,18 +101,31 @@ export interface CreateUserPayload {
   nombres: string;
   apellidos: string;
   telefono: string;
-  rolId?: number;
+  // F6 fix: `rolId` es UUID (string), no number. Y agregamos
+  // `organizationId` para que `createUser` pueda setear la org
+  // al crear (el F6 new-user-form lo usa).
+  rolId?: string;
+  organizationId?: string | null;
   avatar?: Avatar;
 }
 
+/**
+ * F6 (`2026-09-08-f6-usuarios-redesign` + fix del UserFormComponent):
+ * `rolId` y `permisoId` eran `number` (legacy), ahora son `string`
+ * (UUID) porque el backend usa UUIDs. `organizationId` se agrega
+ * porque el form de edición tiene un selector de org (pre-existente
+ * faltaba y hacía que el user se editara sin poder cambiar/cambiarle
+ * la organización).
+ */
 export interface UpdateUserPayload {
   email?: string;
   nombres?: string;
   apellidos?: string;
   telefono?: string;
-  rolId?: number;
+  rolId?: string;
+  organizationId?: string | null;
   avatar?: Avatar;
-  directPermissions?: { permisoId: number; permitido: boolean }[];
+  directPermissions?: { permisoId: string; permitido: boolean }[];
 }
 
 /**

@@ -54,17 +54,34 @@ export class RolesService {
   /**
    * GET /api/roles/stats — métricas agregadas para las 3 cards del
    * pie. Aplana envelope a un `RoleStats` (con fallback a ceros).
+   *
+   * SC-209 lesson (D-frontend-9, F6 rediseño): la respuesta del
+   * backend es snake_case (`total_permissions` etc.) por el
+   * `SnakeCaseResponseInterceptor` global. El `map` debe leer los
+   * campos snake_case, no los camelCase del `RoleStats` — si
+   * los lee del shape camelCase, los campos quedan `undefined`
+   * y el `?? 0` degrada a ceros sin que la request falle.
    */
   getRoleStats(): Observable<RoleStats> {
     return this.http
-      .get<RoleStats | { data: RoleStats }>(this.statsUrl, { withCredentials: true })
+      .get<{ data?: { total_permissions?: number; protected_modules?: number; assigned_users?: number } }>(
+        this.statsUrl,
+        { withCredentials: true },
+      )
       .pipe(
         map((res) => {
-          const stats = (res && 'data' in res ? (res as { data: RoleStats }).data : (res as RoleStats)) ?? ({} as RoleStats);
+          // El backend puede envolver en `{ data: ... }` (paginación,
+          // convención del proyecto) o devolver el objeto plano. Ambos
+          // campos vienen en snake_case.
+          const inner = res && 'data' in res && res.data ? res.data : (res as unknown as {
+            total_permissions?: number;
+            protected_modules?: number;
+            assigned_users?: number;
+          });
           return {
-            totalPermissions: stats.totalPermissions ?? 0,
-            protectedModules: stats.protectedModules ?? 0,
-            assignedUsers: stats.assignedUsers ?? 0,
+            totalPermissions: inner?.total_permissions ?? 0,
+            protectedModules: inner?.protected_modules ?? 0,
+            assignedUsers: inner?.assigned_users ?? 0,
           };
         }),
       );

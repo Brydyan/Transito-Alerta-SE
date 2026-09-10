@@ -123,7 +123,7 @@ export class UsersListComponent implements OnInit {
   /** El backend devuelve `is_active` (boolean) o no lo devuelve;
    *  `toUserStatus` mapea a la etiqueta del design system. */
   readonly statusOf = (u: User): UserStatus =>
-    toUserStatus((u as User & { isActive?: boolean }).isActive);
+    toUserStatus(u.isActive);
 
   readonly hasFilters = computed(
     () =>

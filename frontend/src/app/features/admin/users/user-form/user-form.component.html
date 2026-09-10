@@ -194,6 +194,28 @@
                     <small class="text-status-critical text-xs mt-1 block">El rol es obligatorio.</small>
                   }
                 </div>
+
+                <!-- F6 fix: organización como campo del form. Antes
+                     el form no lo tenía, así que editar un user con
+                     `organization_id` no mostraba ni dejaba cambiar
+                     la organización. El dropdown es opcional: un
+                     user sin org (e.g. `master`, `operador_sistema`)
+                     puede quedar con `null`. -->
+                <div class="md:col-span-2">
+                  <label for="form-organizationId" class="form-label">
+                    Organización
+                  </label>
+                  <select
+                    id="form-organizationId"
+                    class="form-control"
+                    formControlName="organizationId"
+                  >
+                    <option [ngValue]="null">— Sin organización —</option>
+                    @for (org of organizations(); track org.id) {
+                      <option [ngValue]="org.id">{{ org.nombre }}</option>
+                    }
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -230,7 +252,11 @@
                             Seleccione un rol para ver sus permisos
                           </p>
                         } @else {
-                          @for (perm of filteredRolePerms(); track perm.permisoId) {
+                          <!-- F6 fix: `rolePermissions` es `string[]` (formato
+                               "ACTION resource" desde `GET /api/roles/:id`),
+                               no objetos con `permisoId`/`nombre`/`accion`.
+                               Renderizamos el string literal. -->
+                          @for (perm of filteredRolePerms(); track perm) {
                             <div
                               class="form-check flex items-center gap-3 py-2 border-b border-slate-100 last:border-0"
                             >
@@ -239,18 +265,13 @@
                                 type="checkbox"
                                 [checked]="true"
                                 [disabled]="true"
-                                [id]="'role-perm-' + perm.permisoId"
+                                [id]="'role-perm-' + $index"
                               />
                               <label
                                 class="form-check-label text-sm flex items-center gap-3 grow cursor-pointer"
-                                [for]="'role-perm-' + perm.permisoId"
+                                [for]="'role-perm-' + $index"
                               >
-                                <span>{{ perm.nombre }}</span>
-                                <span
-                                  class="badge bg-slate-100 text-slate-600 rounded-full text-[0.65rem] px-2 py-0.5 ml-auto"
-                                >
-                                  {{ perm.accion }}
-                                </span>
+                                <span>{{ perm }}</span>
                               </label>
                             </div>
                           } @empty {
