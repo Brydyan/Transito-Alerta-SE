@@ -34,6 +34,8 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { SearchBarComponent } from './components/search-bar.component';
 import { FilterBarComponent } from './components/filter-bar.component';
 import { ActionMenuComponent } from './components/action-menu.component';
+import { UserDetailModalComponent } from '../user-detail-modal/user-detail-modal.component';
+import { UserDetailModalService } from '../user-detail-modal/user-detail-modal.service';
 
 /**
  * UsersListComponent — F6 (`2026-09-08-f6-usuarios-redesign`).
@@ -69,6 +71,7 @@ import { ActionMenuComponent } from './components/action-menu.component';
     SearchBarComponent,
     FilterBarComponent,
     ActionMenuComponent,
+    UserDetailModalComponent,
   ],
   templateUrl: './users-list.component.html',
   styleUrl: './users-list.component.css',
@@ -78,6 +81,7 @@ export class UsersListComponent implements OnInit {
   private readonly usersService = inject(UsersService);
   private readonly toastService = inject(ToastService);
   private readonly dialogService = inject(ConfirmDialogService);
+  private readonly userDetailModalService = inject(UserDetailModalService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   // Conservado por consistencia con el patrón de las otras
@@ -97,6 +101,11 @@ export class UsersListComponent implements OnInit {
   // Filtros. Combinan AND: search es local (filtra `users()`),
   // role+org disparan reload al backend.
   readonly currentPage = signal(1);
+  // F6 (consistencia con el resto de la grilla admin): el `pageSize`
+  // default es 25 — el backend (`GET /api/users`) responde con
+  // `per_page: 25` y los tests del F6 rediseño esperan este número
+  // (roles.component también usa 25). Antes era 10 (legacy pre-F6)
+  // y rompía el contrato del `onPageChange` test.
   readonly pageSize = signal(25);
   readonly searchTerm = signal('');
   readonly selectedRole = signal('');
@@ -123,7 +132,7 @@ export class UsersListComponent implements OnInit {
   /** El backend devuelve `is_active` (boolean) o no lo devuelve;
    *  `toUserStatus` mapea a la etiqueta del design system. */
   readonly statusOf = (u: User): UserStatus =>
-    toUserStatus((u as User & { isActive?: boolean }).isActive);
+    toUserStatus(u.isActive);
 
   readonly hasFilters = computed(
     () =>
@@ -231,6 +240,12 @@ export class UsersListComponent implements OnInit {
     this.loadUsers();
   }
 
+  onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.currentPage.set(1);
+    this.loadUsers();
+  }
+
   /** F6 fix batch (C.2/W.3) — resetea a página 1 y recarga. Usado por
    *  `onFilterChange` para que un filtro nuevo no deje al usuario
    *  varado en una página que ya no tiene datos con el filtro activo. */
@@ -240,13 +255,25 @@ export class UsersListComponent implements OnInit {
   }
 
   onView(userId: string | number): void {
-    // El detalle vive como ruta `/app/admin/usuarios/:id`; el
-    // follow-up del change F6.5.2 (forms) la implementará.
-    this.router.navigate(['/app/admin/usuarios', userId]);
+    // F6 fix: el ojo en la fila abre un modal read-only con los
+    // datos del user (NO navega a una ruta separada). Antes
+    // intentaba navegar a `/app/admin/users/:id` que NO estaba
+    // montada en el router (sólo `:id/edit`), así que el ojo
+    // navegaba a una ruta inexistente y caía en el error page.
+    // El detalle es read-only; para editar existe el menú
+    // three-dot → Editar que sí navega a `:id/edit`.
+    const user = this.users().find((u) => String(u.usuarioId) === String(userId));
+    if (!user) {
+      this.toastService.error('No se encontró el usuario.', 'Error');
+      return;
+    }
+    // Pasamos la lista de orgs para que el modal pueda resolver
+    // `organizationId` → nombre sin un round-trip extra.
+    this.userDetailModalService.open(user, this.organizations());
   }
 
   onEdit(userId: string | number): void {
-    this.router.navigate(['/app/admin/usuarios', userId, 'edit']);
+    this.router.navigate(['/app/admin/users', userId, 'edit']);
   }
 
   onDelete(userId: string | number): void {

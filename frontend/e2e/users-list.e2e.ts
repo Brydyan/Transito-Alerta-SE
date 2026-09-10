@@ -44,7 +44,7 @@ test.describe('UsersList rediseñado (F6)', () => {
         }),
       });
     });
-    await page.goto('/app/admin/usuarios');
+    await page.goto('/app/admin/users');
     await expect(page.getByRole('heading', { name: 'Usuarios' })).toBeVisible();
     const rows = page.locator('tbody tr');
     await expect(rows).toHaveCount(7);
@@ -59,7 +59,7 @@ test.describe('UsersList rediseñado (F6)', () => {
         body: JSON.stringify({ data: fixtureUsers, total: 7, meta: { total: 7, page: 1, last_page: 1, per_page: 25 } }),
       });
     });
-    await page.goto('/app/admin/usuarios');
+    await page.goto('/app/admin/users');
     await page.getByPlaceholder(/buscar por nombre/i).fill('María');
     // Esperar el debounce de 300 ms.
     await page.waitForTimeout(400);
@@ -83,7 +83,7 @@ test.describe('UsersList rediseñado (F6)', () => {
         }),
       });
     });
-    await page.goto('/app/admin/usuarios');
+    await page.goto('/app/admin/users');
     // Esperar la carga inicial.
     await page.waitForResponse('**/api/users**');
     // Seleccionar el primer rol del dropdown.
@@ -103,7 +103,7 @@ test.describe('UsersList rediseñado (F6)', () => {
         body: JSON.stringify({ data: fixtureUsers, total: 7, meta: { total: 7, page: 1, last_page: 1, per_page: 25 } }),
       });
     });
-    await page.goto('/app/admin/usuarios');
+    await page.goto('/app/admin/users');
     const rows = page.locator('tbody tr');
     // Al menos un badge con cada variante.
     const activo = rows.filter({ hasText: 'Activo' });
@@ -126,7 +126,7 @@ test.describe('UsersList rediseñado (F6)', () => {
         }),
       });
     });
-    await page.goto('/app/admin/usuarios');
+    await page.goto('/app/admin/users');
     // Click en el botón "2" de la paginación.
     const pageBtn = page.getByRole('button', { name: '2' });
     if (await pageBtn.isVisible().catch(() => false)) {
@@ -162,7 +162,7 @@ test.describe('UsersList rediseñado (F6)', () => {
     await page.addInitScript(() => {
       window.confirm = () => true;
     });
-    await page.goto('/app/admin/usuarios');
+    await page.goto('/app/admin/users');
     // Click en el menú de tres puntos de la primera fila y elegir Eliminar.
     const firstAction = page.locator('tbody tr').first().locator('app-action-menu button').nth(1);
     await firstAction.click();
@@ -181,7 +181,7 @@ test.describe('UsersList rediseñado (F6)', () => {
       }
       await route.continue();
     });
-    await page.goto('/app/admin/usuarios');
+    await page.goto('/app/admin/users');
     await expect(page.locator('.error-banner')).toBeVisible();
   });
 });

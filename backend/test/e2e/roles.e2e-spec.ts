@@ -53,11 +53,17 @@ describe('Roles + Permissions e2e (T3.1)', () => {
   }
 
   async function createRole(name: string, permissions: string[]): Promise<string> {
+    // F6 fix (post-0051): la columna `roles.permissions` ahora
+    // almacena UUIDs (no strings formateados). El helper acepta
+    // strings formateados por ergonomía y los traduce via el
+    // catálogo (mismo patrón que `provisionUser` en
+    // test-environment). Si una entrada ya es UUID, la deja.
+    const permissionUuids = await env.resolvePermissionUuids(permissions);
     const { rows } = await env.pg.query<{ id: string }>(
       `INSERT INTO roles (name, description, permissions)
        VALUES ($1, 'e2e role', $2::jsonb)
        RETURNING id`,
-      [name, JSON.stringify(permissions)],
+      [name, JSON.stringify(permissionUuids)],
     );
     return rows[0].id;
   }
@@ -131,13 +137,31 @@ describe('Roles + Permissions e2e (T3.1)', () => {
   });
 
   it("GET /roles/:id/permissions returns the role's composed permission set (R7)", async () => {
-    const roleId = await createRole('read-only-e2e', ['READ incidents', 'READ comments']);
+    // F6 fix (post-0051): el wire es UUIDs. Buscamos los
+    // UUIDs de los permisos solicitados y comparamos contra
+    // lo que devuelve la API (mismo formato que el
+    // backend persiste y compara el PermissionGuard).
+    const requested = ['READ incidents', 'READ comments'];
+    const roleId = await createRole('read-only-e2e', requested);
+
+    const { rows: catalog } = await env.pg.query<{ id: string; action: string; resource: string }>(
+      `SELECT id::text, action, resource FROM permissions WHERE deleted_at IS NULL`,
+    );
+    const byKey = new Map<string, string>();
+    for (const row of catalog) byKey.set(`${row.action} ${row.resource}`, row.id);
+    const expectedUuids = requested.map((p) => {
+      const uuid = byKey.get(p);
+      if (!uuid) throw new Error(`Permission ${p} not in catalog`);
+      return uuid;
+    });
 
     const response = await request(env.httpServer)
       .get(`/api/roles/${roleId}/permissions`)
       .set({ Authorization: `Bearer ${admin.accessToken}` })
       .expect(200);
 
-    expect(response.body).toEqual(['READ incidents', 'READ comments']);
+    // El orden no es estable (jsonb set semantics en el backend),
+    // comparamos como set.
+    expect(new Set(response.body as string[])).toEqual(new Set(expectedUuids));
   });
 });

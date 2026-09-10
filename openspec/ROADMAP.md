@@ -132,7 +132,7 @@ internamente — ver «Ciudadano» más abajo.
 | 5 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
 | 6 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
 | 7 | **F5** Menús dinámicos | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura |
-| 8 | **F6** Rediseño | [308](https://app.shortcut.com/upse/story/308) | 5 | Dashboard, Usuarios, Roles, Perfil |
+| 8 | **F6** Rediseño ✅ | [308](https://app.shortcut.com/upse/story/308) | 5 | Dashboard, Usuarios, Roles, Perfil — **completada y archivada 2026-09-08**, sin verificación en BD real. Bugs encontrados post-archivo: listado de usuarios/roles vacío por mismatch formato API/frontend |
 
 **Empezar por F0 → F1. 315 antes de F3. REG antes de ANON, sin excepción.**
 
@@ -420,6 +420,8 @@ Comprobados contra migraciones y fuente. **No re-derivar.**
 | ✅ **El ciudadano no puede registrarse** — F4/B.2.12 ofrecía un registro inexistente | `auth.controller.ts:54` (410) | REG ✅ archivada 2026-09-05 · `archive/2026-09-02-reg-citizen-self-registration/` |
 | ✅ **El reporte anónimo devolvía 403** — `EmailVerifiedGuard` exigía verificar un correo que el dispositivo anónimo no tiene | `email-verified.guard.ts` ↔ `auth.service.ts` | REG ✅ (la exención se retira cuando ANON cierre el login anónimo) |
 | 🔶 **El reporte sin sesión no es rastreable** — identidad compartida por todos los anónimos. ANON cerró el camino; falta que AUD selle la autoría del reporte anónimo del ciudadano autenticado | `auth.config.ts` | ANON ✅ archivada 2026-09-05 · AUD pendiente |
+| ✅ **Dropdown de usuario no funciona** — `userDropdownOpen` era boolean sin change detection; host listener cerraba dropdown inmediatamente | `frontend/src/app/layout/header/` | 2026-09-08: convertido a Signal, clase `.dropdown` al wrapper. Root: falta de test en BD real |
+| ✅ **Listado de usuarios/roles vacío en admin** — API devuelve format inconsistente; servicios no mapeaban snake_case → camelCase/español | `frontend/src/app/features/admin/{users,roles}/` | 2026-09-08: mapeadores en servicios. Root: F6 archivado sin verificación en BD real |
 | **No hay tabla de auditoría** — F7 la necesita para la excepción al tope | — | AUD |
 | «Volver al inicio» del login es `href="#!"` | `login.component.html:147` | REG (apunta a `/registro`) |
 | **Compuerta de typecheck es un no-op** — `npx tsc -p tsconfig.json --noEmit` revisa 0 archivos (`files: []`); el comando real es `npx tsc -b tsconfig.json --noEmit` | `frontend/tsconfig.json` + `frontend/tsconfig.spec.json` | TOOL ✅ (cambio `2026-09-03-tool-ci-gates`) |
@@ -489,6 +491,16 @@ resultan indistinguibles.
 Hoy no es alcanzable (10 entradas, 2 rutas multi-segmento, ambas reales). **Se vuelve
 alcanzable a medida que el menú crezca**, y F2, F3 y F4 añaden destinos. **Dueño natural:
 F5**, que sustituye `MENU_MAP` por tablas en BD y rehace ese test igual.
+
+### API/frontend response format mismatch — **descubierto 2026-09-08**
+
+F6 archivó sin verificar usuarios/roles en BD real. Los endpoints devuelven formatos inconsistentes:
+- `/users` → `{ items[], total }`; frontend esperaba `{ data[], meta }`
+- `/roles` → `[array]` directo con campos snake_case; frontend esperaba camelCase/español
+
+**Impacto**: tablas vacías en admin/usuarios y admin/roles post-implementación. Arreglados en mapeos de servicio (`users.service.ts`, `roles.service.ts`) el 2026-09-08.
+
+**Raíz**: Tests no corrieron contra BD real (fixtures mock the responses). Indicador de calidad de fase: una pasada de `sdd-verify` contra DB real habría expuesto esto.
 
 ### `comment-flow.e2e.ts` queda como no-op hasta la incident-detail page
 

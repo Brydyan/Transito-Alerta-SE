@@ -1,5 +1,8 @@
 export interface RoleListItem {
-  rolId: number;
+  // F6 fix: `rolId` es UUID (string), no number. El backend
+  // devuelve `id: "uuid"`. El type legacy `number` no matcheaba
+  // con el wire y rompía el `navigate(['/app/admin/roles', id])`.
+  rolId: string;
   nombre: string;
   /**
    * F6 (`2026-09-08-f6-roles-redesign`) — proyección del wire shape.
@@ -29,7 +32,10 @@ export interface RoleStats {
 }
 
 export interface PermissionItem {
-  permisoId: number;
+  // F6 fix: `permisoId` es UUID (string), no number. El backend
+  // `GET /api/permissions` devuelve `id: "uuid"`. El Set<> del
+  // role-editor usaba `Set<number>` y nunca matcheaba.
+  permisoId: string;
   nombre: string;
   descripcion: string;
   recurso: string;
@@ -37,8 +43,10 @@ export interface PermissionItem {
 }
 
 export interface RolePermission {
-  rolPermisoId: number;
-  permisoId: number;
+  // F6 fix: UUIDs (string), no number. `rolPermisoId` es el id
+  // del join row; `permisoId` es la FK al catálogo de permisos.
+  rolPermisoId: string;
+  permisoId: string;
   nombre: string;
   descripcion: string;
   recurso: string;
@@ -46,18 +54,50 @@ export interface RolePermission {
 }
 
 export interface RoleDetail {
-  rolId: number;
+  // F6 fix: `rolId` es UUID (string).
+  rolId: string;
   nombre: string;
-  permisos: RolePermission[];
+  /**
+   * F6 fix: el wire real del backend (`GET /api/roles/:id`) es
+   * `permissions: string[]` (array de strings formato
+   * "ACTION resource"), no objetos `RolePermission[]` con
+   * `permisoId/nombre/descripcion`. El role-editor lo trata
+   * como `string[]` y construye los `PermissionWithState`
+   * cruzando contra `allPermissions()` (que SÍ tiene la forma
+   * estructurada del catálogo).
+   */
+  permisos: string[];
 }
 
+/**
+ * F6 fix: el backend espera `permissions: string[]` (PUT
+ * semantics — reemplaza el set completo), NO
+ * `permisosAsignar`/`permisosRevocar` (que era la suposición
+ * del role-editor antes de este fix). El frontend computa el
+ * diff en memoria (assignedIds vs originalIds) pero el PATCH
+ * manda el array final entero.
+ */
 export interface UpdateRolePayload {
-  permisosAsignar?: number[];
-  permisosRevocar?: number[];
+  name?: string;
+  permissions?: string[];
+}
+
+/**
+ * F6 (`2026-09-08-f6-roles-redesign`) — body para
+ * `POST /api/roles` (mock 04-02 «Nuevo Rol de Sistema»). El backend
+ * (`CreateRoleDto`) exige `name` (min 2, max 50 chars) y acepta
+ * `description?` y `permissions?` (default `[]`). El frontend
+ * recoge los checkboxes de la matriz de permisos y los manda como
+ * `permissions: string[]` (UUIDs).
+ */
+export interface CreateRolePayload {
+  name: string;
+  description?: string;
+  permissions?: string[];
 }
 
 export interface PermissionWithState {
-  permisoId: number;
+  permisoId: string;
   nombre: string;
   descripcion: string;
   accion: string;

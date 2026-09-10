@@ -3,6 +3,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { assertCanManage, assertVisible } from '../../common/authz/assert-can-manage';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { hasPermission } from '../../common/guards/permission.guard';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { SessionResponseDto, toSessionResponseDto } from './dto/session-response.dto';
 import { RevocationCache } from './revocation-cache';
 import { SessionsRepository } from './sessions.repository';
@@ -24,6 +25,10 @@ export class SessionsService {
   constructor(
     private readonly sessionsRepository: SessionsRepository,
     private readonly revocationCache: RevocationCache,
+    // F6 fix (post-0051): las perms son UUIDs. El helper
+    // `hasPermission` traduce (action, resource) → UUID vía este
+    // resolver antes de comparar.
+    private readonly permissionLookup: PermissionLookupService,
   ) {}
 
   async listForSelf(actor: AuthContext): Promise<SessionResponseDto[]> {
@@ -61,7 +66,7 @@ export class SessionsService {
     }
 
     if (session.user_id !== actor.userId) {
-      if (!hasPermission(actor.permissions, 'DELETE', 'sessions')) {
+      if (!(await hasPermission(actor.permissions, 'DELETE', 'sessions', this.permissionLookup))) {
         throw new ForbiddenException('Missing permission: DELETE sessions');
       }
       const target = await this.sessionsRepository.findManageableTarget(session.user_id);

@@ -22,6 +22,7 @@ import { UserEntity } from '../../entities/user.entity';
 import { RoleEntity } from '../../entities/role.entity';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
+import { RoleStatsDto } from './dto/role-stats.dto';
 import { SyncPermissionsDto } from './dto/sync-permissions.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RolesService } from './roles.service';
@@ -58,6 +59,25 @@ export class RolesController {
   @RequirePermission('READ')
   findAll(): Promise<RoleEntity[]> {
     return this.rolesService.findAll();
+  }
+
+  /**
+   * Change `2026-09-09-roles-stats-endpoint` — métricas agregadas para
+   * las 3 cards del pie de `/app/admin/roles` (mock 04-01).
+   *
+   * **Route order matters** (D5 del design): este `@Get('stats')` va
+   * ANTES de `@Get(':id')` — si fuera al revés, NestJS intentaría
+   * parsear `"stats"` como UUID vía `ParseUUIDPipe` y retornaría 400.
+   * Mismo gotcha que `backend/src/modules/incidents/incidents.controller.ts`
+   * documenta para sus rutas literales.
+   *
+   * Permiso `READ` (D2): universal para admins que ven la lista —
+   * no se separa en permiso custom.
+   */
+  @Get('stats')
+  @RequirePermission('READ')
+  getStats(): Promise<RoleStatsDto> {
+    return this.rolesService.getStats();
   }
 
   @Get(':id')

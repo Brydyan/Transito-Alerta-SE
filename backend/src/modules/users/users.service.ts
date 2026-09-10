@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindManyOptions, In, IsNull, Not, Repository } from 'typeorm';
 
@@ -149,7 +149,15 @@ export class UsersService {
     skip: number;
     where?: { organizationId: string };
   }): Promise<{ items: UserEntity[]; total: number }> {
-    const [items, total] = await this.userRepo.findAndCount(options as FindManyOptions<UserEntity>);
+    // F6 fix: filtrar por `is_active: true` para que los shadows
+    // de `adminCreate` (is_active=false hasta que acepten la
+    // invitación) no aparezcan en la lista. Ver el comentario
+    // en `adminCreate` arriba para el contexto completo.
+    const findOptions: FindManyOptions<UserEntity> = {
+      ...options,
+      where: { ...options.where, isActive: true },
+    };
+    const [items, total] = await this.userRepo.findAndCount(findOptions);
     return { items, total };
   }
 
@@ -222,18 +230,58 @@ export class UsersService {
    * password that the user resets on first login. Marked as a known
    * simplification vs. the design; the invitation route remains the
    * canonical onboarding path for non-admin flows (T3.6).
+   *
+   * F6 / 2026-09-08-f6-new-user-form (D2) — when `dto.role_id` is
+   * present, denormalize the role's permissions onto the new user
+   * (and bump `permission_version` to 2), exactly mirroring the
+   * existing branch in `adminUpdate()`. Without `role_id`, keep the
+   * T5.6 behavior (`permissions: []`, `permissionVersion: 1`) so
+   * pre-existing callers stay green. The new `phone` field from D1
+   * is persisted; its `users.phone` column was added in migration
+   * 0035, so no schema change here.
    */
   async adminCreate(dto: AdminCreateUserDto): Promise<UserEntity> {
+    let permissions: string[] = [];
+    let permissionVersion = 1;
+
+    if (dto.role_id) {
+      const role = await this.roleRepo.findOne({ where: { id: dto.role_id } });
+      if (!role) {
+        throw new NotFoundException(`Role ${dto.role_id} not found`);
+      }
+      permissions = role.permissions ?? [];
+      permissionVersion = 2;
+    }
+
     const tempDeviceUuid = `admin-bootstrap-${dto.email}-${Date.now()}`;
     const user = this.userRepo.create({
       email: dto.email,
       deviceUuid: tempDeviceUuid,
       firstName: dto.first_name ?? null,
       lastName: dto.last_name ?? null,
+      phone: dto.phone ?? null,
       organizationId: dto.organization_id ?? null,
       roleId: dto.role_id ?? null,
-      isActive: true,
-      permissions: [],
+      // F6 fix: el admin crea al user en estado `is_active: false`
+      // ("pending"). El `is_active: true` original rompía el flow
+      // de invitación: `findByClaimedEmail` (en
+      // `invitations.repository.ts`) considera "claimed" cualquier
+      // user existente con ese email, así que el
+      // `POST /api/admin/users/invite` que el frontend dispara
+      // después del `POST /api/users` devolvía 409
+      // `EMAIL_ALREADY_CLAIMED` y nunca mandaba el email.
+      //
+      // Con `is_active: false`, el shadow del admin NO cuenta
+      // como claimed — el backend manda el email, el destinatario
+      // acepta la invitación, y `InvitationsService.redeem`
+      // inserta el user real (is_active=true, password_hash,
+      // terms_accepted_at) en una NUEVA fila. El shadow queda
+      // en la tabla como registro histórico del alta admin;
+      // `list()` lo filtra por is_active más abajo para que
+      // no aparezca en la tabla del frontend.
+      isActive: false,
+      permissions,
+      permissionVersion,
     });
     return this.userRepo.save(user);
   }
@@ -246,6 +294,23 @@ export class UsersService {
    */
   async adminUpdate(id: string, dto: AdminUpdateUserDto): Promise<UserEntity> {
     const target = await this.findById(id);
+
+    // F6 fix: si el admin cambia el `email`, validar unicidad antes
+    // de persistir. La columna `users.email` tiene UNIQUE en el
+    // schema (0017), pero la constraint de BD devuelve un error
+    // genérico de Postgres. Lo atrapamos antes para dar un 409 con
+    // mensaje claro al frontend.
+    if (dto.email !== undefined && dto.email !== target.email) {
+      const conflict = await this.userRepo.findOne({
+        where: { email: dto.email, deletedAt: IsNull() },
+      });
+      if (conflict && conflict.id !== target.id) {
+        throw new ConflictException(
+          `El correo ${dto.email} ya está registrado por otro usuario`,
+        );
+      }
+    }
+
     if (dto.role_id !== undefined) {
       const role = await this.roleRepo.findOne({ where: { id: dto.role_id } });
       if (!role) {
@@ -263,6 +328,17 @@ export class UsersService {
     }
     if (dto.last_name !== undefined) {
       target.lastName = dto.last_name;
+    }
+    // F6 fix: `email` y `phone` ahora son actualizables por admin
+    // (master u operador_sistema con `UPDATE users` permission).
+    // Antes el DTO los rechazaba y el form del frontend no podía
+    // ni mostrarlos en la UI. Ver `AdminUpdateUserDto` para los
+    // validadores (formato email, formato phone Ecuador).
+    if (dto.email !== undefined) {
+      target.email = dto.email;
+    }
+    if (dto.phone !== undefined) {
+      target.phone = dto.phone;
     }
     const saved = await this.userRepo.save(target);
     await this.authService.invalidatePermissionCache(saved.id, saved.deviceUuid);

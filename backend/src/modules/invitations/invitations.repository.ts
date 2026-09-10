@@ -105,10 +105,21 @@ export class InvitationsRepository {
     return rows[0] ?? null;
   }
 
-  /** 409 pre-check at invite creation and redemption (spec "Invitation Lifecycle"). */
+  /**
+   * 409 pre-check at invite creation and redemption (spec
+   * "Invitation Lifecycle").
+   *
+   * T7.5: "claimed" significa user real (post-redeem, is_active=true),
+   * no el shadow de `adminCreate` (is_active=false hasta que
+   * acepte la invitación). Sin este filtro,
+   * `POST /api/admin/users/invite` devolvía 409
+   * `EMAIL_ALREADY_CLAIMED` apenas el admin creaba al user con
+   * `is_active: true` (legacy). Ver `users.service.ts:adminCreate`
+   * para el contexto completo.
+   */
   async findByClaimedEmail(email: string): Promise<{ id: string } | null> {
     const rows: Array<{ id: string }> = await this.dataSource.query(
-      `SELECT id FROM users WHERE email = $1`,
+      `SELECT id FROM users WHERE email = $1 AND is_active = TRUE`,
       [email],
     );
     return rows[0] ?? null;

@@ -110,6 +110,15 @@ export class RolesComponent implements OnInit {
     this.loadStats();
   }
 
+  /**
+   * Change `2026-09-09-roles-stats-endpoint` — restaurado del commit
+   * `9d19888c1` (2026-09-08) que lo había quitado porque el endpoint
+   * backend no existía. Ahora `GET /api/roles/stats` está implementado
+   * en `backend/src/modules/roles/roles.controller.ts` y devuelve
+   * `{totalPermissions, protectedModules, assignedUsers}`. El
+   * `catchError` degrada a ceros si el endpoint falla, así que la UI
+   * nunca rompe (sólo muestra 0/0/0).
+   */
   private loadStats(): void {
     this.rolesService
       .getRoleStats()
@@ -147,13 +156,19 @@ export class RolesComponent implements OnInit {
           return of<RoleListItem[] | null>(null);
         }),
       )
-      .subscribe((list) => {
-        this.isLoading.set(false);
-        if (!list) return;
-        this.roles.set(list);
-        // El backend puede traer `total` aparte o como parte de
-        // la respuesta. Defensivo: caer al length si falta.
-        this.total.set(list.length);
+      .subscribe({
+        next: (list) => {
+          this.isLoading.set(false);
+          if (!list) {
+            return;
+          }
+          this.roles.set(list);
+          this.total.set(list.length);
+        },
+        error: (err) => {
+          console.error('[Roles] subscription error:', err);
+          this.isLoading.set(false);
+        }
       });
   }
 
@@ -179,7 +194,12 @@ export class RolesComponent implements OnInit {
   }
 
   onEdit(roleId: string | number): void {
-    this.router.navigate(['/app/admin/roles', roleId, 'edit']);
+    // F6 fix: la ruta del editor es `roles/:rolId` (sibling de
+    // `roles`, no child con segmento `/edit`). Antes navegaba a
+    // `/app/admin/roles/:id/edit` que NO matcheaba ninguna
+    // ruta (los users sí tienen `/edit`, los roles no) y caía
+    // en el wildcard `**` → error page.
+    this.router.navigate(['/app/admin/roles', roleId]);
   }
 
   onDelete(roleId: string | number): void {

@@ -109,4 +109,35 @@ describe('RolesService (F6 rediseño)', () => {
     expect(req.request.withCredentials).toBe(true);
     req.flush(204, { status: 204, statusText: 'No Content' });
   });
+
+  // F6 (mock 04-02): `POST /api/roles` para crear un rol nuevo.
+  // El body lleva `name` (requerido), `description?` y `permissions?`
+  // (array de UUIDs). El backend (`CreateRoleDto`) rechaza nombres
+  // < 2 chars, así que el service NO sanitiza — el rol-editor ya
+  // valida con `canSave()` antes de llamar.
+  it('createRole — POST con name, description, permissions y withCredentials', () => {
+    service
+      .createRole({
+        name: 'operador_campo',
+        description: 'Rol para operadores en campo',
+        permissions: ['uuid-1', 'uuid-2'],
+      })
+      .subscribe();
+    const req = http.expectOne(base);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.withCredentials).toBe(true);
+    expect(req.request.body).toEqual({
+      name: 'operador_campo',
+      description: 'Rol para operadores en campo',
+      permissions: ['uuid-1', 'uuid-2'],
+    });
+    req.flush({ id: 'new-uuid', name: 'operador_campo', permissions: ['uuid-1', 'uuid-2'] });
+  });
+
+  it('createRole — description opcional puede omitirse', () => {
+    service.createRole({ name: 'sin_desc', permissions: [] }).subscribe();
+    const req = http.expectOne(base);
+    expect(req.request.body).toEqual({ name: 'sin_desc', permissions: [] });
+    req.flush({ id: 'new-uuid', name: 'sin_desc', permissions: [] });
+  });
 });

@@ -24,10 +24,10 @@ import { map } from 'rxjs/operators';
 import { UsersService } from '../services/users.service';
 import {
   Role,
-  RolePermission,
   PermissionItem,
   DirectPermission,
   UserDetail,
+  Organization,
 } from '../models/user.interface';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { AuthService } from '../../../../core/services/auth.service';
@@ -72,8 +72,13 @@ export class UserFormComponent implements OnInit, OnDestroy {
 
   private readonly subscriptions = new Subscription();
 
-  readonly userId = Number(this.route.snapshot.paramMap.get('id') ?? 0);
-  readonly isEditing = computed(() => this.userId > 0);
+  // F6 fix batch (pre-existing, ver `apply-progress.md` del change
+  // `2026-09-08-f6-usuarios-redesign`): el `id` del URL es un UUID
+  // (string), no un número. Convertirlo con `Number()` daba `NaN`,
+  // el `isEditing` siempre era `false`, y la request `getUserById`
+  // nunca se disparaba — el form abría vacío.
+  readonly userId = this.route.snapshot.paramMap.get('id') ?? '';
+  readonly isEditing = computed(() => !!this.userId);
 
   readonly isAdminOrSuperadmin = computed(() => {
     const role = this.authService.currentUser()?.roleName?.toLowerCase();
@@ -84,15 +89,16 @@ export class UserFormComponent implements OnInit, OnDestroy {
   readonly isSaving = signal(false);
 
   readonly roles = signal<Role[]>([]);
-  readonly rolePermissions = signal<RolePermission[]>([]);
+  readonly rolePermissions = signal<string[]>([]);
   readonly allPermissions = signal<PermissionItem[]>([]);
-  readonly directPermissionIds = signal<Set<number>>(new Set());
+  readonly organizations = signal<Organization[]>([]);
+  readonly directPermissionIds = signal<Set<string>>(new Set());
 
   readonly avatarPreview = signal<string | null>(null);
   readonly isUploadingAvatar = signal(false);
 
   private pendingAvatarFile: File | null = null;
-  private originalDirectIds = new Set<number>();
+  private originalDirectIds = new Set<string>();
 
   readonly roleSearch = signal('');
   readonly userPermSearch = signal('');
@@ -100,12 +106,12 @@ export class UserFormComponent implements OnInit, OnDestroy {
   readonly filteredRolePerms = computed(() => {
     const term = this.roleSearch().toLowerCase().trim();
     if (!term) return this.rolePermissions();
-    return this.rolePermissions().filter(
-      (p) =>
-        p.nombre.toLowerCase().includes(term) ||
-        p.recurso.toLowerCase().includes(term) ||
-        p.accion.toLowerCase().includes(term),
-    );
+    // F6 fix: `rolePermissions` es `string[]` (formato "ACTION
+    // resource" desde `GET /api/roles/:id`). Filtramos por
+    // substring del string completo — antes el filter buscaba
+    // campos `nombre`/`recurso`/`accion` que el wire no
+    // devuelve.
+    return this.rolePermissions().filter((p) => p.toLowerCase().includes(term));
   });
 
   readonly filteredAllPerms = computed(() => {
@@ -124,7 +130,12 @@ export class UserFormComponent implements OnInit, OnDestroy {
     apellidos: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
     telefono: ['', [Validators.required, ecuadorPhoneValidator()]],
-    rolId: [null as number | null, Validators.required],
+    // F6 fix: `rolId` y `organizationId` son UUIDs (string), no
+    // números. El form no tenía `organizationId` antes — eso
+    // impedía editar la organización de un user (el backend lo
+    // aceptaba pero el form no lo podía cambiar).
+    rolId: [null as string | null, Validators.required],
+    organizationId: [null as string | null],
   });
 
   campoInvalido(campo: string): boolean {
@@ -143,17 +154,29 @@ export class UserFormComponent implements OnInit, OnDestroy {
       ? this.usersService.getUserById(this.userId)
       : of(null as UserDetail | null);
 
-    forkJoin([this.usersService.getRoles(), permissionsReq, userReq]).subscribe({
-      next: ([roles, permissions, user]) => {
+    // F6 fix: agregamos `getOrganizations()` al forkJoin para
+    // popular el dropdown de organización en el form. Antes el
+    // form no tenía ese selector, así que editar un user con
+    // `organization_id` mostraba el form sin forma de ver ni
+    // cambiar la organización asignada.
+    forkJoin([
+      this.usersService.getRoles(),
+      permissionsReq,
+      userReq,
+      this.usersService.getOrganizations(),
+    ]).subscribe({
+      next: ([roles, permissions, user, organizations]) => {
         this.roles.set(roles);
         this.allPermissions.set(permissions);
+        this.organizations.set(organizations);
 
         if (user) {
           if (user.avatar?.url) {
             this.avatarPreview.set(user.avatar.url);
           }
 
-          const directIds = new Set<number>(
+          // F6 fix: `permisoId` ahora es string (UUID), no number.
+          const directIds = new Set<string>(
             user.permisosDirectos
               .filter((p: DirectPermission) => p.permitido)
               .map((p: DirectPermission) => p.permisoId),
@@ -167,6 +190,7 @@ export class UserFormComponent implements OnInit, OnDestroy {
             email: user.email,
             telefono: user.telefono,
             rolId: user.rol?.rolId ?? null,
+            organizationId: user.organizationId ?? null,
           });
 
           if (user.rol?.rolId && this.isAdminOrSuperadmin()) {
@@ -190,7 +214,7 @@ export class UserFormComponent implements OnInit, OnDestroy {
 
     const rolIdChange = this.userForm
       .get('rolId')!
-      .valueChanges.subscribe((rolId: number | null) => {
+      .valueChanges.subscribe((rolId: string | null) => {
         if (rolId) {
           if (this.isAdminOrSuperadmin()) {
             this.loadRolePermissions(rolId);
@@ -207,7 +231,7 @@ export class UserFormComponent implements OnInit, OnDestroy {
     this.subscriptions.unsubscribe();
   }
 
-  private loadRolePermissions(rolId: number): void {
+  private loadRolePermissions(rolId: string): void {
     const sub = this.usersService.getRoleById(rolId).subscribe({
       next: (role) => {
         this.rolePermissions.set(role.permisos ?? []);
@@ -233,7 +257,7 @@ export class UserFormComponent implements OnInit, OnDestroy {
     reader.readAsDataURL(file);
   }
 
-  toggleDirectPerm(permisoId: number): void {
+  toggleDirectPerm(permisoId: string): void {
     this.directPermissionIds.update((current) => {
       const next = new Set(current);
       if (next.has(permisoId)) {
@@ -245,12 +269,12 @@ export class UserFormComponent implements OnInit, OnDestroy {
     });
   }
 
-  private computeDirectPermissionsDiff(): { permisoId: number; permitido: boolean }[] {
+  private computeDirectPermissionsDiff(): { permisoId: string; permitido: boolean }[] {
     const current = this.directPermissionIds();
     const original = this.originalDirectIds;
     const all = this.allPermissions();
 
-    const diff: { permisoId: number; permitido: boolean }[] = [];
+    const diff: { permisoId: string; permitido: boolean }[] = [];
 
     for (const perm of all) {
       const wasEnabled = original.has(perm.permisoId);
@@ -271,8 +295,11 @@ export class UserFormComponent implements OnInit, OnDestroy {
 
     this.isSaving.set(true);
     const form = this.userForm.value;
-    // Capture current user ID at submit time — avoids stale read inside async callback
-    const currentUserId = Number(this.authService.currentUser()?.id);
+    // F6 fix: el `id` del usuario autenticado es UUID (string), no
+    // número. Comparar con `===` entre strings; antes hacía
+    // `Number(undefined) === NaN` siempre, así que el bloque de
+    // `updateCurrentUser` nunca se ejecutaba.
+    const currentUserId = this.authService.currentUser()?.id ?? '';
 
     if (this.isEditing()) {
       const directPermissions = this.computeDirectPermissionsDiff();
@@ -282,7 +309,13 @@ export class UserFormComponent implements OnInit, OnDestroy {
         nombres: form.nombres,
         apellidos: form.apellidos,
         telefono: form.telefono,
-        rolId: Number(form.rolId),
+        // F6 fix: `rolId` es UUID string. Antes hacía `Number(form.rolId)`
+        // → `NaN` para un UUID, lo que rompía la actualización en el
+        // backend (el DTO esperaba string).
+        rolId: form.rolId,
+        // F6 fix: organizationId se incluye para que el form
+        // pueda cambiar la org. Si es `null`, el backend lo limpia.
+        organizationId: form.organizationId ?? null,
         ...(directPermissions.length > 0 ? { directPermissions } : {}),
       };
 
@@ -310,12 +343,17 @@ export class UserFormComponent implements OnInit, OnDestroy {
         });
       this.subscriptions.add(editSub);
     } else {
+      // F6 fix: `email` y `phone` (renombrado a `telefono` en el
+      // payload español) ahora viajan al backend en el create. Antes
+      // el DTO los aceptaba pero el form no los mandaba y el user
+      // quedaba sin teléfono.
       const payload = {
         email: form.email,
         nombres: form.nombres,
         apellidos: form.apellidos,
         telefono: form.telefono,
-        rolId: Number(form.rolId),
+        rolId: form.rolId,
+        organizationId: form.organizationId ?? null,
       };
 
       const createSub = this.usersService
