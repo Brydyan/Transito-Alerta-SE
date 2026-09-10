@@ -400,13 +400,24 @@ export class TestEnvironment {
     const emailVerified = overrides.emailVerified ?? true;
     const emailVerifiedAt = emailVerified ? new Date() : null;
 
+    // F6 fix (post-0051): la columna `users.permissions` ahora
+    // almacena UUIDs (no strings formateados como "READ incidents").
+    // El `PermissionGuard` traduce (action, resource) → UUID vía
+    // `PermissionLookupService` y compara contra el array del user.
+    // Los tests pasan strings formateados por ergonomía — los
+    // traducimos acá para que el harness matchee el wire real.
+    // Si una entrada no matchea el catálogo, la descartamos
+    // (warning en log) — un permiso fantasma nunca debería llegar
+    // a producción.
+    const permissionUuids = await this.resolvePermissionUuids(permissions);
+
     await this.pg.query(
       `INSERT INTO users
          (device_uuid, permissions, is_active, email, organization_id, role_id, email_verified_at)
        VALUES ($1, $2::jsonb, true, $3, $4, $5, $6)`,
       [
         deviceUuid,
-        JSON.stringify(permissions),
+        JSON.stringify(permissionUuids),
         overrides.email ?? null,
         overrides.organizationId ?? null,
         roleId,
@@ -441,6 +452,50 @@ export class TestEnvironment {
       permissions: response.body.permissions as string[],
       sid: sessionRows[0]?.id ?? null,
     };
+  }
+
+  /**
+   * F6 fix (post-0051): el catálogo de permisos tiene `id` UUID; el
+   * helper acepta strings formateados ("READ incidents") y los
+   * traduce a UUIDs para que el `users.permissions` insertado
+   * matchee el wire real y el `PermissionGuard.hasPermission()`
+   * (que compara contra UUIDs) los reconozca.
+   *
+   * Si una entrada ya es UUID (pasa con el helper que llama el
+   * signup real), la dejamos como está. Si no matchea el
+   * catálogo, la descartamos y logueamos un warning — un
+   * permiso fantasma nunca debería llegar a un user insertado
+   * por el harness.
+   */
+  private async resolvePermissionUuids(permissions: string[]): Promise<string[]> {
+    if (permissions.length === 0) return [];
+    const { rows: catalog } = await this.pg.query<{
+      id: string;
+      action: string;
+      resource: string;
+    }>(
+      `SELECT id::text, action, resource FROM permissions WHERE deleted_at IS NULL`,
+    );
+    const byKey = new Map<string, string>();
+    for (const row of catalog) {
+      byKey.set(`${row.action} ${row.resource}`, row.id);
+    }
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const resolved: string[] = [];
+    for (const perm of permissions) {
+      if (uuidRegex.test(perm)) {
+        resolved.push(perm);
+        continue;
+      }
+      const uuid = byKey.get(perm);
+      if (uuid) {
+        resolved.push(uuid);
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn(`[test-env] provisionUser: permission "${perm}" not in catalog, dropping`);
+      }
+    }
+    return resolved;
   }
 
   /**
