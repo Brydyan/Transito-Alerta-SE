@@ -101,7 +101,12 @@ export class UsersListComponent implements OnInit {
   // Filtros. Combinan AND: search es local (filtra `users()`),
   // role+org disparan reload al backend.
   readonly currentPage = signal(1);
-  readonly pageSize = signal(10);
+  // F6 (consistencia con el resto de la grilla admin): el `pageSize`
+  // default es 25 — el backend (`GET /api/users`) responde con
+  // `per_page: 25` y los tests del F6 rediseño esperan este número
+  // (roles.component también usa 25). Antes era 10 (legacy pre-F6)
+  // y rompía el contrato del `onPageChange` test.
+  readonly pageSize = signal(25);
   readonly searchTerm = signal('');
   readonly selectedRole = signal('');
   readonly selectedOrg = signal('');

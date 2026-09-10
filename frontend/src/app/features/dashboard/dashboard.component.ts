@@ -2,10 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   OnInit,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, forkJoin, of } from 'rxjs';
 
 import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
@@ -67,6 +70,8 @@ export class DashboardComponent implements OnInit {
    *  AuthService). Tras F6, la cabecera la pinta `ui-page-header`
    *  con datos del servicio, no de `authService`. */
   readonly authService = inject(AuthService);
+  private readonly dashboardService = inject(DashboardService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
@@ -137,12 +142,42 @@ export class DashboardComponent implements OnInit {
   readonly weeklyDays = computed(() => this.weekly()?.days ?? []);
 
   ngOnInit(): void {
-    // Backend endpoints no implementados / sin permisos.
-    // Inicializa con valores vacíos (D5: cero es un valor con significado).
-    this.stats.set(null);
-    this.weekly.set(null);
-    this.activity.set([]);
-    this.loading.set(false);
+    // F6 (W.1 sdd-verify fix): el dashboard ahora hace el forkJoin
+    // de los 3 endpoints (`getStats`, `getWeeklyStats`,
+    // `getRecentActivity`) con `catchError` POR Llamada — la falla
+    // de uno no aborta los otros dos, y se enciende `error()` para
+    // que el template pinte el `.error-banner` (S5 del spec).
+    // Cada `catchError` degrada a un valor vacío con el mismo shape
+    // que la respuesta exitosa — los computeds (`kpis`,
+    // `topCategories`, `weeklyDays`) toleran `null`/`[]` (D5: cero
+    // es un valor con significado propio).
+    forkJoin({
+      stats: this.dashboardService.getStats().pipe(
+        catchError(() => {
+          this.error.set('No se pudo cargar el dashboard. Los datos pueden estar incompletos.');
+          return of(null);
+        }),
+      ),
+      weekly: this.dashboardService.getWeeklyStats().pipe(
+        catchError(() => {
+          this.error.set('No se pudo cargar el dashboard. Los datos pueden estar incompletos.');
+          return of(null);
+        }),
+      ),
+      activity: this.dashboardService.getRecentActivity().pipe(
+        catchError(() => {
+          this.error.set('No se pudo cargar el dashboard. Los datos pueden estar incompletos.');
+          return of([] as ActivityRow[]);
+        }),
+      ),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ stats, weekly, activity }) => {
+        this.stats.set(stats);
+        this.weekly.set(weekly);
+        this.activity.set(activity);
+        this.loading.set(false);
+      });
   }
 }
 
