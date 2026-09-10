@@ -24,7 +24,6 @@ import { map } from 'rxjs/operators';
 import { UsersService } from '../services/users.service';
 import {
   Role,
-  RolePermission,
   PermissionItem,
   DirectPermission,
   UserDetail,
