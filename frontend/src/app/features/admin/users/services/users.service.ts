@@ -205,16 +205,28 @@ export class UsersService {
    * backend: `{ roles: [{id, name}], organizations: [{id, name}] }`.
    * El componente la usa para poblar los dropdowns.
    */
+  /**
+   * GET /api/users/form-data — F6 (D-frontend-5). Backend devuelve
+   * `{ roles: [{id, name}], organizations: [{id, name}] }` (snake_case
+   * implícito — el `SnakeCaseResponseInterceptor` no toca este shape
+   * porque ya está en snake). Mapeamos `name` → `nombre` para que el
+   * template use el nombre en español consistente con el resto de
+   * la UI (sin esto, el dropdown muestra opciones con texto vacío
+   * porque `org.nombre` queda `undefined`).
+   */
   getFormData(): Observable<{ roles: ReadonlyArray<{ id: string; name: string }>; organizations: ReadonlyArray<Organization> }> {
     return this.http
       .get<{
         roles: { id: string; name: string }[];
-        organizations: Organization[];
+        organizations: { id: string; name: string }[];
       }>(`${this.usersUrl}/form-data`, { withCredentials: true })
       .pipe(
         map((res) => ({
           roles: (res.roles ?? []).map((r) => ({ id: r.id, name: r.name })),
-          organizations: res.organizations ?? [],
+          organizations: (res.organizations ?? []).map((o) => ({
+            id: o.id,
+            nombre: o.name,
+          })),
         })),
       );
   }
@@ -347,27 +359,31 @@ export class UsersService {
 
   /**
    * GET /api/organizations — devuelve la lista plana de
-   * organizaciones activas para el dropdown de filtro. F6
+   * organizaciones activas para el dropdown. F6
    * (`2026-09-08-f6-usuarios-redesign`).
    *
    * El backend expone un envelope con paginación
-   * `{ items: Organization[], total: number }`; el `map` aplana
-   * a `Organization[]` para que el componente no tenga que
-   * conocer el envelope. También soporta el shape `{ data: ... }`
-   * por si el endpoint cambia de convención.
+   * `{ items: [{id, name}], total: number }`; el `map` aplana
+   * a `Organization[]` (mapea `name` → `nombre` para que el
+   * template use el campo en español consistente con la UI).
+   * También soporta los shapes `[…]` y `{ data: … }` por si el
+   * endpoint cambia de convención en el futuro.
    */
   getOrganizations(): Observable<Organization[]> {
     return this.http
-      .get<Organization[] | { items: Organization[]; total: number } | { data: Organization[] }>(
-        this.organizationsUrl,
-        { withCredentials: true },
-      )
+      .get<
+        | { id: string; name: string }[]
+        | { items: { id: string; name: string }[]; total: number }
+        | { data: { id: string; name: string }[] }
+      >(this.organizationsUrl, { withCredentials: true })
       .pipe(
         map((res) => {
-          if (Array.isArray(res)) return res;
-          if ('items' in res && Array.isArray(res.items)) return res.items;
-          if ('data' in res && Array.isArray(res.data)) return res.data;
-          return [];
+          let raw: { id: string; name: string }[];
+          if (Array.isArray(res)) raw = res;
+          else if ('items' in res && Array.isArray(res.items)) raw = res.items;
+          else if ('data' in res && Array.isArray(res.data)) raw = res.data;
+          else return [];
+          return raw.map((o) => ({ id: o.id, nombre: o.name }));
         }),
       );
   }
