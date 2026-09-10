@@ -344,6 +344,10 @@ export class UserFormComponent implements OnInit, OnDestroy {
         });
       this.subscriptions.add(editSub);
     } else {
+      // F6 fix: `email` y `phone` (renombrado a `telefono` en el
+      // payload español) ahora viajan al backend en el create. Antes
+      // el DTO los aceptaba pero el form no los mandaba y el user
+      // quedaba sin teléfono.
       const payload = {
         email: form.email,
         nombres: form.nombres,

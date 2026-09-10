@@ -116,6 +116,13 @@ export interface CreateUserPayload {
  * porque el form de edición tiene un selector de org (pre-existente
  * faltaba y hacía que el user se editara sin poder cambiar/cambiarle
  * la organización).
+ *
+ * F6 fix 2: `email` y `telefono` (renombrado a `phone` en el wire
+ * del backend) ya estaban en el interface pero el DTO del backend
+ * no los aceptaba y el form no los podía cambiar vía admin. Ahora
+ * el admin puede editar ambos (master u operador_sistema con
+ * `UPDATE users` permission). El backend valida formato y
+ * unicidad del email.
  */
 export interface UpdateUserPayload {
   email?: string;

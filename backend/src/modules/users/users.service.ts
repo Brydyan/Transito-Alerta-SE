@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindManyOptions, In, IsNull, Not, Repository } from 'typeorm';
 
@@ -269,6 +269,23 @@ export class UsersService {
    */
   async adminUpdate(id: string, dto: AdminUpdateUserDto): Promise<UserEntity> {
     const target = await this.findById(id);
+
+    // F6 fix: si el admin cambia el `email`, validar unicidad antes
+    // de persistir. La columna `users.email` tiene UNIQUE en el
+    // schema (0017), pero la constraint de BD devuelve un error
+    // genérico de Postgres. Lo atrapamos antes para dar un 409 con
+    // mensaje claro al frontend.
+    if (dto.email !== undefined && dto.email !== target.email) {
+      const conflict = await this.userRepo.findOne({
+        where: { email: dto.email, deletedAt: IsNull() },
+      });
+      if (conflict && conflict.id !== target.id) {
+        throw new ConflictException(
+          `El correo ${dto.email} ya está registrado por otro usuario`,
+        );
+      }
+    }
+
     if (dto.role_id !== undefined) {
       const role = await this.roleRepo.findOne({ where: { id: dto.role_id } });
       if (!role) {
@@ -286,6 +303,17 @@ export class UsersService {
     }
     if (dto.last_name !== undefined) {
       target.lastName = dto.last_name;
+    }
+    // F6 fix: `email` y `phone` ahora son actualizables por admin
+    // (master u operador_sistema con `UPDATE users` permission).
+    // Antes el DTO los rechazaba y el form del frontend no podía
+    // ni mostrarlos en la UI. Ver `AdminUpdateUserDto` para los
+    // validadores (formato email, formato phone Ecuador).
+    if (dto.email !== undefined) {
+      target.email = dto.email;
+    }
+    if (dto.phone !== undefined) {
+      target.phone = dto.phone;
     }
     const saved = await this.userRepo.save(target);
     await this.authService.invalidatePermissionCache(saved.id, saved.deviceUuid);

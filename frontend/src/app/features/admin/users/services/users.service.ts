@@ -265,14 +265,12 @@ export class UsersService {
    * es UUID (string). Acepta `UpdateUserPayload` (camelCase +
    * nombres en español) y la traduce al wire del backend
    * (`AdminUpdateUserDto`): snake_case + nombres en inglés
-   * (`first_name`, `last_name`, `role_id`, `organization_id`).
+   * (`first_name`, `last_name`, `email`, `phone`, `role_id`,
+   * `organization_id`).
    *
    * F6 fix: el backend rechaza campos extra con
-   * `forbidNonWhitelisted` (validación global del `main.ts`).
-   * El componente no puede enviar `email`/`telefono` por este
-   * endpoint — esos no están en el DTO. Para cambiar email
-   * o teléfono, usar `PATCH /api/users/me` (perfil propio) o
-   * un nuevo endpoint admin (out of scope de este fix).
+   * `forbidNonWhitelisted` (validación global del `main.ts`),
+   * así que sólo enviamos los campos que están en el DTO.
    *
    * Si hay `file` (avatar), se envía como FormData con un solo
    * campo `file`; el backend no acepta los otros campos en
@@ -284,6 +282,12 @@ export class UsersService {
     const body: Record<string, unknown> = {};
     if (payload.nombres !== undefined) body['first_name'] = payload.nombres;
     if (payload.apellidos !== undefined) body['last_name'] = payload.apellidos;
+    // F6 fix: `email` y `phone` ahora son actualizables por admin
+    // (master u operador_sistema con `UPDATE users`). El DTO del
+    // backend (`AdminUpdateUserDto`) los valida y rechaza 409
+    // si el email ya existe en otro user.
+    if (payload.email !== undefined) body['email'] = payload.email;
+    if (payload.telefono !== undefined) body['phone'] = payload.telefono;
     if (payload.rolId !== undefined && payload.rolId !== null) body['role_id'] = payload.rolId;
     if (payload.organizationId !== undefined) body['organization_id'] = payload.organizationId;
 
