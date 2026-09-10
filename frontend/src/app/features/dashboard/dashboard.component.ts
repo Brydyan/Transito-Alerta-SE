@@ -142,41 +142,40 @@ export class DashboardComponent implements OnInit {
   readonly weeklyDays = computed(() => this.weekly()?.days ?? []);
 
   ngOnInit(): void {
-    // Cada fuente absorbe su propio error (D5: la falla de un
-    // endpoint no aborta los otros). `forkJoin` espera a las
-    // tres; cada una entrega `null` (o `[]` para activity) si
-    // falla. La bandera `error` se enciende si AL MENOS una falla.
+    // F6 (W.1 sdd-verify fix): el dashboard ahora hace el forkJoin
+    // de los 3 endpoints (`getStats`, `getWeeklyStats`,
+    // `getRecentActivity`) con `catchError` POR Llamada — la falla
+    // de uno no aborta los otros dos, y se enciende `error()` para
+    // que el template pinte el `.error-banner` (S5 del spec).
+    // Cada `catchError` degrada a un valor vacío con el mismo shape
+    // que la respuesta exitosa — los computeds (`kpis`,
+    // `topCategories`, `weeklyDays`) toleran `null`/`[]` (D5: cero
+    // es un valor con significado propio).
     forkJoin({
       stats: this.dashboardService.getStats().pipe(
-        catchError((err: unknown) => {
+        catchError(() => {
           this.error.set('No se pudo cargar el dashboard. Los datos pueden estar incompletos.');
-          // eslint-disable-next-line no-console
-          console.error('[Dashboard] stats failed:', err);
           return of(null);
         }),
       ),
       weekly: this.dashboardService.getWeeklyStats().pipe(
-        catchError((err: unknown) => {
+        catchError(() => {
           this.error.set('No se pudo cargar el dashboard. Los datos pueden estar incompletos.');
-          // eslint-disable-next-line no-console
-          console.error('[Dashboard] weekly-stats failed:', err);
           return of(null);
         }),
       ),
-      activity: this.dashboardService.getRecentActivity(5).pipe(
-        catchError((err: unknown) => {
+      activity: this.dashboardService.getRecentActivity().pipe(
+        catchError(() => {
           this.error.set('No se pudo cargar el dashboard. Los datos pueden estar incompletos.');
-          // eslint-disable-next-line no-console
-          console.error('[Dashboard] activity failed:', err);
-          return of([] as ReadonlyArray<ActivityRow>);
+          return of([] as ActivityRow[]);
         }),
       ),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result) => {
-        this.stats.set(result.stats);
-        this.weekly.set(result.weekly);
-        this.activity.set(result.activity);
+      .subscribe(({ stats, weekly, activity }) => {
+        this.stats.set(stats);
+        this.weekly.set(weekly);
+        this.activity.set(activity);
         this.loading.set(false);
       });
   }

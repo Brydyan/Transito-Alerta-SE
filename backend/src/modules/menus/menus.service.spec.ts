@@ -1,4 +1,5 @@
 import { AuthService } from '../auth/auth.service';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { MenusService } from './menus.service';
 
 /**
@@ -14,11 +15,26 @@ import { MenusService } from './menus.service';
  */
 describe('MenusService', () => {
   let authService: { getPermissionsByUserId: jest.Mock };
+  // F6 fix (post-0051): el service ahora inyecta `PermissionLookupService`
+  // para traducir `"ACTION resource"` (formato de MENU_MAP) → UUID
+  // (formato de users.permissions post-0051). El stub devuelve el mismo
+  // string `"ACTION resource"` que los tests usan en
+  // `ALL_MENU_PERMISSIONS` para preservar los asserts exactamente.
+  let permissionLookup: { getUuid: jest.Mock; invalidate: jest.Mock };
   let service: MenusService;
 
   beforeEach(() => {
     authService = { getPermissionsByUserId: jest.fn() };
-    service = new MenusService(authService as unknown as jest.Mocked<AuthService>);
+    permissionLookup = {
+      getUuid: jest.fn().mockImplementation(async (action: string, resource: string) => {
+        return `${action} ${resource}`;
+      }),
+      invalidate: jest.fn(),
+    };
+    service = new MenusService(
+      authService as unknown as jest.Mocked<AuthService>,
+      permissionLookup as unknown as PermissionLookupService,
+    );
   });
 
   it('resolves permissions via AuthService.getPermissionsByUserId (same cache path as PermissionGuard)', async () => {

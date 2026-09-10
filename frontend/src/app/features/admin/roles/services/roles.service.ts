@@ -9,6 +9,7 @@ import {
   PermissionItem,
   RoleDetail,
   UpdateRolePayload,
+  CreateRolePayload,
 } from '../models/role-permission.interface';
 
 @Injectable({ providedIn: 'root' })
@@ -37,29 +38,51 @@ export class RolesService {
       params = params.set('search', search.trim());
     }
     return this.http
-      .get<RoleListItem[] | { data: RoleListItem[]; meta?: { total?: number } }>(
-        this.rolesUrl,
-        { params, withCredentials: true },
-      )
+      .get<any[] | { data: any[] }>(this.rolesUrl, { params, withCredentials: true })
       .pipe(
-        map((res) => (Array.isArray(res) ? res : (res.data ?? []))),
+        map((res) => {
+          const roles = Array.isArray(res) ? res : res?.data ?? [];
+          return roles.map((r: any) => ({
+            rolId: r.id,
+            nombre: r.name,
+            permissionCount: r.permissions?.length ?? 0,
+            isSystemRole: r.name && ['master', 'operador_sistema'].includes(r.name),
+          }));
+        })
       );
   }
 
   /**
    * GET /api/roles/stats — métricas agregadas para las 3 cards del
    * pie. Aplana envelope a un `RoleStats` (con fallback a ceros).
+   *
+   * SC-209 lesson (D-frontend-9, F6 rediseño): la respuesta del
+   * backend es snake_case (`total_permissions` etc.) por el
+   * `SnakeCaseResponseInterceptor` global. El `map` debe leer los
+   * campos snake_case, no los camelCase del `RoleStats` — si
+   * los lee del shape camelCase, los campos quedan `undefined`
+   * y el `?? 0` degrada a ceros sin que la request falle.
    */
   getRoleStats(): Observable<RoleStats> {
     return this.http
-      .get<RoleStats | { data: RoleStats }>(this.statsUrl, { withCredentials: true })
+      .get<{ data?: { total_permissions?: number; protected_modules?: number; assigned_users?: number } }>(
+        this.statsUrl,
+        { withCredentials: true },
+      )
       .pipe(
         map((res) => {
-          const stats = (res && 'data' in res ? (res as { data: RoleStats }).data : (res as RoleStats)) ?? ({} as RoleStats);
+          // El backend puede envolver en `{ data: ... }` (paginación,
+          // convención del proyecto) o devolver el objeto plano. Ambos
+          // campos vienen en snake_case.
+          const inner = res && 'data' in res && res.data ? res.data : (res as unknown as {
+            total_permissions?: number;
+            protected_modules?: number;
+            assigned_users?: number;
+          });
           return {
-            totalPermissions: stats.totalPermissions ?? 0,
-            protectedModules: stats.protectedModules ?? 0,
-            assignedUsers: stats.assignedUsers ?? 0,
+            totalPermissions: inner?.total_permissions ?? 0,
+            protectedModules: inner?.protected_modules ?? 0,
+            assignedUsers: inner?.assigned_users ?? 0,
           };
         }),
       );
@@ -70,26 +93,50 @@ export class RolesService {
    * usualmente. El 403 se traduce a un mensaje claro en el
    * componente (D7: sin `*hasPermission`).
    */
-  deleteRole(id: number): Observable<void> {
+  deleteRole(id: string | number): Observable<void> {
     return this.http.delete<void>(`${this.rolesUrl}/${id}`, { withCredentials: true });
   }
 
-  getRoleById(id: number): Observable<RoleDetail> {
+  /**
+   * GET /api/roles/:id — detalle de un rol. El `id` es UUID
+   * (string), no number. El wire es snake_case vía
+   * `SnakeCaseResponseInterceptor`:
+   *   { id, name, description?, permissions: string[] }
+   *
+   * F6 fix: mapeamos `id` → `rolId`, `name` → `nombre`, y
+   * `permissions` queda como `string[]` (formato "ACTION
+   * resource", NO objetos con `permisoId/nombre/...`). El
+   * role-editor cruza contra `allPermissions()` (catálogo) para
+   * enriquecer el shape si necesita campos estructurados.
+   */
+  getRoleById(id: string): Observable<RoleDetail> {
     return this.http
-      .get<RoleDetail | { data: RoleDetail }>(`${this.rolesUrl}/${id}`, { withCredentials: true })
+      .get<{
+        id?: string;
+        name?: string;
+        description?: string;
+        permissions?: string[];
+      }>(`${this.rolesUrl}/${id}`, { withCredentials: true })
       .pipe(
-        map((res) => {
-          const detail = (
-            res && typeof res === 'object' && 'data' in res ? res.data : res
-          ) as RoleDetail;
-          return {
-            ...detail,
-            permisos: Array.isArray(detail?.permisos) ? detail.permisos : [],
-          };
-        }),
+        map((raw) => ({
+          rolId: raw.id ?? id,
+          nombre: raw.name ?? '',
+          permisos: Array.isArray(raw.permissions) ? raw.permissions : [],
+        })),
       );
   }
 
+  /**
+   * GET /api/permissions — catálogo completo de permisos.
+   * Paginado, con snake_case en el wire (`id`, `resource`,
+   * `action`, `deleted_at`). Mapeamos a la forma
+   * `PermissionItem` que el role-editor espera
+   * (`permisoId`, `nombre`, `recurso`, `accion`).
+   *
+   * F6 fix: sin este map, `perm.permisoId` (string UUID)
+   * quedaba `undefined` y los `Set<number>` del role-editor
+   * nunca matcheaban contra el catálogo.
+   */
   getAllPermissions(): Observable<PermissionItem[]> {
     return new Observable<PermissionItem[]>((subscriber) => {
       const all: PermissionItem[] = [];
@@ -97,24 +144,31 @@ export class RolesService {
         const params = new HttpParams().set('page', String(page)).set('limit', '100');
         this.http
           .get<
-            | PermissionItem[]
-            | { data: PermissionItem[]; meta?: { ultimaPagina?: number; total?: number } }
+            | { id?: string; resource?: string; action?: string; nombre?: string; descripcion?: string }[]
+            | { data: { id?: string; resource?: string; action?: string; nombre?: string; descripcion?: string }[]; meta?: { ultimaPagina?: number; total?: number } }
           >(this.permissionsUrl, { params, withCredentials: true })
           .subscribe({
             next: (res) => {
-              let items: PermissionItem[] = [];
+              let rawItems: { id?: string; resource?: string; action?: string; nombre?: string; descripcion?: string }[] = [];
               let totalPages = 1;
 
               if (Array.isArray(res)) {
-                items = res;
+                rawItems = res;
               } else if (res && typeof res === 'object') {
-                items = Array.isArray(res.data) ? res.data : [];
+                rawItems = Array.isArray(res.data) ? res.data : [];
                 totalPages = res.meta?.ultimaPagina ?? 1;
               }
 
-              all.push(...items);
+              const mapped: PermissionItem[] = rawItems.map((p) => ({
+                permisoId: p.id ?? '',
+                nombre: p.nombre ?? `${p.action ?? ''} ${p.resource ?? ''}`.trim(),
+                descripcion: p.descripcion ?? '',
+                recurso: p.resource ?? '',
+                accion: p.action ?? '',
+              }));
+              all.push(...mapped);
 
-              if (page < totalPages && items.length > 0) {
+              if (page < totalPages && mapped.length > 0) {
                 fetchPage(page + 1);
               } else {
                 subscriber.next(all);
@@ -129,8 +183,32 @@ export class RolesService {
     });
   }
 
-  updateRole(id: number, payload: UpdateRolePayload): Observable<RoleDetail> {
+  /**
+   * PATCH /api/roles/:id — actualiza un rol. El `id` es UUID
+   * (string), no number. El `UpdateRolePayload` lleva
+   * `permisosAsignar: string[]` y `permisosRevocar: string[]`
+   * (UUIDs), que el backend acepta como `permissions`
+   * (PUT semantics en R6 — ver el spec del change
+   * `2026-09-09-roles-stats-endpoint`).
+   */
+  updateRole(id: string, payload: UpdateRolePayload): Observable<RoleDetail> {
     return this.http.patch<RoleDetail>(`${this.rolesUrl}/${id}`, payload, {
+      withCredentials: true,
+    });
+  }
+
+  /**
+   * POST /api/roles — crea un rol nuevo. Body: `{ name, description?,
+   * permissions?: string[] }` (T5.6 / R6).
+   *
+   * El botón "Nuevo Rol" del listado navega a `/app/admin/roles/nuevo`
+   * y el editor detecta el slug `nuevo` para entrar en create mode
+   * (sin GET previo, sin nombre cargado) y llama a este método al
+   * guardar. Devuelve el `RoleDetail` recién creado (con `id` UUID);
+   * el editor navega a la ruta del nuevo id tras el success.
+   */
+  createRole(payload: CreateRolePayload): Observable<RoleDetail> {
+    return this.http.post<RoleDetail>(this.rolesUrl, payload, {
       withCredentials: true,
     });
   }

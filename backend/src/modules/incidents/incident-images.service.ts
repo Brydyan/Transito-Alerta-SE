@@ -12,6 +12,8 @@ import { IncidentImageStorageService, MulterFile } from './incident-image-storag
 import { IncidentImageDto } from './dto/incident-image.dto';
 import { IncidentsRepository } from './incidents.repository';
 import { SubjectScope } from '../../common/authz/subject-scope';
+import { hasPermission } from '../../common/guards/permission.guard';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
@@ -32,6 +34,10 @@ export class IncidentImagesService {
     private readonly imageRepo: Repository<IncidentImageEntity>,
     private readonly storage: IncidentImageStorageService,
     private readonly incidentsRepository: IncidentsRepository,
+    // F6 fix: las `callerPermissions` son UUIDs (post-0051).
+    // El check `includes('CREATE incident-images')` ya no
+    // matchea — usamos el resolver.
+    private readonly permissionLookup: PermissionLookupService,
   ) {}
 
   async attachToIncident(
@@ -44,8 +50,13 @@ export class IncidentImagesService {
     if (!incident) throw new NotFoundException(`Incident ${incidentId} not found`);
 
     const isOwner = incident.citizen_id === callerId;
-    const hasPermission = callerPermissions.includes('CREATE incident-images');
-    if (!isOwner && !hasPermission) {
+    const canCreate = await hasPermission(
+      callerPermissions,
+      'CREATE',
+      'incident-images',
+      this.permissionLookup,
+    );
+    if (!isOwner && !canCreate) {
       throw new ForbiddenException('Not authorized to attach images to this incident');
     }
 
@@ -90,8 +101,13 @@ export class IncidentImagesService {
 
     const incident = await this.incidentsRepository.findOne(incidentId, PUBLIC_SCOPE);
     const isOwner = incident?.citizen_id === callerId;
-    const hasPermission = callerPermissions.includes('DELETE incident-images');
-    if (!isOwner && !hasPermission) {
+    const canDelete = await hasPermission(
+      callerPermissions,
+      'DELETE',
+      'incident-images',
+      this.permissionLookup,
+    );
+    if (!isOwner && !canDelete) {
       throw new ForbiddenException('Not authorized to delete this image');
     }
 

@@ -11,6 +11,7 @@ import { formatPermissionString } from '../../common/decorators/require-permissi
 import { AuthService } from '../auth/auth.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { RoleStatsDto } from './dto/role-stats.dto';
 
 /**
  * AUD (sc-327) FIX-6 (ronda 12) — nombres de roles sembrados
@@ -133,6 +134,47 @@ export class RolesService {
       throw new NotFoundException(`Role ${id} not found`);
     }
     return role;
+  }
+
+  /**
+   * Change `2026-09-09-roles-stats-endpoint` — métricas agregadas para
+   * las 3 cards del pie de `/app/admin/roles` (mock 04-01).
+   *
+   * Cálculo on-the-fly (D1): dos queries simples, sin cache. Excluye
+   * soft-deleted de ambas tablas (D3 — coherente con `findAll` arriba).
+   * Los permission strings duplicados entre roles colapsan vía `Set`
+   * (D4 — el spec cuenta cada combinación única una sola vez).
+   *
+   * Si el formato del permission string cambia en el futuro, este
+   * parser (`split(' ')`) debe actualizarse en lockstep con T3.1.
+   */
+  async getStats(): Promise<RoleStatsDto> {
+    const roles = await this.roleRepo.find({
+      where: { deletedAt: IsNull() },
+      select: ['id', 'permissions'],
+    });
+
+    const allPerms = new Set<string>();
+    const modules = new Set<string>();
+    for (const role of roles) {
+      for (const perm of role.permissions ?? []) {
+        allPerms.add(perm);
+        const parts = perm.split(' ');
+        if (parts.length === 2) {
+          modules.add(parts[1]);
+        }
+      }
+    }
+
+    const assignedUsers = await this.userRepo.count({
+      where: { roleId: Not(IsNull()), deletedAt: IsNull() },
+    });
+
+    return {
+      totalPermissions: allPerms.size,
+      protectedModules: modules.size,
+      assignedUsers,
+    };
   }
 
   async create(dto: CreateRoleDto): Promise<RoleEntity> {

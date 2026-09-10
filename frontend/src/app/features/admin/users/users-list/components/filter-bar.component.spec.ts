@@ -8,8 +8,8 @@ describe('FilterBarComponent (F6 rediseño)', () => {
   let component: FilterBarComponent;
 
   const roles: Role[] = [
-    { rolId: 1, nombre: 'ADMIN ORG' },
-    { rolId: 2, nombre: 'OPERADOR ORG' },
+    { rolId: 'role-1', nombre: 'ADMIN ORG' },
+    { rolId: 'role-2', nombre: 'OPERADOR ORG' },
   ];
   const orgs: Organization[] = [
     { id: 'org-1', nombre: 'GAD Guayaquil' },

@@ -7,5 +7,10 @@
     "types": []
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.spec.ts", "src/**/*.example.ts", "src/**/*.router-example.ts"]
+  "exclude": [
+    "src/**/*.spec.ts",
+    "src/**/*.example.ts",
+    "src/**/*.router-example.ts",
+    "src/**/_old_*/**"
+  ]
 }

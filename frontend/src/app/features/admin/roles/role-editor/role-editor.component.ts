@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RolesService } from '../services/roles.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
@@ -23,7 +23,7 @@ import {
 
 @Component({
   selector: 'app-role-editor',
-  imports: [CommonModule, FormsModule, PaginationComponent],
+  imports: [CommonModule, FormsModule, RouterLink, PaginationComponent],
   templateUrl: './role-editor.component.html',
   styleUrl: './role-editor.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,14 +35,33 @@ export class RoleEditorComponent implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
-  rolId = 0;
-  private originalIds = new Set<number>();
+  // F6 fix: `rolId` es UUID (string), no number. Antes era
+  // `rolId = 0` con `Number(params.get('rolId'))` — eso daba
+  // `NaN` para un UUID y la request `getRoleById` fallaba
+  // silenciosamente (404 o similar) → el form abría vacío.
+  rolId = '';
+  private originalIds = new Set<string>();
+
+  // F6 fix (mock 04-02): el botón "Nuevo Rol" del listado
+  // navega a `/app/admin/roles/nuevo`. La slug `nuevo` no es
+  // un UUID, así que NO debe dispararse un `GET /api/roles/:id`
+  // (eso devolvía 400 "Validation failed (uuid is expected)").
+  // `isCreateMode` se calcula desde el `:rolId` y ramifica
+  // todo el flujo del editor: sin GET, form con `name` y
+  // `description`, `save()` hace POST en vez de PATCH.
+  readonly isCreateMode = signal(false);
+  readonly roleName = signal('');
+  readonly roleDescription = signal('');
 
   readonly role = signal<RoleDetail | null>(null);
   readonly allPermissions = signal<PermissionItem[]>([]);
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
-  readonly assignedIds = signal<Set<number>>(new Set());
+  // F6 fix: `assignedIds` es `Set<string>` (UUIDs), no
+  // `Set<number>`. El catálogo de permisos ahora trae
+  // `permisoId: string` y antes el Set<number> no matcheaba
+  // nada → la matriz de permisos se renderizaba vacía.
+  readonly assignedIds = signal<Set<string>>(new Set());
   readonly expandedGroups = signal<Set<string>>(new Set());
   readonly searchTerm = signal('');
 
@@ -104,6 +123,16 @@ export class RoleEditorComponent implements OnInit {
     return groups.slice(start, start + size);
   });
 
+  /** F6 (mock 04-02): el botón "Expandir todo" / "Colapsar todo" del
+   *  header de la Matriz de Permisos es un toggle: si están todos
+   *  expandidos, colapsa; si no, expande todos los grupos visibles. */
+  readonly allExpanded = computed(() => {
+    const groups = this.groupedPermissions();
+    const expanded = this.expandedGroups();
+    if (groups.length === 0) return false;
+    return groups.every((g) => expanded.has(g.recurso));
+  });
+
   readonly totalStats = computed(() => {
     const all = this.allPermissions();
     const assigned = this.assignedIds();
@@ -115,6 +144,12 @@ export class RoleEditorComponent implements OnInit {
   });
 
   readonly hasChanges = computed(() => {
+    // F6 (mock 04-02): en create mode el form SIEMPRE tiene
+    // cambios respecto al estado inicial vacío, así que
+    // `Guardar Rol` queda habilitado apenas el usuario tipea
+    // un nombre válido. La validación real (nombre ≥ 2 chars)
+    // vive en el botón `[disabled]`.
+    if (this.isCreateMode()) return true;
     const current = this.assignedIds();
     if (current.size !== this.originalIds.size) return true;
     for (const id of current) {
@@ -123,9 +158,30 @@ export class RoleEditorComponent implements OnInit {
     return false;
   });
 
+  /** F6 (mock 04-02): en create mode el botón Guardar Rol
+   *  queda deshabilitado si el nombre no cumple el mínimo del
+   *  `CreateRoleDto` (2 chars). El backend rechaza con
+   *  `MinLength(2)` si se manda más corto, así que cortamos
+   *  acá para no round-trippear un 400 evitable. */
+  readonly canSave = computed(() => {
+    if (this.isLoading() || this.isSaving()) return false;
+    if (this.isCreateMode()) {
+      return this.roleName().trim().length >= 2;
+    }
+    return this.hasChanges();
+  });
+
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-      this.rolId = Number(params.get('rolId'));
+      // F6 fix: el `rolId` viene como UUID string del path
+      // `:rolId`. Antes hacía `Number(params.get('rolId'))` que
+      // daba `NaN` para cualquier UUID, dejando la request
+      // `getRoleById` sin id válido.
+      this.rolId = params.get('rolId') ?? '';
+      // F6 (mock 04-02): la slug `nuevo` del botón Nuevo Rol
+      // no es un UUID — entrar en create mode evita el
+      // GET /api/roles/:id que devolvía 400.
+      this.isCreateMode.set(this.rolId === 'nuevo');
       this.resetState();
       this.load();
     });
@@ -139,6 +195,11 @@ export class RoleEditorComponent implements OnInit {
     this.originalIds = new Set();
     this.searchTerm.set('');
     this.currentPage.set(1);
+    // F6 (mock 04-02): en create mode los campos de
+    // identificación arrancan vacíos; en edit mode se
+    // rellenan desde `loadRoleDetail()`.
+    this.roleName.set('');
+    this.roleDescription.set('');
   }
 
   private load(): void {
@@ -159,12 +220,30 @@ export class RoleEditorComponent implements OnInit {
   }
 
   private loadRoleDetail(): void {
+    // F6 (mock 04-02): en create mode NO hay GET — el form
+    // arranca vacío. Saltamos también el seed de
+    // roleName/roleDescription (queda en '').
+    if (this.isCreateMode()) {
+      this.isLoading.set(false);
+      return;
+    }
     this.rolesService.getRoleById(this.rolId).subscribe({
       next: (role) => {
         this.role.set(role);
-        const ids = new Set((role.permisos || []).map((p) => p.permisoId));
+        // F6 fix: `role.permisos` es `string[]` (formato
+        // "ACTION resource" desde `GET /api/roles/:id`). Antes
+        // el service exponía `RolePermission[]` con campos
+        // `permisoId/nombre/...` y la interface cambió para
+        // reflejar el wire real. El set de assigned ahora se
+        // construye directamente desde el array de strings.
+        const ids = new Set<string>(role.permisos ?? []);
         this.assignedIds.set(ids);
         this.originalIds = new Set(ids);
+        // F6: el wire del backend sólo trae `name` y
+        // `permissions`, no `description`. Si el backend
+        // empieza a mandarla (mock 04-02 lo muestra), caerá
+        // acá; mientras tanto, queda en ''.
+        this.roleName.set(role.nombre ?? '');
         this.isLoading.set(false);
       },
       error: (err) => {
@@ -190,7 +269,7 @@ export class RoleEditorComponent implements OnInit {
     this.currentPage.set(1);
   }
 
-  togglePermission(permisoId: number): void {
+  togglePermission(permisoId: string): void {
     this.assignedIds.update((ids) => {
       const next = new Set(ids);
       if (next.has(permisoId)) next.delete(permisoId);
@@ -229,6 +308,18 @@ export class RoleEditorComponent implements OnInit {
     this.expandedGroups.set(new Set());
   }
 
+  /** F6 (mock 04-02): el botón "Expandir todo" del header de la
+   *  Matriz es un toggle. Si están todos expandidos, colapsa; si no,
+   *  expande. Centralizado acá para que el template sólo tenga un
+   *  handler y el label cambie vía `allExpanded()`. */
+  toggleExpandAll(): void {
+    if (this.allExpanded()) {
+      this.collapseAll();
+    } else {
+      this.expandAll();
+    }
+  }
+
   selectAllVisible(): void {
     this.assignedIds.update((ids) => {
       const next = new Set(ids);
@@ -254,14 +345,48 @@ export class RoleEditorComponent implements OnInit {
   }
 
   save(): void {
-    const current = this.assignedIds();
-    const permisosAsignar = [...current].filter((id) => !this.originalIds.has(id));
-    const permisosRevocar = [...this.originalIds].filter((id) => !current.has(id));
+    // F6 fix: el backend `UpdateRoleDto` espera `permissions:
+    // string[]` (PUT semantics — reemplaza el set completo), no
+    // `permisosAsignar`/`permisosRevocar`. Enviamos el set
+    // actual completo. El backend no tiene el patrón
+    // diff-based que el frontend asumía; el cost es 1 PATCH
+    // por save con un array de hasta 64 strings (lo cap del
+    // DTO), no incremental.
+    const permissions = [...this.assignedIds()];
 
     this.isSaving.set(true);
-    this.rolesService.updateRole(this.rolId, { permisosAsignar, permisosRevocar }).subscribe({
+    if (this.isCreateMode()) {
+      // F6 (mock 04-02): el `CreateRoleDto` exige `name` (min
+      // 2 chars) y acepta `description?` y `permissions?`.
+      // El trim del nombre lo hace el `MinLength(2)` del
+      // class-validator, pero lo mandamos ya limpio.
+      const payload = {
+        name: this.roleName().trim(),
+        description: this.roleDescription().trim() || undefined,
+        permissions,
+      };
+      this.rolesService.createRole(payload).subscribe({
+        next: (created) => {
+          this.isSaving.set(false);
+          this.toast.success('Rol creado correctamente', 'Éxito');
+          // Navegar a la ruta del nuevo id para que el editor
+          // quede en edit mode contra el recurso recién creado
+          // (refleja el cambio en el breadcrumb y permite
+          // seguir editando). El replaceUrl evita que el
+          // back del navegador devuelva al slug `nuevo`.
+          this.router.navigate(['/app/admin/roles', created.rolId], { replaceUrl: true });
+        },
+        error: (err) => {
+          this.isSaving.set(false);
+          const msg = err?.error?.message ?? 'Error al crear el rol';
+          this.toast.error(msg, 'Error');
+        },
+      });
+      return;
+    }
+    this.rolesService.updateRole(this.rolId, { permissions }).subscribe({
       next: () => {
-        this.originalIds = new Set(current);
+        this.originalIds = new Set(this.assignedIds());
         this.isSaving.set(false);
         this.toast.success('Permisos actualizados correctamente', 'Éxito');
       },
@@ -273,6 +398,10 @@ export class RoleEditorComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['..'], { relativeTo: this.route });
+    // F6 fix: el editor es SIBLING de la lista (`roles/:rolId`
+    // y `roles` son rutas paralelas bajo `admin`), no child.
+    // Antes `navigate(['..'])` funcionaba porque eran child
+    // routes, pero ahora navega explícitamente a la lista.
+    this.router.navigate(['/app/admin/roles']);
   }
 }

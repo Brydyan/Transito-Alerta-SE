@@ -1,312 +1,472 @@
 <div class="role-editor-container p-4">
-  <!-- Header de página -->
-  <div class="page-header mb-6 flex items-center justify-between flex-wrap gap-4">
-    <div class="flex items-center gap-4">
-      <button
-        class="btn btn-outline-secondary w-9 h-9 flex items-center justify-center rounded"
-        type="button"
-        (click)="goBack()"
-        title="Volver a roles"
-      >
-        <i class="bi bi-arrow-left"></i>
-      </button>
+  <!-- Header de página: breadcrumb + título + acciones (mock 04-02) -->
+  <div class="page-header mb-6">
+    <!-- Breadcrumb (mock 04-02) -->
+    <nav class="text-xs font-semibold tracking-wider uppercase mb-3" aria-label="Breadcrumb">
+      <ol class="flex flex-wrap items-center gap-2 list-none p-0 m-0">
+        <li>
+          <a routerLink="/app/admin/roles" class="text-brand-navy hover:underline">Gestión</a>
+        </li>
+        <li class="text-slate-400">›</li>
+        <li>
+          <a routerLink="/app/admin/roles" class="text-brand-navy hover:underline">Roles</a>
+        </li>
+        <li class="text-slate-400">›</li>
+        <li class="text-brand-navy/70">
+          @if (isCreateMode()) {
+            Nuevo Rol
+          } @else {
+            Editor
+          }
+        </li>
+      </ol>
+    </nav>
+
+    <div class="flex items-start justify-between flex-wrap gap-4">
       <div>
-        <h3 class="font-bold mb-1 text-slate-800 text-2xl">{{ role()?.nombre ?? '...' }}</h3>
-        <p class="text-slate-500 text-sm mb-0">Configurá los permisos asignados a este rol.</p>
+        <h3 class="font-bold mb-1 text-slate-800 text-2xl">
+          @if (isCreateMode()) {
+            Nuevo Rol de Sistema
+          } @else {
+            {{ role()?.nombre ?? '...' }}
+          }
+        </h3>
+        <p class="text-slate-500 text-sm mb-0 max-w-2xl">
+          @if (isCreateMode()) {
+            Configure un nuevo perfil de acceso definiendo su nombre identificador y los permisos granulares por cada módulo.
+          } @else {
+            Configurá los permisos asignados a este rol.
+          }
+        </p>
+      </div>
+
+      <div class="flex items-center gap-3 flex-wrap">
+        <!-- Cancelar (mock 04-02): solo visible en create mode, va a la lista -->
+        @if (isCreateMode()) {
+          <button
+            class="btn btn-outline-secondary flex items-center gap-2 font-medium px-4 py-2"
+            type="button"
+            [disabled]="isSaving()"
+            (click)="goBack()"
+          >
+            <i class="bi bi-x-lg"></i>
+            <span>Cancelar</span>
+          </button>
+        }
+        <button
+          class="btn btn-primary flex items-center gap-2 font-medium px-4 py-2"
+          type="button"
+          [disabled]="!canSave()"
+          (click)="save()"
+        >
+          @if (isSaving()) {
+            <span class="spinner-border spinner-border-sm w-4 h-4 border-2" role="status" aria-hidden="true"></span>
+            <span>Guardando...</span>
+          } @else {
+            <i class="bi bi-floppy"></i>
+            <span>{{ isCreateMode() ? 'Guardar Rol' : 'Guardar cambios' }}</span>
+          }
+        </button>
       </div>
     </div>
-
-    <button
-      class="btn btn-primary flex items-center gap-2 font-medium px-4 py-2"
-      type="button"
-      [disabled]="isSaving() || !hasChanges() || isLoading()"
-      (click)="save()"
-    >
-      @if (isSaving()) {
-        <span class="spinner-border spinner-border-sm w-4 h-4 border-2" role="status" aria-hidden="true"></span>
-        <span>Guardando...</span>
-      } @else {
-        <i class="bi bi-floppy"></i>
-        <span>Guardar cambios</span>
-      }
-    </button>
   </div>
 
-  <div class="card border-none shadow-sm rounded-lg overflow-hidden">
-    <!-- Header de la tarjeta: Filtros y Acciones -->
-    <div
-      class="card-header bg-bg-secondary border-b-0 pt-6 pb-4 px-6 flex justify-between items-center flex-wrap gap-4"
-    >
-      <!-- Input de búsqueda -->
-      <div class="flex items-center gap-2 flex-wrap grow max-w-lg">
-        <div class="relative grow flex items-center w-full">
-          <span class="absolute left-3 text-slate-500">
-            <i class="bi bi-search"></i>
-          </span>
-          <input
-            type="text"
-            class="form-control pl-9 pr-9"
-            placeholder="Buscar módulo, acción o descripción..."
-            [ngModel]="searchTerm()"
-            (ngModelChange)="onSearchChange($event)"
-          />
-          @if (searchTerm()) {
-            <button
-              class="absolute right-2 text-slate-500 hover:text-slate-800"
-              type="button"
-              (click)="onSearchChange('')"
-            >
-              <i class="bi bi-x text-lg"></i>
-            </button>
-          }
-        </div>
-      </div>
+  <!-- F6 (mock 04-02): layout de 2 columnas en create mode.
+       - Columna izquierda: Identificación del Rol + Estado del Sistema
+       - Columna derecha: Matriz de Permisos + 2 cards informativos + Verificación de Seguridad
+       En edit mode se renderiza a una sola columna (solo la matriz) — no hay
+       creación de rol ni la card de identificación tiene sentido editar. -->
+  <div [class]="isCreateMode() ? 'grid grid-cols-1 lg:grid-cols-3 gap-4' : ''">
+    <!-- COLUMNA IZQUIERDA: Identificación + Estado del Sistema (mock 04-02) -->
+    @if (isCreateMode()) {
+      <div class="lg:col-span-1 flex flex-col gap-4">
+        <!-- Card: Identificación del Rol -->
+        <div class="card border-none shadow-sm rounded-lg overflow-hidden">
+          <div class="p-6">
+            <h5 class="font-bold mb-1 text-slate-800">Identificación del Rol</h5>
+            <p class="text-slate-500 text-sm mb-4">Defina el nombre único para este perfil</p>
 
-      <!-- Acciones de control -->
-      <div class="flex items-center gap-3 flex-wrap">
-        <span
-          class="badge bg-brand-navy/10 text-brand-navy border border-brand-navy/20 px-4 py-2 text-sm rounded-full"
-        >
-          {{ totalStats().assignedCount }} de {{ totalStats().total }} permisos
-        </span>
+            <label class="form-label fw-semibold">
+              Nombre del Rol <span class="text-danger">*</span>
+            </label>
+            <div class="relative mb-1">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                <i class="bi bi-shield-check"></i>
+              </span>
+              <input
+                type="text"
+                class="form-control pl-9"
+                placeholder="Ej: operador_campo"
+                [ngModel]="roleName()"
+                (ngModelChange)="roleName.set($event)"
+                maxlength="50"
+              />
+            </div>
+            <p class="text-slate-400 text-xs mb-4">
+              Se recomienda usar minúsculas y guiones bajos para identificadores técnicos.
+            </p>
 
-        <div class="inline-flex rounded-md shadow-sm" role="group">
-          <button
-            type="button"
-            class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-l-md hover:bg-slate-50 focus:z-10 focus:ring-2 focus:ring-brand-navy/20"
-            (click)="expandAll()"
-            title="Expandir módulos"
-          >
-            <i class="bi bi-arrows-expand mr-1"></i>Expandir
-          </button>
-          <button
-            type="button"
-            class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-l-0 border-slate-200 rounded-r-md hover:bg-slate-50 focus:z-10 focus:ring-2 focus:ring-brand-navy/20"
-            (click)="collapseAll()"
-            title="Colapsar módulos"
-          >
-            <i class="bi bi-arrows-collapse mr-1"></i>Colapsar
-          </button>
-        </div>
+            <label class="form-label fw-semibold">Descripción</label>
+            <textarea
+              class="form-control mb-1"
+              rows="3"
+              placeholder="Describa el alcance de este rol..."
+              [ngModel]="roleDescription()"
+              (ngModelChange)="roleDescription.set($event)"
+              maxlength="200"
+            ></textarea>
 
-        <div class="inline-flex rounded-md shadow-sm" role="group">
-          <button
-            type="button"
-            class="px-4 py-2 text-sm font-medium text-brand-navy bg-white border border-brand-navy/30 rounded-l-md hover:bg-brand-navy/10 focus:z-10"
-            (click)="selectAllVisible()"
-          >
-            Marcar visibles
-          </button>
-          <button
-            type="button"
-            class="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-l-0 border-red-300 rounded-r-md hover:bg-red-50 focus:z-10"
-            (click)="deselectAllVisible()"
-          >
-            Desmarcar visibles
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Cuerpo: Tabla -->
-    <div class="pt-2">
-      @if (isLoading()) {
-        <div class="flex justify-center items-center py-12">
-          <div class="spinner-border text-brand-navy w-8 h-8 border-2" role="status">
-            <span class="sr-only">Cargando permisos...</span>
+            <!-- Callout informativo (mock 04-02) -->
+            <div class="mt-4 p-3 bg-brand-navy/5 border border-brand-navy/15 rounded-md flex gap-3 items-start">
+              <span class="shrink-0 text-brand-navy mt-0.5">
+                <i class="bi bi-info-circle text-lg"></i>
+              </span>
+              <p class="text-sm text-slate-600 mb-0">
+                Este nombre será visible al asignar roles en la pantalla de
+                <strong>Gestión de Usuarios</strong>. Asegúrese de que sea descriptivo.
+              </p>
+            </div>
           </div>
         </div>
-      } @else {
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse custom-table">
-            <thead>
-              <tr>
-                <th scope="col" class="text-center w-12 pl-4">#</th>
-                <th scope="col" class="w-72">
-                  Módulo / Recurso
-                </th>
-                <th
-                  scope="col"
-                  class="text-center w-36"
-                >
-                  Asignados
-                </th>
-                <th scope="col" class="pr-6">Acciones Permitidas</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (group of pagedGroups(); track group.recurso) {
-                <!-- Fila Principal del Módulo -->
-                <tr class="module-row" [class.bg-slate-50]="expandedGroups().has(group.recurso)">
-                  <!-- Botón expandir/colapsar -->
-                  <td
-                    class="text-center pl-4 cursor-pointer"
-                    (click)="toggleExpansion(group.recurso)"
-                  >
-                    <button
-                      type="button"
-                      class="text-slate-800 hover:text-brand-navy transition-colors"
-                      aria-label="Alternar expansión"
+
+        <!-- Card: Estado del Sistema (mock 04-02) -->
+        <div class="card border-none shadow-sm rounded-lg overflow-hidden">
+          <div class="p-6">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="text-slate-400">
+                <i class="bi bi-person-badge text-lg"></i>
+              </span>
+              <h6 class="text-xs font-semibold tracking-wider uppercase text-slate-500 mb-0">
+                Estado del Sistema
+              </h6>
+            </div>
+
+            <div class="flex justify-between items-center py-2 text-sm">
+              <span class="text-slate-600">Permisos asignados:</span>
+              <span class="font-semibold text-slate-800">{{ totalStats().assignedCount }}</span>
+            </div>
+            <div class="border-t border-slate-100"></div>
+            <div class="flex justify-between items-center py-2 text-sm">
+              <span class="text-slate-600">Usuarios con este rol:</span>
+              <span class="font-semibold text-slate-800">Ninguno (Nuevo)</span>
+            </div>
+
+            <div class="mt-4">
+              <span
+                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
+              >
+                <i class="bi bi-check-circle-fill"></i>
+                DISPONIBLE PARA ASIGNACIÓN
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- COLUMNA DERECHA: Matriz de Permisos + cards informativos (mock 04-02) -->
+    <div [class]="isCreateMode() ? 'lg:col-span-2 flex flex-col gap-4' : 'w-full'">
+      <div class="card border-none shadow-sm rounded-lg overflow-hidden">
+        <!-- Header de la tarjeta: solo search + Expandir todo (mock 04-02).
+             El badge "X/Y permisos" y los botones "Marcar/Desmarcar" del
+             header viejo quedan abajo del listado (en la card de
+             Verificación de Seguridad, vía "Limpiar selección"). -->
+        <div
+          class="card-header bg-bg-secondary border-b-0 pt-6 pb-4 px-6 flex justify-between items-center flex-wrap gap-4"
+        >
+          <div>
+            <h5 class="font-bold mb-1 text-slate-800">Matriz de Permisos</h5>
+            <p class="text-slate-500 text-sm mb-0">
+              Configure el acceso por módulo y nivel de acción
+            </p>
+          </div>
+          <div class="flex items-center gap-3 flex-wrap">
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                <i class="bi bi-search"></i>
+              </span>
+              <input
+                type="text"
+                class="form-control pl-9 w-64"
+                placeholder="Buscar permiso..."
+                [ngModel]="searchTerm()"
+                (ngModelChange)="onSearchChange($event)"
+              />
+            </div>
+            <button
+              type="button"
+              class="text-sm font-semibold text-brand-navy hover:underline"
+              (click)="toggleExpandAll()"
+            >
+              {{ allExpanded() ? 'Colapsar todo' : 'Expandir todo' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Cuerpo: Tabla -->
+        <div class="pt-2">
+          @if (isLoading()) {
+            <div class="flex justify-center items-center py-12">
+              <div class="spinner-border text-brand-navy w-8 h-8 border-2" role="status">
+                <span class="sr-only">Cargando permisos...</span>
+              </div>
+            </div>
+          } @else {
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse custom-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="text-center w-12 pl-4">#</th>
+                    <th scope="col" class="w-72">
+                      Módulo / Recurso
+                    </th>
+                    <th
+                      scope="col"
+                      class="text-center w-36"
                     >
-                      <i
-                        class="bi text-brand-navy text-base"
-                        [class.bi-chevron-down]="expandedGroups().has(group.recurso)"
-                        [class.bi-chevron-right]="!expandedGroups().has(group.recurso)"
-                      ></i>
-                    </button>
-                  </td>
-
-                  <!-- Checkbox del Módulo completo -->
-                  <td (click)="toggleExpansion(group.recurso)" class="cursor-pointer">
-                    <div class="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        class="form-check-input table-checkbox mt-0"
-                        [checked]="group.allSelected"
-                        [indeterminate]="group.indeterminate"
-                        (click)="$event.stopPropagation(); toggleGroup(group)"
-                      />
-                      <span class="font-semibold capitalize text-slate-800">
-                        {{ group.recurso }}
-                      </span>
-                    </div>
-                  </td>
-
-                  <!-- Badge de conteo asignado -->
-                  <td
-                    class="text-center cursor-pointer"
-                    (click)="toggleExpansion(group.recurso)"
-                  >
-                    @if (group.allSelected) {
-                      <span class="badge bg-status-success text-white rounded-full px-3 py-1 text-xs">
-                        {{ group.assignedCount }} / {{ group.items.length }}
-                      </span>
-                    } @else if (group.assignedCount > 0) {
-                      <span class="badge bg-amber-500 text-white rounded-full px-3 py-1 text-xs">
-                        {{ group.assignedCount }} / {{ group.items.length }}
-                      </span>
-                    } @else {
-                      <span class="badge bg-slate-500 text-white rounded-full px-3 py-1 text-xs">
-                        0 / {{ group.items.length }}
-                      </span>
-                    }
-                  </td>
-
-                  <!-- Pills de acciones en fila -->
-                  <td class="pr-6">
-                    <div class="flex flex-wrap gap-2 items-center">
-                      @for (perm of group.items; track perm.permisoId) {
-                        <div
-                          class="permission-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer"
-                          [class.active-pill]="perm.assigned"
-                          role="button"
-                          tabindex="0"
-                          (click)="togglePermission(perm.permisoId)"
-                          (keydown.enter)="
-                            togglePermission(perm.permisoId); $event.preventDefault()
-                          "
-                          (keydown.space)="
-                            togglePermission(perm.permisoId); $event.preventDefault()
-                          "
-                          title="{{ perm.nombre }}: {{ perm.descripcion || '' }}"
+                      Asignados
+                    </th>
+                    <th scope="col" class="pr-6">Acciones Permitidas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (group of pagedGroups(); track group.recurso) {
+                    <!-- Fila Principal del Módulo -->
+                    <tr class="module-row" [class.bg-slate-50]="expandedGroups().has(group.recurso)">
+                      <!-- Botón expandir/colapsar -->
+                      <td
+                        class="text-center pl-4 cursor-pointer"
+                        (click)="toggleExpansion(group.recurso)"
+                      >
+                        <button
+                          type="button"
+                          class="text-slate-800 hover:text-brand-navy transition-colors"
+                          aria-label="Alternar expansión"
                         >
+                          <i
+                            class="bi text-brand-navy text-base"
+                            [class.bi-chevron-down]="expandedGroups().has(group.recurso)"
+                            [class.bi-chevron-right]="!expandedGroups().has(group.recurso)"
+                          ></i>
+                        </button>
+                      </td>
+
+                      <!-- Checkbox del Módulo completo -->
+                      <td (click)="toggleExpansion(group.recurso)" class="cursor-pointer">
+                        <div class="flex items-center gap-3">
                           <input
                             type="checkbox"
-                            class="form-check-input table-checkbox m-0 w-3 h-3"
-                            [checked]="perm.assigned"
-                            (click)="$event.stopPropagation(); togglePermission(perm.permisoId)"
+                            class="form-check-input table-checkbox mt-0"
+                            [checked]="group.allSelected"
+                            [indeterminate]="group.indeterminate"
+                            (click)="$event.stopPropagation(); toggleGroup(group)"
                           />
-                          <span class="font-mono text-[0.7rem] font-medium uppercase">{{
-                            perm.accion
-                          }}</span>
+                          <span class="font-semibold capitalize text-slate-800">
+                            {{ group.recurso }}
+                          </span>
                         </div>
-                      }
-                    </div>
-                  </td>
-                </tr>
+                      </td>
 
-                <!-- Fila expandida con descripción completa de cada permiso -->
-                @if (expandedGroups().has(group.recurso)) {
-                  <tr class="expanded-detail-row">
-                    <td colspan="4" class="p-4 pl-6 pr-6">
-                      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        @for (perm of group.items; track perm.permisoId) {
-                          <div
-                            class="card border p-3 h-full cursor-pointer transition-colors"
-                            [class.border-brand-navy]="perm.assigned"
-                            [class.bg-brand-navy/5]="perm.assigned"
-                            [class.bg-white]="!perm.assigned"
-                            role="button"
-                            tabindex="0"
-                            (click)="togglePermission(perm.permisoId)"
-                            (keydown.enter)="
-                              togglePermission(perm.permisoId); $event.preventDefault()
-                            "
-                            (keydown.space)="
-                              togglePermission(perm.permisoId); $event.preventDefault()
-                            "
-                          >
-                            <div class="flex gap-3 items-start">
+                      <!-- Badge de conteo asignado -->
+                      <td
+                        class="text-center cursor-pointer"
+                        (click)="toggleExpansion(group.recurso)"
+                      >
+                        @if (group.allSelected) {
+                          <span class="badge bg-status-success text-white rounded-full px-3 py-1 text-xs">
+                            {{ group.assignedCount }} / {{ group.items.length }}
+                          </span>
+                        } @else if (group.assignedCount > 0) {
+                          <span class="badge bg-amber-500 text-white rounded-full px-3 py-1 text-xs">
+                            {{ group.assignedCount }} / {{ group.items.length }}
+                          </span>
+                        } @else {
+                          <span class="badge bg-slate-500 text-white rounded-full px-3 py-1 text-xs">
+                            0 / {{ group.items.length }}
+                          </span>
+                        }
+                      </td>
+
+                      <!-- Pills de acciones en fila -->
+                      <td class="pr-6">
+                        <div class="flex flex-wrap gap-2 items-center">
+                          @for (perm of group.items; track perm.permisoId) {
+                            <div
+                              class="permission-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer"
+                              [class.active-pill]="perm.assigned"
+                              role="button"
+                              tabindex="0"
+                              (click)="togglePermission(perm.permisoId)"
+                              (keydown.enter)="
+                                togglePermission(perm.permisoId); $event.preventDefault()
+                              "
+                              (keydown.space)="
+                                togglePermission(perm.permisoId); $event.preventDefault()
+                              "
+                              title="{{ perm.nombre }}: {{ perm.descripcion || '' }}"
+                            >
                               <input
                                 type="checkbox"
-                                class="form-check-input table-checkbox mt-1 shrink-0"
+                                class="form-check-input table-checkbox m-0 w-3 h-3"
                                 [checked]="perm.assigned"
-                                (click)="
-                                  $event.stopPropagation(); togglePermission(perm.permisoId)
-                                "
+                                (click)="$event.stopPropagation(); togglePermission(perm.permisoId)"
                               />
-                              <div>
-                                <div class="font-semibold text-sm text-slate-800">{{ perm.nombre }}</div>
-                                @if (perm.descripcion) {
-                                  <div class="text-slate-500 x-small mt-1">
-                                    {{ perm.descripcion }}
-                                  </div>
-                                }
-                                <span
-                                  class="inline-block bg-slate-100 text-slate-800 border border-slate-200 rounded px-2 py-0.5 font-mono x-small mt-2"
-                                >
-                                  {{ perm.accion }}
-                                </span>
-                              </div>
+                              <span class="font-mono text-[0.7rem] font-medium uppercase">{{
+                                perm.accion
+                              }}</span>
                             </div>
-                          </div>
-                        }
-                      </div>
-                    </td>
-                  </tr>
-                }
-              }
+                          }
+                        </div>
+                      </td>
+                    </tr>
 
-              @if (pagedGroups().length === 0) {
-                <tr>
-                  <td colspan="4" class="text-center py-12">
-                    <i class="bi bi-shield-x text-5xl block mb-3 text-slate-300"></i>
-                    <span class="text-slate-500 text-sm"
-                      >No se encontraron permisos coincidentes con la búsqueda.</span
-                    >
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+                    <!-- Fila expandida con descripción completa de cada permiso -->
+                    @if (expandedGroups().has(group.recurso)) {
+                      <tr class="expanded-detail-row">
+                        <td colspan="4" class="p-4 pl-6 pr-6">
+                          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            @for (perm of group.items; track perm.permisoId) {
+                              <div
+                                class="card border p-3 h-full cursor-pointer transition-colors"
+                                [class.border-brand-navy]="perm.assigned"
+                                [class.bg-brand-navy/5]="perm.assigned"
+                                [class.bg-white]="!perm.assigned"
+                                role="button"
+                                tabindex="0"
+                                (click)="togglePermission(perm.permisoId)"
+                                (keydown.enter)="
+                                  togglePermission(perm.permisoId); $event.preventDefault()
+                                "
+                                (keydown.space)="
+                                  togglePermission(perm.permisoId); $event.preventDefault()
+                                "
+                              >
+                                <div class="flex gap-3 items-start">
+                                  <input
+                                    type="checkbox"
+                                    class="form-check-input table-checkbox mt-1 shrink-0"
+                                    [checked]="perm.assigned"
+                                    (click)="
+                                      $event.stopPropagation(); togglePermission(perm.permisoId)
+                                    "
+                                  />
+                                  <div>
+                                    <div class="font-semibold text-sm text-slate-800">{{ perm.nombre }}</div>
+                                    @if (perm.descripcion) {
+                                      <div class="text-slate-500 x-small mt-1">
+                                        {{ perm.descripcion }}
+                                      </div>
+                                    }
+                                    <span
+                                      class="inline-block bg-slate-100 text-slate-800 border border-slate-200 rounded px-2 py-0.5 font-mono x-small mt-2"
+                                    >
+                                      {{ perm.accion }}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            }
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  }
+
+                  @if (pagedGroups().length === 0) {
+                    <tr>
+                      <td colspan="4" class="text-center py-12">
+                        <i class="bi bi-shield-x text-5xl block mb-3 text-slate-300"></i>
+                        <span class="text-slate-500 text-sm"
+                          >No se encontraron permisos coincidentes con la búsqueda.</span
+                        >
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+
+        <!-- Footer / Paginación -->
+        @if (!isLoading() && groupedPermissions().length > 0) {
+          <div class="bg-bg-secondary border-t border-border-subtle px-6 py-4">
+            <app-pagination
+              [totalItems]="groupedPermissions().length"
+              [currentPage]="currentPage()"
+              [pageSize]="pageSize()"
+              [pageSizeOptions]="pageSizeOptions"
+              itemNameSingular="módulo"
+              itemNamePlural="módulos"
+              (pageChange)="onPageChange($event)"
+              (pageSizeChange)="onPageSizeChange($event)"
+            />
+          </div>
+        }
+      </div>
+
+      <!-- F6 (mock 04-02): cards informativos al pie de la columna derecha -->
+      @if (isCreateMode()) {
+        <!-- 2-col: Permisos de Lectura / Permisos de Escritura -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="card border-none shadow-sm rounded-lg overflow-hidden">
+            <div class="p-5 flex gap-3 items-start">
+              <span class="shrink-0 w-9 h-9 rounded-md bg-slate-100 text-slate-500 flex items-center justify-center">
+                <i class="bi bi-lock text-lg"></i>
+              </span>
+              <div>
+                <h6 class="font-bold text-slate-800 mb-1">Permisos de Lectura</h6>
+                <p class="text-sm text-slate-500 mb-0">
+                  Permiten al usuario visualizar la sección, los datos y reportes
+                  generados. No autorizan cambios.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="card border-none shadow-sm rounded-lg overflow-hidden">
+            <div class="p-5 flex gap-3 items-start">
+              <span class="shrink-0 w-9 h-9 rounded-md bg-brand-navy/10 text-brand-navy flex items-center justify-center">
+                <i class="bi bi-pencil text-lg"></i>
+              </span>
+              <div>
+                <h6 class="font-bold text-slate-800 mb-1">Permisos de Escritura</h6>
+                <p class="text-sm text-slate-500 mb-0">
+                  Habilitan botones de acción, edición de formularios, borrado
+                  de registros y configuraciones.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card: Verificación de Seguridad + Limpiar selección -->
+        <div class="card border-none shadow-sm rounded-lg overflow-hidden border-l-4 border-l-amber-400">
+          <div class="p-5 flex items-start justify-between flex-wrap gap-4">
+            <div class="flex gap-3 items-start">
+              <span class="shrink-0 w-9 h-9 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center">
+                <i class="bi bi-exclamation-circle text-lg"></i>
+              </span>
+              <div>
+                <h6 class="text-xs font-bold tracking-wider uppercase text-slate-700 mb-1">
+                  Verificación de Seguridad
+                </h6>
+                <p class="text-sm text-slate-500 mb-0">
+                  Asegúrese de no otorgar privilegios críticos a roles operativos.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 text-sm font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-md transition-colors"
+              [disabled]="assignedIds().size === 0"
+              (click)="deselectAllVisible()"
+            >
+              <i class="bi bi-trash3"></i>
+              <span>Limpiar selección</span>
+            </button>
+          </div>
         </div>
       }
     </div>
-
-    <!-- Footer / Paginación -->
-    @if (!isLoading() && groupedPermissions().length > 0) {
-      <div class="bg-bg-secondary border-t border-border-subtle px-6 py-4">
-        <app-pagination
-          [totalItems]="groupedPermissions().length"
-          [currentPage]="currentPage()"
-          [pageSize]="pageSize()"
-          [pageSizeOptions]="pageSizeOptions"
-          itemNameSingular="módulo"
-          itemNamePlural="módulos"
-          (pageChange)="onPageChange($event)"
-          (pageSizeChange)="onPageSizeChange($event)"
-        />
-      </div>
-    }
   </div>
 </div>

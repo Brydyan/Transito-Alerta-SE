@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { DataSource, type Repository } from 'typeorm';
+import { DataSource, IsNull, Not, type Repository } from 'typeorm';
 import { RolesService } from './roles.service';
 import { RoleEntity } from '../../entities/role.entity';
 import { UserEntity } from '../../entities/user.entity';
@@ -26,7 +26,7 @@ function mockRole(name: string) {
 
 describe('RolesService', () => {
   let roleRepo: { findOne: jest.Mock; find: jest.Mock; save: jest.Mock; create: jest.Mock };
-  let userRepo: { findOne: jest.Mock; find: jest.Mock; save: jest.Mock };
+  let userRepo: { findOne: jest.Mock; find: jest.Mock; save: jest.Mock; count: jest.Mock };
   let permissionRepo: { find: jest.Mock };
   let dataSource: { transaction: jest.Mock };
   let authService: { invalidatePermissionCache: jest.Mock };
@@ -47,7 +47,7 @@ describe('RolesService', () => {
       create: jest.fn().mockImplementation((x: unknown) => x),
       save: jest.fn(async (x) => x),
     };
-    userRepo = { findOne: jest.fn(), find: jest.fn(async () => []), save: jest.fn(async (x) => x) };
+    userRepo = { findOne: jest.fn(), find: jest.fn(async () => []), save: jest.fn(async (x) => x), count: jest.fn() };
     permissionRepo = { find: jest.fn(async () => []) };
     dataSource = { transaction: jest.fn(async (cb) => cb({ getRepository: () => ({ save: async (x: unknown) => x }) })) };
     authService = { invalidatePermissionCache: jest.fn() };
@@ -90,6 +90,82 @@ describe('RolesService', () => {
       const result = await service.listPermissions('role-2');
 
       expect(result).toEqual([]);
+    });
+  });
+
+  // Change `2026-09-09-roles-stats-endpoint` — métricas agregadas
+  // para las 3 cards del pie de `/app/admin/roles` (mock 04-01).
+  // El método es on-the-fly (sin cache, D1 del design).
+  describe('getStats', () => {
+    it('returns totalPermissions / protectedModules / assignedUsers for live rows, collapsing duplicates via Set', async () => {
+      // 2 roles vivos con permission strings superpuestos:
+      //   - r1: 3 strings únicos
+      //   - r2: 4 strings, 1 duplicado de r1 ('READ users')
+      // Total únicos esperados: 3 + 3 = 6.
+      // Recursos distintos: 'users' y 'incidents' = 2.
+      roleRepo.find.mockResolvedValueOnce([
+        { id: 'r1', permissions: ['READ users', 'CREATE users', 'UPDATE incidents'] },
+        { id: 'r2', permissions: ['READ users', 'DELETE users', 'CREATE incidents', 'UPDATE roles'] },
+      ] as unknown as RoleEntity[]);
+      userRepo.count.mockResolvedValueOnce(85);
+
+      const result = await service.getStats();
+
+      expect(roleRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { deletedAt: IsNull() }, select: ['id', 'permissions'] }),
+      );
+      expect(userRepo.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { roleId: Not(IsNull()), deletedAt: IsNull() } }),
+      );
+      expect(result).toEqual({
+        totalPermissions: 6,  // 'READ users' colapsa via Set
+        protectedModules: 3,  // users, incidents, roles
+        assignedUsers: 85,
+      });
+    });
+
+    it('returns zeros when there are no live roles', async () => {
+      roleRepo.find.mockResolvedValueOnce([]);
+      userRepo.count.mockResolvedValueOnce(0);
+
+      const result = await service.getStats();
+
+      expect(result).toEqual({
+        totalPermissions: 0,
+        protectedModules: 0,
+        assignedUsers: 0,
+      });
+    });
+
+    it('counts 0 totalPermissions / 0 protectedModules for roles with empty permissions', async () => {
+      roleRepo.find.mockResolvedValueOnce([
+        { id: 'r1', permissions: [] },
+        { id: 'r2', permissions: [] },
+      ] as unknown as RoleEntity[]);
+      userRepo.count.mockResolvedValueOnce(2);
+
+      const result = await service.getStats();
+
+      expect(result).toEqual({
+        totalPermissions: 0,
+        protectedModules: 0,
+        assignedUsers: 2,
+      });
+    });
+
+    it('ignores malformed permission strings for protectedModules but still counts them in totalPermissions', async () => {
+      roleRepo.find.mockResolvedValueOnce([
+        { id: 'r1', permissions: ['READ users', 'malformed', 'UPDATE incidents'] },
+      ] as unknown as RoleEntity[]);
+      userRepo.count.mockResolvedValueOnce(1);
+
+      const result = await service.getStats();
+
+      // 'malformed' cuenta en totalPermissions (Set lo acepta como
+      // string único) pero NO en protectedModules (split no da 2 parts).
+      expect(result.totalPermissions).toBe(3);
+      expect(result.protectedModules).toBe(2); // users, incidents
+      expect(result.assignedUsers).toBe(1);
     });
   });
 

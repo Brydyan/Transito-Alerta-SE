@@ -5,6 +5,7 @@ import { IncidentImagesService } from './incident-images.service';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
 import { IncidentImageEntity } from '../../entities/incident-image.entity';
 import { IncidentsRepository } from './incidents.repository';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 
 const makeFile = (mime = 'image/jpeg'): MulterFile => ({
   originalname: 'photo.jpg',
@@ -50,6 +51,11 @@ describe('IncidentImagesService', () => {
   let imageRepo: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock; delete: jest.Mock };
   let storage: { upload: jest.Mock; delete: jest.Mock };
   let incidentsRepository: { findOne: jest.Mock };
+  // F6 fix (post-0051): el service inyecta `PermissionLookupService`.
+  // Stub devuelve `"ACTION resource"` (mismo string que los tests
+  // usan en `callerPermissions`) para mantener los asserts de auth
+  // exactamente como estaban antes del fix.
+  let permissionLookup: { getUuid: jest.Mock; invalidate: jest.Mock };
 
   beforeEach(async () => {
     imageRepo = {
@@ -65,6 +71,12 @@ describe('IncidentImagesService', () => {
     incidentsRepository = {
       findOne: jest.fn(),
     };
+    permissionLookup = {
+      getUuid: jest.fn().mockImplementation(async (action: string, resource: string) => {
+        return `${action} ${resource}`;
+      }),
+      invalidate: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -72,6 +84,7 @@ describe('IncidentImagesService', () => {
         { provide: getRepositoryToken(IncidentImageEntity), useValue: imageRepo },
         { provide: IncidentImageStorageService, useValue: storage },
         { provide: IncidentsRepository, useValue: incidentsRepository },
+        { provide: PermissionLookupService, useValue: permissionLookup },
       ],
     }).compile();
 
