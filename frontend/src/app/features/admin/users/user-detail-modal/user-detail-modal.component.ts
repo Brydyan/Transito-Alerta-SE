@@ -131,7 +131,7 @@ import { User, toUserStatus } from '../models/user.interface';
         position: fixed;
         inset: 0;
         background: rgba(15, 23, 42, 0.55);
-        z-index: 50;
+        z-index: 1100;
         display: flex;
         align-items: center;
         justify-content: center;
