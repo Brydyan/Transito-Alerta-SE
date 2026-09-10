@@ -9,6 +9,7 @@ import {
   PermissionItem,
   RoleDetail,
   UpdateRolePayload,
+  CreateRolePayload,
 } from '../models/role-permission.interface';
 
 @Injectable({ providedIn: 'root' })
@@ -192,6 +193,22 @@ export class RolesService {
    */
   updateRole(id: string, payload: UpdateRolePayload): Observable<RoleDetail> {
     return this.http.patch<RoleDetail>(`${this.rolesUrl}/${id}`, payload, {
+      withCredentials: true,
+    });
+  }
+
+  /**
+   * POST /api/roles — crea un rol nuevo. Body: `{ name, description?,
+   * permissions?: string[] }` (T5.6 / R6).
+   *
+   * El botón "Nuevo Rol" del listado navega a `/app/admin/roles/nuevo`
+   * y el editor detecta el slug `nuevo` para entrar en create mode
+   * (sin GET previo, sin nombre cargado) y llama a este método al
+   * guardar. Devuelve el `RoleDetail` recién creado (con `id` UUID);
+   * el editor navega a la ruta del nuevo id tras el success.
+   */
+  createRole(payload: CreateRolePayload): Observable<RoleDetail> {
+    return this.http.post<RoleDetail>(this.rolesUrl, payload, {
       withCredentials: true,
     });
   }

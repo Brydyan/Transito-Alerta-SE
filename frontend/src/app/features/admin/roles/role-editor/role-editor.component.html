@@ -11,15 +11,27 @@
         <i class="bi bi-arrow-left"></i>
       </button>
       <div>
-        <h3 class="font-bold mb-1 text-slate-800 text-2xl">{{ role()?.nombre ?? '...' }}</h3>
-        <p class="text-slate-500 text-sm mb-0">Configurá los permisos asignados a este rol.</p>
+        <h3 class="font-bold mb-1 text-slate-800 text-2xl">
+          @if (isCreateMode()) {
+            Nuevo Rol de Sistema
+          } @else {
+            {{ role()?.nombre ?? '...' }}
+          }
+        </h3>
+        <p class="text-slate-500 text-sm mb-0">
+          @if (isCreateMode()) {
+            Configure un nuevo perfil de acceso definiendo su nombre identificador y los permisos granulares por cada módulo.
+          } @else {
+            Configurá los permisos asignados a este rol.
+          }
+        </p>
       </div>
     </div>
 
     <button
       class="btn btn-primary flex items-center gap-2 font-medium px-4 py-2"
       type="button"
-      [disabled]="isSaving() || !hasChanges() || isLoading()"
+      [disabled]="!canSave()"
       (click)="save()"
     >
       @if (isSaving()) {
@@ -27,10 +39,50 @@
         <span>Guardando...</span>
       } @else {
         <i class="bi bi-floppy"></i>
-        <span>Guardar cambios</span>
+        <span>{{ isCreateMode() ? 'Guardar Rol' : 'Guardar cambios' }}</span>
       }
     </button>
   </div>
+
+  <!-- F6 (mock 04-02): en create mode el editor expone los
+       campos de Identificación del Rol (Nombre + Descripción)
+       en una card a la izquierda. En edit mode la card se
+       omite — el nombre ya está en el header y la edición
+       estructural del nombre no es parte del flow de
+       actualización de permisos. -->
+  @if (isCreateMode()) {
+    <div class="card border-none shadow-sm rounded-lg overflow-hidden mb-4">
+      <div class="p-6">
+        <h5 class="font-bold mb-1 text-slate-800">Identificación del Rol</h5>
+        <p class="text-slate-500 text-sm mb-4">Defina el nombre único para este perfil</p>
+
+        <label class="form-label fw-semibold">
+          Nombre del Rol <span class="text-danger">*</span>
+        </label>
+        <input
+          type="text"
+          class="form-control mb-1"
+          placeholder="Ej: operador_campo"
+          [ngModel]="roleName()"
+          (ngModelChange)="roleName.set($event)"
+          maxlength="50"
+        />
+        <p class="text-slate-400 text-xs mb-4">
+          Se recomienda usar minúsculas y guiones bajos para identificadores técnicos.
+        </p>
+
+        <label class="form-label fw-semibold">Descripción</label>
+        <textarea
+          class="form-control mb-1"
+          rows="3"
+          placeholder="Describa el alcance de este rol..."
+          [ngModel]="roleDescription()"
+          (ngModelChange)="roleDescription.set($event)"
+          maxlength="200"
+        ></textarea>
+      </div>
+    </div>
+  }
 
   <div class="card border-none shadow-sm rounded-lg overflow-hidden">
     <!-- Header de la tarjeta: Filtros y Acciones -->

@@ -82,6 +82,20 @@ export interface UpdateRolePayload {
   permissions?: string[];
 }
 
+/**
+ * F6 (`2026-09-08-f6-roles-redesign`) — body para
+ * `POST /api/roles` (mock 04-02 «Nuevo Rol de Sistema»). El backend
+ * (`CreateRoleDto`) exige `name` (min 2, max 50 chars) y acepta
+ * `description?` y `permissions?` (default `[]`). El frontend
+ * recoge los checkboxes de la matriz de permisos y los manda como
+ * `permissions: string[]` (UUIDs).
+ */
+export interface CreateRolePayload {
+  name: string;
+  description?: string;
+  permissions?: string[];
+}
+
 export interface PermissionWithState {
   permisoId: string;
   nombre: string;

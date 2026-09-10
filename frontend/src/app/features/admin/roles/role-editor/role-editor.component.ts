@@ -42,6 +42,17 @@ export class RoleEditorComponent implements OnInit {
   rolId = '';
   private originalIds = new Set<string>();
 
+  // F6 fix (mock 04-02): el botón "Nuevo Rol" del listado
+  // navega a `/app/admin/roles/nuevo`. La slug `nuevo` no es
+  // un UUID, así que NO debe dispararse un `GET /api/roles/:id`
+  // (eso devolvía 400 "Validation failed (uuid is expected)").
+  // `isCreateMode` se calcula desde el `:rolId` y ramifica
+  // todo el flujo del editor: sin GET, form con `name` y
+  // `description`, `save()` hace POST en vez de PATCH.
+  readonly isCreateMode = signal(false);
+  readonly roleName = signal('');
+  readonly roleDescription = signal('');
+
   readonly role = signal<RoleDetail | null>(null);
   readonly allPermissions = signal<PermissionItem[]>([]);
   readonly isLoading = signal(false);
@@ -123,12 +134,31 @@ export class RoleEditorComponent implements OnInit {
   });
 
   readonly hasChanges = computed(() => {
+    // F6 (mock 04-02): en create mode el form SIEMPRE tiene
+    // cambios respecto al estado inicial vacío, así que
+    // `Guardar Rol` queda habilitado apenas el usuario tipea
+    // un nombre válido. La validación real (nombre ≥ 2 chars)
+    // vive en el botón `[disabled]`.
+    if (this.isCreateMode()) return true;
     const current = this.assignedIds();
     if (current.size !== this.originalIds.size) return true;
     for (const id of current) {
       if (!this.originalIds.has(id)) return true;
     }
     return false;
+  });
+
+  /** F6 (mock 04-02): en create mode el botón Guardar Rol
+   *  queda deshabilitado si el nombre no cumple el mínimo del
+   *  `CreateRoleDto` (2 chars). El backend rechaza con
+   *  `MinLength(2)` si se manda más corto, así que cortamos
+   *  acá para no round-trippear un 400 evitable. */
+  readonly canSave = computed(() => {
+    if (this.isLoading() || this.isSaving()) return false;
+    if (this.isCreateMode()) {
+      return this.roleName().trim().length >= 2;
+    }
+    return this.hasChanges();
   });
 
   ngOnInit(): void {
@@ -138,6 +168,10 @@ export class RoleEditorComponent implements OnInit {
       // daba `NaN` para cualquier UUID, dejando la request
       // `getRoleById` sin id válido.
       this.rolId = params.get('rolId') ?? '';
+      // F6 (mock 04-02): la slug `nuevo` del botón Nuevo Rol
+      // no es un UUID — entrar en create mode evita el
+      // GET /api/roles/:id que devolvía 400.
+      this.isCreateMode.set(this.rolId === 'nuevo');
       this.resetState();
       this.load();
     });
@@ -151,6 +185,11 @@ export class RoleEditorComponent implements OnInit {
     this.originalIds = new Set();
     this.searchTerm.set('');
     this.currentPage.set(1);
+    // F6 (mock 04-02): en create mode los campos de
+    // identificación arrancan vacíos; en edit mode se
+    // rellenan desde `loadRoleDetail()`.
+    this.roleName.set('');
+    this.roleDescription.set('');
   }
 
   private load(): void {
@@ -171,6 +210,13 @@ export class RoleEditorComponent implements OnInit {
   }
 
   private loadRoleDetail(): void {
+    // F6 (mock 04-02): en create mode NO hay GET — el form
+    // arranca vacío. Saltamos también el seed de
+    // roleName/roleDescription (queda en '').
+    if (this.isCreateMode()) {
+      this.isLoading.set(false);
+      return;
+    }
     this.rolesService.getRoleById(this.rolId).subscribe({
       next: (role) => {
         this.role.set(role);
@@ -183,6 +229,11 @@ export class RoleEditorComponent implements OnInit {
         const ids = new Set<string>(role.permisos ?? []);
         this.assignedIds.set(ids);
         this.originalIds = new Set(ids);
+        // F6: el wire del backend sólo trae `name` y
+        // `permissions`, no `description`. Si el backend
+        // empieza a mandarla (mock 04-02 lo muestra), caerá
+        // acá; mientras tanto, queda en ''.
+        this.roleName.set(role.nombre ?? '');
         this.isLoading.set(false);
       },
       error: (err) => {
@@ -282,6 +333,35 @@ export class RoleEditorComponent implements OnInit {
     const permissions = [...this.assignedIds()];
 
     this.isSaving.set(true);
+    if (this.isCreateMode()) {
+      // F6 (mock 04-02): el `CreateRoleDto` exige `name` (min
+      // 2 chars) y acepta `description?` y `permissions?`.
+      // El trim del nombre lo hace el `MinLength(2)` del
+      // class-validator, pero lo mandamos ya limpio.
+      const payload = {
+        name: this.roleName().trim(),
+        description: this.roleDescription().trim() || undefined,
+        permissions,
+      };
+      this.rolesService.createRole(payload).subscribe({
+        next: (created) => {
+          this.isSaving.set(false);
+          this.toast.success('Rol creado correctamente', 'Éxito');
+          // Navegar a la ruta del nuevo id para que el editor
+          // quede en edit mode contra el recurso recién creado
+          // (refleja el cambio en el breadcrumb y permite
+          // seguir editando). El replaceUrl evita que el
+          // back del navegador devuelva al slug `nuevo`.
+          this.router.navigate(['/app/admin/roles', created.rolId], { replaceUrl: true });
+        },
+        error: (err) => {
+          this.isSaving.set(false);
+          const msg = err?.error?.message ?? 'Error al crear el rol';
+          this.toast.error(msg, 'Error');
+        },
+      });
+      return;
+    }
     this.rolesService.updateRole(this.rolId, { permissions }).subscribe({
       next: () => {
         this.originalIds = new Set(this.assignedIds());
