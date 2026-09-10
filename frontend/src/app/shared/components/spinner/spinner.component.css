@@ -20,7 +20,7 @@
 }
 
 .lds-ellipsis {
-  color: var(--primary-color);
+  color: var(--color-brand-primary);
 }
 
 .lds-ellipsis,

@@ -12,6 +12,7 @@ import {
   PermissionItem,
   CreateUserPayload,
   UpdateUserPayload,
+  Organization,
 } from '../models/user.interface';
 
 @Injectable({
@@ -22,9 +23,18 @@ export class UsersService {
   private readonly usersUrl = `${environment.apiUrl}/users`;
   private readonly rolesUrl = `${environment.apiUrl}/roles`;
   private readonly permissionsUrl = `${environment.apiUrl}/permissions`;
+  private readonly organizationsUrl = `${environment.apiUrl}/organizations`;
 
-  getUsers(page = 1, limit = 10): Observable<PaginatedUsersResponse> {
-    const params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
+  /**
+   * F6 fix batch (`fixes-required.md` C.2) — `role`/`org` viajan como
+   * query params opcionales para que el backend pueda filtrar server-side
+   * en cuanto `GET /users` los soporte (hoy el endpoint sólo lee
+   * `page`/`limit`; los params extra se ignoran sin romper la request).
+   */
+  getUsers(page = 1, limit = 10, role?: string, org?: string): Observable<PaginatedUsersResponse> {
+    let params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
+    if (role) params = params.set('role', role);
+    if (org) params = params.set('org', org);
     return this.http.get<PaginatedUsersResponse>(this.usersUrl, { params, withCredentials: true });
   }
 
@@ -102,6 +112,23 @@ export class UsersService {
   getRoles(): Observable<Role[]> {
     return this.http
       .get<Role[] | { data: Role[] }>(this.rolesUrl, { withCredentials: true })
+      .pipe(map((res) => (Array.isArray(res) ? res : (res.data ?? []))));
+  }
+
+  /**
+   * GET /api/organizations — devuelve la lista plana de
+   * organizaciones activas para el dropdown de filtro. F6
+   * (`2026-09-08-f6-usuarios-redesign`).
+   *
+   * El backend expone un envelope `{ data, meta }`; el `map`
+   * aplana a `Organization[]` para que el componente no tenga
+   * que conocer el envelope.
+   */
+  getOrganizations(): Observable<Organization[]> {
+    return this.http
+      .get<Organization[] | { data: Organization[] }>(this.organizationsUrl, {
+        withCredentials: true,
+      })
       .pipe(map((res) => (Array.isArray(res) ? res : (res.data ?? []))));
   }
 

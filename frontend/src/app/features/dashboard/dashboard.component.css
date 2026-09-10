@@ -1,4 +1,49 @@
-/* Dashboard Container */
-.dashboard-container {
+/* Dashboard container — F6 redesign
+   (`2026-09-08-f6-dashboard-redesign`).
+
+   Layout: header + grid 5-col KPI + grid 2-col (60/40) + grid 1-col
+   semanal. Los grids usan CSS Grid y colapsan a 2-cols en tablet
+   (sin media-query artificial: `auto-fit` se encarga). */
+
+:host {
+  display: block;
   width: 100%;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.grid-1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* Tablet: el grid 2-col se apila. */
+@media (max-width: 1024px) {
+  .grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.error-banner {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-status-pendiente, #fef3c7);
+  color: var(--color-on-tint-slate, #92400e);
+  border: 1px solid var(--color-prio-medium, #f59e0b);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
 }

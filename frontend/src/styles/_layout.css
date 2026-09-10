@@ -188,7 +188,7 @@
   list-style: none;
   background-color: #fff;
   background-clip: padding-box;
-  border: 1px solid var(--border-color, #cbd5e1) !important;
+  border: 1px solid var(--color-border-subtle, #cbd5e1) !important;
   border-radius: 0.5rem;
   box-shadow:
     0 10px 15px -3px rgba(15, 23, 42, 0.08),
@@ -270,7 +270,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted-text);
+  color: var(--color-on-tint-slate);
 }
 
 .nav-link-custom {

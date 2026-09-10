@@ -24,7 +24,7 @@
   right: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--primary-color);
+  color: var(--color-brand-primary);
   pointer-events: none;
   display: flex;
   align-items: center;
@@ -40,7 +40,7 @@
   width: 280px;
   padding: 0.85rem;
   background-color: var(--white);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border-subtle);
   border-radius: 12px;
   box-shadow: 0 12px 32px -8px rgba(14, 39, 40, 0.18);
 
@@ -62,7 +62,7 @@
 .date-picker-label {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--dark-text);
+  color: var(--color-on-tint-graphite);
 }
 
 .date-picker-nav {
@@ -74,13 +74,13 @@
   border: none;
   border-radius: 8px;
   background-color: transparent;
-  color: var(--muted-text);
+  color: var(--color-on-tint-slate);
   transition: all 0.15s ease;
 }
 
 .date-picker-nav:hover {
   background-color: var(--soft-blue-bg);
-  color: var(--primary-color);
+  color: var(--color-brand-primary);
 }
 
 /* Cabecera de días de la semana (L M X J V S D) */
@@ -94,7 +94,7 @@
   text-align: center;
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--muted-text);
+  color: var(--color-on-tint-slate);
   padding: 0.2rem 0;
 }
 
@@ -114,13 +114,13 @@
   border-radius: 8px;
   background-color: transparent;
   font-size: 0.82rem;
-  color: var(--dark-text);
+  color: var(--color-on-tint-graphite);
   transition: all 0.15s ease;
 }
 
 .date-picker-day:hover:not(.date-picker-day-empty) {
   background-color: var(--soft-blue-bg);
-  color: var(--primary-color);
+  color: var(--color-brand-primary);
 }
 
 .date-picker-day-empty {
@@ -129,12 +129,12 @@
 
 /* Día seleccionado: primario de la app */
 .date-picker-day.is-selected {
-  background-color: var(--primary-color);
+  background-color: var(--color-brand-primary);
   color: var(--white);
   font-weight: 600;
 }
 
 /* Día actual: borde sutil turquesa */
 .date-picker-day.is-today {
-  border: 1px solid var(--secondary-color);
+  border: 1px solid var(--color-border-subtle);
 }
