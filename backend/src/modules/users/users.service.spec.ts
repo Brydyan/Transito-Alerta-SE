@@ -135,23 +135,28 @@ describe('UsersService', () => {
       );
     });
 
-    it('global scope applies no organization filter', async () => {
+    it('global scope applies no organization filter (and adds the isActive: true filter for pending-shadow visibility)', async () => {
       userRepo.findAndCount.mockResolvedValue([[], 0]);
 
       await service.list(undefined, undefined, GLOBAL_SCOPE);
 
+      // T7.5 fix: `list` filtra por `isActive: true` para que los
+      // shadows de `adminCreate` (pending hasta aceptar la
+      // invitación) NO aparezcan. Sin este filtro la tabla del
+      // admin mostraría "fantasmas" — users sin password que
+      // aún no activaron su cuenta.
       expect(userRepo.findAndCount).toHaveBeenCalledWith(
-        expect.not.objectContaining({ where: expect.anything() }),
+        expect.objectContaining({ where: { isActive: true } }),
       );
     });
 
-    it('org scope filters by organization_id', async () => {
+    it('org scope filters by organization_id AND isActive: true', async () => {
       userRepo.findAndCount.mockResolvedValue([[], 0]);
 
       await service.list(undefined, undefined, ORG_A_SCOPE);
 
       expect(userRepo.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { organizationId: 'org-A' } }),
+        expect.objectContaining({ where: { organizationId: 'org-A', isActive: true } }),
       );
     });
 
@@ -161,7 +166,7 @@ describe('UsersService', () => {
       await service.list(undefined, undefined, ORG_ASSIGNED_SCOPE);
 
       expect(userRepo.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { organizationId: 'org-A' } }),
+        expect.objectContaining({ where: { organizationId: 'org-A', isActive: true } }),
       );
     });
 
@@ -470,7 +475,13 @@ describe('UsersService', () => {
       expect(createArg.permissions).toEqual(['READ dashboard', 'READ incidents']);
       expect(createArg.permissionVersion).toBe(2);
       expect(createArg.roleId).toBe('role-admin');
-      expect(createArg.isActive).toBe(true);
+      // T7.5 fix: adminCreate crea el user en estado `is_active:
+      // false` (pending). El user real se inserta via
+      // `InvitationsService.redeem` cuando el destinatario acepta
+      // la invitación. Esto desbloquea el flow de
+      // `POST /api/admin/users/invite` que antes devolvía 409
+      // `EMAIL_ALREADY_CLAIMED` apenas el admin creaba el user.
+      expect(createArg.isActive).toBe(false);
       expect(result.permissions).toEqual(['READ dashboard', 'READ incidents']);
       expect(result.permissionVersion).toBe(2);
     });
@@ -483,7 +494,9 @@ describe('UsersService', () => {
       expect(createArg.permissions).toEqual([]);
       expect(createArg.permissionVersion).toBe(1);
       expect(createArg.roleId).toBeNull();
-      expect(createArg.isActive).toBe(true);
+      // T7.5 fix: ver test anterior. `is_active: false` en el
+      // shadow del admin — el user real se crea via redemption.
+      expect(createArg.isActive).toBe(false);
     });
 
     it('with unknown role_id: throws NotFoundException and does not create the user', async () => {
