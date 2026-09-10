@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RolesService } from '../services/roles.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
@@ -23,7 +23,7 @@ import {
 
 @Component({
   selector: 'app-role-editor',
-  imports: [CommonModule, FormsModule, PaginationComponent],
+  imports: [CommonModule, FormsModule, RouterLink, PaginationComponent],
   templateUrl: './role-editor.component.html',
   styleUrl: './role-editor.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -121,6 +121,16 @@ export class RoleEditorComponent implements OnInit {
     const size = this.pageSize();
     const start = (page - 1) * size;
     return groups.slice(start, start + size);
+  });
+
+  /** F6 (mock 04-02): el botón "Expandir todo" / "Colapsar todo" del
+   *  header de la Matriz de Permisos es un toggle: si están todos
+   *  expandidos, colapsa; si no, expande todos los grupos visibles. */
+  readonly allExpanded = computed(() => {
+    const groups = this.groupedPermissions();
+    const expanded = this.expandedGroups();
+    if (groups.length === 0) return false;
+    return groups.every((g) => expanded.has(g.recurso));
   });
 
   readonly totalStats = computed(() => {
@@ -296,6 +306,18 @@ export class RoleEditorComponent implements OnInit {
 
   collapseAll(): void {
     this.expandedGroups.set(new Set());
+  }
+
+  /** F6 (mock 04-02): el botón "Expandir todo" del header de la
+   *  Matriz es un toggle. Si están todos expandidos, colapsa; si no,
+   *  expande. Centralizado acá para que el template sólo tenga un
+   *  handler y el label cambie vía `allExpanded()`. */
+  toggleExpandAll(): void {
+    if (this.allExpanded()) {
+      this.collapseAll();
+    } else {
+      this.expandAll();
+    }
   }
 
   selectAllVisible(): void {
