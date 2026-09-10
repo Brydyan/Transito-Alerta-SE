@@ -1,6 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 import { AuthContext } from '../../common/authz/subject-scope';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { RevocationCache } from './revocation-cache';
 import { SessionsRepository } from './sessions.repository';
 import { SessionsService } from './sessions.service';
@@ -44,6 +45,11 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
     revoke: jest.Mock;
   };
   let revocationCache: { revoke: jest.Mock };
+  // F6 fix (post-0051): el service ahora inyecta `PermissionLookupService`
+  // y `hasPermission` compara UUIDs. El stub devuelve `'DELETE sessions'`
+  // (mismo string que los tests usan en `actor.permissions`) para mantener
+  // los asserts de auth exactamente como estaban antes del fix.
+  let permissionLookup: { getUuid: jest.Mock; invalidate: jest.Mock };
   let service: SessionsService;
 
   beforeEach(() => {
@@ -54,9 +60,16 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       revoke: jest.fn(),
     };
     revocationCache = { revoke: jest.fn() };
+    permissionLookup = {
+      getUuid: jest.fn().mockImplementation(async (action: string, resource: string) => {
+        return `${action} ${resource}`;
+      }),
+      invalidate: jest.fn(),
+    };
     service = new SessionsService(
       sessionsRepository as unknown as SessionsRepository,
       revocationCache as unknown as RevocationCache,
+      permissionLookup as unknown as PermissionLookupService,
     );
   });
 

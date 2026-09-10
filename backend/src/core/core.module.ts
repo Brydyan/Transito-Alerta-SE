@@ -12,6 +12,7 @@ import cacheConfig from '../config/cache.config';
 import { CacheConfig } from '../config/cache.config';
 import mailConfig from '../config/mail.config';
 import storageConfig from '../config/storage.config';
+import { PermissionLookupService } from '../common/permissions/permission-lookup.service';
 
 /**
  * DI token for the raw ioredis client — used where cache-manager's Cache
@@ -171,6 +172,13 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
         });
       },
     },
+    // F6 fix (post-0051): el `PermissionGuard` y los services que
+    // hacen `callerPermissions.includes('STRING')` necesitan
+    // traducir `(action, resource)` → UUID para comparar contra
+    // las perms del user (ahora todas en formato UUID). El
+    // resolver mantiene un índice in-memory del catálogo de
+    // permissions y se cachea en la primera lookup.
+    PermissionLookupService,
   ],
   exports: [
     ConfigModule,
@@ -182,6 +190,7 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
     MAIL_BLOCKING_CLIENT,
     MAIL_EVENTS_BLOCKING_CLIENT,
     SESSION_REDIS_CLIENT,
+    PermissionLookupService,
   ],
 })
 export class CoreModule {}

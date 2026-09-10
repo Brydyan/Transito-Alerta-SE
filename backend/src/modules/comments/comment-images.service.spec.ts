@@ -1,4 +1,5 @@
 import { ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { CommentImagesService } from './comment-images.service';
 import { CommentImageStorageService, MulterFile } from './comment-image-storage.service';
 
@@ -29,6 +30,11 @@ describe('CommentImagesService', () => {
   let commentRepo: MockCommentRepo;
   let imageRepo: MockImageRepo;
   let storage: MockStorage;
+  // F6 fix (post-0051): el service inyecta `PermissionLookupService`.
+  // Stub devuelve `"ACTION resource"` (mismo string que usan los tests
+  // en `STAFF_PERMISSIONS` / `DELETE_PERMISSIONS`) para mantener
+  // los asserts de auth exactamente como estaban.
+  let permissionLookup: { getUuid: jest.Mock; invalidate: jest.Mock };
   let service: CommentImagesService;
 
   const mockComment = { id: COMMENT_ID, userId: OWNER_ID };
@@ -42,10 +48,17 @@ describe('CommentImagesService', () => {
       upload: jest.fn().mockResolvedValue({ key: 'comments/comment-1/uuid-test.jpg', url: 'https://storage.example.com/key?sig=abc' }),
       delete: jest.fn().mockResolvedValue(undefined),
     };
+    permissionLookup = {
+      getUuid: jest.fn().mockImplementation(async (action: string, resource: string) => {
+        return `${action} ${resource}`;
+      }),
+      invalidate: jest.fn(),
+    };
     service = new CommentImagesService(
       commentRepo as never,
       imageRepo as never,
       storage as unknown as CommentImageStorageService,
+      permissionLookup as unknown as PermissionLookupService,
     );
     imageRepo.create.mockImplementation((data: Record<string, unknown>) => ({ ...data }));
     imageRepo.save.mockResolvedValue(savedEntity);
