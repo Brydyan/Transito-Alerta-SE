@@ -35,14 +35,22 @@ export class RoleEditorComponent implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
-  rolId = 0;
-  private originalIds = new Set<number>();
+  // F6 fix: `rolId` es UUID (string), no number. Antes era
+  // `rolId = 0` con `Number(params.get('rolId'))` — eso daba
+  // `NaN` para un UUID y la request `getRoleById` fallaba
+  // silenciosamente (404 o similar) → el form abría vacío.
+  rolId = '';
+  private originalIds = new Set<string>();
 
   readonly role = signal<RoleDetail | null>(null);
   readonly allPermissions = signal<PermissionItem[]>([]);
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
-  readonly assignedIds = signal<Set<number>>(new Set());
+  // F6 fix: `assignedIds` es `Set<string>` (UUIDs), no
+  // `Set<number>`. El catálogo de permisos ahora trae
+  // `permisoId: string` y antes el Set<number> no matcheaba
+  // nada → la matriz de permisos se renderizaba vacía.
+  readonly assignedIds = signal<Set<string>>(new Set());
   readonly expandedGroups = signal<Set<string>>(new Set());
   readonly searchTerm = signal('');
 
@@ -125,7 +133,11 @@ export class RoleEditorComponent implements OnInit {
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-      this.rolId = Number(params.get('rolId'));
+      // F6 fix: el `rolId` viene como UUID string del path
+      // `:rolId`. Antes hacía `Number(params.get('rolId'))` que
+      // daba `NaN` para cualquier UUID, dejando la request
+      // `getRoleById` sin id válido.
+      this.rolId = params.get('rolId') ?? '';
       this.resetState();
       this.load();
     });
@@ -162,7 +174,13 @@ export class RoleEditorComponent implements OnInit {
     this.rolesService.getRoleById(this.rolId).subscribe({
       next: (role) => {
         this.role.set(role);
-        const ids = new Set((role.permisos || []).map((p) => p.permisoId));
+        // F6 fix: `role.permisos` es `string[]` (formato
+        // "ACTION resource" desde `GET /api/roles/:id`). Antes
+        // el service exponía `RolePermission[]` con campos
+        // `permisoId/nombre/...` y la interface cambió para
+        // reflejar el wire real. El set de assigned ahora se
+        // construye directamente desde el array de strings.
+        const ids = new Set<string>(role.permisos ?? []);
         this.assignedIds.set(ids);
         this.originalIds = new Set(ids);
         this.isLoading.set(false);
@@ -190,7 +208,7 @@ export class RoleEditorComponent implements OnInit {
     this.currentPage.set(1);
   }
 
-  togglePermission(permisoId: number): void {
+  togglePermission(permisoId: string): void {
     this.assignedIds.update((ids) => {
       const next = new Set(ids);
       if (next.has(permisoId)) next.delete(permisoId);
@@ -254,14 +272,19 @@ export class RoleEditorComponent implements OnInit {
   }
 
   save(): void {
-    const current = this.assignedIds();
-    const permisosAsignar = [...current].filter((id) => !this.originalIds.has(id));
-    const permisosRevocar = [...this.originalIds].filter((id) => !current.has(id));
+    // F6 fix: el backend `UpdateRoleDto` espera `permissions:
+    // string[]` (PUT semantics — reemplaza el set completo), no
+    // `permisosAsignar`/`permisosRevocar`. Enviamos el set
+    // actual completo. El backend no tiene el patrón
+    // diff-based que el frontend asumía; el cost es 1 PATCH
+    // por save con un array de hasta 64 strings (lo cap del
+    // DTO), no incremental.
+    const permissions = [...this.assignedIds()];
 
     this.isSaving.set(true);
-    this.rolesService.updateRole(this.rolId, { permisosAsignar, permisosRevocar }).subscribe({
+    this.rolesService.updateRole(this.rolId, { permissions }).subscribe({
       next: () => {
-        this.originalIds = new Set(current);
+        this.originalIds = new Set(this.assignedIds());
         this.isSaving.set(false);
         this.toast.success('Permisos actualizados correctamente', 'Éxito');
       },
@@ -273,6 +296,10 @@ export class RoleEditorComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['..'], { relativeTo: this.route });
+    // F6 fix: el editor es SIBLING de la lista (`roles/:rolId`
+    // y `roles` son rutas paralelas bajo `admin`), no child.
+    // Antes `navigate(['..'])` funcionaba porque eran child
+    // routes, pero ahora navega explícitamente a la lista.
+    this.router.navigate(['/app/admin/roles']);
   }
 }

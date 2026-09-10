@@ -96,22 +96,46 @@ export class RolesService {
     return this.http.delete<void>(`${this.rolesUrl}/${id}`, { withCredentials: true });
   }
 
-  getRoleById(id: number): Observable<RoleDetail> {
+  /**
+   * GET /api/roles/:id — detalle de un rol. El `id` es UUID
+   * (string), no number. El wire es snake_case vía
+   * `SnakeCaseResponseInterceptor`:
+   *   { id, name, description?, permissions: string[] }
+   *
+   * F6 fix: mapeamos `id` → `rolId`, `name` → `nombre`, y
+   * `permissions` queda como `string[]` (formato "ACTION
+   * resource", NO objetos con `permisoId/nombre/...`). El
+   * role-editor cruza contra `allPermissions()` (catálogo) para
+   * enriquecer el shape si necesita campos estructurados.
+   */
+  getRoleById(id: string): Observable<RoleDetail> {
     return this.http
-      .get<RoleDetail | { data: RoleDetail }>(`${this.rolesUrl}/${id}`, { withCredentials: true })
+      .get<{
+        id?: string;
+        name?: string;
+        description?: string;
+        permissions?: string[];
+      }>(`${this.rolesUrl}/${id}`, { withCredentials: true })
       .pipe(
-        map((res) => {
-          const detail = (
-            res && typeof res === 'object' && 'data' in res ? res.data : res
-          ) as RoleDetail;
-          return {
-            ...detail,
-            permisos: Array.isArray(detail?.permisos) ? detail.permisos : [],
-          };
-        }),
+        map((raw) => ({
+          rolId: raw.id ?? id,
+          nombre: raw.name ?? '',
+          permisos: Array.isArray(raw.permissions) ? raw.permissions : [],
+        })),
       );
   }
 
+  /**
+   * GET /api/permissions — catálogo completo de permisos.
+   * Paginado, con snake_case en el wire (`id`, `resource`,
+   * `action`, `deleted_at`). Mapeamos a la forma
+   * `PermissionItem` que el role-editor espera
+   * (`permisoId`, `nombre`, `recurso`, `accion`).
+   *
+   * F6 fix: sin este map, `perm.permisoId` (string UUID)
+   * quedaba `undefined` y los `Set<number>` del role-editor
+   * nunca matcheaban contra el catálogo.
+   */
   getAllPermissions(): Observable<PermissionItem[]> {
     return new Observable<PermissionItem[]>((subscriber) => {
       const all: PermissionItem[] = [];
@@ -119,24 +143,31 @@ export class RolesService {
         const params = new HttpParams().set('page', String(page)).set('limit', '100');
         this.http
           .get<
-            | PermissionItem[]
-            | { data: PermissionItem[]; meta?: { ultimaPagina?: number; total?: number } }
+            | { id?: string; resource?: string; action?: string; nombre?: string; descripcion?: string }[]
+            | { data: { id?: string; resource?: string; action?: string; nombre?: string; descripcion?: string }[]; meta?: { ultimaPagina?: number; total?: number } }
           >(this.permissionsUrl, { params, withCredentials: true })
           .subscribe({
             next: (res) => {
-              let items: PermissionItem[] = [];
+              let rawItems: { id?: string; resource?: string; action?: string; nombre?: string; descripcion?: string }[] = [];
               let totalPages = 1;
 
               if (Array.isArray(res)) {
-                items = res;
+                rawItems = res;
               } else if (res && typeof res === 'object') {
-                items = Array.isArray(res.data) ? res.data : [];
+                rawItems = Array.isArray(res.data) ? res.data : [];
                 totalPages = res.meta?.ultimaPagina ?? 1;
               }
 
-              all.push(...items);
+              const mapped: PermissionItem[] = rawItems.map((p) => ({
+                permisoId: p.id ?? '',
+                nombre: p.nombre ?? `${p.action ?? ''} ${p.resource ?? ''}`.trim(),
+                descripcion: p.descripcion ?? '',
+                recurso: p.resource ?? '',
+                accion: p.action ?? '',
+              }));
+              all.push(...mapped);
 
-              if (page < totalPages && items.length > 0) {
+              if (page < totalPages && mapped.length > 0) {
                 fetchPage(page + 1);
               } else {
                 subscriber.next(all);
@@ -151,7 +182,15 @@ export class RolesService {
     });
   }
 
-  updateRole(id: number, payload: UpdateRolePayload): Observable<RoleDetail> {
+  /**
+   * PATCH /api/roles/:id — actualiza un rol. El `id` es UUID
+   * (string), no number. El `UpdateRolePayload` lleva
+   * `permisosAsignar: string[]` y `permisosRevocar: string[]`
+   * (UUIDs), que el backend acepta como `permissions`
+   * (PUT semantics en R6 — ver el spec del change
+   * `2026-09-09-roles-stats-endpoint`).
+   */
+  updateRole(id: string, payload: UpdateRolePayload): Observable<RoleDetail> {
     return this.http.patch<RoleDetail>(`${this.rolesUrl}/${id}`, payload, {
       withCredentials: true,
     });

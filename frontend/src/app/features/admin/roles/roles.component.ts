@@ -194,7 +194,12 @@ export class RolesComponent implements OnInit {
   }
 
   onEdit(roleId: string | number): void {
-    this.router.navigate(['/app/admin/roles', roleId, 'edit']);
+    // F6 fix: la ruta del editor es `roles/:rolId` (sibling de
+    // `roles`, no child con segmento `/edit`). Antes navegaba a
+    // `/app/admin/roles/:id/edit` que NO matcheaba ninguna
+    // ruta (los users sí tienen `/edit`, los roles no) y caía
+    // en el wildcard `**` → error page.
+    this.router.navigate(['/app/admin/roles', roleId]);
   }
 
   onDelete(roleId: string | number): void {

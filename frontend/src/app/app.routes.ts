@@ -135,16 +135,26 @@ export const routes: Routes = [
             data: { breadcrumb: 'Roles' },
             loadComponent: () =>
               import('./features/admin/roles/roles.component').then((m) => m.RolesComponent),
-            children: [
-              {
-                path: ':rolId',
-                data: { breadcrumb: 'Editor de Rol' },
-                loadComponent: () =>
-                  import('./features/admin/roles/role-editor/role-editor.component').then(
-                    (m) => m.RoleEditorComponent,
-                  ),
-              },
-            ],
+          },
+          // F6 fix: el editor de rol es SIBLING de la lista, no
+          // child. Antes era `children: [{ path: ':rolId' }]` dentro
+          // de `roles`, lo que requería un `<router-outlet>` en
+          // `RolesComponent` para renderizar el editor — y como
+          // el componente no tenía outlet, el editor quedaba
+          // huérfano (URL matcheaba pero no había DOM donde
+          // pintarlo). Además, el mock 04-02 muestra el editor
+          // como PÁGINA COMPLETA (no como vista anidada bajo la
+          // lista), así que tiene más sentido que la lista y el
+          // editor sean rutas hermanas — el uno reemplaza al otro
+          // en la navegación.
+          {
+            path: 'roles/:rolId',
+            data: { breadcrumb: 'Editor de Rol' },
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/admin/roles/role-editor/role-editor.component').then(
+                (m) => m.RoleEditorComponent,
+              ),
           },
           {
             path: 'config',
