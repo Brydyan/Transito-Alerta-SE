@@ -9,7 +9,7 @@ import {
 getTestBed().initTestEnvironment(BrowserDynamicTestingModule, platformBrowserDynamicTesting());
 
 if (typeof (globalThis as any).structuredClone === 'undefined') {
-  (globalThis as any).structuredClone = (val) => val;
+  (globalThis as any).structuredClone = (val: unknown) => val;
 }
 if (typeof globalThis.structuredClone === 'undefined') {
   globalThis.structuredClone = (val) => val;
