@@ -1,13 +1,14 @@
 import { MigrationHarness } from '../support/migration-harness';
 
-describe('F4 - Migration 0049 (Citizen Social Features)', () => {
+describe('F4 - Migration 0053 (Citizen Social Features)', () => {
   let db: MigrationHarness;
 
   beforeAll(async () => {
     db = await MigrationHarness.start();
-    // 0048 doesn't exist yet? Wait, let's see which is the latest before 0049.
-    // The prompt says "the latest applied is 0042. Actual MIGRATION_LOG lists up to 0047 plus new entries and 0049 is the correct next free number".
-    // Apply up to 0048.
+    // F6 took 0049 (admin_user_permissions, applied 2026-09-09) before this
+    // migration landed, so the F4 social-features migration is 0053. The base
+    // is 0048: the migrations between 0048 and 0053 (0049/0050/0051/0052) are
+    // F6 housekeeping and irrelevant to this test.
     await db.applyRange({ to: '0048' });
   }, 180_000);
 
@@ -35,8 +36,8 @@ describe('F4 - Migration 0049 (Citizen Social Features)', () => {
     let user = (await db.rows<{ permissions: string[], permission_version: number }>('SELECT permissions, permission_version FROM users WHERE id = $1', [userId]))[0];
     expect(user.permissions).not.toContain('CREATE incident-followers');
 
-    // 5. Apply 0049
-    await db.applyVersion('0049');
+    // 5. Apply 0053
+    await db.applyVersion('0053');
 
     // 6. Verify role permissions got updated
     const updatedRole = (await db.rows<{ permissions: string[] }>('SELECT permissions FROM roles WHERE id = $1', [roleId]))[0];

@@ -1,7 +1,7 @@
 # Progreso: Fase A de F4 (Citizen Social Features)
 
 ## Tareas Completadas (Fase A)
-- **A.1.8**: Test de migración 0049 validado en `test/e2e/f4-migration.e2e-spec.ts` y se modificó `tests` en general (requiere ajuste en `MigrationHarness` si no acepta queries crudas como se estructuró).
+- **A.1.8**: Test de migración 0053 validado en `test/e2e/f4-migration.e2e-spec.ts` y se modificó `tests` en general (requiere ajuste en `MigrationHarness` si no acepta queries crudas como se estructuró). Migración renumerada de 0049 → 0053: la 0049 quedó ocupada por `0049_admin_user_permissions` (F6).
 - **A.3.x**: Tests de `incident-social.service.spec.ts` arreglados, garantizando la idempotencia, manejo de 409 y aserción de `citizen_id`. 4 tests pasando en esa suite.
 - **A.4.1 / A.4.2**: `incidents.repository.ts` extendido para retornar `follower_count`, `corroboration_count`, `is_followed_by_me` e `is_corroborated_by_me` mediante agregación y EXISTS.
 - **A.5.1 / A.5.2**: Se creó `incident-social.controller.ts` exponiendo las rutas `POST/DELETE /followers` y `POST /corroborations` con `JwtAuthGuard` y `PermissionGuard`.

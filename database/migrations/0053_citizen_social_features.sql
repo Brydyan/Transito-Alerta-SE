@@ -1,5 +1,7 @@
--- Migration 0049: Citizen Social Features (incident_followers, incident_corroborations)
+-- Migration 0053: Citizen Social Features (incident_followers, incident_corroborations)
 -- Dependencies: none (independent)
+-- Renumbered from 0049: 0049 was already taken by 0049_admin_user_permissions (F6,
+-- applied to supabase 2026-09-09). Original F4 file was 0049_citizen_social_features.sql.
 
 -- 1. Create incident_followers table
 CREATE TABLE incident_followers (

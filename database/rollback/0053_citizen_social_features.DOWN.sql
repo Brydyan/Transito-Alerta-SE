@@ -1,4 +1,4 @@
--- 0049_citizen_social_features.DOWN.sql
+-- 0053_citizen_social_features.DOWN.sql
 -- Rollback for 0049 — quita las tablas de social features, los permisos del
 -- catálogo, la concesión en `roles.permissions`, re-denormaliza
 -- `users.permissions` y bumpea `permission_version` para invalidar

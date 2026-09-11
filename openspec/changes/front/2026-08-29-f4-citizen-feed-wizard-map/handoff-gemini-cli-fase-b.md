@@ -13,8 +13,8 @@
 - **Rama**: `carlos_fp/sc-306/f4-ciudadano-feed-asistente-de-reporte-y`
 - **La Fase A (backend) de este mismo change YA está implementada y verificada** en el
   working tree (sin commitear, porque el humano commitea): módulo
-  `backend/src/modules/incident-social/`, migración `database/migrations/0049_citizen_social_features.sql`,
-  rollback `database/rollback/0049_citizen_social_features.DOWN.sql`, 3 e2e de la Fase A.
+  `backend/src/modules/incident-social/`, migración `database/migrations/0053_citizen_social_features.sql`,
+  rollback `database/rollback/0053_citizen_social_features.DOWN.sql`, 3 e2e de la Fase A.
   **NO la modifiques, NO la revises, NO la toques.** Tu alcance es SOLO la Fase B, slice 1.
 - Endpoints de la Fase A ya disponibles (los consume B.1.2):
   - `POST /api/incidents/:id/followers` (guard `CREATE incident-followers`)

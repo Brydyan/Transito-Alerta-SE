@@ -13,8 +13,8 @@
 - **Rama**: `carlos_fp/sc-306/f4-ciudadano-feed-asistente-de-reporte-y`
 - **La Fase A (backend) YA está implementada, verificada y COMMITEADA** (commits
   `15169b9`, `16aecd4`, `f4cae4b`, `9a102d0`, `114b767`): módulo
-  `backend/src/modules/incident-social/`, migración `database/migrations/0049_citizen_social_features.sql`,
-  rollback `database/rollback/0049_citizen_social_features.DOWN.sql`, e2e de Fase A.
+  `backend/src/modules/incident-social/`, migración `database/migrations/0053_citizen_social_features.sql`,
+  rollback `database/rollback/0053_citizen_social_features.DOWN.sql`, e2e de Fase A.
   **NO la modifiques, NO la revises, NO la toques.**
 - **El Slice 1 de la Fase B (B.1 base + B.2 asistente) YA está implementado, verificado y
   COMMITEADO** (commits `2af0d06`, `5202949`, `741e812`, `19bad5b`, `245f407`, `0aff304` +

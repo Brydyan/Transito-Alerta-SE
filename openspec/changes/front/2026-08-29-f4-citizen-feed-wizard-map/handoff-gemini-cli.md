@@ -33,17 +33,17 @@ Already written — **inspect these first and continue from them**:
 
 | Path | State |
 |---|---|
-| `database/migrations/0049_citizen_social_features.sql` | ✅ created (tables, permissions, D5 backfill, permission_version bump) |
+| `database/migrations/0053_citizen_social_features.sql` | ✅ created (tables, permissions, D5 backfill, permission_version bump) |
 | `backend/src/modules/incident-social/entities/incident-follower.entity.ts` | ✅ created |
 | `backend/src/modules/incident-social/entities/incident-corroboration.entity.ts` | ✅ created |
 | `backend/src/modules/incident-social/incident-social.service.ts` | ✅ created |
 | `backend/src/modules/incident-social/incident-social.service.spec.ts` | ✅ created (tests-first) |
 | `backend/src/modules/incident-social/incident-social.module.ts` | ✅ created |
-| `database/MIGRATION_LOG.md` | ✅ entry `0049 citizen_social_features` added as ⏳ Pending |
+| `database/MIGRATION_LOG.md` | ✅ entry `0053 citizen_social_features` added as ⏳ Pending |
 
 **Migration numbering**: tasks.md A.1.1 still says "next number is 0042", but the
 actual `database/MIGRATION_LOG.md` already lists up to 0047 plus new entries and
-**0049 is the correct next free number** — the 0049 file and log entry already exist.
+**0053 is the correct next free number** — the 0049 file and log entry already exist.
 Keep 0049; do NOT renumber.
 
 ## 4. What is missing (complete these tasks from tasks.md)
