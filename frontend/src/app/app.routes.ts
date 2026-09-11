@@ -92,7 +92,6 @@ export const routes: Routes = [
       // Sección Administración (Solo Admin)
       {
         path: 'admin',
-        data: { breadcrumb: 'Administración' },
         loadComponent: () =>
           import('./features/admin/component/admin.component').then((m) => m.AdminComponent),
         children: [
@@ -178,7 +177,6 @@ export const routes: Routes = [
       // aparecerá con mock + specs.
       {
         path: 'reportes',
-        data: { breadcrumb: 'Reportes' },
         children: [
           {
             path: 'listado-clientes',
