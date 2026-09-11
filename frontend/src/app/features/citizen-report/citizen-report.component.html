@@ -1,118 +1,176 @@
-<div class="p-4 max-w-2xl mx-auto">
-  <div *ngIf="!authService.currentUser()" class="bg-yellow-100 p-4 rounded text-center mb-4">
-    <p class="mb-4">Debes iniciar sesión para reportar un incidente.</p>
-    <div class="flex justify-center gap-4">
-      <a routerLink="/login" class="text-blue-600 underline">Iniciar sesión</a>
-      <a routerLink="/registro" class="text-blue-600 underline">Registrarse</a>
-    </div>
-  </div>
-
-  <div *ngIf="authService.currentUser()">
-    <div class="flex justify-between items-center mb-6">
-    <h2 class="text-xl font-bold">Reportar Incidente</h2>
-    <div class="text-sm text-gray-500">Paso {{ currentStep }} de 4</div>
-  </div>
-
-  <div class="flex gap-2 mb-8 text-xs font-semibold text-gray-400">
-    <span [class.text-blue-600]="currentStep === 1">INFORMACIÓN BÁSICA</span> >
-    <span [class.text-blue-600]="currentStep === 2">CATEGORIZACIÓN Y ARCHIVOS</span> >
-    <span [class.text-blue-600]="currentStep === 3">UBICACIÓN</span> >
-    <span [class.text-blue-600]="currentStep === 4">REVISIÓN</span>
-  </div>
-
-  <form [formGroup]="form" (ngSubmit)="currentStep === 4 ? onSubmit() : goNext()" class="flex flex-col gap-4">
-    
-    <!-- Paso 1 -->
-    <div *ngIf="currentStep === 1" class="flex flex-col gap-4">
-      <div>
-        <label class="block font-bold mb-1">Título</label>
-        <input type="text" formControlName="title" class="border p-2 rounded w-full" />
-      </div>
-      <div>
-        <label class="block font-bold mb-1">Prioridad</label>
-        <select formControlName="priority" class="border p-2 rounded w-full">
-          <option value="low">Baja</option>
-          <option value="medium">Media</option>
-          <option value="high">Alta</option>
-          <option value="critical">Crítica (Emergencia)</option>
-        </select>
-      </div>
-      <div>
-        <label class="block font-bold mb-1">Descripción</label>
-        <textarea formControlName="description" rows="4" class="border p-2 rounded w-full"></textarea>
-      </div>
-    </div>
-
-    <!-- Paso 2 -->
-    <div *ngIf="currentStep === 2" class="flex flex-col gap-4">
-      <div>
-        <label class="block font-bold mb-1">Categoría</label>
-        <select formControlName="categoryId" class="border p-2 rounded w-full">
-          <option value="" disabled selected>Selecciona una categoría</option>
-          <option *ngFor="let cat of categories" [value]="cat.id" [disabled]="!cat.isLeaf">{{ cat.name }}</option>
-        </select>
-      </div>
-      <div>
-        <label class="block font-bold mb-1">Adjuntos (máx 5)</label>
-        <input type="file" accept="image/*" multiple (change)="onPhotosSelected($event)" [disabled]="selectedPhotos.length >= 5" class="border p-2 rounded w-full" />
-        <div class="flex flex-wrap gap-2 mt-2">
-          <div *ngFor="let preview of photoPreviews; let i = index" class="relative">
-            <img [src]="preview" class="w-24 h-24 object-cover rounded" />
-            <button type="button" (click)="removePhoto(i)" class="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 text-xs leading-none">X</button>
-          </div>
+<div class="p-4 md:p-6 max-w-3xl mx-auto space-y-6">
+  @if (!authService.currentUser()) {
+    <ui-card>
+      <div class="flex flex-col items-center gap-3 text-center py-4">
+        <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+          <ui-icon name="alert-triangle" [size]="20" />
+        </div>
+        <p class="text-sm font-medium text-slate-700">Debes iniciar sesión para reportar un incidente.</p>
+        <div class="flex justify-center gap-3">
+          <a routerLink="/login" class="btn btn-primary btn-sm">Iniciar sesión</a>
+          <a routerLink="/registro" class="btn btn-secondary btn-sm">Registrarse</a>
         </div>
       </div>
+    </ui-card>
+  }
+
+  @if (authService.currentUser()) {
+    <ui-page-header
+      kicker="CIUDADANO / REPORTE"
+      title="Reportar Incidente"
+      [subtitle]="'Paso ' + currentStep + ' de 4 — ' + (currentStep === 1 ? 'Información básica' : currentStep === 2 ? 'Categorización y archivos' : currentStep === 3 ? 'Ubicación' : 'Revisión')"
+    />
+
+    <!-- Step indicator -->
+    <div class="flex gap-1 border-b border-border-subtle">
+      @for (step of [1,2,3,4]; track step) {
+        <div
+          class="flex-1 pb-3 pt-1 text-center text-xs font-semibold tracking-wide uppercase border-b-2 transition-colors"
+          [class.border-brand-primary]="currentStep === step"
+          [class.text-brand-primary]="currentStep === step"
+          [class.border-transparent]="currentStep !== step"
+          [class.text-slate-400]="currentStep !== step"
+        >
+          @if (step === 1) { Información básica }
+          @if (step === 2) { Categorización }
+          @if (step === 3) { Ubicación }
+          @if (step === 4) { Revisión }
+        </div>
+      }
     </div>
 
-    <!-- Paso 3 -->
-    <div *ngIf="currentStep === 3" class="flex flex-col gap-4">
-      <p class="text-gray-600 font-medium">Por favor, indica la ubicación exacta en el mapa:</p>
-      <!-- Usamos relative y h-[400px] fijo para que Leaflet pueda calcular su tamaño exacto -->
-      <div class="relative w-full h-[400px] border-2 border-gray-200 rounded-xl overflow-hidden shadow-inner bg-gray-50">
-        <app-map-picker class="absolute inset-0 w-full h-full" [initialLocation]="locationCoords" (locationSelected)="onLocationSelected($event)"></app-map-picker>
-      </div>
-    </div>
+    <form [formGroup]="form" (ngSubmit)="currentStep === 4 ? onSubmit() : goNext()" class="space-y-4">
+      <!-- Paso 1 -->
+      @if (currentStep === 1) {
+        <ui-card>
+          <div class="flex flex-col gap-4">
+            <div>
+              <label class="form-label" for="title">Título</label>
+              <input id="title" type="text" formControlName="title" class="form-control" placeholder="Ej: Bache en Av. Principal" />
+            </div>
+            <div>
+              <label class="form-label" for="priority">Prioridad</label>
+              <select id="priority" formControlName="priority" class="form-select">
+                <option value="low">Baja</option>
+                <option value="medium">Media</option>
+                <option value="high">Alta</option>
+                <option value="critical">Crítica (Emergencia)</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="description">Descripción</label>
+              <textarea id="description" formControlName="description" rows="4" class="form-control" placeholder="Describe brevemente el incidente..."></textarea>
+            </div>
+          </div>
+        </ui-card>
+      }
 
-    <!-- Paso 4 -->
-    <div *ngIf="currentStep === 4" class="flex flex-col gap-4">
-      <h3 class="font-bold text-lg">Resumen</h3>
-      <div class="bg-gray-100 p-4 rounded text-sm">
-        <p><strong>Título:</strong> {{ form.value.title }}</p>
-        <p><strong>Prioridad:</strong> {{ form.value.priority }}</p>
-        <p><strong>Descripción:</strong> {{ form.value.description }}</p>
-        <p><strong>Categoría:</strong> {{ getCategoryName(form.value.categoryId) }}</p>
-        <p><strong>Ubicación:</strong> {{ locationCoords?.lat | number:'1.4-4' }}, {{ locationCoords?.lng | number:'1.4-4' }}</p>
-        <p><strong>Fotos:</strong> {{ selectedPhotos.length }}</p>
-      </div>
+      <!-- Paso 2 -->
+      @if (currentStep === 2) {
+        <ui-card>
+          <div class="flex flex-col gap-4">
+            <div>
+              <label class="form-label" for="categoryId">Categoría</label>
+              <select id="categoryId" formControlName="categoryId" class="form-select">
+                <option value="" disabled>Selecciona una categoría</option>
+                @for (cat of categories; track cat.id) {
+                  <option [value]="cat.id" [disabled]="!cat.isLeaf">{{ cat.name }}</option>
+                }
+              </select>
+              <p class="form-text">Solo puedes seleccionar categorías hoja (sin subcategorías).</p>
+            </div>
+            <div>
+              <label class="form-label">Adjuntos (máx 5)</label>
+              <input type="file" accept="image/*" multiple (change)="onPhotosSelected($event)" [disabled]="selectedPhotos.length >= 5" class="form-control" />
+              <div class="flex flex-wrap gap-2 mt-3">
+                @for (preview of photoPreviews; track $index; let i = $index) {
+                  <div class="relative">
+                    <img [src]="preview" class="w-24 h-24 object-cover rounded-lg border border-border-subtle" />
+                    <button type="button" (click)="removePhoto(i)" class="absolute -top-2 -right-2 bg-prio-high text-white rounded-full w-6 h-6 flex items-center justify-center text-xs leading-none shadow">×</button>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        </ui-card>
+      }
 
-      <div class="mt-4 border-t pt-4">
-        <label class="flex items-center gap-2 font-bold cursor-pointer">
-          <input type="checkbox" formControlName="isAnonymous" />
-          Publicar de forma anónima
-        </label>
-        <p class="text-xs text-gray-600 mt-2">
-          {{ anonymousNotice }}
-        </p>
-      </div>
+      <!-- Paso 3 -->
+      @if (currentStep === 3) {
+        <ui-card>
+          <div class="flex flex-col gap-3">
+            <p class="text-sm font-medium text-slate-600">Por favor, indica la ubicación exacta en el mapa:</p>
+            <div class="relative w-full h-[400px] border border-border-subtle rounded-xl overflow-hidden shadow-sm bg-slate-50">
+              <app-map-picker class="absolute inset-0 w-full h-full" [initialLocation]="locationCoords" (locationSelected)="onLocationSelected($event)"></app-map-picker>
+            </div>
+            @if (locationCoords) {
+              <p class="text-xs text-slate-500 flex items-center gap-1">
+                <ui-icon name="map-pin" [size]="14" />
+                {{ locationCoords.lat | number:'1.4-4' }}, {{ locationCoords.lng | number:'1.4-4' }}
+              </p>
+            }
+          </div>
+        </ui-card>
+      }
 
-      <div *ngIf="submitError" class="bg-red-100 text-red-800 p-2 rounded text-sm mt-2">
-        {{ submitError }}
-      </div>
-    </div>
+      <!-- Paso 4 -->
+      @if (currentStep === 4) {
+        <ui-card title="Resumen">
+          <div class="bg-slate-50 border border-border-subtle p-4 rounded-lg text-sm space-y-1">
+            <p><span class="font-semibold text-slate-700">Título:</span> {{ form.value.title }}</p>
+            <p><span class="font-semibold text-slate-700">Prioridad:</span> {{ form.value.priority }}</p>
+            <p><span class="font-semibold text-slate-700">Descripción:</span> {{ form.value.description || '—' }}</p>
+            <p><span class="font-semibold text-slate-700">Categoría:</span> {{ getCategoryName(form.value.categoryId) }}</p>
+            <p><span class="font-semibold text-slate-700">Ubicación:</span> {{ locationCoords?.lat | number:'1.4-4' }}, {{ locationCoords?.lng | number:'1.4-4' }}</p>
+            <p><span class="font-semibold text-slate-700">Fotos:</span> {{ selectedPhotos.length }}</p>
+          </div>
 
-    <!-- Botones de acción -->
-    <div class="flex justify-between mt-6">
-      <button type="button" *ngIf="currentStep > 1" (click)="goBack()" [disabled]="isSubmitting" class="px-4 py-2 bg-gray-200 rounded text-gray-800">
-        Atrás
-      </button>
-      <div class="flex-1"></div>
-      <button type="submit" *ngIf="currentStep < 4" [disabled]="(currentStep === 1 && (form.get('title')?.invalid || form.get('description')?.invalid)) || (currentStep === 2 && form.get('categoryId')?.invalid) || (currentStep === 3 && !locationCoords)" class="px-4 py-2 bg-blue-600 rounded text-white font-bold">
-        Siguiente
-      </button>
-      <button type="submit" *ngIf="currentStep === 4" [disabled]="isSubmitting" class="px-4 py-2 bg-green-600 rounded text-white font-bold">
-        {{ isSubmitting ? 'Enviando...' : 'Enviar Reporte' }}
-      </button>
-    </div>
-  </form>
+          <div class="mt-4 border-t border-border-subtle pt-4">
+            <label class="flex items-center gap-2 font-semibold text-sm text-slate-700 cursor-pointer">
+              <input type="checkbox" formControlName="isAnonymous" class="rounded border-slate-300 text-brand-primary focus:ring-brand-primary/30" />
+              Publicar de forma anónima
+            </label>
+            <p class="text-xs text-slate-500 mt-2">
+              {{ anonymousNotice }}
+            </p>
+          </div>
+
+          @if (submitError) {
+            <div class="bg-prio-high/10 text-prio-high border border-prio-high/20 p-3 rounded-lg text-sm mt-3">
+              {{ submitError }}
+            </div>
+          }
+        </ui-card>
+      }
+
+      <!-- Botones de acción -->
+      <div class="flex justify-between items-center mt-2">
+        @if (currentStep > 1) {
+          <button type="button" (click)="goBack()" [disabled]="isSubmitting" class="btn btn-secondary">
+            <ui-icon name="arrow-left" [size]="16" />
+            Atrás
+          </button>
+        } @else {
+          <div></div>
+        }
+        @if (currentStep < 4) {
+          <button type="submit" [disabled]="(currentStep === 1 && (form.get('title')?.invalid || form.get('description')?.invalid)) || (currentStep === 2 && form.get('categoryId')?.invalid) || (currentStep === 3 && !locationCoords)" class="btn btn-primary">
+            Siguiente
+            <ui-icon name="chevron-right" [size]="16" />
+          </button>
+        }
+        @if (currentStep === 4) {
+          <button type="submit" [disabled]="isSubmitting" class="btn btn-primary">
+            @if (isSubmitting) {
+              <ui-icon name="refresh-cw" [size]="16" />
+              Enviando...
+            } @else {
+              <ui-icon name="check-circle" [size]="16" />
+              Enviar Reporte
+            }
+          </button>
+        }
+      </div>
+    </form>
+  }
 </div>
-  </div>

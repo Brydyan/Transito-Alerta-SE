@@ -6,17 +6,21 @@ import { ReportDraftService } from '../../core/services/report-draft.service';
 import { GeolocationService } from '../../core/services/geolocation.service';
 import { IncidentService } from '../../core/services/incident.service';
 import { ImageCompressorService } from '../../core/services/image-compressor.service';
-import { HttpService } from '../../core/services/http.service';
+import { IncidentCategoryService } from '../catalogs/incident-categories/services/incident-category.service';
+import { IncidentCategoryTreeNode } from '../catalogs/incident-categories/interfaces/iincident-category.interface';
 import { MapPickerComponent } from '../../shared/components';
 import { lastValueFrom, Subscription } from 'rxjs';
 import { ANONYMOUS_DISCLOSURE_NOTICE } from '../../core/constants/anonymous-disclosure-notice.constant';
+import { UiCardComponent } from '../../shared/components/ui-card/ui-card.component';
+import { UiPageHeaderComponent } from '../../shared/components/ui-page-header/ui-page-header.component';
+import { UiIconComponent } from '../../shared/components/ui-icon/ui-icon.component';
 
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-citizen-report',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, MapPickerComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, MapPickerComponent, UiCardComponent, UiPageHeaderComponent, UiIconComponent],
   templateUrl: './citizen-report.component.html'
 })
 export class CitizenReportComponent implements OnInit, OnDestroy {
@@ -40,7 +44,7 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
     private geolocationService: GeolocationService,
     private incidentService: IncidentService,
     private imageCompressor: ImageCompressorService,
-    private httpService: HttpService,
+    private categoryService: IncidentCategoryService,
     private router: Router,
     public authService: AuthService
   ) {
@@ -54,13 +58,12 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
-    this.httpService.get<any[]>('/incident-categories/tree')
-      .subscribe({
-        next: (res) => {
-          this.categories = this.flattenCategories(res || []);
-        },
-        error: (err) => console.error('Error fetching categories:', err)
-      });
+    this.categoryService.getTree().subscribe({
+      next: (res) => {
+        this.categories = this.flattenCategories(res || []);
+      },
+      error: (err) => console.error('Error fetching categories:', err)
+    });
 
     // Restore from draft
     const draft = await this.draftService.getDraft();
@@ -188,7 +191,7 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
       }
 
       await this.draftService.clearDraft();
-      this.router.navigate(['/incidencias', incident.id]);
+      this.router.navigate(['/app/incidencias', incident.id]);
     } catch {
       this.submitError = 'Error al enviar el reporte. Por favor, intente nuevamente.';
     } finally {
@@ -202,13 +205,13 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
     return cat ? cat.name.replace(/&nbsp;/g, '').trim() : id;
   }
 
-  private flattenCategories(nodes: any[], prefix = ''): { id: string, name: string, isLeaf: boolean }[] {
+  private flattenCategories(nodes: IncidentCategoryTreeNode[], prefix = ''): { id: string, name: string, isLeaf: boolean }[] {
     let result: { id: string, name: string, isLeaf: boolean }[] = [];
     for (const node of nodes) {
       const isLeaf = !node.children || node.children.length === 0;
       // Using &nbsp; for HTML rendering in options
       result.push({ id: node.id, name: prefix + node.name, isLeaf });
-      if (!isLeaf) {
+      if (node.children && node.children.length > 0) {
         result = result.concat(this.flattenCategories(node.children, prefix + '\u00A0\u00A0\u00A0\u00A0'));
       }
     }
