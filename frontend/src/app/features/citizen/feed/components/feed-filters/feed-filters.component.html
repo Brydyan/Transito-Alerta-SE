@@ -5,16 +5,17 @@
   <div class="mb-6">
     <h4 class="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Estado</h4>
     <div class="flex flex-wrap gap-2">
-      <button 
-        *ngFor="let s of statuses" 
-        (click)="setStatus(s.value)"
-        class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors border"
-        [ngClass]="{
-          'bg-blue-600 text-white border-blue-600': selectedStatus === s.value,
-          'bg-white text-gray-600 border-gray-200 hover:border-blue-400': selectedStatus !== s.value
-        }">
-        {{ s.label }}
-      </button>
+      @for (s of statuses; track s.value) {
+        <button 
+          (click)="setStatus(s.value)"
+          class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors border"
+          [ngClass]="{
+            'bg-blue-600 text-white border-blue-600': selectedStatus === s.value,
+            'bg-white text-gray-600 border-gray-200 hover:border-blue-400': selectedStatus !== s.value
+          }">
+          {{ s.label }}
+        </button>
+      }
     </div>
   </div>
 
@@ -22,25 +23,7 @@
   <div>
     <h4 class="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Categorías</h4>
     <div class="space-y-1">
-      <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: categoryNodes, depth: 0 }"></ng-container>
+      <app-category-tree-node [nodes]="categoryNodes()" [depth]="0" (nodeToggled)="toggleNode($event)"></app-category-tree-node>
     </div>
   </div>
 </div>
-
-<ng-template #nodeTemplate let-nodes let-depth="depth">
-  <div *ngFor="let node of nodes" class="mb-1" [style.margin-left.px]="depth * 16">
-    <label class="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 rounded px-1">
-      <input 
-        type="checkbox" 
-        class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-        [checked]="node.selected"
-        [indeterminate]="node.indeterminate"
-        (change)="toggleNode(node)">
-      <span class="text-sm text-gray-700 select-none">{{ node.category.name }}</span>
-    </label>
-    
-    <div *ngIf="node.children.length > 0" class="mt-1">
-      <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: node.children, depth: depth + 1 }"></ng-container>
-    </div>
-  </div>
-</ng-template>

@@ -1,7 +1,7 @@
-import { Component, EventEmitter, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
-import { MapDataService } from '../../services/map-data.service';
+import { MapDataService, MapActiveFilters } from '../../services/map-data.service';
 
 @Component({
   selector: 'app-map-filters',
@@ -11,10 +11,10 @@ import { MapDataService } from '../../services/map-data.service';
   host: { class: 'block' }
 })
 export class MapFiltersComponent implements OnInit {
-  @Output() filtersChange = new EventEmitter<any>();
+  @Output() filtersChange = new EventEmitter<MapActiveFilters>();
   
   form: FormGroup;
-  categories: { id: string, name: string }[] = [];
+  categories = signal<{ id: string, name: string }[]>([]);
   
   statuses = [
     { value: 'pending', label: 'Pendiente' },
@@ -30,7 +30,7 @@ export class MapFiltersComponent implements OnInit {
     { value: 'critical', label: 'Crítica' }
   ];
 
-  isOpen = false;
+  isOpen = signal(false);
 
   constructor(private fb: FormBuilder, private mapDataService: MapDataService) {
     this.form = this.fb.group({
@@ -41,7 +41,7 @@ export class MapFiltersComponent implements OnInit {
 
     this.form.valueChanges.subscribe(val => {
       // Remove empty values
-      const cleanFilters: any = {};
+      const cleanFilters: MapActiveFilters = {};
       if (val.status) cleanFilters.status = val.status;
       if (val.priority) cleanFilters.priority = val.priority;
       if (val.category_id) cleanFilters.incident_category_id = val.category_id;
@@ -53,14 +53,14 @@ export class MapFiltersComponent implements OnInit {
     this.mapDataService.getMapFilters()
       .subscribe({
         next: (res) => {
-          this.categories = res.data?.categories || [];
+          this.categories.set(res.data?.categories || []);
         },
         error: (err) => console.error('Failed to load map filters', err)
       });
   }
 
   togglePanel() {
-    this.isOpen = !this.isOpen;
+    this.isOpen.set(!this.isOpen());
   }
 
   clearFilters() {

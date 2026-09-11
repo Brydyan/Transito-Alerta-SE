@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { HttpService } from '../../../../core/services/http.service';
-import { Incident } from '../../../../core/models/incident.model';
+import { IncidentFeedResponse } from '../../../../core/models/incident.model';
 
 export interface MapFiltersResponse {
   data: {
@@ -9,15 +9,16 @@ export interface MapFiltersResponse {
   };
 }
 
-export interface FeedResponse {
-  data: Incident[];
-  meta?: {
-    page: number;
-    per_page: number;
-    total: number;
-    last_page: number;
-  };
+export interface MapActiveFilters {
+  status?: string;
+  priority?: string;
+  incident_category_id?: string;
 }
+
+// FIX-07: single source of truth for the feed envelope lives in
+// core/models/incident.model.ts (IncidentFeedResponse). Re-exported here
+// for backwards compatibility with existing imports.
+export type { IncidentFeedResponse as FeedResponse } from '../../../../core/models/incident.model';
 
 @Injectable({
   providedIn: 'root'
@@ -29,7 +30,7 @@ export class MapDataService {
     return this.http.get<MapFiltersResponse>('/map/filters');
   }
 
-  getIncidentsFeed(filters: Record<string, string | number>): Observable<FeedResponse> {
-    return this.http.get<FeedResponse>('/incidents/feed', filters);
+  getIncidentsFeed(filters: MapActiveFilters): Observable<IncidentFeedResponse> {
+    return this.http.get<IncidentFeedResponse>('/incidents/feed', filters as Record<string, string>);
   }
 }

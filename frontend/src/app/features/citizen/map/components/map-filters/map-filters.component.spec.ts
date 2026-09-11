@@ -41,8 +41,8 @@ describe('MapFiltersComponent', () => {
   });
 
   it('should toggle panel', () => {
-    expect(component.isOpen).toBe(false);
+    expect(component.isOpen()).toBe(false);
     component.togglePanel();
-    expect(component.isOpen).toBe(true);
+    expect(component.isOpen()).toBe(true);
   });
 });

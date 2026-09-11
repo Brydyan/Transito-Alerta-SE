@@ -6,7 +6,7 @@ import { of } from 'rxjs';
 describe('FeedFiltersComponent', () => {
   let component: FeedFiltersComponent;
   let fixture: ComponentFixture<FeedFiltersComponent>;
-  let categoryServiceMock: any;
+  let categoryServiceMock: { list: jest.Mock };
 
   beforeEach(async () => {
     categoryServiceMock = {
@@ -33,12 +33,12 @@ describe('FeedFiltersComponent', () => {
   });
 
   it('should build tree correctly', () => {
-    expect(component.categoryNodes.length).toBe(1);
-    expect(component.categoryNodes[0].children.length).toBe(2);
+    expect(component.categoryNodes().length).toBe(1);
+    expect(component.categoryNodes()[0].children.length).toBe(2);
   });
 
   it('should set parent indeterminate when only some children are selected', () => {
-    const root = component.categoryNodes[0];
+    const root = component.categoryNodes()[0];
     const child1 = root.children[0];
     
     // Select only first child
@@ -50,7 +50,7 @@ describe('FeedFiltersComponent', () => {
   });
 
   it('should select parent when all children are selected', () => {
-    const root = component.categoryNodes[0];
+    const root = component.categoryNodes()[0];
     const child1 = root.children[0];
     const child2 = root.children[1];
     
@@ -66,7 +66,7 @@ describe('FeedFiltersComponent', () => {
   });
 
   it('should select all children when parent is selected', () => {
-    const root = component.categoryNodes[0];
+    const root = component.categoryNodes()[0];
     
     component.toggleNode(root);
     

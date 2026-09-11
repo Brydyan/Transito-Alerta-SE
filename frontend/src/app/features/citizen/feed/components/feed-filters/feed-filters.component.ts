@@ -1,20 +1,15 @@
-import { Component, EventEmitter, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IncidentStatus, IncidentListFilters } from '../../../../../core/models/incident.model';
 import { IncidentCategoryService } from '../../../../catalogs/incident-categories/services/incident-category.service';
-import { IIncidentCategory } from '../../../../catalogs/incident-categories/interfaces/iincident-category.interface';
+import { CategoryTreeNodeComponent, CategoryNode } from './category-tree-node.component';
 
-interface CategoryNode {
-  category: IIncidentCategory;
-  children: CategoryNode[];
-  selected: boolean;
-  indeterminate: boolean;
-}
+export type { CategoryNode };
 
 @Component({
   selector: 'app-feed-filters',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, CategoryTreeNodeComponent],
   templateUrl: './feed-filters.component.html'
 })
 export class FeedFiltersComponent implements OnInit {
@@ -31,17 +26,17 @@ export class FeedFiltersComponent implements OnInit {
 
   selectedStatus: IncidentStatus | undefined = undefined;
   
-  categoryNodes: CategoryNode[] = [];
+  categoryNodes = signal<CategoryNode[]>([]);
 
   constructor(private categoryService: IncidentCategoryService) {}
 
   ngOnInit() {
     this.categoryService.list({ per_page: 500 }).subscribe((result) => {
-      this.categoryNodes = this.buildTree(result.items);
+      this.categoryNodes.set(this.buildTree(result.items));
     });
   }
 
-  buildTree(items: IIncidentCategory[]): CategoryNode[] {
+  buildTree(items: import('../../../../catalogs/incident-categories/interfaces/iincident-category.interface').IIncidentCategory[]): CategoryNode[] {
     const map = new Map<string, CategoryNode>();
     const roots: CategoryNode[] = [];
     
@@ -84,7 +79,7 @@ export class FeedFiltersComponent implements OnInit {
   }
 
   updateParentsState() {
-    for (const root of this.categoryNodes) {
+    for (const root of this.categoryNodes()) {
       this.updateNodeState(root);
     }
   }

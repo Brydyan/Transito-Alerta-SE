@@ -1,0 +1,19 @@
+@for (node of nodes; track node.category.id) {
+  <div class="mb-1" [style.margin-left.px]="depth * 16">
+    <label class="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 rounded px-1">
+      <input
+        type="checkbox"
+        class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+        [checked]="node.selected"
+        [indeterminate]="node.indeterminate"
+        (change)="onToggle(node)">
+      <span class="text-sm text-gray-700 select-none">{{ node.category.name }}</span>
+    </label>
+
+    @if (node.children.length > 0) {
+      <div class="mt-1">
+        <app-category-tree-node [nodes]="node.children" [depth]="depth + 1" (nodeToggled)="onChildToggled($event)"></app-category-tree-node>
+      </div>
+    }
+  </div>
+}

@@ -34,3 +34,13 @@ export interface IIncidentCategoryListResult {
   items: IIncidentCategory[];
   total: number;
 }
+
+/**
+ * Tree-shaped node returned by `GET /incident-categories/tree`.
+ * Used by citizen-report and feed-filters for the category picker.
+ */
+export interface IncidentCategoryTreeNode {
+  id: string;
+  name: string;
+  children?: IncidentCategoryTreeNode[];
+}

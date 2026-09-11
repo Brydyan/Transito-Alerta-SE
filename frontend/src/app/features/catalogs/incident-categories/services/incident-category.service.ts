@@ -7,6 +7,7 @@ import {
   IIncidentCategoryListResult,
   ICreateIncidentCategoryDto,
   IUpdateIncidentCategoryDto,
+  IncidentCategoryTreeNode,
 } from '../interfaces/iincident-category.interface';
 
 const ENDPOINT = '/incident-categories';
@@ -14,6 +15,11 @@ const ENDPOINT = '/incident-categories';
 @Injectable({ providedIn: 'root' })
 export class IncidentCategoryService {
   private readonly http = inject(HttpService);
+
+  /** Returns the full hierarchy from the backend. */
+  getTree(): Observable<IncidentCategoryTreeNode[]> {
+    return this.http.get<IncidentCategoryTreeNode[]>(`${ENDPOINT}/tree`);
+  }
 
   list(params: IIncidentCategoryListParams = {}): Observable<IIncidentCategoryListResult> {
     return this.http.get<IIncidentCategoryListResult>(ENDPOINT, params);

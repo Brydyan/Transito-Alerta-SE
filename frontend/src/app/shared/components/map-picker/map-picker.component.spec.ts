@@ -6,7 +6,7 @@ import { of } from 'rxjs';
 describe('MapPickerComponent', () => {
   let component: MapPickerComponent;
   let fixture: ComponentFixture<MapPickerComponent>;
-  let geolocationServiceMock: any;
+  let geolocationServiceMock: { getCurrentLocation: jest.Mock };
 
   beforeEach(async () => {
     geolocationServiceMock = {
