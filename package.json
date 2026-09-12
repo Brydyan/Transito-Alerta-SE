@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "dotenv": "^17.4.2",
-    "lucide-angular": "^1.0.0"
+    "lucide-angular": "^1.0.0",
+    "sharp": "^0.35.4"
   }
 }
