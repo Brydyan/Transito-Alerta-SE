@@ -7,7 +7,6 @@ import { UserEntity } from '../../entities/user.entity';
 import { PermissionEntity } from '../../entities/permission.entity';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { assertCanGrantRole, assertCanManage } from '../../common/authz/assert-can-manage';
-import { formatPermissionString } from '../../common/decorators/require-permission.decorator';
 import { AuthService } from '../auth/auth.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
