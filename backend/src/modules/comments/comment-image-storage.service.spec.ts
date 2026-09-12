@@ -41,8 +41,7 @@ describe('CommentImageStorageService', () => {
 
       await service.upload('comment-1', makeFile('photo.jpg'));
 
-      const [key] = client.upload.mock.calls[0];
-      expect(key).toMatch(/^comments\/comment-1\/.+-photo\.jpg$/);
+      expect(client.upload.mock.calls[0][0]).toMatch(/^comments\/comment-1\/.+-photo\.jpg$/);
     });
 
     it('delegates to the injected IStorageClient with the file buffer and mimetype', async () => {
@@ -54,7 +53,7 @@ describe('CommentImageStorageService', () => {
 
       const result = await service.upload('comment-1', file);
 
-      const [key, buffer, mimetype] = client.upload.mock.calls[0];
+      const [, buffer, mimetype] = client.upload.mock.calls[0];
       expect(buffer).toBe(file.buffer);
       expect(mimetype).toBe('image/jpeg');
       expect(result).toEqual({
