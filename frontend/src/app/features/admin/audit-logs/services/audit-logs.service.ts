@@ -24,17 +24,24 @@ export interface AuditLogPagination {
 }
 
 /** Item individual — `actor_name` es `null` si el user fue
- *  borrado (D4 del design back: LEFT JOIN users). */
+ *  borrado (D4 del design back: LEFT JOIN users).
+ *
+ *  sdd-verify FIX-1 (CRITICAL): fields are snake_case to match
+ *  the wire emitted by the global `SnakeCaseResponseInterceptor`.
+ *  The back's `AuditLogItemDto` is camelCase; the interceptor
+ *  rewrites it to snake_case on the wire. Reading camelCase
+ *  here silently yields `undefined` for every field — same
+ *  pitfall as SC-209 (`size_bytes` ≠ `file_size`). */
 export interface AuditLogItem {
   id: string;
-  actorId: string;
-  actorName: string | null;
+  actor_id: string;
+  actor_name: string | null;
   action: string;
-  resourceType: string;
-  resourceId: string | null;
+  resource_type: string;
+  resource_id: string | null;
   justification: string | null;
   metadata: Record<string, unknown>;
-  createdAt: string;
+  created_at: string;
 }
 
 /** Envelope paginado — coincide con el wire del back

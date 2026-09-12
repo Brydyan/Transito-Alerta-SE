@@ -14,6 +14,7 @@ import mailConfig from '../config/mail.config';
 import storageConfig from '../config/storage.config';
 import { PermissionEntity } from '../entities/permission.entity';
 import { PermissionLookupService } from '../common/permissions/permission-lookup.service';
+import { ImageCompressionModule } from './image/image-compression.module';
 
 /**
  * DI token for the raw ioredis client — used where cache-manager's Cache
@@ -107,6 +108,10 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
       },
     }),
     EventEmitterModule.forRoot(),
+    // F7 — image compression is provided here so any feature module
+    // (avatars / incidents / comments) can inject ImageCompressionService
+    // without re-importing the module locally.
+    ImageCompressionModule,
   ],
   providers: [
     {

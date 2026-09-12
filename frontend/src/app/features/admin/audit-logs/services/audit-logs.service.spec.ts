@@ -79,6 +79,44 @@ describe('AuditLogsService (F6)', () => {
     });
   });
 
+  // sdd-verify FIX-1 (CRITICAL): wire is snake_case. Verify the
+  // model reads the snake_case fields that come back from the
+  // back's SnakeCaseResponseInterceptor — if the model were
+  // camelCase, these reads would be `undefined`.
+  it('getAuditLogs — model reads snake_case fields from the wire (sdd-verify FIX-1)', () => {
+    service
+      .getAuditLogs({}, { page: 1, limit: 20 })
+      .subscribe((res) => {
+        expect(res.items.length).toBe(1);
+        expect(res.items[0].actor_name).toBe('Juan Pérez');
+        expect(res.items[0].actor_id).toBe('u1');
+        expect(res.items[0].resource_type).toBe('audit-logs');
+        expect(res.items[0].created_at).toBe('2026-09-15T12:00:00.000Z');
+        // camelCase aliases are NOT present — the field IS snake_case.
+        expect((res.items[0] as unknown as Record<string, unknown>)['actorName']).toBeUndefined();
+        expect((res.items[0] as unknown as Record<string, unknown>)['createdAt']).toBeUndefined();
+      });
+
+    http
+      .expectOne((r) => r.url === baseUrl && r.method === 'GET')
+      .flush({
+        items: [
+          {
+            id: 'a1',
+            actor_id: 'u1',
+            actor_name: 'Juan Pérez',
+            action: 'READ audit-logs',
+            resource_type: 'audit-logs',
+            resource_id: null,
+            justification: null,
+            metadata: {},
+            created_at: '2026-09-15T12:00:00.000Z',
+          },
+        ],
+        total: 1,
+      });
+  });
+
   it('getAuditLogs — omite los filtros vacíos (date_from/date_to/actor_id)', () => {
     service.getAuditLogs({}, { page: 2, limit: 10 }).subscribe();
     const req = http.expectOne((r) => r.url === baseUrl && r.method === 'GET');

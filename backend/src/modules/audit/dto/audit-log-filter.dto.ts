@@ -55,7 +55,13 @@ export class AuditLogFilterDto {
   @Type(() => Number)
   page?: number;
 
-  /** Page size. Default 20; hard cap 100 (matches the spec scenario). */
+  /**
+   * Page size. Default 20; hard cap 100 (matches the spec R1-S3
+   * scenario). A request for `limit=200` returns 400 — the
+   * ValidationPipe rejects via `@Max(100)` BEFORE the service
+   * runs. Architect chose fail-fast over silent cap (Option A
+   * in sdd-verify FIX-1).
+   */
   @IsOptional()
   @IsInt()
   @Min(1)

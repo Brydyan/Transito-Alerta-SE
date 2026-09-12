@@ -107,11 +107,12 @@
     <tbody>
       @for (item of items(); track item.id) {
         <tr>
-          <td>{{ formatDate(item.createdAt) }}</td>
-          <td>{{ item.actorName ?? '—' }}</td>
+          <!-- sdd-verify FIX-1 (CRITICAL): snake_case fields — see AuditLogItem in services/audit-logs.service.ts -->
+          <td>{{ formatDate(item.created_at) }}</td>
+          <td>{{ item.actor_name ?? '—' }}</td>
           <td>{{ item.action }}</td>
-          <td>{{ item.resourceType }}</td>
-          <td>{{ item.resourceId ?? '—' }}</td>
+          <td>{{ item.resource_type }}</td>
+          <td>{{ item.resource_id ?? '—' }}</td>
           <td>{{ item.justification ?? '—' }}</td>
         </tr>
       } @empty {
