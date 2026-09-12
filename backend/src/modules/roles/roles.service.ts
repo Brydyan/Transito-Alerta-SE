@@ -7,7 +7,6 @@ import { UserEntity } from '../../entities/user.entity';
 import { PermissionEntity } from '../../entities/permission.entity';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { assertCanGrantRole, assertCanManage } from '../../common/authz/assert-can-manage';
-import { formatPermissionString } from '../../common/decorators/require-permission.decorator';
 import { AuthService } from '../auth/auth.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -267,9 +266,15 @@ export class RolesService {
     const deletedPermissions = await this.permissionRepo.find({
       where: { deletedAt: Not(IsNull()) },
     });
-    const revoked = new Set(
-      deletedPermissions.map((p) => formatPermissionString(p.action, p.resource)),
-    );
+    // F6 fix (post-0051): el wire de `roles.permissions` es UUIDs,
+    // no strings formateados. Comparamos por UUID, no por
+    // "ACTION resource" — la comparación vieja (con
+    // `formatPermissionString`) era un no-op post-0051 porque
+    // el array del rol ya no contiene strings. La wire-shape
+    // es la única fuente de verdad: el catálogo es
+    // informativo, no autoritativo (D3), pero el guard y este
+    // servicio SÍ comparan contra el catálogo vía UUID.
+    const revoked = new Set(deletedPermissions.map((p) => p.id));
 
     const before = role.permissions ?? [];
     const after = before.filter((p) => !revoked.has(p));

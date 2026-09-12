@@ -1,0 +1,94 @@
+/* AuditLogsComponent — F6 (2026-09-11-f6-audit-logs-export).
+ * Layout: header + filter toolbar + table + pagination.
+ * El grid de la tabla viene de F0 `ui-table`; este CSS estiliza
+ * la toolbar de filtros y el banner de error (mismo patrón que
+ * UsersListComponent — sin duplicar la tabla).
+ */
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+.toolbar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 12rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-slate-500, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.input,
+.select {
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-secondary, #fff);
+  border: 1px solid var(--color-border-subtle, #e2e8f0);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-slate-900, #0f172a);
+  height: 2.5rem;
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--color-brand-primary, #6d28d9);
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.12);
+}
+
+.reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--color-brand-primary, #6d28d9);
+  background: transparent;
+  border: 1px solid var(--color-border-subtle, #e2e8f0);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  height: 2.5rem;
+}
+
+.reset-btn:hover {
+  background: var(--color-bg-primary, #f1f5f9);
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--color-status-pendiente, #fef3c7);
+  border: 1px solid var(--color-prio-medium, #f59e0b);
+  border-radius: 0.5rem;
+  color: var(--color-on-tint-slate, #92400e);
+}
+
+.error-banner > div {
+  flex: 1;
+  font-size: 0.875rem;
+}
+
+.error-banner > div p {
+  margin: 0;
+  color: var(--color-slate-600, #475569);
+  font-size: 0.8125rem;
+}

@@ -372,29 +372,37 @@ describe('E2E T7.2 Fase C — app-level soft delete', () => {
   describe('R7.6 — permission soft-delete revokes it on recalculation', () => {
     it('recalculating a role after its permission was soft-deleted strips it and locks out the action for holders', async () => {
       const resource = `r7-6-resource-${randomUUID()}`;
-      const permissionId = randomUUID();
+      const createPermId = randomUUID();
+
+      // Insert CREATE permission for unique resource
       await env.pg.query(
         `INSERT INTO permissions (id, resource, action) VALUES ($1, $2, 'CREATE')`,
-        [permissionId, resource],
+        [createPermId, resource],
       );
 
+      // Get UUID of existing READ organizations permission from seeds
+      const { rows: readRows } = await env.pg.query<{ id: string }>(
+        `SELECT id FROM permissions WHERE resource = 'organizations' AND action = 'READ' LIMIT 1`,
+      );
+      const readOrgPermId = readRows[0]?.id;
+      if (!readOrgPermId) {
+        throw new Error('READ organizations permission not found in seeds');
+      }
+
       const roleId = randomUUID();
+      // Permissions should be stored as UUIDs, not strings, post-0051
       await env.pg.query(
         `INSERT INTO roles (id, name, permissions) VALUES ($1, $2, $3::jsonb)`,
-        [
-          roleId,
-          `r7.6-role-${roleId}`,
-          JSON.stringify(['READ organizations', `CREATE ${resource}`]),
-        ],
+        [roleId, `r7.6-role-${roleId}`, JSON.stringify([readOrgPermId, createPermId])],
       );
 
       const holder = await env.provisionUser(['READ organizations', `CREATE ${resource}`]);
       await env.pg.query(`UPDATE users SET role_id = $1 WHERE id = $2`, [roleId, holder.userId]);
 
-      // Soft-delete the catalog permission row directly (no admin API exists
+      // Soft-delete the CREATE permission row directly (no admin API exists
       // for this — catalog rows are seeded/managed at the DB level).
       await env.pg.query(`UPDATE permissions SET deleted_at = now() WHERE id = $1`, [
-        permissionId,
+        createPermId,
       ]);
 
       const admin = await env.provisionUser(['UPDATE roles']);
@@ -403,22 +411,33 @@ describe('E2E T7.2 Fase C — app-level soft delete', () => {
         .set(auth(admin))
         .expect(201);
 
-      expect(recalcRes.body.permissions).toEqual(['READ organizations']);
-      expect(recalcRes.body.permissions).not.toContain(`CREATE ${resource}`);
+      // After recalculation, only READ organizations UUID should remain
+      expect(recalcRes.body.permissions).toEqual([readOrgPermId]);
+      expect(recalcRes.body.permissions).not.toContain(createPermId);
 
       // Propagated onto the already-assigned user's own denormalized array.
       const { rows } = await env.pg.query<{ permissions: string[] }>(
         `SELECT permissions FROM users WHERE id = $1`,
         [holder.userId],
       );
-      expect(rows[0].permissions).not.toContain(`CREATE ${resource}`);
+      expect(rows[0].permissions).not.toContain(createPermId);
+      expect(rows[0].permissions).toContain(readOrgPermId);
     });
 
     it('is a no-op when the role holds no soft-deleted permission', async () => {
+      // Get UUID of existing READ organizations permission from seeds
+      const { rows: readRows } = await env.pg.query<{ id: string }>(
+        `SELECT id FROM permissions WHERE resource = 'organizations' AND action = 'READ' LIMIT 1`,
+      );
+      const readOrgPermId = readRows[0]?.id;
+      if (!readOrgPermId) {
+        throw new Error('READ organizations permission not found in seeds');
+      }
+
       const roleId = randomUUID();
       await env.pg.query(
         `INSERT INTO roles (id, name, permissions) VALUES ($1, $2, $3::jsonb)`,
-        [roleId, `r7.6-noop-${roleId}`, JSON.stringify(['READ organizations'])],
+        [roleId, `r7.6-noop-${roleId}`, JSON.stringify([readOrgPermId])],
       );
       const admin = await env.provisionUser(['UPDATE roles']);
 
@@ -427,7 +446,8 @@ describe('E2E T7.2 Fase C — app-level soft delete', () => {
         .set(auth(admin))
         .expect(201);
 
-      expect(res.body.permissions).toEqual(['READ organizations']);
+      // Should remain unchanged since permission is not soft-deleted
+      expect(res.body.permissions).toEqual([readOrgPermId]);
     });
   });
 });

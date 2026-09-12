@@ -1,6 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { IStorageClient, STORAGE_CLIENT } from '../../core/storage/storage-client.interface';
+import {
+  IStorageClient,
+  STORAGE_CLIENT,
+} from '../../core/storage/storage-client.interface';
 
 export interface UploadedFile {
   buffer: Buffer;
@@ -13,13 +16,13 @@ export interface UploadedFile {
  * wired in the same batch) — multipart upload -> IStorageClient (Supabase
  * in prod, noop locally, D1) -> signed URL. SHA-256 placeholder removed;
  * key generation stays here, byte persistence + URL resolution delegated
- * to the injected client. No `delete()` here — design D2: the two
- * services' contracts differ, avatars are never explicitly deleted today.
- * Object key convention: `avatars/{userId}/{uuid}-{originalname}`.
+ * to the injected client.
  */
 @Injectable()
 export class AvatarStorageService {
-  constructor(@Inject(STORAGE_CLIENT) private readonly client: IStorageClient) {}
+  constructor(
+    @Inject(STORAGE_CLIENT) private readonly client: IStorageClient,
+  ) {}
 
   async upload(userId: string, file: UploadedFile): Promise<string> {
     const key = `avatars/${userId}/${randomUUID()}-${file.originalname}`;

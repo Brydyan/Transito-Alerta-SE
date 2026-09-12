@@ -511,50 +511,58 @@ describe('RolesService', () => {
   // role that had it, and propagate to already-assigned users.
   describe('recalculateEffectivePermissions (T7.2.C4 — R7.6)', () => {
     it('drops a permission string whose catalog row is soft-deleted', async () => {
+      const permReadId = 'perm-read-incidents-uuid';
+      const permCreateId = 'perm-create-incidents-uuid';
+
       roleRepo.findOne.mockResolvedValue({
         id: 'role-1',
         name: 'operator',
-        permissions: ['READ incidents', 'CREATE incidents'],
+        permissions: [permReadId, permCreateId],
       });
       permissionRepo.find.mockResolvedValue([
-        { resource: 'incidents', action: 'CREATE', deletedAt: new Date() },
+        { id: permCreateId, resource: 'incidents', action: 'CREATE', deletedAt: new Date() },
       ]);
       userRepo.find.mockResolvedValue([]);
 
       const result = await service.recalculateEffectivePermissions('role-1');
 
-      expect(result.permissions).toEqual(['READ incidents']);
+      expect(result.permissions).toEqual([permReadId]);
       expect(roleRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ permissions: ['READ incidents'] }),
+        expect.objectContaining({ permissions: [permReadId] }),
       );
     });
 
     it('leaves permission strings untouched when no catalog row for them is soft-deleted', async () => {
+      const permReadId = 'perm-read-incidents-uuid';
+
       roleRepo.findOne.mockResolvedValue({
         id: 'role-1',
         name: 'operator',
-        permissions: ['READ incidents'],
+        permissions: [permReadId],
       });
       permissionRepo.find.mockResolvedValue([]);
       userRepo.find.mockResolvedValue([]);
 
       const result = await service.recalculateEffectivePermissions('role-1');
 
-      expect(result.permissions).toEqual(['READ incidents']);
+      expect(result.permissions).toEqual([permReadId]);
       expect(roleRepo.save).not.toHaveBeenCalled();
     });
 
     it('propagates the revoked set to every user holding the role and bumps their permission_version', async () => {
+      const permReadId = 'perm-read-incidents-uuid';
+      const permCreateId = 'perm-create-incidents-uuid';
+
       roleRepo.findOne.mockResolvedValue({
         id: 'role-1',
         name: 'operator',
-        permissions: ['READ incidents', 'CREATE incidents'],
+        permissions: [permReadId, permCreateId],
       });
       permissionRepo.find.mockResolvedValue([
-        { resource: 'incidents', action: 'CREATE', deletedAt: new Date() },
+        { id: permCreateId, resource: 'incidents', action: 'CREATE', deletedAt: new Date() },
       ]);
       userRepo.find.mockResolvedValue([
-        { id: 'user-1', deviceUuid: 'device-1', permissions: ['READ incidents', 'CREATE incidents'], permissionVersion: 1 },
+        { id: 'user-1', deviceUuid: 'device-1', permissions: [permReadId, permCreateId], permissionVersion: 1 },
       ]);
 
       await service.recalculateEffectivePermissions('role-1');
@@ -562,7 +570,7 @@ describe('RolesService', () => {
       expect(userRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 'user-1',
-          permissions: ['READ incidents'],
+          permissions: [permReadId],
           permissionVersion: 2,
         }),
       );

@@ -1,65 +1,86 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { IncidentImageStorageService } from './incident-image-storage.service';
-import { MulterFile } from './incident-image-storage.service';
+import {
+  IncidentImageStorageService,
+  MulterFile,
+} from './incident-image-storage.service';
 
-describe('IncidentImageStorageService', () => {
-  let service: IncidentImageStorageService;
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [IncidentImageStorageService],
-    }).compile();
-    service = module.get<IncidentImageStorageService>(IncidentImageStorageService);
-  });
-
-  const makeFile = (name = 'photo.jpg', mime = 'image/jpeg'): MulterFile => ({
+function makeFile(name = 'photo.jpg', mime = 'image/jpeg'): MulterFile {
+  return {
     originalname: name,
     mimetype: mime,
     buffer: Buffer.from('fake'),
     size: 4,
     fieldname: 'images',
     encoding: '7bit',
+  };
+}
+
+describe('IncidentImageStorageService', () => {
+  let service: IncidentImageStorageService;
+
+  beforeEach(() => {
+    service = new IncidentImageStorageService();
   });
 
-  describe('upload()', () => {
-    it('returns a key starting with incidents/{incidentId}/', async () => {
-      const result = await service.upload('inc-123', makeFile());
-      expect(result.key).toMatch(/^incidents\/inc-123\//);
+  describe('upload', () => {
+    it('generates a key with format incidents/{incidentId}/{uuid}-{sanitizedOriginalname}', async () => {
+      const result = await service.upload('inc-123', makeFile('photo.jpg'));
+
+      expect(result.key).toMatch(/^incidents\/inc-123\/.+-photo\.jpg$/);
     });
 
-    it('sanitizes special characters in original filename', async () => {
+    it('sanitizes non-alphanumeric characters in originalname', async () => {
       const result = await service.upload('inc-123', makeFile('my photo (1).jpg'));
-      expect(result.key).not.toMatch(/[ ()]/);
+
+      expect(result.key).not.toContain(' ');
+      expect(result.key).not.toContain('(');
+      expect(result.key).not.toContain(')');
     });
 
-    it('returns a url string', async () => {
-      const result = await service.upload('inc-123', makeFile());
-      expect(typeof result.url).toBe('string');
-      expect(result.url.length).toBeGreaterThan(0);
+    it('returns both key and a signed URL', async () => {
+      const result = await service.upload('inc-123', makeFile('photo.jpg'));
+
+      expect(result.key).toBeDefined();
+      expect(result.url).toBeDefined();
+      expect(result.url).toContain('https://storage.example.com');
+      expect(result.url).toContain(result.key);
+      expect(result.url).toContain('sig=');
     });
 
-    it('url matches getSignedUrl output for the generated key', async () => {
-      const result = await service.upload('inc-abc', makeFile());
-      const expectedUrl = service.getSignedUrl(result.key);
-      expect(result.url).toBe(expectedUrl);
+    it('a different incidentId produces a differently scoped key', async () => {
+      const result = await service.upload('inc-xyz', makeFile());
+
+      expect(result.key).toMatch(/^incidents\/inc-xyz\//);
+    });
+
+    it('generates unique keys for the same incidentId and filename', async () => {
+      const result1 = await service.upload('inc-123', makeFile('photo.jpg'));
+      const result2 = await service.upload('inc-123', makeFile('photo.jpg'));
+
+      expect(result1.key).not.toEqual(result2.key);
     });
   });
 
-  describe('getSignedUrl()', () => {
-    it('includes the key path in the url', () => {
-      const url = service.getSignedUrl('incidents/inc-1/uuid-file.jpg');
-      expect(url).toContain('incidents/inc-1/uuid-file.jpg');
+  describe('getSignedUrl', () => {
+    it('returns a signed URL with SHA-256 signature query parameter', () => {
+      const url = service.getSignedUrl('incidents/inc-1/uuid-photo.jpg');
+
+      expect(url).toContain('https://storage.example.com');
+      expect(url).toContain('incidents/inc-1/uuid-photo.jpg');
+      expect(url).toMatch(/sig=[a-f0-9]{16}$/);
     });
 
-    it('appends a sig query param', () => {
-      const url = service.getSignedUrl('some/key');
-      expect(url).toContain('?sig=');
+    it('generates different signatures for different keys', () => {
+      const url1 = service.getSignedUrl('incidents/inc-1/uuid-photo.jpg');
+      const url2 = service.getSignedUrl('incidents/inc-2/uuid-photo.jpg');
+
+      expect(url1).not.toBe(url2);
     });
   });
 
-  describe('delete()', () => {
-    it('resolves without throwing', async () => {
-      await expect(service.delete('incidents/inc-1/some-key.jpg')).resolves.toBeUndefined();
+  describe('delete', () => {
+    it('is a no-op stub', async () => {
+      await service.delete('incidents/inc-1/uuid-photo.jpg');
+      // No error thrown
     });
   });
 });

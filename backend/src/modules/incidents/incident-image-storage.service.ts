@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
-import { MulterFile, UploadResult } from '../comments/comment-image-storage.service';
+import {
+  MulterFile,
+  UploadResult,
+} from '../comments/comment-image-storage.service';
 
 export { MulterFile, UploadResult };
 
@@ -11,6 +14,8 @@ export { MulterFile, UploadResult };
  */
 @Injectable()
 export class IncidentImageStorageService {
+  constructor() {}
+
   async upload(incidentId: string, file: MulterFile): Promise<UploadResult> {
     const sanitized = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     const key = `incidents/${incidentId}/${randomUUID()}-${sanitized}`;

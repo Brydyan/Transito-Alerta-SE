@@ -85,7 +85,10 @@ export class RolesComponent implements OnInit {
   readonly errorMessage = signal<string | null>(null);
 
   readonly currentPage = signal(1);
-  readonly pageSize = signal(25);
+  // F6 fix: `pageSize` default es 10 para alinearse con el dropdown
+  // de opciones [5, 10, 15, 20]. Al entrar a la ruta, muestra 10
+  // datos y el selector dice "Mostrar: 10" (no "Mostrar: 5").
+  readonly pageSize = signal(10);
   readonly searchTerm = signal('');
 
   /** Filtro local por nombre (decisión del design: «Search local —

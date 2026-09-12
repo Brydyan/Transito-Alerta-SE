@@ -1,6 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { IStorageClient, STORAGE_CLIENT } from '../../core/storage/storage-client.interface';
+import {
+  IStorageClient,
+  STORAGE_CLIENT,
+} from '../../core/storage/storage-client.interface';
 
 export interface MulterFile {
   originalname: string;
@@ -22,15 +25,15 @@ export interface UploadResult {
  * URL. The SHA-256 placeholder is gone; key generation stays here (design
  * D2 — only the placeholder lines changed), byte persistence + URL
  * resolution is delegated to the injected client.
- * Key convention: `comments/{commentId}/{uuid}-{sanitizedOriginalname}`.
  */
 @Injectable()
 export class CommentImageStorageService {
-  constructor(@Inject(STORAGE_CLIENT) private readonly client: IStorageClient) {}
+  constructor(
+    @Inject(STORAGE_CLIENT) private readonly client: IStorageClient,
+  ) {}
 
   async upload(commentId: string, file: MulterFile): Promise<UploadResult> {
-    const sanitized = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const key = `comments/${commentId}/${randomUUID()}-${sanitized}`;
+    const key = `comments/${commentId}/${randomUUID()}-${file.originalname}`;
     return this.client.upload(key, file.buffer ?? Buffer.alloc(0), file.mimetype);
   }
 

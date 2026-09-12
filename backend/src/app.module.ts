@@ -6,6 +6,7 @@ import { CoreModule } from './core/core.module';
 import { AppController } from './app.controller';
 import { AuthModule } from './modules/auth/auth.module';
 import { GeofencingModule } from './modules/geofencing/geofencing.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { IncidentsModule } from './modules/incidents/incidents.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { UsersModule } from './modules/users/users.module';
@@ -34,6 +35,7 @@ import { RequestIdMiddleware } from './common/observability/request-id.middlewar
     CoreModule,
     AuthModule,
     GeofencingModule,
+    AuditModule,
     OrganizationsModule,
     IncidentsModule,
     CommentsModule,
