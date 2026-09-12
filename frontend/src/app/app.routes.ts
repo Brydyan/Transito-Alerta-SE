@@ -163,6 +163,23 @@ export const routes: Routes = [
                 (m) => m.SystemConfigComponent,
               ),
           },
+          // F6 (`2026-09-11-f6-audit-logs-export`) — Auditoría de
+          // Acceso. Sibling de `users`/`roles`/`config`. Gateada con
+          // `permissionGuard` + `READ audit-logs` (permiso nuevo
+          // agregado por migración 0053 del back). El guard lee
+          // `route.data['permission']` (ver `permission.guard.ts:26`).
+          {
+            path: 'audit-logs',
+            data: {
+              breadcrumb: 'Auditoría de Acceso',
+              permission: 'READ audit-logs',
+            },
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/admin/audit-logs/audit-logs.component').then(
+                (m) => m.AuditLogsComponent,
+              ),
+          },
         ],
       },
 

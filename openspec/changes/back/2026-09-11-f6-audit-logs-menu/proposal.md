@@ -23,7 +23,7 @@ Agregar entrada "Auditoría de Acceso" a MENU_MAP para que usuarios con permiso 
   - Requires: "READ audit-logs"
   - Icon: "file-text" (lucide)
   - Group: "GESTIÓN"
-  - Order: 75 (between Roles:70 and Organizaciones:80)
+  - Order: 85 (after Organizaciones:80)
 - Validación: menu-map.spec.ts cubre automáticamente (test CRITICAL-2 valida ruta existe + tests de order/icon).
 - Comprobar que tests pasen sin editar specs.
 

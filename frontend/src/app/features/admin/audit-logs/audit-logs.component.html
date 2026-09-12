@@ -1,0 +1,141 @@
+<ui-page-header
+  kicker="ADMINISTRACIÓN"
+  title="Auditoría de Acceso"
+  subtitle="Revisa los eventos de auditoría del sistema: quién hizo qué, cuándo y por qué."
+>
+  <button
+    page-header-actions
+    type="button"
+    class="btn-primary"
+    (click)="onDownloadCsv()"
+    data-testid="download-csv"
+  >
+    <ui-icon name="download" [size]="16" [strokeWidth]="2" />
+    Descargar CSV
+  </button>
+</ui-page-header>
+
+<section class="toolbar">
+  <label class="field">
+    <span class="label">Desde</span>
+    <input
+      type="date"
+      class="input"
+      [ngModel]="filters().dateFrom"
+      (ngModelChange)="onFilterChange({ dateFrom: $event, dateTo: filters().dateTo, actorId: filters().actorId })"
+      aria-label="Fecha desde"
+    />
+  </label>
+  <label class="field">
+    <span class="label">Hasta</span>
+    <input
+      type="date"
+      class="input"
+      [ngModel]="filters().dateTo"
+      (ngModelChange)="onFilterChange({ dateFrom: filters().dateFrom, dateTo: $event, actorId: filters().actorId })"
+      aria-label="Fecha hasta"
+    />
+  </label>
+
+  @if (actorDropdownAvailable()) {
+    <label class="field">
+      <span class="label">Usuario (actor)</span>
+      <select
+        class="select"
+        [ngModel]="filters().actorId"
+        (ngModelChange)="onFilterChange({ dateFrom: filters().dateFrom, dateTo: filters().dateTo, actorId: $event })"
+        aria-label="Filtrar por usuario"
+      >
+        <option value="">Todos los usuarios</option>
+        @for (user of users(); track user.id) {
+          <option [value]="user.id">{{ formatActor(user) }}</option>
+        }
+      </select>
+    </label>
+  } @else {
+    <label class="field">
+      <span class="label">Usuario (UUID)</span>
+      <input
+        type="text"
+        class="input"
+        placeholder="UUID del actor"
+        [ngModel]="filters().actorId"
+        (ngModelChange)="onFilterChange({ dateFrom: filters().dateFrom, dateTo: filters().dateTo, actorId: $event })"
+        aria-label="UUID del actor"
+      />
+    </label>
+  }
+
+  @if (filters().dateFrom || filters().dateTo || filters().actorId) {
+    <button
+      type="button"
+      class="reset-btn"
+      (click)="onFilterChange({ dateFrom: '', dateTo: '', actorId: '' })"
+      aria-label="Limpiar filtros"
+    >
+      <ui-icon name="x" [size]="14" [strokeWidth]="2" />
+      Limpiar
+    </button>
+  }
+</section>
+
+@if (errorMessage()) {
+  <div class="error-banner" role="alert">
+    <ui-icon name="alert-triangle" [size]="20" [strokeWidth]="2" />
+    <div>
+      <strong>{{ errorMessage() }}</strong>
+      <p>Verificá tu conexión o intentá recargar la página.</p>
+    </div>
+    <button type="button" class="btn-secondary" (click)="loadData()">Reintentar</button>
+  </div>
+}
+
+@if (isLoading()) {
+  <app-table-skeleton [cols]="6" [rows]="5" />
+} @else {
+  <ui-table caption="Eventos de auditoría">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Usuario (actor)</th>
+        <th>Acción</th>
+        <th>Recurso</th>
+        <th>Recurso ID</th>
+        <th>Justificación</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (item of items(); track item.id) {
+        <tr>
+          <td>{{ formatDate(item.createdAt) }}</td>
+          <td>{{ item.actorName ?? '—' }}</td>
+          <td>{{ item.action }}</td>
+          <td>{{ item.resourceType }}</td>
+          <td>{{ item.resourceId ?? '—' }}</td>
+          <td>{{ item.justification ?? '—' }}</td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="6">
+            <app-empty-state
+              icon="inbox"
+              title="Sin eventos"
+              message="No hay eventos de auditoría para los filtros aplicados."
+            />
+          </td>
+        </tr>
+      }
+    </tbody>
+  </ui-table>
+
+  <app-pagination
+    [totalItems]="total()"
+    [currentPage]="currentPage()"
+    [pageSize]="pageSize()"
+    [pageSizeOptions]="pageSizeOptions"
+    itemNameSingular="evento"
+    itemNamePlural="eventos"
+    (pageChange)="onPageChange($event)"
+    (pageSizeChange)="onPageSizeChange($event)"
+  />
+}

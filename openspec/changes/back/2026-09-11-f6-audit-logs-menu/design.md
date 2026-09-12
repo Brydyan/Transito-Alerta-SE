@@ -41,14 +41,19 @@
 
 ---
 
-### D3: Order — 75
+### D3: Order — 85
 
-**Decision**: Place between Roles (70) and Organizaciones (80), order=75.
+**Decision**: Place AFTER Organizaciones (80), order=85.
 
 **Rationale**:
-- Natural flow: manage users → assign roles → **audit access** → manage orgs structure.
-- Leaves space: 60, 70, 80 are existing; 75 is midpoint for future insertions without reassign.
-- Ascending order (D3): Required by test; 60 < 70 < 75 < 80 ✓.
+- Natural flow: manage users → assign roles → manage orgs → **audit changes** ← ancillary, not core GESTIÓN work
+- Grouping: Auditoría is a **read-only inspection tool** for change tracking, not an operational workflow like user/role/org CRUD
+- Sequence: 60 (Usuarios) < 70 (Roles) < 80 (Organizaciones) < 85 (Auditoría) ✓
+- Ascending order: Required by test; validated automatically
+
+**Alternatives rejected**:
+- Order 75: Would suggest audit sits in core admin flow, but it's ancillary (read-only, compliance-driven).
+- New group "SEGURIDAD": Audit is not security-specific; it's change tracking for operational + compliance reasons.
 
 **Alternatives rejected**:
 - Order 65 (after Usuarios): Roles are parent of audit scope; should come after.

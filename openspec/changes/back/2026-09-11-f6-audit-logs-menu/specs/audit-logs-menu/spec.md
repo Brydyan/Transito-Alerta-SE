@@ -8,7 +8,9 @@
 
 ## Overview
 
-Entrada "Auditoría de Acceso" en MENU_MAP que aparece en sidebar cuando usuario tiene permiso `READ audit-logs`, agrupada bajo "GESTIÓN", ordena después de Roles.
+Entrada "Auditoría de Acceso" en MENU_MAP que aparece en sidebar cuando usuario tiene permiso `READ audit-logs`, agrupada bajo "GESTIÓN", ordena después de Organizaciones (order 85). 
+
+**Propósito**: Change tracking log — quién creó/editó/asignó/cerró incidencias, usuarios, etc. (NOT access logs like login timestamps).
 
 ---
 
@@ -32,8 +34,8 @@ Entrada "Auditoría de Acceso" en MENU_MAP que aparece en sidebar cuando usuario
 
 **Acceptance**:
 - Entry grouped under "GESTIÓN" section in sidebar.
-- Appears in order after "Roles" (order 70), before "Organizaciones" (order 80).
-- All three entries (Usuarios 60, Roles 70, Auditoría 75, Organizaciones 80) render together.
+- Appears AFTER "Organizaciones" (order 80), with order=85.
+- All four entries (Usuarios 60, Roles 70, Organizaciones 80, Auditoría 85) render together in order.
 
 ### R4: Icon Validation
 
@@ -77,13 +79,13 @@ And result is NOT empty (other items present)
 And no error thrown
 ```
 
-### Scenario 3: GESTIÓN Group Contains All Three
+### Scenario 3: GESTIÓN Group Contains All Four
 
 ```
 Given master user querying menu
 When MenusService groups result by group
-Then GESTIÓN contains [Usuarios, Roles, Auditoría de Acceso, Organizaciones]
-And order is: 60, 70, 75, 80
+Then GESTIÓN contains [Usuarios, Roles, Organizaciones, Auditoría de Acceso]
+And order is: 60, 70, 80, 85
 And all 4 entries visible in same section
 ```
 
