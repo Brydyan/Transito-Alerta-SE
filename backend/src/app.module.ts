@@ -25,6 +25,7 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { InvitationsModule } from './modules/invitations/invitations.module';
 import { OperatorsModule } from './modules/operators/operators.module';
+import { IncidentSocialModule } from './modules/incident-social/incident-social.module';
 import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
 import { AllExceptionsFilter } from './common/observability/all-exceptions.filter';
 import { RequestIdMiddleware } from './common/observability/request-id.middleware';
@@ -54,6 +55,7 @@ import { RequestIdMiddleware } from './common/observability/request-id.middlewar
     SessionsModule,
     InvitationsModule,
     OperatorsModule,
+    IncidentSocialModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,0 +1,29 @@
+<div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+  <h3 class="font-bold text-gray-800 mb-4 text-lg">Filtros</h3>
+  
+  <!-- Status Chips -->
+  <div class="mb-6">
+    <h4 class="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Estado</h4>
+    <div class="flex flex-wrap gap-2">
+      @for (s of statuses; track s.value) {
+        <button 
+          (click)="setStatus(s.value)"
+          class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors border"
+          [ngClass]="{
+            'bg-blue-600 text-white border-blue-600': selectedStatus === s.value,
+            'bg-white text-gray-600 border-gray-200 hover:border-blue-400': selectedStatus !== s.value
+          }">
+          {{ s.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Category Tree -->
+  <div>
+    <h4 class="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Categorías</h4>
+    <div class="space-y-1">
+      <app-category-tree-node [nodes]="categoryNodes()" [depth]="0" (nodeToggled)="toggleNode($event)"></app-category-tree-node>
+    </div>
+  </div>
+</div>

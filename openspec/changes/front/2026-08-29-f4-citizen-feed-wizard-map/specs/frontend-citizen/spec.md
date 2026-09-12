@@ -82,21 +82,17 @@ El paso 3 DEBE permitir fijar coordenadas por geolocalización o manualmente sob
 - Scenario: Ubicación obligatoria — GIVEN ningún punto fijado THEN no se avanza al
   paso 4
 
-### Requirement: Mapa a pantalla completa
-`/app/mapa` DEBE mostrar las incidencias georreferenciadas con agrupación y filtros.
+### Requirement: Mapa a pantalla completa interactivo y segmentado
+`/app/mapa` DEBE mostrar un mapa georreferenciado que renderice las zonas geográficas (`GeoZones`) como polígonos interactivos, además de las incidencias con agrupación y filtros.
 
-- Scenario: Carga — GIVEN el mapa abierto THEN se muestran las incidencias con
-  coordenadas, agrupadas por proximidad con su conteo visible
-- Scenario: Expandir grupo — GIVEN un grupo WHEN se acerca el zoom THEN se separa en
-  sus marcadores individuales
-- Scenario: Marcador — GIVEN un marcador WHEN se activa THEN se muestra un resumen con
-  enlace al detalle
-- Scenario: Filtros — GIVEN el panel flotante THEN permite filtrar por estado,
-  prioridad y categoría, y limpiar todo de una vez
-- Scenario: Contador — GIVEN cualquier estado de filtrado THEN se indica cuántas
-  incidencias se están mostrando y cuándo se actualizó
-- Scenario: Sin resultados — GIVEN filtros que no arrojan incidencias THEN el mapa se
-  muestra vacío con aviso explícito, no como un fallo de carga
+- Scenario: Renderizado de segmentos — GIVEN el mapa abierto THEN se dibujan los polígonos de las zonas geográficas configuradas (provincias, cantones, parroquias) sobre el mapa base
+- Scenario: Interacción Hover — GIVEN el mapa con zonas renderizadas WHEN el usuario pasa el cursor sobre el polígono de un segmento (ej. cantón) THEN el polígono se resalta visualmente para indicar el foco
+- Scenario: Carga de incidencias — GIVEN el mapa abierto THEN se muestran las incidencias con coordenadas, superpuestas a los segmentos, agrupadas por proximidad con su conteo visible
+- Scenario: Expandir grupo — GIVEN un grupo WHEN se acerca el zoom THEN se separa en sus marcadores individuales
+- Scenario: Marcador — GIVEN un marcador WHEN se activa THEN se muestra un resumen con enlace al detalle
+- Scenario: Filtros — GIVEN el panel flotante THEN permite filtrar por estado, prioridad y categoría, y limpiar todo de una vez
+- Scenario: Contador — GIVEN cualquier estado de filtrado THEN se indica cuántas incidencias se están mostrando y cuándo se actualizó
+- Scenario: Sin resultados — GIVEN filtros que no arrojan incidencias THEN el mapa se muestra vacío con aviso explícito, pero los segmentos siguen interactivos
 
 ## Coverage
 

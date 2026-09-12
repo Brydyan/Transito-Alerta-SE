@@ -23,12 +23,38 @@ import {
 import { UiPageHeaderComponent } from '../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiBadgeComponent, UiBadgeStatus, UiBadgePriority } from '../../../shared/components/ui-badge/ui-badge.component';
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
+import { ViewActionBtnComponent } from '../../../shared/components/view-action-btn/view-action-btn.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { TableSkeletonComponent } from '../../../shared/components/table-skeleton/table-skeleton.component';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.component';
 import { UiKpiCardComponent } from '../../../shared/components/ui-kpi-card/ui-kpi-card.component';
 import { UiTableComponent } from '../../../shared/components/ui-table/ui-table.component';
+
+// FIX-16 — reverse geocode cache (same approach as feed incident-card).
+// Duplicated locally to avoid coupling feed ↔ list; both share Nominatim
+// semantics (deduped by lat,lng rounded to 5 decimals).
+const reverseGeocodeCache = new Map<string, string>();
+const inFlightReverseGeocodes = new Map<string, Promise<string | null>>();
+
+function reverseGeocodeKey(lat: number, lng: number): string {
+  return `${lat.toFixed(5)},${lng.toFixed(5)}`;
+}
+
+const PLACE_KEYS = ['parish', 'city', 'town', 'village', 'county', 'municipality', 'state'] as const;
+
+function extractPlaceName(data: { address?: Record<string, string>; display_name?: string } | null): string | null {
+  if (data?.address) {
+    const parts = PLACE_KEYS.map((k) => data.address?.[k]).filter((v): v is string => !!v && v.length > 0);
+    const unique = [...new Set(parts)];
+    if (unique.length > 0) return unique.slice(0, 2).join(', ');
+  }
+  if (data?.display_name) {
+    const parts = data.display_name.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) return parts.slice(0, 2).join(', ');
+  }
+  return null;
+}
 
 /**
  * F3 (sc-303) — F3.2 Listado de Incidencias.
@@ -57,6 +83,7 @@ import { UiTableComponent } from '../../../shared/components/ui-table/ui-table.c
     UiPageHeaderComponent,
     UiBadgeComponent,
     UiIconComponent,
+    ViewActionBtnComponent,
     EmptyStateComponent,
     TableSkeletonComponent,
     PaginationComponent,
@@ -91,6 +118,10 @@ export class IncidentListComponent implements OnInit {
   readonly loading = signal<boolean>(true);
   readonly incidents = signal<Incident[]>([]);
   readonly total = signal<number>(0);
+
+  // FIX-16 — location names resolved via Nominatim (key = incident.id).
+  // Trigger change detection via signal update after fetch.
+  readonly locationNames = signal<Map<string, string>>(new Map());
 
   // ── Permisos (para el menú de acciones de fila) ────────────────────
   // F3.4 / D4 — el detail lee `permissions` del usuario actual para
@@ -196,12 +227,92 @@ export class IncidentListComponent implements OnInit {
         this.incidents.set(result.items);
         this.total.set(result.total);
         this.loading.set(false);
+        // FIX-16 — prefetch location names for visible rows.
+        result.items.forEach((inc) => this.ensureLocationName(inc));
       },
       error: () => {
         this.incidents.set([]);
         this.total.set(0);
         this.loading.set(false);
       },
+    });
+  }
+
+  private getCoordinates(inc: Incident): { lat: number; lng: number } | null {
+    const geom = inc.geom as unknown;
+    if (
+      geom &&
+      typeof geom !== 'string' &&
+      typeof (geom as { coordinates?: unknown }).coordinates !== 'undefined' &&
+      Array.isArray((geom as { coordinates: [number, number] }).coordinates) &&
+      (geom as { coordinates: [number, number] }).coordinates.length === 2
+    ) {
+      const coords = (geom as { coordinates: [number, number] }).coordinates;
+      return { lat: coords[1], lng: coords[0] };
+    }
+    if (typeof geom === 'string') {
+      try {
+        const parsed = JSON.parse(geom) as { coordinates?: [number, number] };
+        if (parsed?.coordinates && parsed.coordinates.length === 2) {
+          return { lat: parsed.coordinates[1], lng: parsed.coordinates[0] };
+        }
+      } catch {
+        // fall through
+      }
+    }
+    if (inc.lat != null && inc.lng != null) return { lat: inc.lat, lng: inc.lng };
+    return null;
+  }
+
+  private ensureLocationName(inc: Incident): void {
+    if (this.locationNames().has(inc.id)) return;
+    const coords = this.getCoordinates(inc);
+    if (!coords) return;
+    const key = reverseGeocodeKey(coords.lat, coords.lng);
+
+    const cached = reverseGeocodeCache.get(key);
+    if (cached) {
+      const next = new Map(this.locationNames());
+      next.set(inc.id, cached);
+      this.locationNames.set(next);
+      return;
+    }
+
+    const inFlight = inFlightReverseGeocodes.get(key);
+    if (inFlight) {
+      inFlight.then((name) => {
+        if (name) {
+          const next = new Map(this.locationNames());
+          next.set(inc.id, name);
+          this.locationNames.set(next);
+        }
+      });
+      return;
+    }
+
+    if (typeof window === 'undefined' || typeof window.fetch !== 'function') return;
+
+    const request = window
+      .fetch(`https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json&addressdetails=1`)
+      .then((res) => res.json())
+      .then((data) => {
+        const name = extractPlaceName(data);
+        if (name) {
+          reverseGeocodeCache.set(key, name);
+          return name;
+        }
+        return null;
+      })
+      .catch(() => null);
+
+    inFlightReverseGeocodes.set(key, request);
+    request.finally(() => inFlightReverseGeocodes.delete(key));
+    request.then((name) => {
+      if (name) {
+        const next = new Map(this.locationNames());
+        next.set(inc.id, name);
+        this.locationNames.set(next);
+      }
     });
   }
 
@@ -268,10 +379,14 @@ export class IncidentListComponent implements OnInit {
     return title.length > max ? title.slice(0, max - 1) + '…' : title;
   }
 
-  /** Ubicación textual cuando no hay zone. */
+  /** Ubicación textual: reverse name si está resuelto, else coordenadas 4 decimales (FIX-16). */
   locationLabel(incident: Incident): string {
-    return incident.zone_id
-      ? `Zona ${incident.zone_id.slice(0, 8)}`
-      : `${incident.lat.toFixed(3)}, ${incident.lng.toFixed(3)}`;
+    const cached = this.locationNames().get(incident.id);
+    if (cached) return cached;
+    // Kick off fetch lazily if not already cached/in-flight (covers rows rendered after fetch).
+    this.ensureLocationName(incident);
+    const coords = this.getCoordinates(incident);
+    if (coords) return `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`;
+    return 'Ubicación general';
   }
 }

@@ -23,6 +23,10 @@ export interface Incident {
   // Geo
   lat: number;
   lng: number;
+  geom?: {
+    type: string;
+    coordinates: [number, number]; // [lng, lat]
+  };
   zone_id: string | null;
   geofence_matched: boolean;
   organization_id: string | null;
@@ -44,6 +48,11 @@ export interface Incident {
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
+  // Social (F4 Phase A)
+  follower_count: number;
+  corroboration_count: number;
+  is_followed_by_me: boolean;
+  is_corroborated_by_me: boolean;
 }
 
 export interface CreateIncidentDto {
@@ -52,31 +61,39 @@ export interface CreateIncidentDto {
   lat: number;
   lng: number;
   priority?: IncidentPriority;
-  category_ids?: string[];
+  category_id?: string;
+  is_anonymous?: boolean;
 }
 
 // F3.1.3 (D2 + F3.2.9) — typed filters for the listing. Sent as query
-// params to `GET /api/incidents`.
+// params to `GET /api/incidents` and `GET /api/incidents/feed`.
 //
-// F3 (sc-303) C1 (ronda 4): el backend `incidents.controller.ts:findAll`
-// hoy sólo acepta `zone_id` y `status` — los demás filtros (search,
-// priority, page, limit, category_id) llegan al servidor pero los
-// ignora en silencio. Hasta que un change de backend extienda
-// `findAll` (es scope de un change aparte, no se parchea en F3
-// per la regla del builder "no parchees defectos del backend en
-// el frontend"), el frontend manda sólo lo que el backend entiende:
-// `status`. Los campos restantes quedan comentados en este
-// interface como deuda documentada.
+// F3 (sc-303) C1 (ronda 4) — updated (pagination): `GET /api/incidents/feed`
+// now supports `status`, `priority`, `page`, `per_page`,
+// `incident_category_id` (consumed by the citizen feed). `GET /api/incidents`
+// listing still only honors `status` and silently ignores the rest.
+// `search` remains unsupported by the feed endpoint and stays commented
+// as debt — do not send it to `/incidents/feed`.
 export interface IncidentListFilters {
   status?: IncidentStatus;
-  // DEBT (F3 / sc-303 C1) — pendiente de extensión de backend:
+  priority?: IncidentPriority;
+  page?: number;
+  per_page?: number;
+  incident_category_id?: string;
+  // DEBT — feed endpoint does not support search:
   //   - search?: string;            (ILIKE sobre title/description)
-  //   - priority?: IncidentPriority;
-  //   - page?: number;              (OFFSET)
-  //   - limit?: number;             (LIMIT)
-  //   - category_id?: string;
-  // Cuando el backend los soporte, descomentar aquí y en
-  // `IncidentService.toQueryParams()`.
+}
+
+export interface IncidentFeedMeta {
+  page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+}
+
+export interface IncidentFeedResponse {
+  data: Incident[];
+  meta: IncidentFeedMeta;
 }
 
 // La respuesta del backend hoy es un array plano. La envoltura
@@ -102,4 +119,17 @@ export interface ClaimReleaseResult {
   claimed_by: string | null;
   organization_id: string | null;
   updated_at: Date;
+}
+
+/**
+ * F4 B.2 — Wire model for `POST /incidents/:id/images` and
+ * `DELETE /incidents/:id/images/:imageId`. Mirrors `IncidentImageDto`
+ * (backend) after `SnakeCaseResponseInterceptor` (snake_case throughout).
+ */
+export interface IncidentImage {
+  id: string;
+  url: string;
+  mime_type: string;
+  file_size: number;
+  created_at: Date;
 }

@@ -81,10 +81,7 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
     <!-- Datos y ubicación -->
-    <ui-card>
-      <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-        Ubicación
-      </h3>
+    <ui-card title="Ubicación">
       @if (hasCoordinates()) {
         <div class="text-sm text-slate-700 space-y-1">
           <p>
@@ -108,10 +105,7 @@
     </ui-card>
 
     <!-- Status-timeline (F3.4.5) -->
-    <ui-card>
-      <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-        Historial
-      </h3>
+    <ui-card title="Historial">
       @if (history().length === 0) {
         <p class="text-sm text-slate-500 italic">Sin cambios de estado registrados.</p>
       } @else {
@@ -143,10 +137,7 @@
     </ui-card>
 
     <!-- Galería placeholder (F3.4.6 — pendiente) -->
-    <ui-card>
-      <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-        Galería
-      </h3>
+    <ui-card title="Galería">
       <p class="text-sm text-slate-500 italic" data-testid="gallery-placeholder">
         Vista de galería pendiente (endpoint incident-images). Sigue F3.6.
       </p>
@@ -154,10 +145,7 @@
   </div>
 
   <!-- F3.4.7 — el hilo de comentarios se carga en paralelo (F3.4.2) -->
-  <ui-card class="mt-4">
-    <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-      Comentarios
-    </h3>
+  <ui-card class="mt-4" title="Comentarios">
     <app-comment-thread
       [incidentId]="inc.id"
       [comments]="comments()"

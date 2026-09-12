@@ -220,10 +220,10 @@ export const routes: Routes = [
         path: 'inicio',
         data: { breadcrumb: 'Inicio', title: 'Inicio', phase: 'F4' },
         loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
+          import('./features/citizen/feed/feed.component').then(
+            (m) => m.FeedComponent,
           ),
-        // PLACEHOLDER F4
+        // F4 B.3 - Replaced placeholder with FeedComponent
       },
       // F3 (sc-303) — Incidencias: listado + detalle. El placeholder
       // de F1 se sustituye por el componente real. El `:id` del
@@ -256,10 +256,9 @@ export const routes: Routes = [
         path: 'mapa',
         data: { breadcrumb: 'Mapa', title: 'Mapa', phase: 'F4' },
         loadComponent: () =>
-          import('./features/placeholder/placeholder.component').then(
-            (m) => m.PlaceholderComponent,
+          import('./features/citizen/map/map.component').then(
+            (m) => m.MapComponent,
           ),
-        // PLACEHOLDER F4
       },
       // F1.5.3 — `citizen-report` era código muerto (sólo importable).
       // F1 lo registra como ruta real del menú `Reportar`. La pantalla

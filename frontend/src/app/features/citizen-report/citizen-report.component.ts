@@ -1,82 +1,220 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { OfflineSyncService } from '../../core/services/offline-sync.service';
+import { Router, RouterModule } from '@angular/router';
+import { ReportDraftService } from '../../core/services/report-draft.service';
 import { GeolocationService } from '../../core/services/geolocation.service';
-import { ConnectionService } from '../../core/services/connection.service';
-import { lastValueFrom, Observable } from 'rxjs';
+import { IncidentService } from '../../core/services/incident.service';
+import { ImageCompressorService } from '../../core/services/image-compressor.service';
+import { IncidentCategoryService } from '../catalogs/incident-categories/services/incident-category.service';
+import { IncidentCategoryTreeNode } from '../catalogs/incident-categories/interfaces/iincident-category.interface';
+import { MapPickerComponent } from '../../shared/components';
+import { lastValueFrom, Subscription } from 'rxjs';
+import { ANONYMOUS_DISCLOSURE_NOTICE } from '../../core/constants/anonymous-disclosure-notice.constant';
+import { UiCardComponent } from '../../shared/components/ui-card/ui-card.component';
+import { UiPageHeaderComponent } from '../../shared/components/ui-page-header/ui-page-header.component';
+import { UiIconComponent } from '../../shared/components/ui-icon/ui-icon.component';
+
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-citizen-report',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, MapPickerComponent, UiCardComponent, UiPageHeaderComponent, UiIconComponent],
   templateUrl: './citizen-report.component.html'
 })
-export class CitizenReportComponent implements OnInit {
+export class CitizenReportComponent implements OnInit, OnDestroy {
+  currentStep = 1;
   form: FormGroup;
-  isOnline$: Observable<boolean>;
-  isSyncing$: Observable<boolean>;
-  selectedPhoto: File | null = null;
-  photoPreview: string | null = null;
+  selectedPhotos: Blob[] = [];
+  photoPreviews: string[] = [];
+  
+  anonymousNotice = ANONYMOUS_DISCLOSURE_NOTICE;
+  
+  isSubmitting = false;
+  submitError: string | null = null;
+  locationCoords: { lat: number, lng: number } | null = null;
+  categories: { id: string, name: string, isLeaf: boolean }[] = [];
+
+  private formSub?: Subscription;
 
   constructor(
     private fb: FormBuilder,
-    private offlineSyncService: OfflineSyncService,
+    private draftService: ReportDraftService,
     private geolocationService: GeolocationService,
-    private connectionService: ConnectionService,
+    private incidentService: IncidentService,
+    private imageCompressor: ImageCompressorService,
+    private categoryService: IncidentCategoryService,
+    private router: Router,
+    public authService: AuthService
   ) {
     this.form = this.fb.group({
       title: ['', Validators.required],
-      description: ['', Validators.required],
-      priority: ['medium'],
-    });
-    this.isOnline$ = this.connectionService.getConnectionStatus$();
-    this.isSyncing$ = this.offlineSyncService.getSyncInProgress$();
-  }
-
-  ngOnInit() {
-    this.geolocationService.getCurrentLocation().subscribe({
-      next: coords => console.log('GPS:', coords),
-      error: err => console.error('GPS error:', err)
+      description: [''],
+      priority: ['medium', Validators.required],
+      categoryId: ['', Validators.required],
+      isAnonymous: [false]
     });
   }
 
-  onPhotoSelected(event: any) {
-    const file = event.target.files[0];
-    if (file) {
-      this.selectedPhoto = file;
-      const reader = new FileReader();
-      reader.onload = (e: any) => {
-        this.photoPreview = e.target.result;
-      };
-      reader.readAsDataURL(file);
+  async ngOnInit() {
+    this.categoryService.getTree().subscribe({
+      next: (res) => {
+        this.categories = this.flattenCategories(res || []);
+      },
+      error: (err) => console.error('Error fetching categories:', err)
+    });
+
+    // Restore from draft
+    const draft = await this.draftService.getDraft();
+    if (draft) {
+      this.currentStep = draft.step;
+      this.form.patchValue({
+        title: draft.title,
+        description: draft.description,
+        priority: draft.priority,
+        categoryId: draft.categoryId,
+        isAnonymous: draft.isAnonymous
+      }, { emitEvent: false });
+      
+      if (draft.latitude && draft.longitude) {
+        this.locationCoords = { lat: draft.latitude, lng: draft.longitude };
+      }
+      
+      this.selectedPhotos = draft.files || [];
+      this.selectedPhotos.forEach(blob => {
+        this.photoPreviews.push(URL.createObjectURL(blob));
+      });
     }
+
+    this.formSub = this.form.valueChanges.subscribe(() => {
+      this.saveDraft();
+    });
+  }
+  
+  ngOnDestroy() {
+    this.formSub?.unsubscribe();
+  }
+
+  async saveDraft() {
+    const val = this.form.value;
+    await this.draftService.saveDraft({
+      step: this.currentStep,
+      title: val.title,
+      description: val.description,
+      priority: val.priority,
+      categoryId: val.categoryId,
+      isAnonymous: val.isAnonymous,
+      latitude: this.locationCoords?.lat ?? undefined,
+      longitude: this.locationCoords?.lng ?? undefined,
+      files: this.selectedPhotos
+    });
+  }
+
+  async onPhotosSelected(event: Event) {
+    const target = event.target as HTMLInputElement;
+    if (!target.files) return;
+    const files = Array.from(target.files);
+    for (const file of files) {
+      if (this.selectedPhotos.length >= 5) break; // max 5 images
+      const compressed = await this.imageCompressor.compressImage(file);
+      this.selectedPhotos.push(compressed);
+      this.photoPreviews.push(URL.createObjectURL(compressed));
+    }
+    await this.saveDraft();
+  }
+  
+  removePhoto(index: number) {
+    this.selectedPhotos.splice(index, 1);
+    this.photoPreviews.splice(index, 1);
+    this.saveDraft();
+  }
+
+  async goNext() {
+    // Basic info
+    if (this.currentStep === 1) {
+      if (this.form.get('title')?.invalid || this.form.get('description')?.invalid || this.form.get('priority')?.invalid) return;
+    }
+    // Categories and files
+    if (this.currentStep === 2) {
+      if (this.form.get('categoryId')?.invalid) return;
+    }
+    // Location
+    if (this.currentStep === 3) {
+      if (!this.locationCoords) {
+        // try to get current location
+        try {
+          const coords = await lastValueFrom(this.geolocationService.getCurrentLocation());
+          this.locationCoords = { lat: coords.latitude, lng: coords.longitude };
+        } catch {
+          // Keep it null, let them use map
+          if (!this.locationCoords) return;
+        }
+      }
+    }
+
+    this.currentStep++;
+    await this.saveDraft();
+  }
+
+  async goBack() {
+    if (this.currentStep > 1) {
+      this.currentStep--;
+      await this.saveDraft();
+    }
+  }
+
+  onLocationSelected(loc: { lat: number, lng: number }) {
+    this.locationCoords = loc;
+    this.saveDraft();
   }
 
   async onSubmit() {
-    if (!this.form.valid || !this.selectedPhoto) return;
+    if (this.form.invalid || !this.locationCoords) return;
+    this.isSubmitting = true;
+    this.submitError = null;
 
-    let coords;
     try {
-      coords = await lastValueFrom(this.geolocationService.getCurrentLocation());
-    } catch (e) {
-      console.warn('Could not get coords', e);
+      const val = this.form.value;
+      const incident = await lastValueFrom(this.incidentService.createIncident({
+        title: val.title,
+        description: val.description,
+        priority: val.priority,
+        category_id: val.categoryId,
+        lat: this.locationCoords.lat,
+        lng: this.locationCoords.lng,
+        is_anonymous: val.isAnonymous
+      }));
+
+      if (this.selectedPhotos.length > 0) {
+        await lastValueFrom(this.incidentService.uploadImages(incident.id, this.selectedPhotos));
+      }
+
+      await this.draftService.clearDraft();
+      this.router.navigate(['/app/incidencias', incident.id]);
+    } catch {
+      this.submitError = 'Error al enviar el reporte. Por favor, intente nuevamente.';
+    } finally {
+      this.isSubmitting = false;
     }
+  }
 
-    const incident = {
-      ...this.form.value,
-      latitude: coords?.latitude,
-      longitude: coords?.longitude,
-    };
+  getCategoryName(id: string): string {
+    const cat = this.categories.find(c => c.id === id);
+    // Remove the non-breaking spaces for the summary display
+    return cat ? cat.name.replace(/&nbsp;/g, '').trim() : id;
+  }
 
-    const incidentId = await this.offlineSyncService.queueIncident(
-      incident,
-      this.selectedPhoto,
-    );
-
-    console.log('✅ Report queued:', incidentId);
-    this.form.reset({ priority: 'medium' });
-    this.selectedPhoto = null;
-    this.photoPreview = null;
+  private flattenCategories(nodes: IncidentCategoryTreeNode[], prefix = ''): { id: string, name: string, isLeaf: boolean }[] {
+    let result: { id: string, name: string, isLeaf: boolean }[] = [];
+    for (const node of nodes) {
+      const isLeaf = !node.children || node.children.length === 0;
+      // Using &nbsp; for HTML rendering in options
+      result.push({ id: node.id, name: prefix + node.name, isLeaf });
+      if (node.children && node.children.length > 0) {
+        result = result.concat(this.flattenCategories(node.children, prefix + '\u00A0\u00A0\u00A0\u00A0'));
+      }
+    }
+    return result;
   }
 }
