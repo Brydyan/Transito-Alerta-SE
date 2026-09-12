@@ -186,3 +186,48 @@ no carga.
 ---
 
 **Listo para auditoría (`sdd-verify`)**.
+
+---
+
+## sdd-verify Fixes Applied (2026-09-12)
+
+### FIX-1 (CRITICAL) — wire format mismatch — Option A applied
+
+The model used camelCase fields; the wire is snake_case
+(SnakeCaseResponseInterceptor rewrites the back's camelCase
+DTO). Reading camelCase silently yielded `undefined`.
+
+Applied **Option A** (snake_case in model — preferred per
+design.md and SC-209 lesson):
+
+- `frontend/src/app/features/admin/audit-logs/services/audit-logs.service.ts` — `AuditLogItem` rewritten to snake_case (`actor_id`, `actor_name`, `resource_type`, `resource_id`, `created_at`). JSDoc added noting the SC-209 pitfall.
+- `frontend/src/app/features/admin/audit-logs/audit-logs.component.html` — table bindings updated from `item.actorName` → `item.actor_name` etc. (5 fields).
+- `frontend/src/app/features/admin/audit-logs/audit-logs.component.spec.ts` — fixture items rewritten to snake_case.
+- `frontend/src/app/features/admin/audit-logs/services/audit-logs.service.spec.ts` — added test `getAuditLogs — model reads snake_case fields from the wire` that asserts `actor_name`/`actor_id`/`resource_type`/`created_at` are present AND the camelCase aliases are NOT (regression guard).
+
+### FIX-2 (WARNING) — verify `GET /api/users` excludes soft-deleted — VERIFIED
+
+Backend `UsersService.findAndCount` (`users.service.ts:158-164`)
+filters by `isActive: true`. `UsersService.softDelete`
+(`users.service.ts:366`) sets `isActive: false` together with
+`deletedAt`. Therefore filtering by `isActive: true`
+transitively excludes soft-deleted users in the actor
+dropdown. **No code change needed** — verified by reading
+both methods.
+
+### FIX-3 (WARNING) — strengthen R1-S2 guard test — APPLIED
+
+The original R1-S2 was a structural assertion (no router
+integration). Replaced with a real `RouterTestingModule`
+integration in a NEW spec file:
+
+- `frontend/src/app/features/admin/audit-logs/permission-guard.spec.ts` (NEW) — 3 cases: without permission redirects to `/app/dashboard`, with permission reaches the route, hydrated empty perms redirects to dashboard.
+- `frontend/src/app/features/admin/audit-logs/audit-logs.component.spec.ts` — R1-S2 reverted to a structural stub (the integration lives in the new file because Angular TestBed cannot be re-configured inside an outer describe).
+- The test uses `fakeAsync` + `tick()` because `router.navigate()` returns a Promise — synchronous `router.url` reads still show the old URL.
+
+### Validation
+
+- `rtk pnpm exec eslint src/app/features/admin/audit-logs/` — exit 0
+- `rtk pnpm test --testPathPatterns=audit-logs` — 25/25 pass (was 21 before FIX-1 + FIX-3; +1 wire-format regression test + 3 guard integration tests, −1 R1-S2 structural stub still present).
+- `rtk pnpm test` (full suite) — 576/578 pass; only the 2 pre-existing users-list pageSize failures remain unchanged.
+- `rtk pnpm run build` — success.

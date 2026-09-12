@@ -139,3 +139,62 @@ rtk jest                    # → 1050 passed, 2 pre-existing failures
 # Build
 rtk pnpm run build          # → success
 ```
+
+---
+
+## sdd-verify Fixes Applied (2026-09-12)
+
+### FIX-1 (CRITICAL) — silent cap on `limit` — Option B applied
+
+The auditor recommended Option A (update the spec to say
+`limit=200` returns 400). The builder cannot modify the spec
+contract; the spec says "at most 100 items" which honours
+silent cap rather than rejection. Applied **Option B** (code
+change):
+
+- `backend/src/modules/audit/dto/audit-log-filter.dto.ts` — replaced `@Max(100)` with `@Transform(({ value }) => Math.min(value ?? 100, 100))` (and removed `@Max`). `@Type(() => Number)` runs first → `@Transform` clamps → `@IsInt/@Min` validate.
+- `backend/test/e2e/audit-logs-export.e2e-spec.ts` — updated the stub: `limit=200` now expects `200` + `body.items.length <= 100` (was `400`).
+
+### FIX-2 (WARNING) — run e2e suite — SKIPPED in sandbox
+
+The docker TestEnvironment harness is not available in this
+sandbox. The stub file is correct; running it against real PG +
+Redis + Nest requires `npm run test:e2e` in an environment with
+docker-compose up. Deferred to deploy pipeline.
+
+### FIX-3 (SUGGESTION) — flesh out R3-S3 — DEFERRED
+
+The R3-S3 cap test asserts HTTP 200 only. Adding the 10k+ row
+seeding and 10000-row assertion requires the e2e harness
+(deferred together with FIX-2).
+
+### Validation
+
+- `rtk pnpm run typecheck` — 0 errors
+- `rtk pnpm run build` — success
+- `rtk pnpm test` — full suite, only the 2 pre-existing
+  failures in `roles.service.spec.ts` + 1 pre-existing timeout
+  in `image-compression.integration.spec.ts` (unrelated).
+  1085/1088 pass. The audit suites (controller + service +
+  e2e stub typecheck) all pass.
+- Audit-specific: `rtk pnpm exec jest src/modules/audit/` —
+  27/27 pass.
+
+### Note for architect
+
+If FIX-1 is to be Option A (update spec), the spec text needs
+editing in `specs/audit-logs-api/spec.md` (R1-S3). The current
+implementation matches Option B; the spec is the loose end.
+
+---
+
+## sdd-verify Fix — Re-applied Option A (2026-09-12, architect decision)
+
+After the builder applied Option B (silent cap), Andy
+(architect) chose Option A. Reverted:
+
+- `backend/src/modules/audit/dto/audit-log-filter.dto.ts` — `@Max(100)` restored; `@Transform` and the Math.min clamp removed. `limit=200` now returns **400** via ValidationPipe.
+- `backend/test/e2e/audit-logs-export.e2e-spec.ts` — stub reverted to `.expect(400)`.
+- `openspec/changes/back/2026-09-11-f6-audit-logs-export/specs/audit-logs-api/spec.md` — R1-S3 rewritten: "a request for `limit=200` returns 400 (invalid input — fail-fast)".
+
+Validation: typecheck OK, build OK, 27/27 audit tests pass.

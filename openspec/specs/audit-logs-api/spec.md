@@ -41,7 +41,7 @@ includes `id`, `actor_id`, `actor_name`, `action`, `resource_type`, `resource_id
 - GIVEN `?page=2&limit=50`
 - WHEN `GET /api/audit-logs` is called
 - THEN records 51–100 are returned (if they exist)
-- AND `limit` is capped at 100; a request for `limit=200` returns at most 100 items
+- AND `limit` is capped at 100; a request for `limit=200` returns 400 (invalid input — fail-fast)
 
 #### Scenario: Permission denied
 

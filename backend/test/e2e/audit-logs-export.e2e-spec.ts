@@ -89,7 +89,10 @@ describe('E2E audit-logs export (F6 — stub)', () => {
       .expect(200);
   });
 
-  // Limit cap — DTO rejects limit=200 with 400 before the service runs
+  // Limit cap — spec R1-S3 (architect chose Option A in sdd-verify
+  // FIX-1): the DTO rejects `limit=200` with 400 BEFORE the service
+  // runs. ValidationPipe enforces @Max(100). Fail-fast is the
+  // architect's choice over silent cap.
   it('STUB DTO limit: GET /api/audit-logs?limit=200 returns 400 (DTO @Max(100))', async () => {
     const master = await env.provisionUser(['READ audit-logs'], {
       email: `master-limit-${Date.now()}@example.com`,
