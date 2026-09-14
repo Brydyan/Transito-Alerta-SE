@@ -6,6 +6,7 @@ import type { DataSource, Repository } from 'typeorm';
 
 import { AuthService } from './auth.service';
 import { UserEntity } from '../../entities/user.entity';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { SessionsRepository } from '../sessions/sessions.repository';
@@ -48,6 +49,15 @@ function makeSessionsRepository() {
   };
 }
 
+function makePermissionLookup() {
+  return {
+    getUuid: jest.fn(),
+    getDescriptionsByUuids: jest.fn().mockResolvedValue([]),
+    buildCache: jest.fn(),
+    invalidate: jest.fn(),
+  };
+}
+
 describe('AuthService — password identity (T3.6)', () => {
   let userRepo: { findOne: jest.Mock; update: jest.Mock };
   let jwtService: { sign: jest.Mock; verify: jest.Mock };
@@ -57,6 +67,7 @@ describe('AuthService — password identity (T3.6)', () => {
   let sessionsRepository: ReturnType<typeof makeSessionsRepository>;
   let revocationCache: { isRevoked: jest.Mock; revoke: jest.Mock };
   let graceBuffer: { set: jest.Mock; get: jest.Mock; clear: jest.Mock };
+  let permissionLookup: ReturnType<typeof makePermissionLookup>;
   let passwordHasher: { hash: jest.Mock; verify: jest.Mock };
   let service: AuthService;
 
@@ -69,6 +80,7 @@ describe('AuthService — password identity (T3.6)', () => {
     sessionsRepository = makeSessionsRepository();
     revocationCache = { isRevoked: jest.fn(), revoke: jest.fn() };
     graceBuffer = { set: jest.fn(), get: jest.fn(), clear: jest.fn() };
+    permissionLookup = makePermissionLookup();
     passwordHasher = { hash: jest.fn(), verify: jest.fn() };
     service = new AuthService(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
@@ -79,6 +91,7 @@ describe('AuthService — password identity (T3.6)', () => {
       sessionsRepository as unknown as SessionsRepository,
       revocationCache as unknown as RevocationCache,
       graceBuffer as unknown as GraceBuffer,
+      permissionLookup as unknown as PermissionLookupService,
       passwordHasher as unknown as PasswordHasher,
     );
   });
