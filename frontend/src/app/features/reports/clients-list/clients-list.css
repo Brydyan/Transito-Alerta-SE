@@ -16,7 +16,7 @@
 }
 
 .empty-state-icon {
-  @apply w-16 h-16 rounded-2xl bg-brand-navy/10 text-brand-navy flex items-center justify-center text-[1.8rem] mx-auto mb-4 opacity-65;
+  @apply w-16 h-16 rounded-2xl bg-brand-primary/10 text-brand-primary flex items-center justify-center text-[1.8rem] mx-auto mb-4 opacity-65;
 }
 
 /* Fondo de los modales de selección */
