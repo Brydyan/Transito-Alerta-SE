@@ -52,7 +52,12 @@ function makeSessionsRepository() {
 function makePermissionLookup() {
   return {
     getUuid: jest.fn(),
-    getDescriptionsByUuids: jest.fn().mockResolvedValue([]),
+    // Para tests: simula que los UUIDs recibidos ya están en formato "ACTION resource"
+    // (en realidad la conversión ocurriría en la DB, pero para aislar getMe() asumimos
+    // que el mock devuelve lo que la DB simulada le pasa).
+    getDescriptionsByUuids: jest.fn().mockImplementation((uuids: string[]) =>
+      Promise.resolve(uuids),
+    ),
     buildCache: jest.fn(),
     invalidate: jest.fn(),
   };
