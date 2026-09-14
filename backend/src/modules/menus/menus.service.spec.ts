@@ -55,14 +55,15 @@ describe('MenusService', () => {
     'READ organizations',
     'READ incident-categories',
     'READ geo-zones',
+    'READ audit-logs',
   ];
 
-  it('a full-permission user sees every menu entry (10 entries per D4)', async () => {
+  it('a full-permission user sees every menu entry (11 entries per D4 + F6 audit-logs)', async () => {
     authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
 
     const result = await service.getMenuForUser('user-1');
 
-    expect(result).toHaveLength(10);
+    expect(result).toHaveLength(11);
     // El orden es por `order` ascendente, no por iteración de Object.entries.
     expect(result.map((e) => e.label)).toEqual([
       'Dashboard',
@@ -73,6 +74,7 @@ describe('MenusService', () => {
       'Usuarios',
       'Roles',
       'Organizaciones',
+      'Auditoría de Acceso',
       'Categorías',
       'Ubicaciones',
     ]);
@@ -107,7 +109,7 @@ describe('MenusService', () => {
     const orders = result.map((e) => e.order);
     expect(orders).toEqual([...orders].sort((a, b) => a - b));
     expect(result[0].order).toBe(10);  // Dashboard
-    expect(result[9].order).toBe(100); // Ubicaciones
+    expect(result[10].order).toBe(100); // Ubicaciones
   });
 
   it('orders the result by order ascending (deterministic, not insertion order)', async () => {
@@ -118,7 +120,7 @@ describe('MenusService', () => {
     // Aunque las claves del MENU_MAP se inserten en cualquier orden, la
     // respuesta viene ordenada por `order` ascendente. Esto protege contra
     // el modo de fallo original: orden accidental de Object.entries().
-    expect(result.map((e) => e.order)).toEqual([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    expect(result.map((e) => e.order)).toEqual([10, 20, 30, 40, 50, 60, 70, 80, 85, 90, 100]);
   });
 
   it('omits groups that become empty after permission filtering', async () => {

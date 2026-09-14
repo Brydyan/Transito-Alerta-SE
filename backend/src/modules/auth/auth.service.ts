@@ -11,6 +11,7 @@ import { UserEntity } from '../../entities/user.entity';
 import { AuthConfig } from '../../config/auth.config';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { resolveSubjectScope } from '../../common/authz/resolve-subject-scope';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { sha256Hex, timingSafeEqualHex } from '../../common/crypto/session-hash';
 import { BufferedTokenPair, GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
@@ -108,6 +109,7 @@ export class AuthService {
     private readonly sessionsRepository: SessionsRepository,
     private readonly revocationCache: RevocationCache,
     private readonly graceBuffer: GraceBuffer,
+    private readonly permissionLookup: PermissionLookupService,
     // T3.6 — optional so the pre-existing `auth.service.spec.ts` regression
     // suite (which constructs AuthService with the original 8 positional
     // args) keeps compiling and passing unmodified; Nest's DI container
@@ -459,9 +461,14 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
     const ctx = await this.getAuthContextByUserId(user.id);
+    // F6 fix: Convert UUID permissions to "ACTION resource" strings so frontend
+    // permissionGuard can validate with includes() directly.
+    const permissionStrings = await this.permissionLookup.getDescriptionsByUuids(
+      ctx.permissions,
+    );
     return {
       deviceUuid: user.deviceUuid,
-      permissions: ctx.permissions,
+      permissions: permissionStrings,
       email_verified: user.emailVerifiedAt !== null,
       role_name: ctx.roleName,
     };

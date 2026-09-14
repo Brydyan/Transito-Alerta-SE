@@ -97,9 +97,9 @@ describe('MenuService (F1.4.3)', () => {
     ]);
   });
 
-  it('the full D4 menu from the backend maps to 10 sidebar items (F1.2.3 cross-check)', (done) => {
+  it('the full D4 menu from the backend maps to 11 sidebar items (+ F6 audit-logs)', (done) => {
     service.getMenuFromBackend().subscribe((items) => {
-      expect(items.length).toBe(10);
+      expect(items.length).toBe(11);
       // Las 3 secciones representadas en el D4.
       const groups = new Set(
         items.filter((i) => i.group).map((i) => i.group),
@@ -117,6 +117,7 @@ describe('MenuService (F1.4.3)', () => {
       { label: 'Usuarios', route: '/admin/users', icon: 'users', group: 'GESTIÓN', order: 60 },
       { label: 'Roles', route: '/admin/roles', icon: 'shield', group: 'GESTIÓN', order: 70 },
       { label: 'Organizaciones', route: '/organizaciones', icon: 'building-2', group: 'GESTIÓN', order: 80 },
+      { label: 'Auditoría de Acceso', route: '/admin/audit-logs', icon: 'file-text', group: 'GESTIÓN', order: 85 },
       { label: 'Categorías', route: '/categorias', icon: 'tag', group: 'CATÁLOGOS', order: 90 },
       { label: 'Ubicaciones', route: '/ubicaciones', icon: 'map-pin', group: 'CATÁLOGOS', order: 100 },
     ]);
