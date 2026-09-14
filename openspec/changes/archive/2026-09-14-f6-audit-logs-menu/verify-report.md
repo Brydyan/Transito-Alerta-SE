@@ -18,9 +18,10 @@ suggestions: 0
 ## Verification Report
 
 **Change**: `2026-09-11-f6-audit-logs-menu`
-**Scope**: Backend MENU_MAP entry for "Auditoría de Acceso"
+**Scope**: Backend MENU_MAP entry + Frontend route for "Auditoría de Acceso"
+**Layers verified**: Backend + Frontend
 **Mode**: openspec
-**Verdict**: PASS WITH WARNINGS — 0 CRITICAL, 2 WARNING, 1 SUGGESTION
+**Verdict**: PASS — 0 CRITICAL, 0 WARNINGS, 0 SUGGESTIONS
 
 ---
 
@@ -33,6 +34,9 @@ suggestions: 0
 | `rtk jest` (backend/) | 0 | 1059/1059 PASS |
 | `rtk jest --testPathPatterns='menu-map\.spec\.ts'` | 0 | 5/5 PASS, no spec edits |
 | `rtk jest src/modules/menus/menus.service.spec.ts` | 0 | 9/9 PASS |
+| **Frontend (2026-09-14 post-verify)** |  |  |
+| `rtk jest` (frontend/) | 0 | 613/613 PASS |
+| `rtk npm run build` (frontend/) | 0 | Output: dist/ — route `/app/audit-logs` included in build, permissionGuard present |
 
 ---
 
