@@ -2,11 +2,18 @@
 change: 2026-09-11-f6-audit-logs-menu
 phase: verify
 date: 2026-09-14
-verdict: PASS WITH WARNINGS
+updated: 2026-09-14T21:30Z
+verdict: PASS
 critical: 0
-warnings: 2
-suggestions: 1
+warnings: 0
+suggestions: 0
 ```
+
+**Post-verification updates**:
+- Resolved: menus.service.spec.ts mock now includes 'READ audit-logs' (all 11 items verified)
+- Resolved: AuthService mocks fixed for PermissionLookupService injection
+- Resolved: getDescriptionsByUuids() mock pass-through in password.spec.ts
+- All CI gates: typecheck ✓, lint ✓, jest 1059/1059 ✓
 
 ## Verification Report
 
