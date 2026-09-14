@@ -1,6 +1,6 @@
 # Spec: Design System — Bridge Token Retirement
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Bridge Token Retirement
 
@@ -85,14 +85,3 @@ and MUST be included in the standard `pnpm test` run.
 - AND `_variables.css` contains no comment that could conflate the two names
 
 ---
-
-## REMOVED Requirements
-
-### Requirement: Bridge Alias Availability
-
-(Reason: bridge variables were temporary aliases created in F0/D11 to ease migration; F6 completes
-the migration making them dead indirection that blocks design-system evolution.)
-
-(Migration: `brand-navy` → `brand-primary`; `brand-hivis-text` → `text-white`;
-`status-critical` → `prio-high`; `status-success` → `status-resuelto`. All map to the identical
-canonical token value — zero visual change.)
