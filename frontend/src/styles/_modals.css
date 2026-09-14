@@ -1,9 +1,6 @@
 @layer components {
   /* =====================
-    Modal Styles — F0 (D1): fondo violeta con opacidad, no navy.
-    El brand-navy queda como alias bridge; este archivo migra a
-    los tokens canónicos para que el DoD de "design system
-    migrado" quede completo.
+    Modal Styles — F0 (D1): fondo violeta con opacidad.
     ===================== */
   .modal-backdrop-custom {
     @apply fixed inset-0 bg-brand-primary/60 z-[1040] animate-[fadeIn_0.2s_ease];

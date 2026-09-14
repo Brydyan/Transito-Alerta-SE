@@ -15,9 +15,8 @@
     @apply hover:bg-slate-50 cursor-pointer;
   }
 
-  /* Buttons — F0: la marca primaria ahora es violeta (D1). El antiguo
-     `.btn-primary` con `bg-brand-hivis` se retira: el primitivo canónico
-     es `ui-button[uiButton][variant="primary"]` (ver F0.4.3). */
+  /* Buttons — F0: la marca primaria es violeta (D1). Primitivo canónico:
+     `ui-button[uiButton][variant="primary"]` (ver F0.4.3). */
   .btn {
     @apply inline-flex items-center justify-center font-medium text-center align-middle cursor-pointer border border-transparent rounded-lg px-4 py-2 text-sm transition-all duration-200 select-none;
   }
