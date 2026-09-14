@@ -106,7 +106,7 @@ export class IncidentsController {
     @Query('zone_id') zoneId?: string,
     @Query('status') status?: IncidentStatus,
   ): Promise<IncidentRow[]> {
-    return this.incidentsService.findAll(zoneId, status, req.user!.scope);
+    return this.incidentsService.findAll({ zoneId, status }, req.user!.scope, req.user!.userId);
   }
 
   // ---- T5.2 analytics routes — declared BEFORE :id to avoid shadowing ---
@@ -145,6 +145,7 @@ export class IncidentsController {
 
     const CAP = 5000;
     const total = await this.exportService.countFiltered(query, user);
+    
     if (total > CAP) {
       res.setHeader('X-Report-Truncated', 'true');
       res.setHeader('X-Report-Original-Total', String(total));
@@ -182,7 +183,7 @@ export class IncidentsController {
   @Get(':id')
   @RequirePermission('READ')
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<IncidentRow> {
-    return this.incidentsService.findOne(id, req.user!.scope);
+    return this.incidentsService.findOne(id, req.user!.scope, req.user!.userId);
   }
 
   // sc-315 — la ruta de cambio de estado pasa por la máquina de estados

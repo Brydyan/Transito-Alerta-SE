@@ -26,6 +26,10 @@ export class CreateIncidentDto {
   lng!: number;
 
   @IsOptional()
+  @IsString()
+  category_id?: string;
+
+  @IsOptional()
   @IsIn(['low', 'medium', 'high', 'critical'])
   priority?: IncidentPriority;
 

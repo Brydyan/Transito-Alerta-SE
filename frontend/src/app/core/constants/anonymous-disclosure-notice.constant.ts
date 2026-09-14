@@ -1,0 +1,1 @@
+export const ANONYMOUS_DISCLOSURE_NOTICE = 'Tu identidad no se publica. Si tu reporte se usa para difundir información falsa, puede ser revelada, dejando registro de quién y por qué se hizo, ante una denuncia formal.';

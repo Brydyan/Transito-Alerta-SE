@@ -3,6 +3,8 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { NotificationsService } from '../notifications.service';
 import { UsersService } from '../../users/users.service';
 import { NotificationType } from '../entities/notification.entity';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 
 @Injectable()
 export class IncidentNotificationsListener {
@@ -11,6 +13,7 @@ export class IncidentNotificationsListener {
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly usersService: UsersService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -88,9 +91,20 @@ export class IncidentNotificationsListener {
     try {
       const reporterId = payload.citizen_id as string | undefined;
       const assigneeId = payload.assigned_to as string | undefined | null;
-      const recipientIds = [reporterId, assigneeId].filter(
-        (id): id is string => Boolean(id),
+      
+      const actorId = payload.actor_id as string | undefined; // We need to ensure actor_id is in payload
+      
+      const followers = await this.dataSource.query<{ user_id: string }[]>(
+        'SELECT user_id FROM incident_followers WHERE incident_id = $1',
+        [payload.id]
       );
+      
+      const followerIds = followers.map(f => f.user_id);
+
+      const recipientIds = Array.from(new Set([
+        ...([reporterId, assigneeId].filter(id => Boolean(id)) as string[]),
+        ...followerIds
+      ])).filter(id => id !== actorId); // EXCLUDE actor
 
       for (const userId of recipientIds) {
         const user = await this.usersService.findOne(userId);

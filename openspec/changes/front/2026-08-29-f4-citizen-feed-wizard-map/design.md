@@ -104,6 +104,26 @@ selecciona todos sus hijos; marcar sólo algunos deja el padre en indeterminado.
 tri-estado, no booleano, y el detalle importa porque un checkbox binario mentiría
 sobre la selección.
 
+**D12 — El mapa renderiza GeoZones como polígonos interactivos, no sólo puntos.**
+La spec `frontend-citizen` (actualización 2026-09-08) define `/app/mapa` como mapa
+segmentado: las zonas geográficas (provincia, cantón, parroquia) se dibujan como
+polígonos sobre el mapa base, el polígono se resalta en hover, y las incidencias se
+superponen como capa agrupada encima de los segmentos. La capa de zonas se consume del
+módulo `geo-zones` ya existente — no hay trabajo de backend nuevo para la Fase B:
+
+- Backend: `list()` y `findById()` ya proyectan `ST_AsGeoJSON(polygon)::json`
+  (`geo-zones.repository.ts`); `tree` omite `polygon` a propósito.
+- Frontend: `GeoZoneService` (`features/catalogs/locations`) ya trae las zonas con
+  paginación y `listAll()`; el mapa filtra `active: true` y dibuja la capa con
+  `L.geoJSON`.
+- Tipado: `IGeoZone.polygon` es hoy `unknown` (el tree nunca lo lee); para esta capa se
+  tipa como `IGeoJsonPolygon | IGeoJsonMultiPolygon` (el backend guarda `ST_Multi`, por
+  lo que la salida puede ser `MultiPolygon`).
+
+La capa de zonas permanece interactiva aunque los filtros no arrojen incidencias
+(requisito explícito de la spec: «los segmentos siguen interactivos» en el escenario
+Sin resultados).
+
 ## Data Flow
 
 **Feed**: `GET /api/incidents?feed=true&status=&categories=&page=` → tarjetas
@@ -118,7 +138,9 @@ sobre la selección.
 borrador y navega al detalle
 
 **Mapa**: `GET /api/map/incidents?status=&priority=&category=` → capa Leaflet →
-agrupación en cliente (D8) → marcador activado → resumen con enlace al detalle
+agrupación en cliente (D8) → marcador activado → resumen con enlace al detalle ·
+segmentos: `GeoZoneService.listAll()` (o list filtrado por `active`) → `L.geoJSON` de
+polígonos (D12) → hover resalta el segmento
 
 ## File Changes
 
@@ -145,7 +167,7 @@ agrupación en cliente (D8) → marcador activado → resumen con enlace al deta
 | `frontend/src/app/features/citizen/feed/components/incident-card/` | Nuevo (D7) | Tarjeta con acciones sociales |
 | `frontend/src/app/features/citizen/feed/components/feed-filters/` | Nuevo (D11) | Chips de estado y árbol de categorías tri-estado |
 | `frontend/src/app/features/citizen-report/` | Modificar (D10) | Se amplía a asistente de cuatro pasos |
-| `frontend/src/app/features/citizen/map/` | Nuevo (D8) | Mapa a pantalla completa con agrupación y filtros |
+| `frontend/src/app/features/citizen/map/` | Nuevo (D8, D12) | Mapa a pantalla completa con segmentos de GeoZones, agrupación y filtros |
 | `frontend/src/app/shared/components/map-picker/` | Nuevo | Mapa reutilizable de selección de punto (paso 3 y detalle de F3) |
 | `frontend/package.json` | Modificar | `+ leaflet.markercluster`, `+ @types/leaflet.markercluster`; regenerar lock |
 | `frontend/src/app/app.routes.ts` | Modificar | Sustituye los placeholders `/inicio` y `/mapa`; `/reportar` pasa al asistente |

@@ -95,10 +95,14 @@ describe('RevealService (AUD sc-327 — C.7/C.8/C.9)', () => {
       lat: -2.2,
       lng: -80.8,
       created_at: new Date(),
-      updated_at: new Date(),
+      updated_at: new Date('2025-01-01T12:00:00Z'),
       deleted_at: null,
       claimed_at: null,
       resolution_date: null,
+      follower_count: 0,
+      corroboration_count: 0,
+      is_followed_by_me: false,
+      is_corroborated_by_me: false,
     };
   }
 

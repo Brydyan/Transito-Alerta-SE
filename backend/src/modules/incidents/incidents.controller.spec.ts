@@ -87,18 +87,18 @@ describe('IncidentsController', () => {
 
     await controller.findAll(req, 'zone-1', 'pending');
 
-    expect(service.findAll).toHaveBeenCalledWith('zone-1', 'pending', GLOBAL_SCOPE);
+    expect(service.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1', status: 'pending' }, GLOBAL_SCOPE, 'user-1');
   });
 
   it('GET /:id delegates to service.findOne with the caller scope', async () => {
-    service.findOne.mockResolvedValue({ id: 'inc-1' });
+    service.findOne.mockResolvedValue({ id: 'inc-1' } as any);
     const req = {
       user: { userId: 'user-1', permissions: [], scope: GLOBAL_SCOPE },
     } as unknown as AuthenticatedRequest;
 
     const result = await controller.findOne('inc-1', req);
 
-    expect(service.findOne).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE);
+    expect(service.findOne).toHaveBeenCalledWith('inc-1', GLOBAL_SCOPE, 'user-1');
     expect(result).toEqual({ id: 'inc-1' });
   });
 

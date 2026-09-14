@@ -4,8 +4,10 @@ import { map, tap } from 'rxjs/operators';
 import { HttpService } from './http.service';
 import {
   Incident,
+  IncidentImage,
   IncidentListFilters,
   IncidentListResult,
+  IncidentFeedResponse,
   CreateIncidentDto,
   ClaimReleaseResult,
 } from '../models/incident.model';
@@ -59,6 +61,11 @@ export class IncidentService {
       );
   }
 
+  getFeed(filters: IncidentListFilters = {}): Observable<IncidentFeedResponse> {
+    const params = this.toQueryParams(filters);
+    return this.httpService.get<IncidentFeedResponse>('/incidents/feed', params);
+  }
+
   getIncident(id: string): Observable<Incident> {
     return this.httpService.get<Incident>(`/incidents/${id}`);
   }
@@ -70,6 +77,15 @@ export class IncidentService {
         this.incidents$.next([incident, ...current]);
       }),
     );
+  }
+
+  uploadImages(incidentId: string, files: Blob[]): Observable<IncidentImage[]> {
+    const formData = new FormData();
+    files.forEach((file, index) => {
+      // Multer needs a filename with extension; raw Blobs have none.
+      formData.append('images', file, `image_${index}.jpg`);
+    });
+    return this.httpService.post<IncidentImage[]>(`/incidents/${incidentId}/images`, formData);
   }
 
   /**
@@ -171,19 +187,29 @@ export class IncidentService {
    * test runs, not order-sensitive in practice because each
    * key is added in one place).
    *
-   * F3 (sc-303) C1 (ronda 4) — el backend `incidents.controller.ts:findAll`
-   * sólo acepta `zone_id` y `status`. Los demás campos (search,
-   * priority, page, limit, category_id) se quitan de la URL
-   * hasta que un change de backend los soporte. No enviarlos
-   * en silencio es la decisión honesta: un query string con
-   * params que el servidor ignora es un bug de perf sin
-   * síntoma visible (el usuario "ve" todos los resultados
-   * cuando esperaba filtrados, y la causa no es evidente).
+   * Pagination (feed): `GET /api/incidents/feed` now supports
+   * `status`, `priority`, `page`, `per_page`, `incident_category_id`.
+   * Only defined values are emitted — no `undefined` in the query
+   * string (missing → defaults on the backend). `GET /api/incidents`
+   * still only honors `status`; extra params are silently ignored
+   * there but are required for the feed path.
    */
   private toQueryParams(filters: IncidentListFilters): Record<string, string> {
     const out: Record<string, string> = {};
     if (filters.status) {
       out['status'] = filters.status;
+    }
+    if (filters.priority) {
+      out['priority'] = filters.priority;
+    }
+    if (filters.page !== undefined && filters.page !== null) {
+      out['page'] = String(filters.page);
+    }
+    if (filters.per_page !== undefined && filters.per_page !== null) {
+      out['per_page'] = String(filters.per_page);
+    }
+    if (filters.incident_category_id) {
+      out['incident_category_id'] = filters.incident_category_id;
     }
     return out;
   }

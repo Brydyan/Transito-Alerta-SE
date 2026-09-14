@@ -126,6 +126,7 @@ export class IncidentsService {
               geofenceMatched: zoneId !== null,
               organizationId: org?.id ?? null,
               isAnonymous: true,
+              categoryId: dto.category_id ?? null,
             },
             manager,
           );
@@ -150,6 +151,7 @@ export class IncidentsService {
           geofenceMatched: zoneId !== null,
           organizationId: org?.id ?? null,
           isAnonymous: false,
+          categoryId: dto.category_id ?? null,
         });
 
     await this.purgeListCaches(zoneId);
@@ -196,25 +198,25 @@ export class IncidentsService {
    * repository alone would still serve org A's cached array to org B.
    */
   async findAll(
-    zoneId: string | undefined,
-    status: IncidentStatus | undefined,
+    filters: { zoneId?: string; status?: IncidentStatus },
     scope: SubjectScope,
+    actorId?: string
   ): Promise<IncidentRow[]> {
-    const key = this.listCacheKey(zoneId, status, scope);
+    const key = this.listCacheKey(filters.zoneId, filters.status, scope);
     const cached = await this.cache.get<IncidentRow[]>(key);
     if (cached) {
       return cached;
     }
 
-    const rows = await this.incidentsRepository.findAll({ zoneId, status }, scope);
+    const rows = await this.incidentsRepository.findAll(filters, scope, actorId);
     await this.cache.set(key, rows, INCIDENTS_LIST_CACHE_TTL_MS);
 
     // Register under the zone's tag-set so a later write purges EVERY cached
     // variant of this list, including status-filtered ones. Deleting keys by
     // name cannot do that: the writer does not know which status filters a
     // reader happened to use.
-    if (zoneId) {
-      await this.geofencingService.tagCacheKey(zoneId, key);
+    if (filters.zoneId) {
+      await this.geofencingService.tagCacheKey(filters.zoneId, key);
     }
     // Unzoned listings reflect every zone, so any write must invalidate them.
     await this.geofencingService.tagCacheKey(ALL_ZONES_TAG, key);
@@ -222,8 +224,8 @@ export class IncidentsService {
     return rows;
   }
 
-  async findOne(id: string, scope: SubjectScope): Promise<IncidentRow> {
-    const row = await this.incidentsRepository.findOne(id, scope);
+  async findOne(id: string, scope: SubjectScope, actorId?: string): Promise<IncidentRow> {
+    const row = await this.incidentsRepository.findOne(id, scope, actorId);
     if (!row) {
       throw new NotFoundException(`Incident ${id} not found`);
     }
@@ -272,7 +274,7 @@ export class IncidentsService {
     }
     try {
       return await this.incidentsRepository.update(id, {
-        title: dto.title !== undefined ? dto.title : incident.title,
+        title: dto.title ?? incident.title,
         description: dto.description !== undefined ? dto.description : incident.description,
         categoryId:
           dto.categoryId !== undefined ? dto.categoryId : incident.category_id,

@@ -45,6 +45,7 @@ describe('IncidentsRepository', () => {
         'zone-1',
         true,
         'org-1',
+        null, // categoryId (ausente → null)
       ]);
     });
 
@@ -91,6 +92,32 @@ describe('IncidentsRepository', () => {
       // El parámetro 7 es `is_anonymous` (después de
       // title/description/lng/lat/priority/citizenId).
       expect(params[6]).toBe(true);
+    });
+
+    it('persiste categoryId cuando viene (categorías hoja del árbol del asistente)', async () => {
+      // El asistente de reporte (F4 B.2/B.3) envía `category_id` de una hoja
+      // del árbol; el repository debe mapearlo al último parámetro del INSERT.
+      // `trg_check_is_leaf_category` en la BD rechaza cualquier categoría
+      // que tenga hijos, así que esto es la vía por la que llega una válida.
+      dataSource.query.mockResolvedValue([{ id: 'inc-1' }]);
+
+      await repository.create({
+        title: 'Bache',
+        description: null,
+        lat: -2.2,
+        lng: -80.8,
+        priority: 'medium',
+        citizenId: 'user-1',
+        zoneId: 'zone-1',
+        geofenceMatched: true,
+        organizationId: 'org-1',
+        categoryId: 'cat-hoja-1',
+        isAnonymous: false,
+      });
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('category_id)');
+      expect(params[10]).toBe('cat-hoja-1');
     });
   });
 

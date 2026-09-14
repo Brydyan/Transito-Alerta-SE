@@ -30,8 +30,10 @@ export interface IGeoZone {
    * projected, so declaring it produced a field that was always `undefined`
    * at runtime while type-checking clean. Derive recency from `created_at`.
    */
-  /** PostGIS geometry, not needed by the frontend tree. Optional. */
-  polygon?: unknown;
+  /**
+   * PostGIS geometry. Map component (F4.B.3) requires precise types. Optional.
+   */
+  polygon?: IGeoJsonPolygon | IGeoJsonMultiPolygon;
 }
 
 /** Client-derived tree node. `children` and `depth` are NOT part of the wire. */
@@ -87,6 +89,12 @@ export interface IUpdateGeoZoneDto {
 export interface IGeoJsonPolygon {
   type: 'Polygon';
   coordinates: number[][][];
+}
+
+/** Minimal GeoJSON MultiPolygon shape for mapping. */
+export interface IGeoJsonMultiPolygon {
+  type: 'MultiPolygon';
+  coordinates: number[][][][];
 }
 
 export interface IGeoZoneListParams {

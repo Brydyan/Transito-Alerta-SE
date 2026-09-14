@@ -76,11 +76,7 @@
       </thead>
       <tbody>
         @for (row of incidents(); track row.id) {
-          <tr
-            [attr.data-testid]="'row-' + row.id"
-            (click)="goToDetail(row)"
-            class="cursor-pointer"
-          >
+          <tr [attr.data-testid]="'row-' + row.id">
             <td class="ui-table-cell-select" (click)="$event.stopPropagation()">
               <input type="checkbox" [attr.aria-label]="'Seleccionar ' + row.title" />
             </td>
@@ -111,14 +107,10 @@
               </div>
             </td>
             <td class="ui-table-cell-actions" (click)="$event.stopPropagation()">
-              <button
-                type="button"
-                class="btn btn-ghost"
-                (click)="goToDetail(row)"
-                [attr.aria-label]="'Ver detalle de ' + row.title"
-              >
-                <ui-icon name="chevron-right" [size]="16" />
-              </button>
+              <app-view-action-btn
+                [ariaLabel]="'Ver detalle de ' + row.title"
+                (view)="goToDetail(row)"
+              />
             </td>
           </tr>
         }
