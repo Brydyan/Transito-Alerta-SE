@@ -75,28 +75,6 @@
   --color-on-tint-red: #991B1B;
   --color-on-tint-graphite: #1F2937;
 
-  /* Bridge temporal — alias de los nombres viejos para que _badges.css
-     y los features aún no migrados (F1-F6) compilen. Se retiran
-     cuando cada consumidor adopte los tokens canónicos.
-
-     ⚠️ `pending` ≠ `pendiente` (WARNING-6 / CRITICAL-2 de fixes-required.md):
-     el token canónico es `--color-status-pendiente` (#94A3B8 gris pizarra),
-     declarado arriba. Este alias es `--color-status-pending` (#FFC600 ámbar)
-     — un carácter de distancia, color totalmente distinto, y un dev de
-     F1-F6 que escriba `bg-status-pending` esperando el estado «pendiente»
-     obtiene ámbar sin error de compilación ni test que lo agarre. El
-     alias existe sólo porque `_badges.css` lo consume; en cuanto ese
-     consumidor adopte el canónico, este alias se retira junto con los
-     otros del bloque.
-
-     La retirada de los dos bloques de puente (`--color-brand-*` legacy y
-     los `--color-status-*` que aún no se usan) está ticketeada en
-     [sc-323](https://app.shortcut.com/upse/story/323), asignada a F6. */
-  --color-status-critical: var(--color-prio-high);
-  --color-status-pending: #FFC600;
-  --color-status-info: var(--color-accent-cyan);
-  --color-status-success: var(--color-status-resuelto);
-
   /* Tipografía — D2: Outfit geométrica */
   --font-sans: 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
