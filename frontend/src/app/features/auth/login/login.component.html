@@ -1,6 +1,6 @@
 <section class="h-screen w-full flex overflow-hidden bg-bg-secondary" @fadeAnimation>
   <!-- Left Side: Full Bleed Image / Illustration -->
-  <div class="hidden md:block md:w-1/2 lg:w-7/12 h-full bg-brand-navy relative">
+  <div class="hidden md:block md:w-1/2 lg:w-7/12 h-full bg-brand-primary relative">
     <img
       src="/images/portada-panel-izq.png"
       alt="Imagen de portada en el panel izquierdo"
@@ -23,13 +23,13 @@
         <!-- Mensaje de error general -->
         @if (errorMessage()) {
           <div
-            class="bg-red-100 border border-red-400 text-status-critical px-4 py-3 rounded relative mb-4 flex justify-between items-center"
+            class="bg-red-100 border border-red-400 text-prio-high px-4 py-3 rounded relative mb-4 flex justify-between items-center"
             role="alert"
           >
             <span>{{ errorMessage() }}</span>
             <button
               type="button"
-              class="text-status-critical hover:text-red-900 focus:outline-none"
+              class="text-prio-high hover:text-red-900 focus:outline-none"
               (click)="errorMessage.set(null)"
               aria-label="Close"
             >
@@ -59,7 +59,7 @@
             [ngClass]="{ 'form-control-invalid': submitted() && f['email'].errors }"
           />
           @if (submitted() && f['email'].errors) {
-            <div class="text-status-critical text-xs mt-1">
+            <div class="text-prio-high text-xs mt-1">
               @if (f['email'].errors['required']) {
                 <div>El usuario es requerido</div>
               }
@@ -82,7 +82,7 @@
             [ngClass]="{ 'form-control-invalid': submitted() && f['password'].errors }"
           />
           @if (submitted() && f['password'].errors) {
-            <div class="text-status-critical text-xs mt-1">
+            <div class="text-prio-high text-xs mt-1">
               @if (f['password'].errors['required']) {
                 <div>La contraseña es requerida</div>
               }
@@ -106,7 +106,7 @@
             @if (loading()) {
               <span class="flex items-center">
                 <svg
-                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-brand-hivis-text"
+                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -135,7 +135,7 @@
         <div class="text-left">
           <a
             routerLink="/auth/forgot-password"
-            class="text-slate-500 underline text-sm hover:text-brand-navy font-medium transition-colors"
+            class="text-slate-500 underline text-sm hover:text-brand-primary font-medium transition-colors"
             >¿Olvidaste tu contraseña?</a
           >
           <!-- REG (sc-325) — B.4: enlace al registro. Vive
@@ -157,7 +157,7 @@
       <div class="absolute top-0 right-0 m-6">
         <a
           href="#!"
-          class="text-slate-500 underline text-sm hover:text-brand-navy font-medium transition-colors"
+          class="text-slate-500 underline text-sm hover:text-brand-primary font-medium transition-colors"
           >Volver al inicio</a
         >
       </div>
