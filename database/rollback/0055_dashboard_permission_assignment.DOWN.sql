@@ -1,9 +1,9 @@
 -- Rollback for 0055_dashboard_permission_assignment.sql
--- Transito Alerta SE — Revert dashboard READ permission assignment from master role
+-- Transito Alerta SE — Revert dashboard READ permission assignment from staff roles
 --
--- Context: UP 0055 added `READ dashboard` permission UUID to master (and attempted
--- 'operator', which doesn't exist). This DOWN reverses the change:
--- 1. Remove the dashboard READ UUID from roles.permissions arrays (master only, since 'operator' never existed)
+-- Context: UP 0055 added `READ dashboard` permission UUID to master, operador_sistema,
+-- and operador_org. This DOWN reverses the change:
+-- 1. Remove the dashboard READ UUID from roles.permissions arrays (all 3 roles)
 -- 2. Denormalize to users.permissions + bump permission_version to invalidate Redis cache
 --
 -- MANUAL EXECUTION ONLY — see 0001_initial_schema.sql header.
@@ -27,14 +27,14 @@ UPDATE roles r
  WHERE r.name = 'master'
    AND r.deleted_at IS NULL;
 
--- 2) Denormalize: sync users.permissions + bump permission_version for master users
+-- 2) Denormalize: sync users.permissions + bump permission_version for all 3 roles
 UPDATE users u
    SET permissions = r.permissions,
        permission_version = permission_version + 1,
        updated_at = now()
   FROM roles r
  WHERE u.role_id = r.id
-   AND r.name = 'master'
+   AND r.name IN ('master', 'operador_sistema', 'operador_org')
    AND u.deleted_at IS NULL;
 
 COMMIT;

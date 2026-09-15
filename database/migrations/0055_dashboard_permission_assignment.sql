@@ -4,9 +4,9 @@
 -- Context: T5.2 (Incident Analytics) endpoints `GET /incidents/stats`,
 -- `GET /incidents/weekly-stats` require `READ dashboard` permission guard.
 -- Permission catalog exists (0052) but roles weren't assigned it. This migration
--- adds the permission UUID to master + operator roles.permissions JSONB array,
--- then denormalizes to users.permissions + bumps permission_version to invalidate
--- Redis cache perm:v3:uid:*.
+-- adds the permission UUID to master, operador_sistema, and operador_org roles.permissions
+-- JSONB array, then denormalizes to users.permissions + bumps permission_version to
+-- invalidate Redis cache perm:v3:uid:*.
 --
 -- MANUAL EXECUTION ONLY — see 0001_initial_schema.sql header.
 -- Requires 0009 (permissions table), 0051 (UUID format), 0052 (dashboard catalog).
@@ -26,20 +26,26 @@ SET permissions = permissions || (SELECT jsonb_build_array(id::text) FROM dashbo
 WHERE name = 'master'
   AND NOT permissions @> (SELECT jsonb_build_array(id::text) FROM dashboard_perm);
 
--- 3) Update operator role: add dashboard READ if not already present
+-- 3) Update operador_sistema role: add dashboard READ if not already present
 UPDATE roles
 SET permissions = permissions || (SELECT jsonb_build_array(id::text) FROM dashboard_perm)
-WHERE name = 'operator'
+WHERE name = 'operador_sistema'
   AND NOT permissions @> (SELECT jsonb_build_array(id::text) FROM dashboard_perm);
 
--- 4) Denormalize: sync users.permissions + bump permission_version for both roles
+-- 4) Update operador_org role: add dashboard READ if not already present
+UPDATE roles
+SET permissions = permissions || (SELECT jsonb_build_array(id::text) FROM dashboard_perm)
+WHERE name = 'operador_org'
+  AND NOT permissions @> (SELECT jsonb_build_array(id::text) FROM dashboard_perm);
+
+-- 5) Denormalize: sync users.permissions + bump permission_version for all 3 roles
 UPDATE users u
 SET permissions = r.permissions,
     permission_version = permission_version + 1,
     updated_at = now()
 FROM roles r
 WHERE u.role_id = r.id
-  AND r.name IN ('master', 'operator')
+  AND r.name IN ('master', 'operador_sistema', 'operador_org')
   AND u.deleted_at IS NULL;
 
 COMMIT;
