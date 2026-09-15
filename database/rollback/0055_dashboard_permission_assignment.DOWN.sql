@@ -11,24 +11,23 @@
 
 BEGIN;
 
--- 1) Get dashboard READ permission UUID
-CREATE TEMPORARY TABLE dashboard_perm AS
-  SELECT id FROM permissions
-  WHERE resource = 'dashboard' AND action = 'READ'
-    AND deleted_at IS NULL;
-
--- 2) Remove dashboard READ from master role.permissions array
---    Uses jsonb_array_elements_text + filter pattern from 0052.DOWN
+-- 1) Remove dashboard READ from master role.permissions array
+--    Uses jsonb_array_elements_text + filter pattern from 0052.DOWN (inline subquery, no temp table)
 UPDATE roles r
    SET permissions = (
      SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
      FROM jsonb_array_elements_text(r.permissions) AS elem
-     WHERE elem NOT IN (SELECT id::text FROM dashboard_perm)
+     WHERE elem NOT IN (
+       SELECT id::text FROM permissions
+        WHERE deleted_at IS NULL
+          AND resource = 'dashboard'
+          AND action = 'READ'
+     )
    )
  WHERE r.name = 'master'
    AND r.deleted_at IS NULL;
 
--- 3) Denormalize: sync users.permissions + bump permission_version for master users
+-- 2) Denormalize: sync users.permissions + bump permission_version for master users
 UPDATE users u
    SET permissions = r.permissions,
        permission_version = permission_version + 1,
