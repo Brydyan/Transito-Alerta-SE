@@ -11,7 +11,7 @@
 
 BEGIN;
 
--- 1) Remove dashboard READ from master role.permissions array
+-- 1) Remove dashboard READ from all 3 roles.permissions arrays
 --    Uses jsonb_array_elements_text + filter pattern from 0052.DOWN (inline subquery, no temp table)
 UPDATE roles r
    SET permissions = (
@@ -24,7 +24,7 @@ UPDATE roles r
           AND action = 'READ'
      )
    )
- WHERE r.name = 'master'
+ WHERE r.name IN ('master', 'operador_sistema', 'operador_org')
    AND r.deleted_at IS NULL;
 
 -- 2) Denormalize: sync users.permissions + bump permission_version for all 3 roles
