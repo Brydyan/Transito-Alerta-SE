@@ -138,4 +138,54 @@ describe('MenuService (F1.4.3)', () => {
       { label: 'Usuarios', route: '/admin/users', group: 'GESTIÓN', order: 60 },
     ]);
   });
+
+  it('transforms nested children from the F5 backend contract (F5.6)', (done) => {
+    // F5 (D1): el backend envía el árbol anidado — roots con `children`.
+    // Antes de F5.6 `transformBackendMenu` pisaba `children: []` y el
+    // sidebar perdía todos los sub-ítems (regresión reportada 2026-09-14:
+    // solo se veían dashboard/incidencias/gestion/catalogos).
+    service.getMenuFromBackend().subscribe((items) => {
+      expect(items.length).toBe(4); // Dashboard + 3 grupos
+      const dashboard = items.find((i) => i.name === 'Dashboard')!;
+      const incidencias = items.find((i) => i.name === 'INCIDENCIAS')!;
+      expect(dashboard.children).toEqual([]);
+      expect(incidencias.children?.length).toBe(4);
+      expect(incidencias.children?.map((c) => c.name)).toEqual([
+        'Inicio', 'Lista de Incidencias', 'Mapa', 'Reportar',
+      ]);
+      const mapa = incidencias.children!.find((c) => c.name === 'Mapa')!;
+      expect(mapa.route).toBe('/app/mapa'); // formatRoutes recursivo ya lo prefija
+      expect(mapa.icon).toBe('map');
+      expect(mapa.menu_order).toBe(40);
+      expect(mapa.parent_menu_id).toBe(incidencias.id);
+      // Los grupos llegan sin ruta (encabezados de sección): no deben romper nada.
+      expect(incidencias.route).toBe('');
+      done();
+    });
+
+    http.expectOne(apiUrl).flush([
+      { label: 'Dashboard', route: '/dashboard', icon: 'layout-dashboard', order: 10 },
+      {
+        label: 'INCIDENCIAS', route: '', order: 20, children: [
+          { label: 'Inicio', route: '/inicio', icon: 'home', order: 20 },
+          { label: 'Lista de Incidencias', route: '/incidencias', icon: 'list', order: 30 },
+          { label: 'Mapa', route: '/mapa', icon: 'map', order: 40 },
+          { label: 'Reportar', route: '/reportar', icon: 'plus-circle', order: 50 },
+        ],
+      },
+      {
+        label: 'GESTIÓN', route: '', order: 60, children: [
+          { label: 'Usuarios', route: '/admin/users', icon: 'users', order: 60 },
+          { label: 'Roles', route: '/admin/roles', icon: 'shield', order: 70 },
+          { label: 'Organizaciones', route: '/organizaciones', icon: 'building-2', order: 80 },
+        ],
+      },
+      {
+        label: 'CATÁLOGOS', route: '', order: 90, children: [
+          { label: 'Categorías', route: '/categorias', icon: 'tag', order: 90 },
+          { label: 'Ubicaciones', route: '/ubicaciones', icon: 'map-pin', order: 100 },
+        ],
+      },
+    ]);
+  });
 });
