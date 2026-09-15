@@ -5,9 +5,11 @@ import Redis from 'ioredis';
 
 import { REDIS_CLIENT } from '../../core/core.module';
 import { UserEntity } from '../../entities/user.entity';
+import { AuthService } from '../auth/auth.service';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { MenuOptionEntity } from './entities/menu-option.entity';
 import { MenuOptionRoleEntity } from './entities/menu-option-role.entity';
-import { MenuEntry } from './menu-map';
+import { MenuEntry, MENU_MAP } from './menu-map';
 
 /**
  * MenusService — resolves the user's navigation menu from the database.
@@ -15,7 +17,9 @@ import { MenuEntry } from './menu-map';
  * F5 rewrite (D1/D3/D4):
  *   - Reads `menu_options` + `menu_option_roles` instead of MENU_MAP.
  *   - Builds the tree in memory by `parent_id` (D3).
- *   - Caches per role: `menu:v1:role:{roleId}` with TTL 1 hour (D4).
+ *   - Caches per user: `menu:v1:user:{userId}` with TTL 1 hour (D4).
+ *   - Filters by effective permissions (AuthService.getPermissionsByUserId)
+ *     so the menu matches what the guard actually allows.
  *   - Response contract is UNCHANGED from F1 (D1): { label, route,
  *     icon?, group?, order } plus `children` array.
  *
@@ -30,10 +34,15 @@ import { MenuEntry } from './menu-map';
  */
 @Injectable()
 export class MenusService {
-  private static readonly CACHE_PREFIX = 'menu:v1:role:';
+  private static readonly CACHE_PREFIX = 'menu:v1:user:';
   private static readonly CACHE_TTL_SECONDS = 3600; // 1 hour
 
   private readonly logger = new Logger(MenusService.name);
+
+  /** Route → required permission derived from MENU_MAP (single source of truth). */
+  private static readonly ROUTE_TO_PERMISSION = new Map<string, string>(
+    Object.values(MENU_MAP).map((d) => [d.route, d.requires]),
+  );
 
   constructor(
     @InjectRepository(MenuOptionEntity)
@@ -44,14 +53,20 @@ export class MenusService {
     private readonly userRepo: Repository<UserEntity>,
     @Inject(REDIS_CLIENT)
     private readonly redis: Redis,
+    private readonly authService: AuthService,
+    private readonly permissionLookup: PermissionLookupService,
   ) {}
 
   /**
    * Resolve the menu for a given user.
    *
    * Flow (design Data Flow):
-   *   userId → roleId (from users.role_id) → cache lookup → DB query
-   *   → tree build → cache store → response.
+   *   userId → roleId (from users.role_id) → cache lookup (per-user) → DB query
+   *   → effective-permission filter → tree build → cache store → response.
+   *
+   * The effective-permission filter uses the same channel as the guard
+   * (AuthService.getPermissionsByUserId) so the menu never shows entries
+   * the API would reject.
    */
   async getMenuForUser(userId: string): Promise<MenuEntry[]> {
     // 1. Resolve the user's role
@@ -63,8 +78,9 @@ export class MenusService {
       return [];
     }
 
-    // 2. Check cache (D4: menu:v1:role:{roleId})
-    const cacheKey = `${MenusService.CACHE_PREFIX}${user.roleId}`;
+    // 2. Check cache (D4: menu:v1:user:{userId} — per-user because two users
+    // of the same role can have different effective permissions via users.permissions deviation)
+    const cacheKey = `${MenusService.CACHE_PREFIX}${userId}`;
     try {
       const cached = await this.redis.get(cacheKey);
       if (cached) {
@@ -75,13 +91,42 @@ export class MenusService {
       this.logger.warn(`Cache read failed for ${cacheKey}: ${(err as Error).message}`);
     }
 
-    // 3. Query accessible options from DB
+    // 3. Query accessible options from DB (matrix can_read=true)
     const accessibleOptions = await this.getAccessibleOptions(user.roleId);
 
-    // 4. Build tree (D3) and sort by display_order
-    const tree = this.buildTree(accessibleOptions);
+    // 4. Filter by effective permissions (single source of truth: AuthService)
+    // F6 fix (post-0051): MENU_MAP.requires is "ACTION resource" (e.g. "READ incidents")
+    // but AuthService.getPermissionsByUserId returns UUIDs. The naive
+    // permissionSet.has(required) NEVER matched. Translate via PermissionLookupService
+    // — same canonical fix as PermissionGuard (see permission.guard.ts / permission-lookup.service.ts).
+    const permissions = await this.authService.getPermissionsByUserId(userId);
+    const permissionSet = new Set(permissions);
+    const filtered: MenuOptionEntity[] = [];
+    for (const opt of accessibleOptions) {
+      const required = MenusService.ROUTE_TO_PERMISSION.get(opt.route);
+      // Custom/admin-created routes not in MENU_MAP → matrix governs
+      if (!required) {
+        filtered.push(opt);
+        continue;
+      }
+      const spaceIdx = required.indexOf(' ');
+      if (spaceIdx === -1) {
+        // Malformed entry — fail closed (do not leak)
+        continue;
+      }
+      const action = required.slice(0, spaceIdx);
+      const resource = required.slice(spaceIdx + 1);
+      const uuid = await this.permissionLookup.getUuid(action, resource);
+      if (uuid !== null && permissionSet.has(uuid)) {
+        filtered.push(opt);
+      }
+    }
 
-    // 5. Store in cache (D4: TTL 1 hour)
+    // 5. Build tree (D3) and sort by display_order — filter BEFORE build so
+    // hidden parents drop their children (orphans excluded)
+    const tree = this.buildTree(filtered);
+
+    // 6. Store in cache (D4: TTL 1 hour)
     try {
       await this.redis.setex(cacheKey, MenusService.CACHE_TTL_SECONDS, JSON.stringify(tree));
     } catch (err) {
@@ -100,7 +145,7 @@ export class MenusService {
    */
   async invalidateCache(): Promise<void> {
     try {
-      const keys = await this.redis.keys(`${MenusService.CACHE_PREFIX}*`);
+      const keys = await this.redis.keys('menu:v1:*');
       if (keys.length > 0) {
         await this.redis.del(...keys);
       }
