@@ -34,6 +34,8 @@ export interface GeoZoneTreeRow {
   level: GeoZoneLevel;
   active: boolean;
   created_at: Date;
+  /** sc-323-f6 (D5): administrative code (EC-17, EC-24-01, ...). Optional. */
+  code?: string | null;
   depth: number;
 }
 
@@ -46,6 +48,8 @@ export interface GeometryCheck {
   reason: string | null;
   empty: boolean;
   geom_type: string;
+  /** sc-323-f6 (D3): centroid within 500 km of Ecuador's centroid (-78.5, -1.5). */
+  inBounds: boolean;
 }
 
 export interface ListFilters {
@@ -69,7 +73,7 @@ export interface CreateZoneInput {
   parentId: string | null;
   level: GeoZoneLevel;
   active: boolean;
-  polygon: GeoJsonGeometry;
+  polygon: GeoJsonGeometry | null;
   code: string | null;
 }
 
@@ -103,17 +107,26 @@ export class GeoZonesRepository {
 
   /**
    * One pre-flight round trip (design D6) returning ST_IsValid /
-   * ST_IsValidReason / ST_IsEmpty / ST_GeometryType over the same
-   * ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(...))) expression the write uses.
-   * ST_GeometryType catches a well-formed GeoJSON Point/LineString that
-   * ST_Multi silently promotes to MULTIPOINT/MULTILINESTRING.
+   * ST_IsValidReason / ST_IsEmpty / ST_GeometryType / ST_DWithin over
+   * the same ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(...))) expression
+   * the write uses. ST_GeometryType catches a well-formed GeoJSON
+   * Point/LineString that ST_Multi silently promotes to
+   * MULTIPOINT/MULTILINESTRING. ST_DWithin (sc-323-f6 D3) rejects
+   * polygons whose centroid lies more than 500 km from Ecuador's
+   * centroid (-78.5, -1.5) — a shapefile for Peru uploaded by mistake
+   * returns false here and is refused at the service layer with a 400.
    */
   async validateGeometry(geoJson: unknown): Promise<GeometryCheck> {
     const rows: GeometryCheck[] = await this.dataSource.query(
       `SELECT ST_IsValid(g)        AS valid,
               ST_IsValidReason(g)  AS reason,
               ST_IsEmpty(g)        AS empty,
-              ST_GeometryType(g)   AS geom_type
+              ST_GeometryType(g)   AS geom_type,
+              ST_DWithin(
+                g::geography,
+                ST_SetSRID(ST_MakePoint(-78.5, -1.5), 4326)::geography,
+                500000
+              )                    AS in_bounds
          FROM (
            SELECT ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($1::text), 4326)) AS g
          ) t`,
@@ -126,7 +139,9 @@ export class GeoZonesRepository {
     const rows: GeoZoneDetailRow[] = await this.dataSource.query(
       `INSERT INTO geo_zones (id, name, parent_id, level, active, polygon, code)
        VALUES (gen_random_uuid(), $1, $2, $3, $4,
-               ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($5::text), 4326)), $6)
+               CASE WHEN $5::text IS NULL THEN NULL
+                    ELSE ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($5::text), 4326)) END,
+               $6)
        RETURNING id, name, parent_id, level, active,
                  ST_AsGeoJSON(polygon)::json AS polygon, code, created_at`,
       [
@@ -134,7 +149,7 @@ export class GeoZonesRepository {
         input.parentId,
         input.level,
         input.active,
-        JSON.stringify(input.polygon),
+        input.polygon === null ? null : JSON.stringify(input.polygon),
         input.code,
       ],
     );
@@ -279,32 +294,32 @@ export class GeoZonesRepository {
     if (rootId === null) {
       return this.dataSource.query(
         `WITH RECURSIVE subtree AS (
-           SELECT id, name, parent_id, level, active, created_at, 0 AS depth
+           SELECT id, name, code, parent_id, level, active, created_at, 0 AS depth
              FROM geo_zones
             WHERE parent_id IS NULL
             UNION ALL
-           SELECT z.id, z.name, z.parent_id, z.level, z.active, z.created_at, s.depth + 1
+           SELECT z.id, z.name, z.code, z.parent_id, z.level, z.active, z.created_at, s.depth + 1
              FROM geo_zones z
             INNER JOIN subtree s ON z.parent_id = s.id
             WHERE s.depth < ${MAX_DEPTH}
          )
-         SELECT id, name, parent_id, level, active, created_at, depth FROM subtree
+         SELECT id, name, code, parent_id, level, active, created_at, depth FROM subtree
          ORDER BY name ASC`,
       );
     }
 
     return this.dataSource.query(
       `WITH RECURSIVE subtree AS (
-         SELECT id, name, parent_id, level, active, created_at, 0 AS depth
+         SELECT id, name, code, parent_id, level, active, created_at, 0 AS depth
            FROM geo_zones
           WHERE id = $1
           UNION ALL
-         SELECT z.id, z.name, z.parent_id, z.level, z.active, z.created_at, s.depth + 1
+         SELECT z.id, z.name, z.code, z.parent_id, z.level, z.active, z.created_at, s.depth + 1
            FROM geo_zones z
           INNER JOIN subtree s ON z.parent_id = s.id
           WHERE s.depth < ${MAX_DEPTH}
        )
-       SELECT id, name, parent_id, level, active, created_at, depth FROM subtree
+       SELECT id, name, code, parent_id, level, active, created_at, depth FROM subtree
        ORDER BY name ASC`,
       [rootId],
     );
@@ -381,6 +396,9 @@ export function buildZoneTree(rows: GeoZoneTreeRow[]): GeoZoneNode[] {
       level: row.level,
       active: row.active,
       created_at: row.created_at,
+      // sc-323-f6 (D5): code round-trips so the catalog CRUD can render
+      // "EC-17" inline; null when the zone has no administrative code.
+      code: row.code ?? null,
       children: [],
     });
   }

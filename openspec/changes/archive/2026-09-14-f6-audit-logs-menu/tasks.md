@@ -11,15 +11,15 @@
 
 ### Phase 1: Implementation
 
-- [ ] **T.1.1** — Edit `backend/src/modules/menus/menu-map.ts`
-  - Add entry to MENU_MAP Record (after Roles, before Organizaciones):
+- [x] **T.1.1** — Edit `backend/src/modules/menus/menu-map.ts`
+  - Add entry to MENU_MAP Record. [DEVIATION: used `order: 85` per design.md D3 + proposal.md + spec.md R3 + matching front change (2026-09-11-f6-audit-logs-menu), NOT `order: 75` as tasks.md snippet specified. tasks.md + spec.md R1 + spec.md Scenario 4 mention 75 (likely typos) and conflict with the rest of the contract. Inserted between Organizaciones (80) and Categorías (90), not between Roles and Organizaciones.]
     ```typescript
     'Auditoría de Acceso': {
       route: '/admin/audit-logs',
       requires: 'READ audit-logs',
       icon: 'file-text',
       group: 'GESTIÓN',
-      order: 75,
+      order: 85,
     },
     ```
   - Verify no syntax errors.
@@ -27,55 +27,56 @@
 
 ### Phase 2: Verification
 
-- [ ] **T.2.1** — Run test suite
-  - Command: `cd backend && rtk npm test -- menu-map.spec.ts`
-  - Expected: All tests pass without modification.
+- [x] **T.2.1** — Run test suite
+  - Command: `cd backend && rtk jest --testPathPatterns='menu-map\.spec\.ts'`
+  - Expected: All tests pass without modification. ✓ (1059/1059 across full backend suite; menu-map.spec.ts unchanged)
   - Verify:
     - ✓ Icon validator accepts `file-text`.
-    - ✓ Order 75 is unique and ascending.
-    - ✓ CRITICAL-2 passes (route `/admin/audit-logs` exists in frontend app.routes.ts).
+    - ✓ Order 85 is unique and ascending (60 < 70 < 80 < 85 < 90).
+    - ✓ CRITICAL-2 passes (route `/admin/audit-logs` exists in frontend app.routes.ts — segments `admin` and `audit-logs` both present).
   - If CRITICAL-2 fails: frontend SDD route missing (check proposal).
   - Effort: 2 minutes.
 
-- [ ] **T.2.2** — Lint + typecheck
+- [x] **T.2.2** — Lint + typecheck
   - Command: `cd backend && rtk npm run lint && rtk npm run typecheck`
-  - Expected: Clean output, no errors.
+  - Expected: Clean output, no errors. ✓ (lint: 0 errors, 27 pre-existing warnings unrelated; typecheck: clean exit 0).
   - Effort: 1 minute.
 
 ### Phase 3: Manual Verification
 
-- [ ] **T.3.1** — Verify master user sees menu
-  - Prerequisite: Migration 0053 executed in test BD (permission READ audit-logs exists).
-  - Action: Log in as master, navigate to admin sidebar.
+- [ ] **T.3.1** — Verify master user sees menu [PENDING: manual verification required]
+  - Prerequisite: Migration 0053 executed in test BD (permission READ audit-logs exists). ✓ Migration present at `database/migrations/0053_audit_logs_permission.sql`.
+  - Action: Log in as master, navigate to admin sidebar. [PENDING — requires browser session; builder cannot run in sandbox]
   - Verify:
-    - ✓ "Auditoría de Acceso" appears in GESTIÓN section.
-    - ✓ Icon shows as file-text.
-    - ✓ Click navigates to `/admin/audit-logs`.
-    - ✓ Positioned after Roles, before Organizaciones.
+    - ✓ "Auditoría de Acceso" appears in GESTIÓN section. [Pending Andy manual]
+    - ✓ Icon shows as file-text. [Pending Andy manual]
+    - ✓ Click navigates to `/admin/audit-logs`. [Pending Andy manual]
+    - ✓ Positioned after Organizaciones (order 85), before Categorías. [Pending Andy manual]
   - Effort: 3 minutes.
 
-- [ ] **T.3.2** — Verify non-master user doesn't see menu
-  - Action: Log in as operator (no READ audit-logs permission).
+- [ ] **T.3.2** — Verify non-master user doesn't see menu [PENDING: manual verification required]
+  - Action: Log in as operator (no READ audit-logs permission). [PENDING — requires browser session; builder cannot run in sandbox]
   - Verify:
-    - ✓ "Auditoría de Acceso" does NOT appear.
-    - ✓ GESTIÓN section still visible with other items.
-    - ✓ No error or 404.
+    - ✓ "Auditoría de Acceso" does NOT appear. [Pending Andy manual]
+    - ✓ GESTIÓN section still visible with other items. [Pending Andy manual]
+    - ✓ No error or 404. [Pending Andy manual]
+  - Note: existing `menus.service.spec.ts` "full-permission user sees every menu entry (10 entries per D4)" test passes because the mock user lacks `READ audit-logs` — providing automated coverage for the non-master path.
   - Effort: 2 minutes.
 
 ### Phase 4: Final Checks
 
-- [ ] **T.4.1** — Verify no regressions
-  - Command: `cd backend && rtk npm test`
-  - Expected: Full test suite green (no new failures).
+- [x] **T.4.1** — Verify no regressions
+  - Command: `cd backend && rtk jest`
+  - Expected: Full test suite green (no new failures). ✓ (1059/1059 PASS).
   - Effort: 5 minutes.
 
 - [ ] **T.4.2** — Checklist before merge
   - ✓ MENU_MAP entry added.
   - ✓ menu-map.spec.ts all green (no edits needed).
   - ✓ Lint + typecheck clean.
-  - ✓ Manual verification passed (master sees, non-master doesn't).
+  - ⚠️ Manual verification (T.3.1, T.3.2) PENDING — requires browser session.
   - ✓ Frontend route `/admin/audit-logs` exists.
-  - ✓ Migration 0053 prerequisite documented in PR.
+  - ⚠️ Migration 0053 prerequisite documented in PR — call out in PR description.
   - Effort: 1 minute.
 
 ---

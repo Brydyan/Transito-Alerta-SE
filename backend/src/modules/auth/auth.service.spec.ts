@@ -5,6 +5,7 @@ import type { Cache } from 'cache-manager';
 import type { DataSource, Repository } from 'typeorm';
 import { AuthService, PERMISSION_CACHE_PREFIX } from './auth.service';
 import { UserEntity } from '../../entities/user.entity';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { SessionsRepository } from '../sessions/sessions.repository';
@@ -51,6 +52,15 @@ function makeGraceBuffer() {
   return { set: jest.fn(), get: jest.fn(), clear: jest.fn() };
 }
 
+function makePermissionLookup() {
+  return {
+    getUuid: jest.fn(),
+    getDescriptionsByUuids: jest.fn().mockResolvedValue([]),
+    buildCache: jest.fn(),
+    invalidate: jest.fn(),
+  };
+}
+
 function makeSessionRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 'sid-1',
@@ -78,6 +88,7 @@ describe('AuthService', () => {
   let sessionsRepository: ReturnType<typeof makeSessionsRepository>;
   let revocationCache: ReturnType<typeof makeRevocationCache>;
   let graceBuffer: ReturnType<typeof makeGraceBuffer>;
+  let permissionLookup: ReturnType<typeof makePermissionLookup>;
   let service: AuthService;
 
   beforeEach(() => {
@@ -89,6 +100,7 @@ describe('AuthService', () => {
     sessionsRepository = makeSessionsRepository();
     revocationCache = makeRevocationCache();
     graceBuffer = makeGraceBuffer();
+    permissionLookup = makePermissionLookup();
     service = new AuthService(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
       jwtService as unknown as JwtService,
@@ -98,6 +110,7 @@ describe('AuthService', () => {
       sessionsRepository as unknown as SessionsRepository,
       revocationCache as unknown as RevocationCache,
       graceBuffer as unknown as GraceBuffer,
+      permissionLookup as unknown as PermissionLookupService,
     );
   });
 
@@ -545,6 +558,7 @@ describe('AuthService.invalidatePermissionCache', () => {
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
+      makePermissionLookup() as unknown as PermissionLookupService,
     );
   });
 
@@ -577,6 +591,7 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
+      makePermissionLookup() as unknown as PermissionLookupService,
     );
   });
 
@@ -792,6 +807,7 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
+      makePermissionLookup() as unknown as PermissionLookupService,
     );
   });
 

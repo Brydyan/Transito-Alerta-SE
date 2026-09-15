@@ -37,11 +37,11 @@
   @apply text-xs bg-white border border-border-subtle select-none transition-all duration-150 ease-in-out;
 
   &:hover {
-    @apply border-brand-navy;
+    @apply border-brand-primary;
   }
 
   &.active-pill {
-    @apply bg-brand-navy/10 border-brand-navy/40 text-brand-navy;
+    @apply bg-brand-primary/10 border-brand-primary/40 text-brand-primary;
   }
 }
 

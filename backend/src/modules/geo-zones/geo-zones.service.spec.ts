@@ -17,7 +17,13 @@ function makeZone(overrides: Partial<GeoZoneDetailRow> = {}): GeoZoneDetailRow {
   };
 }
 
-const VALID_GEOMETRY = { valid: true, reason: null, empty: false, geom_type: 'ST_MultiPolygon' };
+const VALID_GEOMETRY = {
+  valid: true,
+  reason: null,
+  empty: false,
+  geom_type: 'ST_MultiPolygon',
+  inBounds: true,
+};
 
 describe('GeoZonesService', () => {
   let repo: {
@@ -369,6 +375,75 @@ describe('GeoZonesService', () => {
       await service.getTree();
 
       expect(repo.getSubtree).toHaveBeenCalledWith(null);
+    });
+  });
+
+  // sc-323-f6 — `CreateGeoZoneDto.polygon` becomes optional (was required
+  // with `@IsGeoJsonPolygon()` only). Without `@IsOptional()`, omitting
+  // polygon on POST /geo-zones either (a) fails class-validator before the
+  // service runs, or (b) crashes the service when validateGeometry hits
+  // ST_GeomFromGeoJSON(undefined). Either way the zone can't be created
+  // without geometry — the whole point of the change.
+  describe('polygon is optional (sc-323-f6)', () => {
+    it('creates a zone without polygon and skips PostGIS validation', async () => {
+      repo.create.mockResolvedValue(makeZone({ polygon: { type: 'MultiPolygon', coordinates: [] } }));
+
+      await service.create({
+        name: 'Sin Geometría',
+        level: 'zona',
+      } as never);
+
+      expect(repo.validateGeometry).not.toHaveBeenCalled();
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Sin Geometría', polygon: null }),
+      );
+    });
+  });
+
+  // sc-323-f6 — Ecuador bounds check (design.md D3): after ST_IsValid
+  // confirms topology, also reject polygons whose centroid is farther
+  // than 500 km from the country's centroid (-78.5, -1.5). Peru shapefile
+  // by accident = 400, not a zone silently created in the wrong country.
+  describe('Ecuador bounds check (sc-323-f6)', () => {
+    it('rejects a valid-topology polygon that lies outside Ecuador', async () => {
+      repo.validateGeometry.mockResolvedValue({
+        valid: true,
+        reason: null,
+        empty: false,
+        geom_type: 'ST_MultiPolygon',
+        inBounds: false,
+      });
+
+      await expect(
+        service.create({
+          name: 'Lima',
+          level: 'zona',
+          polygon: { type: 'Polygon', coordinates: [] },
+        } as never),
+      ).rejects.toMatchObject({
+        message: expect.stringContaining('outside Ecuador'),
+      });
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts a polygon whose centroid is within 500 km of Ecuador', async () => {
+      repo.validateGeometry.mockResolvedValue({
+        valid: true,
+        reason: null,
+        empty: false,
+        geom_type: 'ST_MultiPolygon',
+        inBounds: true,
+      });
+      repo.create.mockResolvedValue(makeZone());
+
+      await expect(
+        service.create({
+          name: 'Pichincha',
+          level: 'provincia',
+          polygon: { type: 'Polygon', coordinates: [] },
+        } as never),
+      ).resolves.toBeDefined();
+      expect(repo.create).toHaveBeenCalled();
     });
   });
 });

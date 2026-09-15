@@ -10,8 +10,9 @@ export class CreateGeoZoneDto {
   @MaxLength(255)
   name!: string;
 
+  @IsOptional()
   @IsGeoJsonPolygon()
-  polygon!: GeoJsonGeometry;
+  polygon?: GeoJsonGeometry;
 
   @IsOptional()
   @IsIn(GEO_ZONE_LEVELS)

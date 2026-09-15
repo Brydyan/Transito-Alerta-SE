@@ -2,7 +2,7 @@
 
 .system-config-container {
   .header-card {
-    @apply bg-gradient-to-br from-brand-navy/5 to-white/95 border border-brand-navy/15;
+    @apply bg-gradient-to-br from-brand-primary/5 to-white/95 border border-brand-primary/15;
   }
 
   .custom-config-table {

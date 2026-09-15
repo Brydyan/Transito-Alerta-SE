@@ -1,18 +1,9 @@
 /*
   Global CSS Variables — F0 design system alignment.
-  Paleta violeta del mock 01-01/02-01 reemplaza navy/hi-vis como tokens canónicos.
-
-  Las escalas `--color-brand-navy*` y `--color-brand-hivis*` se conservan
-  temporalmente como ALIAS de la paleta violeta para que el build siga
-  compilando mientras F1-F6 migran los consumidores externos (auth/, admin/,
-  profile/, reports/…). F0 sólo garantiza la limpieza dentro de `layout/`
-  (ver DoD). El grep de tokens viejos debe dar cero en `layout/`, no
-  en todo `src/`.
-
-  Los alias son deliberadamente no diferenciados visualmente: brand-navy →
-  brand-primary (violeta), brand-hivis → brand-primary-hover. Cuando F1-F6
-  los retiren, las pantallas afectadas cambiarán de color como parte
-  prevista de la migración.
+  Paleta violeta del mock 01-01/02-01 como tokens canónicos.
+  F6 (sc-323) retiró los alias bridge heredados de F0; los tokens
+  de estado deprecados fueron migrados a `prio-high` /
+  `status-resuelto` o eliminados por falta de consumidores.
 */
 
 @theme {
@@ -20,13 +11,6 @@
   --color-brand-primary: #7C3AED;
   --color-brand-primary-hover: #6D28D9;
   --color-brand-primary-soft: #F5F3FF;
-
-  /* Bridge temporal — retirar en F1-F6 */
-  --color-brand-navy: var(--color-brand-primary);
-  --color-brand-navy-light: var(--color-brand-primary-soft);
-  --color-brand-hivis: var(--color-brand-primary-hover);
-  --color-brand-hivis-hover: var(--color-brand-primary-hover);
-  --color-brand-hivis-text: #FFFFFF;
 
   /* Lienzo — sin cambio (mock 01-01 coincide) */
   --color-bg-primary: #F8F9FA;
@@ -74,28 +58,6 @@
   --color-on-tint-amber: #78350F;
   --color-on-tint-red: #991B1B;
   --color-on-tint-graphite: #1F2937;
-
-  /* Bridge temporal — alias de los nombres viejos para que _badges.css
-     y los features aún no migrados (F1-F6) compilen. Se retiran
-     cuando cada consumidor adopte los tokens canónicos.
-
-     ⚠️ `pending` ≠ `pendiente` (WARNING-6 / CRITICAL-2 de fixes-required.md):
-     el token canónico es `--color-status-pendiente` (#94A3B8 gris pizarra),
-     declarado arriba. Este alias es `--color-status-pending` (#FFC600 ámbar)
-     — un carácter de distancia, color totalmente distinto, y un dev de
-     F1-F6 que escriba `bg-status-pending` esperando el estado «pendiente»
-     obtiene ámbar sin error de compilación ni test que lo agarre. El
-     alias existe sólo porque `_badges.css` lo consume; en cuanto ese
-     consumidor adopte el canónico, este alias se retira junto con los
-     otros del bloque.
-
-     La retirada de los dos bloques de puente (`--color-brand-*` legacy y
-     los `--color-status-*` que aún no se usan) está ticketeada en
-     [sc-323](https://app.shortcut.com/upse/story/323), asignada a F6. */
-  --color-status-critical: var(--color-prio-high);
-  --color-status-pending: #FFC600;
-  --color-status-info: var(--color-accent-cyan);
-  --color-status-success: var(--color-status-resuelto);
 
   /* Tipografía — D2: Outfit geométrica */
   --font-sans: 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

@@ -15,7 +15,7 @@
 
   @if (isLoading()) {
     <div class="flex justify-center py-12">
-      <div class="spinner-border text-brand-navy w-8 h-8 border-2" role="status">
+      <div class="spinner-border text-brand-primary w-8 h-8 border-2" role="status">
         <span class="sr-only">Cargando...</span>
       </div>
     </div>
@@ -43,7 +43,7 @@
                   "
                 >
                   @if (isUploadingAvatar()) {
-                    <div class="spinner-border spinner-border-sm text-brand-navy" role="status">
+                    <div class="spinner-border spinner-border-sm text-brand-primary" role="status">
                       <span class="sr-only">Subiendo...</span>
                     </div>
                   } @else if (avatarPreview()) {
@@ -89,65 +89,65 @@
                 <!-- Nombres -->
                 <div>
                   <label for="form-nombres" class="form-label">
-                    Nombres <span class="text-status-critical">*</span>
+                    Nombres <span class="text-prio-high">*</span>
                   </label>
                   <input
                     id="form-nombres"
                     type="text"
                     class="form-control"
-                    [class.border-status-critical]="campoInvalido('nombres')"
+                    [class.border-prio-high]="campoInvalido('nombres')"
                     placeholder="Ej. Juan"
                     formControlName="nombres"
                   />
                   @if (campoInvalido('nombres')) {
-                    <small class="text-status-critical text-xs mt-1 block">Los nombres son obligatorios.</small>
+                    <small class="text-prio-high text-xs mt-1 block">Los nombres son obligatorios.</small>
                   }
                 </div>
 
                 <!-- Apellidos -->
                 <div>
                   <label for="form-apellidos" class="form-label">
-                    Apellidos <span class="text-status-critical">*</span>
+                    Apellidos <span class="text-prio-high">*</span>
                   </label>
                   <input
                     id="form-apellidos"
                     type="text"
                     class="form-control"
-                    [class.border-status-critical]="campoInvalido('apellidos')"
+                    [class.border-prio-high]="campoInvalido('apellidos')"
                     placeholder="Ej. Pérez"
                     formControlName="apellidos"
                   />
                   @if (campoInvalido('apellidos')) {
-                    <small class="text-status-critical text-xs mt-1 block">Los apellidos son obligatorios.</small>
+                    <small class="text-prio-high text-xs mt-1 block">Los apellidos son obligatorios.</small>
                   }
                 </div>
 
                 <!-- Teléfono -->
                 <div>
                   <label for="form-telefono" class="form-label">
-                    Teléfono <span class="text-status-critical">*</span>
+                    Teléfono <span class="text-prio-high">*</span>
                   </label>
                   <input
                     id="form-telefono"
                     type="text"
                     class="form-control"
-                    [class.border-status-critical]="campoInvalido('telefono')"
+                    [class.border-prio-high]="campoInvalido('telefono')"
                     placeholder="Ej. +593991234567"
                     formControlName="telefono"
                   />
                   @if (campoInvalido('telefono')) {
                     @if (userForm.get('telefono')?.errors?.['invalidPrefix']) {
-                      <small class="text-status-critical text-xs mt-1 block">El teléfono debe empezar con "+593" o "09".</small>
+                      <small class="text-prio-high text-xs mt-1 block">El teléfono debe empezar con "+593" o "09".</small>
                     } @else if (userForm.get('telefono')?.errors?.['invalidLength']) {
-                      <small class="text-status-critical text-xs mt-1 block"
+                      <small class="text-prio-high text-xs mt-1 block"
                         >El teléfono debe tener entre 10 y 12 dígitos.</small
                       >
                     } @else if (userForm.get('telefono')?.errors?.['invalidFormat']) {
-                      <small class="text-status-critical text-xs mt-1 block"
+                      <small class="text-prio-high text-xs mt-1 block"
                         >El teléfono solo puede contener números y el signo "+".</small
                       >
                     } @else {
-                      <small class="text-status-critical text-xs mt-1 block">El teléfono es obligatorio.</small>
+                      <small class="text-prio-high text-xs mt-1 block">El teléfono es obligatorio.</small>
                     }
                   }
                 </div>
@@ -155,21 +155,21 @@
                 <!-- Correo -->
                 <div>
                   <label for="form-email" class="form-label">
-                    Correo electrónico <span class="text-status-critical">*</span>
+                    Correo electrónico <span class="text-prio-high">*</span>
                   </label>
                   <input
                     id="form-email"
                     type="email"
                     class="form-control"
-                    [class.border-status-critical]="campoInvalido('email')"
+                    [class.border-prio-high]="campoInvalido('email')"
                     placeholder="usuario@jasrapo.com"
                     formControlName="email"
                   />
                   @if (campoInvalido('email')) {
                     @if (userForm.get('email')?.errors?.['email']) {
-                      <small class="text-status-critical text-xs mt-1 block">Ingrese un correo electrónico válido.</small>
+                      <small class="text-prio-high text-xs mt-1 block">Ingrese un correo electrónico válido.</small>
                     } @else {
-                      <small class="text-status-critical text-xs mt-1 block">El correo electrónico es obligatorio.</small>
+                      <small class="text-prio-high text-xs mt-1 block">El correo electrónico es obligatorio.</small>
                     }
                   }
                 </div>
@@ -182,7 +182,7 @@
                   <select
                     id="form-rolId"
                     class="form-control"
-                    [class.border-status-critical]="campoInvalido('rolId')"
+                    [class.border-prio-high]="campoInvalido('rolId')"
                     formControlName="rolId"
                   >
                     <option [ngValue]="null" disabled>Seleccione un rol</option>
@@ -191,7 +191,7 @@
                     }
                   </select>
                   @if (campoInvalido('rolId')) {
-                    <small class="text-status-critical text-xs mt-1 block">El rol es obligatorio.</small>
+                    <small class="text-prio-high text-xs mt-1 block">El rol es obligatorio.</small>
                   }
                 </div>
 
@@ -226,7 +226,7 @@
             <!-- Section 2: Permissions -->
             <div>
               <h6 class="font-semibold mb-4 flex items-center gap-2">
-                <i class="bi bi-geo-alt-fill text-brand-navy"></i>
+                <i class="bi bi-geo-alt-fill text-brand-primary"></i>
                 Lista de permisos
               </h6>
 
@@ -318,7 +318,7 @@
                             >
                               <span>{{ perm.nombre }}</span>
                               <span
-                                class="badge bg-brand-navy/10 text-brand-navy rounded-full text-[0.65rem] px-2 py-0.5 ml-auto"
+                                class="badge bg-brand-primary/10 text-brand-primary rounded-full text-[0.65rem] px-2 py-0.5 ml-auto"
                               >
                                 {{ perm.accion }}
                               </span>

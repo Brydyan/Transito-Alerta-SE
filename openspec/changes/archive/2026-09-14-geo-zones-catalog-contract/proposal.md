@@ -50,46 +50,41 @@ Alternativa menor si se prefiere no tocar el árbol: excluir `polygon` de `findA
 pedido explícito (`?include_geometry=true`), y subir `MAX_PAGE_SIZE` para lecturas de
 catálogo.
 
-## Hallazgo 2 — `polygon` obligatorio en el alta obliga al frontend a inventar geometría
+## Hallazgo 2 — `polygon` obligatorio + UI sin herramienta de dibujo
 
 `CreateGeoZoneDto.polygon` es **requerido** (`@IsGeoJsonPolygon()`, no opcional);
 en `UpdateGeoZoneDto` es opcional.
 
-F2 no tiene herramienta de dibujo — el mapa llega en F4, y el mock 06-02 no lo muestra.
-Para poder dar de alta una zona, `location-form.component.ts` manda **siempre el mismo**
-polígono placeholder: una caja de 1°×1° (~111 km) cerca de Quito.
+Frontend no tiene herramienta de dibujo. Hoy, `location-form.component.ts` manda
+**siempre el mismo** polígono placeholder: caja de 1°×1° (~111 km) cerca de Quito.
 
-**Por qué importa**: `GeofencingRepository.findZoneByPoint` resuelve la zona de cada
-incidencia con
+Consecuencia: toda zona creada desde la UI comparte polígono idéntico → `findZoneByPoint`
+(sin `ORDER BY`, solo `LIMIT 1`) devuelve zona **arbitraria** → incidencias se rutean
+**al azar**. Corrompe el flujo central del producto.
 
-```sql
-SELECT id, name, active, created_at
-  FROM geo_zones
- WHERE active = true
-   AND ST_Contains(polygon, ST_SetSRID(ST_Point($1, $2), 4326))
- LIMIT 1
-```
+**Solución elegida: Opción Híbrida (Frontend Upload + Backend Validation)**
 
-`LIMIT 1` **sin `ORDER BY`**. El propio comentario del repositorio ya advierte que, desde
-que 0034 quitó `uq_organizations_zone`, varias zonas pueden solaparse y el `LIMIT 1` deja
-de ser determinista.
+1. **Frontend** (`location-form.component.ts`):
+   - Nuevo botón: "Subir Shapefile"
+   - Componente modal: `ShapefileUploadDialog`
+   - Parsea `.zip` con `shpjs` (librería JavaScript)
+   - Extrae GeoJSON
+   - User ve preview en mapa (acepta/rechaza)
+   - Envía al backend
 
-Consecuencia: toda zona creada desde la UI comparte el mismo polígono, y cualquier
-incidencia reportada dentro de esa caja se rutea a **una zona arbitraria** entre ellas.
-No es un defecto cosmético del catálogo — corrompe el ruteo de incidencias, que es el
-flujo central del producto.
+2. **Backend** (`CreateGeoZoneDto`):
+   - `polygon` → **OPCIONAL** (`@IsOptional()` + `@IsGeoJsonPolygon()`)
+   - Validación PostGIS:
+     - `ST_IsValid(polygon)` — geometría válida
+     - `ST_DWithin(polygon, 'SRID=4326;POINT(-78.5 -1.5)', 500000)` — dentro de Ecuador ±500km
+     - No overlaps con zonas del mismo level (regla de negocio)
+   - `findZoneByPoint` + `findZonesNearby` filtran `AND polygon IS NOT NULL`
+   - Zonas sin polígono quedan fuera del geofencing
 
-**Propuesta** — una de estas, es decisión de producto:
-
-1. **`polygon` opcional en el alta** + tratar las zonas sin geometría como
-   no-geofencing: `findZoneByPoint` y `findZonesNearby` ya filtran por `active`; añadir
-   `AND polygon IS NOT NULL` las deja fuera del ruteo hasta que alguien dibuje la
-   geometría real en F4. Es la opción que desbloquea el catálogo sin ensuciar el
-   geofencing.
-2. **Mantener `polygon` requerido** y que el frontend **no exponga el alta** de zonas
-   hasta F4. El catálogo queda en listar / editar / borrar.
-
-Mientras no se decida, el alta de Ubicaciones sigue escribiendo el placeholder.
+3. **Resultado**:
+   - Catálogo funciona ahora (crear con shapefile real)
+   - Geofencing no rompe (solo zonas con geometría válida)
+   - Progressive: zona sin polígono → user dibuja después (F5+) → auto-activa geofencing
 
 ## Scope
 
