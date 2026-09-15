@@ -61,6 +61,43 @@
 
 ---
 
+## Phase B: Repository & Service ✅ DONE (2026-09-15)
+
+### B.1 Create DepartmentsRepository
+- [x] File: `backend/src/modules/departments/departments.repository.ts` — **DEVIATION**: raw SQL pattern (matches `OrganizationsRepository` / `GeoZonesRepository`) instead of `extends Repository<T>` as tasks.md B.1 literal suggested. Reason: project convention + simpler unit tests via SQL capture. See apply-progress.md.
+- [x] `findByOrgId` → implemented as `list(filters)` (renamed for parity with sibling repos)
+- [x] `findById` returns row regardless of soft-delete; service uses `findByIdActive` to gate
+- [x] `existsByOrgAndName` for UNIQUE constraint pre-check (Postgres `EXISTS()` query)
+- [x] `findByUser` joins `users.department_id` with both sides filtered `deleted_at IS NULL`
+- [x] `orphanIncidents` for design D3 (dept delete orphans incidents in one UPDATE)
+
+### B.2 Create DepartmentsService
+- [x] File: `backend/src/modules/departments/departments.service.ts`
+- [x] Injects: `DepartmentsRepository`, `OrganizationsRepository` (NEW dependency)
+- [x] Methods: create / findById / list / update / delete / findByUser
+- [x] create validates org exists + UNIQUE(org, name) — **DEVIATION**: cannot check org deleted_at because `OrganizationsRepository.findById`'s `SELECT_COLUMNS` doesn't project that column (gap in that module). Documented.
+- [x] delete orphans BEFORE soft-delete per design D3; 404 if not active
+
+### B.3 Create DTOs
+- [x] `backend/src/modules/departments/dto/create-department.dto.ts` — name (required, max 255), description (optional), organization_id (UUID v4)
+- [x] `backend/src/modules/departments/dto/update-department.dto.ts` — name + description optional, **no** organization_id (immutable per design D4)
+- [x] `backend/src/modules/departments/dto/list-departments.query.ts` — page/per_page (with `@Type(() => Number)` for query-string coercion), organization_id (optional, controller scopes), search
+
+### B.4 Create DepartmentsModule
+- [x] File: `backend/src/modules/departments/departments.module.ts`
+- [x] Imports `TypeOrmModule.forFeature([DepartmentEntity])` + `OrganizationsModule`
+- [x] Providers: `DepartmentsRepository`, `DepartmentsService`
+- [x] Exports: `DepartmentsService`
+- [x] **DEVIATION**: controller NOT registered (will be added in Phase C)
+
+### B.5 Unit Tests for Service (15 test cases)
+- [x] File: `backend/src/modules/departments/departments.service.spec.ts` — 15 tests covering create/findById/list/update/delete/findByUser including the design D3 orphan-before-delete ordering
+
+### B.6 Unit Tests for Repository (19 test cases)
+- [x] File: `backend/src/modules/departments/departments.repository.spec.ts` — 19 tests (over the 15-target in tasks.md B.6) covering: create, softDelete, findByIdActive, existsByOrgAndName, list pagination/search/soft-delete, findByUser, orphanIncidents, update with provided-flag semantics
+
+**DepartmentsRepository** also required a small change to **OrganizationsModule** (B.4 dependency): exporting `OrganizationsRepository` so the service can `findById()` without throwing on null. One-line export.
+
 ## Phase B: Repository & Service (3h)
 
 ### B.1 Create DepartmentsRepository

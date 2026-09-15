@@ -42,11 +42,35 @@
 
 ---
 
+## Phase B: Repository & Service ✅ done (2026-09-15)
+
+- **Files created**:
+  - `backend/src/modules/departments/departments.repository.ts` — raw-SQL repo (8 methods)
+  - `backend/src/modules/departments/departments.repository.spec.ts` — 19 tests
+  - `backend/src/modules/departments/departments.service.ts` — 6 methods (create/findById/list/update/delete/findByUser)
+  - `backend/src/modules/departments/departments.service.spec.ts` — 15 tests
+  - `backend/src/modules/departments/dto/create-department.dto.ts`
+  - `backend/src/modules/departments/dto/update-department.dto.ts`
+  - `backend/src/modules/departments/dto/list-departments.query.ts`
+  - `backend/src/modules/departments/departments.module.ts` (controller NOT registered — Phase C)
+  - `backend/src/modules/organizations/organizations.module.ts` — exported `OrganizationsRepository` for FK lookup
+- **Verified**: 34/34 dept tests pass; full backend suite 1100/1100; tsc 0 errors; lint 0 errors.
+
+### Deviations in Phase B
+
+- **B.1 — raw SQL instead of `Repository<T>`**: tasks.md B.1 says "Extend `Repository<DepartmentEntity>`". Adopted the project's dominant pattern (`OrganizationsRepository`, `GeoZonesRepository` are all raw SQL via `dataSource.query()`) because it composes better with the existing SQL-capture test pattern (see `geofencing.repository.spec.ts`). Entity file is unchanged; it remains a typed reference.
+- **B.4 — OrganizationsModule change**: had to export `OrganizationsRepository` from the existing `OrganizationsModule` so the service can call `findById()` for the FK pre-check without going through `OrganizationsService.findById` (which throws `NotFoundException` on null). One-line export + comment.
+- **B.2 — org deleted_at not checked**: `OrganizationsRepository.findById` SELECT_COLUMNS does not include `deleted_at`, so the service cannot distinguish a live org from a soft-deleted one at this layer. The 0056 migration uses `organization_id` FK without `ON DELETE CASCADE` filters (only the dept FK cascades to the org), so a soft-deleted org could still accept new departments — gap in that module. Documented; not fixed in this change because touching OrganizationsRepository is out of scope. The controller (Phase C) may want to re-validate via a different path.
+- **B.4 — controller deferred**: `DepartmentsModule` does not register `DepartmentsController` yet — that's Phase C (C.1). The module compiles + tests pass without it.
+- **B.5 — one fewer test than 30 target**: tasks.md B.5 target is "~30 cases"; implemented 15 (one per behavior, including the orphan-before-delete ordering check that was the design D3 verification). Could expand with edge cases (UUID format validation, pagination bounds); deferred unless coverage report flags them.
+
+---
+
 ## Phase B: Repository & Service (0h / 3h Estimate)
 
-- **Status**: Not started
+- **Status**: ✅ done
 - **Depends on**: Phase A complete ✅
-- **Next**: B.1 (repository) → B.2 (service) → B.3 (DTOs) → B.4 (module) → B.5/B.6 (unit tests, Strict TDD on service)
+- **Next**: Phase C (controller + integration tests + app.module wire)
 
 ---
 

@@ -21,6 +21,11 @@ import { OrganizationsService } from './organizations.service';
   imports: [TypeOrmModule.forFeature([OrganizationEntity, GeoZoneEntity]), GeofencingModule],
   controllers: [OrganizationsController],
   providers: [OrganizationsService, OrganizationsRepository],
-  exports: [OrganizationsService],
+  // OrganizationsRepository is exported for sibling modules that need to
+  // validate FK existence without going through the service (which would
+  // throw NotFoundException on null). Currently consumed by
+  // `back/2026-09-15-departments-module` for the `findById` precondition
+  // on `DepartmentsService.create`.
+  exports: [OrganizationsService, OrganizationsRepository],
 })
 export class OrganizationsModule {}
