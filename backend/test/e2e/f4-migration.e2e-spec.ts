@@ -33,7 +33,10 @@ describe('F4 - Migration 0054 (Citizen Social Features)', () => {
     // 3. Set their permissions to the old role permissions
     await db.client.query('UPDATE users SET permissions = $1::jsonb, permission_version = 1 WHERE id = $2', [JSON.stringify(roles[0].permissions), userId]);
 
-    // 4. Verify old permissions don't have the new ones (get expected UUIDs from catalog)
+    // 4. Apply 0054 — this migration inserts the new permission catalog rows
+    await db.applyVersion('0054');
+
+    // 5. Verify that the new permission rows were inserted by 0054
     const expectedPerms = await db.rows<{ id: string }>(`
       SELECT id FROM permissions
       WHERE (resource, action) IN (('incident-followers', 'CREATE'), ('incident-followers', 'DELETE'), ('incident-corroborations', 'CREATE'))
@@ -42,25 +45,17 @@ describe('F4 - Migration 0054 (Citizen Social Features)', () => {
     expect(expectedPerms.length).toBe(3);
     const expectedUuids = expectedPerms.map(p => p.id);
 
-    let user = (await db.rows<{ permissions: string[], permission_version: number }>('SELECT permissions, permission_version FROM users WHERE id = $1', [userId]))[0];
-    expectedUuids.forEach(uuid => {
-      expect(user.permissions).not.toContain(uuid);
-    });
-
-    // 5. Apply 0054
-    await db.applyVersion('0054');
-
     // 6. Verify role permissions got updated (now contain UUIDs)
     const updatedRole = (await db.rows<{ permissions: string[] }>('SELECT permissions FROM roles WHERE id = $1', [roleId]))[0];
     expectedUuids.forEach(uuid => {
       expect(updatedRole.permissions).toContain(uuid);
     });
 
-    // 7. Verify user permissions got updated with same UUIDs
-    user = (await db.rows<{ permissions: string[], permission_version: number }>('SELECT permissions, permission_version FROM users WHERE id = $1', [userId]))[0];
+    // 7. Verify user permissions got updated with same UUIDs (bumped to version 2)
+    const updatedUser = (await db.rows<{ permissions: string[], permission_version: number }>('SELECT permissions, permission_version FROM users WHERE id = $1', [userId]))[0];
     expectedUuids.forEach(uuid => {
-      expect(user.permissions).toContain(uuid);
+      expect(updatedUser.permissions).toContain(uuid);
     });
-    expect(user.permission_version).toBe(2);
+    expect(updatedUser.permission_version).toBe(2);
   });
 });
