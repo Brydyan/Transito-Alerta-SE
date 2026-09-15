@@ -1,197 +1,159 @@
-import { AuthService } from '../auth/auth.service';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+
+import { REDIS_CLIENT } from '../../core/core.module';
+import { MenuOptionEntity } from './entities/menu-option.entity';
+import { MenuOptionRoleEntity } from './entities/menu-option-role.entity';
+import { UserEntity } from '../../entities/user.entity';
 import { MenusService } from './menus.service';
 
 /**
- * F1 — TDD: estos tests se escribieron ANTES de modificar `menus.service.ts`
- * ni `menu-map.ts`. Al ejecutarlos contra el código de la ronda anterior
- * (5 entradas en inglés, sin `group` ni `order`) deben fallar:
- *   - "propagates group from the definition"
- *   - "propagates order from the definition"
- *   - "orders the result by order ascending"
- *   - "omits groups that become empty after permission filtering"
- *   - "the full-permission user sees the 10-entry D4 map"
- *   - "operador_org sees a coherent subset without orphan headers"
+ * MenusService — unit tests for the DB-backed resolution (F5).
+ *
+ * These tests replace the old MENU_MAP-based tests. The MENU_MAP is
+ * preserved in the repo as a rollback path (D7) and its own coherence
+ * tests live in menu-map.spec.ts (D8).
  */
 describe('MenusService', () => {
-  let authService: { getPermissionsByUserId: jest.Mock };
-  // F6 fix (post-0051): el service ahora inyecta `PermissionLookupService`
-  // para traducir `"ACTION resource"` (formato de MENU_MAP) → UUID
-  // (formato de users.permissions post-0051). El stub devuelve el mismo
-  // string `"ACTION resource"` que los tests usan en
-  // `ALL_MENU_PERMISSIONS` para preservar los asserts exactamente.
-  let permissionLookup: { getUuid: jest.Mock; invalidate: jest.Mock };
   let service: MenusService;
+  let optionRepo: { qb: { getMany: jest.Mock }; createQueryBuilder: jest.Mock };
+  let userRepo: { findOne: jest.Mock };
+  let redis: { get: jest.Mock; setex: jest.Mock; del: jest.Mock; keys: jest.Mock };
 
-  beforeEach(() => {
-    authService = { getPermissionsByUserId: jest.fn() };
-    permissionLookup = {
-      getUuid: jest.fn().mockImplementation(async (action: string, resource: string) => {
-        return `${action} ${resource}`;
-      }),
-      invalidate: jest.fn(),
+  const ROLE_MASTER = '11111111-1111-1111-1111-111111111111';
+  const USER_MASTER = 'user-master';
+
+  beforeEach(async () => {
+    const qb = {
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
     };
-    service = new MenusService(
-      authService as unknown as jest.Mocked<AuthService>,
-      permissionLookup as unknown as PermissionLookupService,
+    optionRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(qb),
+      qb,
+    };
+    userRepo = { findOne: jest.fn() };
+    redis = {
+      get: jest.fn().mockResolvedValue(null),
+      setex: jest.fn().mockResolvedValue('OK'),
+      del: jest.fn().mockResolvedValue(0),
+      keys: jest.fn().mockResolvedValue([]),
+    };
+
+    userRepo.findOne.mockResolvedValue(
+      Object.assign(new UserEntity(), { id: USER_MASTER, roleId: ROLE_MASTER }),
+    );
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        MenusService,
+        { provide: getRepositoryToken(MenuOptionEntity), useValue: optionRepo },
+        { provide: getRepositoryToken(MenuOptionRoleEntity), useValue: {} },
+        { provide: getRepositoryToken(UserEntity), useValue: userRepo },
+        { provide: REDIS_CLIENT, useValue: redis },
+      ],
+    }).compile();
+
+    service = module.get(MenusService);
+  });
+
+  it('resolves the user role before querying menu options', async () => {
+    await service.getMenuForUser(USER_MASTER);
+
+    expect(userRepo.findOne).toHaveBeenCalledWith({
+      where: { id: USER_MASTER, deletedAt: expect.anything() },
+      select: ['id', 'roleId'],
+    });
+  });
+
+  it('returns empty array when user has no role_id', async () => {
+    userRepo.findOne.mockResolvedValue(
+      Object.assign(new UserEntity(), { id: 'anon', roleId: null }),
+    );
+
+    const result = await service.getMenuForUser('anon');
+
+    expect(result).toEqual([]);
+    // Should not query menu options at all
+    expect(optionRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('returns empty array when user is not found', async () => {
+    userRepo.findOne.mockResolvedValue(null);
+
+    const result = await service.getMenuForUser('nonexistent');
+
+    expect(result).toEqual([]);
+    expect(optionRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('builds tree from flat DB results', async () => {
+    const parent = Object.assign(new MenuOptionEntity(), {
+      id: 'p', name: 'Gestión', route: '/gestion', icon: 'settings',
+      parentId: null, displayOrder: 50, isActive: true, deletedAt: null,
+    });
+    const child = Object.assign(new MenuOptionEntity(), {
+      id: 'c', name: 'Usuarios', route: '/admin/users', icon: 'users',
+      parentId: 'p', displayOrder: 60, isActive: true, deletedAt: null,
+    });
+    optionRepo.qb.getMany.mockResolvedValue([parent, child]);
+
+    const result = await service.getMenuForUser(USER_MASTER);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].label).toBe('Gestión');
+    expect(result[0].children).toHaveLength(1);
+    expect(result[0].children[0].label).toBe('Usuarios');
+  });
+
+  it('orders root nodes by display_order', async () => {
+    const a = Object.assign(new MenuOptionEntity(), {
+      id: 'a', name: 'Zebra', route: '/z', parentId: null, displayOrder: 100,
+      isActive: true, deletedAt: null,
+    });
+    const b = Object.assign(new MenuOptionEntity(), {
+      id: 'b', name: 'Alpha', route: '/a', parentId: null, displayOrder: 10,
+      isActive: true, deletedAt: null,
+    });
+    optionRepo.qb.getMany.mockResolvedValue([a, b]);
+
+    const result = await service.getMenuForUser(USER_MASTER);
+
+    expect(result.map((e) => e.label)).toEqual(['Alpha', 'Zebra']);
+  });
+
+  it('caches the result in Redis with role-based key', async () => {
+    optionRepo.qb.getMany.mockResolvedValue([]);
+
+    await service.getMenuForUser(USER_MASTER);
+
+    expect(redis.setex).toHaveBeenCalledWith(
+      `menu:v1:role:${ROLE_MASTER}`,
+      3600,
+      '[]',
     );
   });
 
-  it('resolves permissions via AuthService.getPermissionsByUserId (same cache path as PermissionGuard)', async () => {
-    authService.getPermissionsByUserId.mockResolvedValue([]);
+  it('returns cached result when available', async () => {
+    const cached = [{ label: 'Cached', route: '/cached', order: 10, children: [] }];
+    redis.get.mockResolvedValue(JSON.stringify(cached));
 
-    await service.getMenuForUser('user-1');
+    const result = await service.getMenuForUser(USER_MASTER);
 
-    expect(authService.getPermissionsByUserId).toHaveBeenCalledWith('user-1');
+    expect(result).toEqual(cached);
+    // Should not query DB
+    expect(optionRepo.createQueryBuilder).not.toHaveBeenCalled();
   });
 
-  // Permisos equivalentes al seed de `master@tase.local` (35 permisos).
-  // Sólo los que el mapa D4 requiere para que la entrada quede visible.
-  const ALL_MENU_PERMISSIONS = [
-    'READ incidents',
-    'CREATE incidents',
-    'READ users',
-    'READ roles',
-    'READ organizations',
-    'READ incident-categories',
-    'READ geo-zones',
-  ];
+  it('invalidateCache removes all menu:v1:* keys', async () => {
+    redis.keys.mockResolvedValue(['menu:v1:role:1', 'menu:v1:role:2']);
 
-  it('a full-permission user sees every menu entry (10 entries per D4)', async () => {
-    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
+    await service.invalidateCache();
 
-    const result = await service.getMenuForUser('user-1');
-
-    expect(result).toHaveLength(10);
-    // El orden es por `order` ascendente, no por iteración de Object.entries.
-    expect(result.map((e) => e.label)).toEqual([
-      'Dashboard',
-      'Inicio',
-      'Lista de Incidencias',
-      'Mapa',
-      'Reportar',
-      'Usuarios',
-      'Roles',
-      'Organizaciones',
-      'Categorías',
-      'Ubicaciones',
-    ]);
-  });
-
-  it('propagates group from the definition (D3/D4)', async () => {
-    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
-
-    const result = await service.getMenuForUser('user-1');
-
-    const dashboard = result.find((e) => e.label === 'Dashboard');
-    const inicio = result.find((e) => e.label === 'Inicio');
-    const usuarios = result.find((e) => e.label === 'Usuarios');
-    const categorias = result.find((e) => e.label === 'Categorías');
-
-    // Dashboard no tiene grupo — se renderiza sin encabezado.
-    expect(dashboard?.group).toBeUndefined();
-    // Las entradas agrupadas llevan el nombre del grupo.
-    expect(inicio?.group).toBe('INCIDENCIAS');
-    expect(usuarios?.group).toBe('GESTIÓN');
-    expect(categorias?.group).toBe('CATÁLOGOS');
-  });
-
-  it('propagates order from the definition (D3/D4)', async () => {
-    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
-
-    const result = await service.getMenuForUser('user-1');
-
-    // El orden de la respuesta es estrictamente ascendente por `order`,
-    // no por iteración de Object.entries() — el bug que D3 explícitamente
-    // busca cerrar.
-    const orders = result.map((e) => e.order);
-    expect(orders).toEqual([...orders].sort((a, b) => a - b));
-    expect(result[0].order).toBe(10);  // Dashboard
-    expect(result[9].order).toBe(100); // Ubicaciones
-  });
-
-  it('orders the result by order ascending (deterministic, not insertion order)', async () => {
-    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
-
-    const result = await service.getMenuForUser('user-1');
-
-    // Aunque las claves del MENU_MAP se inserten en cualquier orden, la
-    // respuesta viene ordenada por `order` ascendente. Esto protege contra
-    // el modo de fallo original: orden accidental de Object.entries().
-    expect(result.map((e) => e.order)).toEqual([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
-  });
-
-  it('omits groups that become empty after permission filtering', async () => {
-    // Un usuario con permisos reducidos: no ve ni CATÁLOGOS ni GESTIÓN.
-    // El grupo queda vacío tras el filtrado y el backend no debe emitir
-    // un encabezado huérfano.
-    authService.getPermissionsByUserId.mockResolvedValue([
-      'READ incidents',
-      'CREATE incidents',
-    ]);
-
-    const result = await service.getMenuForUser('user-1');
-
-    // Sólo debe ver las entradas del grupo INCIDENCIAS + Dashboard (sin grupo).
-    expect(result.map((e) => e.label)).toEqual([
-      'Dashboard',
-      'Inicio',
-      'Lista de Incidencias',
-      'Mapa',
-      'Reportar',
-    ]);
-    // No debe haber entradas con grupo GESTIÓN ni CATÁLOGOS.
-    expect(result.find((e) => e.group === 'GESTIÓN')).toBeUndefined();
-    expect(result.find((e) => e.group === 'CATÁLOGOS')).toBeUndefined();
-  });
-
-  it('operador_org (15 permisos) sees a coherent subset without orphan headers (F1.2.3)', async () => {
-    // Subset representativo: el operador de organización tiene acceso a
-    // incidencias (lectura y creación) y a organizaciones. NO ve usuarios,
-    // roles, categorías, ni ubicaciones. El menú resultante no debe tener
-    // encabezados GESTIÓN/CATÁLOGOS con cero entradas.
-    authService.getPermissionsByUserId.mockResolvedValue([
-      'READ incidents',
-      'CREATE incidents',
-      'READ organizations',
-    ]);
-
-    const result = await service.getMenuForUser('user-1');
-
-    expect(result.map((e) => e.label)).toEqual([
-      'Dashboard',
-      'Inicio',
-      'Lista de Incidencias',
-      'Mapa',
-      'Reportar',
-      'Organizaciones',
-    ]);
-    // GESTIÓN tiene una entrada (Organizaciones) — no es huérfano.
-    expect(result.filter((e) => e.group === 'GESTIÓN')).toHaveLength(1);
-    // CATÁLOGOS queda vacío y no aparece.
-    expect(result.find((e) => e.group === 'CATÁLOGOS')).toBeUndefined();
-  });
-
-  it('a user lacking READ assignments does not see a stale Assignments entry (regresión)', async () => {
-    // F1.1.3 retiró `Assignments` del mapa. Si vuelve a aparecer con un
-    // permiso que el usuario no tiene, el resultado debe seguir limpio:
-    // ninguna entrada con label `Assignments`.
-    authService.getPermissionsByUserId.mockResolvedValue([
-      'READ incidents',
-      'READ assignments',
-    ]);
-
-    const result = await service.getMenuForUser('user-1');
-
-    expect(result.find((e) => e.label === 'Assignments')).toBeUndefined();
-    expect(result.find((e) => e.label === 'Comments')).toBeUndefined();
-  });
-
-  it('a user with no permissions sees an empty menu', async () => {
-    authService.getPermissionsByUserId.mockResolvedValue([]);
-
-    const result = await service.getMenuForUser('user-1');
-
-    expect(result).toEqual([]);
+    expect(redis.keys).toHaveBeenCalledWith('menu:v1:role:*');
+    expect(redis.del).toHaveBeenCalledWith('menu:v1:role:1', 'menu:v1:role:2');
   });
 });
