@@ -6,7 +6,7 @@ import { MenuEntry } from './menu-map';
 import { MenusService } from './menus.service';
 
 export interface AuthenticatedRequest extends Request {
-  user: { userId: string; permissions: string[] };
+  user: { userId: string; roleName: string | null; permissions: string[] };
 }
 
 /**
@@ -22,6 +22,6 @@ export class MenusController {
 
   @Get(['', 'my'])
   getMenu(@Req() request: AuthenticatedRequest): Promise<MenuEntry[]> {
-    return this.menusService.getMenuForUser(request.user.userId);
+    return this.menusService.getMenuForUser(request.user.userId, request.user.roleName);
   }
 }

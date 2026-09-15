@@ -82,7 +82,7 @@
                 <ui-icon name="user" [size]="16" extraClass="mr-2" /> Mi Perfil
               </a>
             </li>
-            <li>
+            <li *hasPermission="'UPDATE config'">
               <a
                 class="block px-4 py-2 text-sm text-slate-800 hover:bg-slate-50 hover:text-brand-primary transition-colors"
                 routerLink="/app/admin/config"

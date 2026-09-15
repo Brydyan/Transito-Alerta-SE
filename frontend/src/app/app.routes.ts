@@ -148,7 +148,7 @@ export const routes: Routes = [
           // en la navegación.
           {
             path: 'roles/:rolId',
-            data: { breadcrumb: 'Editor de Rol' },
+            data: { breadcrumb: 'Editor de Rol', permission: 'UPDATE roles' },
             canActivate: [permissionGuard],
             loadComponent: () =>
               import('./features/admin/roles/role-editor/role-editor.component').then(
@@ -158,6 +158,7 @@ export const routes: Routes = [
           {
             path: 'config',
             data: { breadcrumb: 'Configuración' },
+            canActivate: [permissionGuard],
             loadComponent: () =>
               import('./features/admin/system-config/system-config.component').then(
                 (m) => m.SystemConfigComponent,

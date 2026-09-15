@@ -43,7 +43,7 @@ interface MenuDefinition {
 export const MENU_MAP: Record<string, MenuDefinition> = {
   Dashboard: {
     route: '/dashboard',
-    requires: 'READ incidents',
+    requires: 'READ dashboard',
     icon: 'layout-dashboard',
     order: 10,
   },
