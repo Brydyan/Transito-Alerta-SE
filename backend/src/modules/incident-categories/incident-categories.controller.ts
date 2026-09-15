@@ -37,7 +37,8 @@ export class IncidentCategoriesController {
   constructor(private readonly categoriesService: IncidentCategoriesService) {}
 
   @Get('tree')
-  @RequirePermission('READ')
+  // No permission required: categories are reference data (not sensitive)
+  // Needed by reporters to select category when filing incidents
   getTree(): Promise<CategoryNode[]> {
     return this.categoriesService.getTree();
   }
