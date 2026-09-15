@@ -46,14 +46,16 @@ export class GeoZonesService {
     const parentId = dto.parent_id ?? null;
 
     await this.assertValidParent(null, parentId, level);
-    await this.assertValidGeometry(dto.polygon);
+    if (dto.polygon !== undefined) {
+      await this.assertValidGeometry(dto.polygon);
+    }
 
     const zone = await this.repo.create({
       name: dto.name,
       parentId,
       level,
       active: dto.active ?? true,
-      polygon: dto.polygon,
+      polygon: dto.polygon ?? null,
       code: dto.code ?? null,
     });
 
@@ -193,6 +195,14 @@ export class GeoZonesService {
     }
     if (check.empty) {
       throw new BadRequestException('Geometry is empty');
+    }
+    // sc-323-f6 (D3): polygon must be plausibly within Ecuador (±500 km from
+    // the country's centroid). Rejects a Peru shapefile uploaded by mistake
+    // before it ever becomes a row in geo_zones.
+    if (check.inBounds === false) {
+      throw new BadRequestException(
+        'Geometry outside Ecuador bounds — centroid must lie within 500 km of (-78.5, -1.5)',
+      );
     }
   }
 
