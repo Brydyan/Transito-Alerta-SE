@@ -30,28 +30,28 @@ export interface ScopeBlock {
     <div class="role-matrix space-y-4">
       @for (block of scopeBlocks(); track block.key) {
         <div class="scope-block">
-          <h4 class="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">
+          <h4 class="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2">
             {{ block.label }}
           </h4>
           <table class="w-full text-sm border-collapse">
             <thead>
-              <tr class="border-b border-gray-200">
-                <th class="text-left py-2 pr-4 text-gray-500 font-medium">Rol</th>
-                <th class="text-center py-2 px-3 text-gray-500 font-medium w-20">Lectura</th>
-                <th class="text-center py-2 px-3 text-gray-500 font-medium w-20">Escritura</th>
+              <tr class="border-b border-border-subtle">
+                <th class="text-left py-2 pr-4 text-slate-500 font-medium">Rol</th>
+                <th class="text-center py-2 px-3 text-slate-500 font-medium w-20">Lectura</th>
+                <th class="text-center py-2 px-3 text-slate-500 font-medium w-20">Escritura</th>
               </tr>
             </thead>
             <tbody>
               @for (entry of block.entries; track entry.roleId) {
-                <tr class="border-b border-gray-100 hover:bg-gray-50">
-                  <td class="py-2 pr-4 text-gray-800">{{ entry.roleName }}</td>
+                <tr class="border-b border-slate-100 hover:bg-slate-50">
+                  <td class="py-2 pr-4 text-slate-700">{{ entry.roleName }}</td>
                   <td class="text-center py-2 px-3">
                     <input
                       type="checkbox"
                       [checked]="entry.canRead"
                       [disabled]="isDisabled()"
                       (change)="toggleAccess(entry.roleId, 'canRead', $any($event.target).checked)"
-                      class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      class="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
                     />
                   </td>
                   <td class="text-center py-2 px-3">
@@ -60,7 +60,7 @@ export interface ScopeBlock {
                       [checked]="entry.canWrite"
                       [disabled]="isDisabled() || !entry.canRead"
                       (change)="toggleAccess(entry.roleId, 'canWrite', $any($event.target).checked)"
-                      class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      class="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
                     />
                   </td>
                 </tr>

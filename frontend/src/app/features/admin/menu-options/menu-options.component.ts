@@ -14,6 +14,8 @@ import { MenuTreeComponent } from './components/menu-tree/menu-tree.component';
 import { RoleMatrixComponent } from './components/role-matrix/role-matrix.component';
 import { EndpointPickerComponent } from './components/endpoint-picker/endpoint-picker.component';
 import { ToastService } from '../../../shared/components/toast/toast.service';
+import { UiPageHeaderComponent } from '../../../shared/components/ui-page-header/ui-page-header.component';
+import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 
 /**
  * MenuOptionsComponent (F5.6.2) — admin screen for dynamic menu management.
@@ -26,6 +28,8 @@ import { ToastService } from '../../../shared/components/toast/toast.service';
   standalone: true,
   imports: [
     CommonModule,
+    UiPageHeaderComponent,
+    UiIconComponent,
     MenuTreeComponent,
     RoleMatrixComponent,
     EndpointPickerComponent,

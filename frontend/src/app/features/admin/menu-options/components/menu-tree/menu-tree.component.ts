@@ -23,10 +23,10 @@ import { MenuOption } from '../../../../../core/services/menu-option.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="menu-tree">
-      <div class="tree-header">
-        <span class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Menús</span>
+      <div class="tree-header flex items-center justify-between mb-2">
+        <span class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Menús</span>
         <button
-          class="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          class="text-sm text-brand-primary hover:text-brand-primary-hover font-medium"
           (click)="requestCreate(null)"
         >
           + Agregar menú
@@ -42,14 +42,14 @@ import { MenuOption } from '../../../../../core/services/menu-option.service';
     <ng-template #treeNode let-item let-depth="depth">
       <li>
         <div
-          class="tree-node flex items-center gap-1 py-1 px-2 rounded cursor-pointer hover:bg-gray-100 transition-colors"
+          class="tree-node group flex items-center gap-1 py-1 px-2 rounded cursor-pointer hover:bg-brand-primary-soft transition-colors"
           [style.padding-left.rem]="depth * 1.25"
-          [class.bg-blue-50]="isSelected(item.id)"
+          [class.bg-brand-primary-soft]="isSelected(item.id)"
           (click)="selectNode(item.id)"
         >
           @if (hasChildren(item.id)) {
             <button
-              class="expand-btn w-4 h-4 flex items-center justify-center text-gray-500 hover:text-gray-700 text-xs"
+              class="expand-btn w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-600 text-xs"
               (click)="toggleExpand(item.id); $event.stopPropagation()"
             >
               {{ isExpanded(item.id) ? '▼' : '▶' }}
@@ -58,16 +58,16 @@ import { MenuOption } from '../../../../../core/services/menu-option.service';
             <span class="w-4 h-4"></span>
           }
           @if (item.icon) {
-            <span class="text-gray-500 text-sm">[#]</span>
+            <span class="text-slate-400 text-sm">[#]</span>
           }
           <span class="text-sm truncate" [class.font-medium]="isSelected(item.id)">
             {{ item.name }}
           </span>
           @if (!item.route) {
-            <span class="text-xs text-gray-400 ml-1">(sección)</span>
+            <span class="text-xs text-slate-400 ml-1">(sección)</span>
           }
           <button
-            class="ml-auto text-xs text-gray-400 hover:text-green-600 opacity-0 group-hover:opacity-100"
+            class="ml-auto text-xs text-slate-400 hover:text-brand-primary opacity-0 group-hover:opacity-100"
             (click)="requestCreate(item.id); $event.stopPropagation()"
           >
             +
