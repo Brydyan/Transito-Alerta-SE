@@ -9,8 +9,8 @@
 ## Phase A: Entity & Migrations (2h)
 
 ### A.1 Create DepartmentEntity
-- [ ] File: `backend/src/entities/department.entity.ts`
-- [ ] Define `@Entity('departments')` class with:
+- [x] File: `backend/src/entities/department.entity.ts`
+- [x] Define `@Entity('departments')` class with:
   - `id` (UUID PK, auto-generated)
   - `organization_id` (UUID FK, NOT NULL, ON DELETE CASCADE)
   - `name` (VARCHAR 255)
@@ -19,45 +19,45 @@
   - `updated_at` (TIMESTAMP, auto)
   - `deleted_at` (TIMESTAMP nullable, soft delete)
   - `@Unique(['organization_id', 'name'])` constraint
-- [ ] Verify imports: TypeORM decorators, OrganizationEntity relation
+- [x] Verify imports: TypeORM decorators, OrganizationEntity relation
 
 ### A.2 Create Migration 0056_departments.sql
-- [ ] File: `database/migrations/0056_departments.sql`
-- [ ] Create `departments` table with same structure as entity
-- [ ] Add FK constraints and UNIQUE index
-- [ ] Add `ALTER TABLE users ADD COLUMN department_id UUID REFERENCES departments(id) ON DELETE SET NULL`
-- [ ] Add `ALTER TABLE incidents ADD COLUMN department_id UUID REFERENCES departments(id) ON DELETE SET NULL`
-- [ ] Create three indexes:
+- [x] File: `database/migrations/0056_departments.sql`
+- [x] Create `departments` table with same structure as entity
+- [x] Add FK constraints and UNIQUE index
+- [x] Add `ALTER TABLE users ADD COLUMN department_id UUID REFERENCES departments(id) ON DELETE SET NULL`
+- [x] Add `ALTER TABLE incidents ADD COLUMN department_id UUID REFERENCES departments(id) ON DELETE SET NULL`
+- [x] Create three indexes:
   - `idx_departments_org_deleted (organization_id, deleted_at)`
   - `idx_users_department (department_id) WHERE deleted_at IS NULL`
   - `idx_incidents_department (department_id) WHERE deleted_at IS NULL`
-- [ ] Verify idempotency: use `IF NOT EXISTS` clauses
-- [ ] Add header comment explaining T-TBD + soft delete pattern
+- [x] Verify idempotency: use `IF NOT EXISTS` clauses
+- [x] Add header comment explaining T-TBD + soft delete pattern
 
 ### A.3 Create Migration Rollback 0056_departments.DOWN.sql
-- [ ] File: `database/rollback/0056_departments.DOWN.sql`
-- [ ] Drop indexes (3)
-- [ ] Drop columns from incidents/users
-- [ ] Drop departments table
-- [ ] Verify reverse order (columns before table)
+- [x] File: `database/rollback/0056_departments.DOWN.sql`
+- [x] Drop indexes (3)
+- [x] Drop columns from incidents/users
+- [x] Drop departments table
+- [x] Verify reverse order (columns before table)
 
 ### A.4 Create Migration 0057_department_permissions.sql
-- [ ] File: `database/migrations/0057_department_permissions.sql`
-- [ ] INSERT permissions catalog: `(resource='departments', action IN ('READ', 'CREATE', 'UPDATE', 'DELETE'))`
-- [ ] UPDATE roles: grant dept perms to `master`, `admin_sistema`, `admin_organizacion`
-- [ ] UPDATE users: denormalize permissions + bump `permission_version` for those roles (pattern from 0052)
-- [ ] Use idempotent `ON CONFLICT DO NOTHING`
+- [x] File: `database/migrations/0057_department_permissions.sql`
+- [x] INSERT permissions catalog: `(resource='departments', action IN ('READ', 'CREATE', 'UPDATE', 'DELETE'))` — [DEVIATION: roles updated are `master, admin_org` (post-0040 names), not `admin_sistema, admin_organizacion` as listed in tasks.md; `operador_sistema` deliberately not granted (read-only role per 0040)]
+- [x] UPDATE roles: grant dept perms to `master`, `admin_org`
+- [x] UPDATE users: denormalize permissions + bump `permission_version` for those roles (pattern from 0052)
+- [x] Use idempotent `ON CONFLICT DO NOTHING`
 
 ### A.5 Create Migration Rollback 0057_department_permissions.DOWN.sql
-- [ ] File: `database/rollback/0057_department_permissions.DOWN.sql`
-- [ ] DELETE from permissions (by resource='departments')
-- [ ] Restore role.permissions (reverse the grant)
-- [ ] Restore user.permissions + bump permission_version (reverse the denormalization)
+- [x] File: `database/rollback/0057_department_permissions.DOWN.sql`
+- [x] DELETE from permissions (by resource='departments') → soft-delete via `deleted_at = now()`
+- [x] Restore role.permissions (reverse the grant)
+- [x] Restore user.permissions + bump permission_version (reverse the denormalization)
 
 ### A.6 Update MIGRATION_LOG.md
-- [ ] Add entry for 0056 (departments table)
-- [ ] Add entry for 0057 (department permissions)
-- [ ] Note: optional FK on users/incidents, follows soft-delete pattern, no backfill required
+- [x] Add entry for 0056 (departments table)
+- [x] Add entry for 0057 (department permissions)
+- [x] Note: optional FK on users/incidents, follows soft-delete pattern, no backfill required
 
 ---
 

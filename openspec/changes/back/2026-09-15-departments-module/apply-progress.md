@@ -1,7 +1,7 @@
 # Apply Progress: Departments Module
 
 **Change**: `2026-09-15-departments-module`  
-**Status**: ⏳ Ready for implementation (Phase A–D pending)  
+**Status**: Phase A done (entity + 2 migrations + rollback files + MIGRATION_LOG) · Phase B–D pending  
 **Created**: 2026-09-15  
 **Last Updated**: 2026-09-15
 
@@ -15,21 +15,38 @@
 | `specs/departments/spec.md` | ✅ Complete | 8 requirements, 40+ scenarios (R1–R8) |
 | `design.md` | ✅ Complete | 11 design decisions with alternatives |
 | `tasks.md` | ✅ Complete | 35 tasks across 4 phases, exit criteria defined |
+| `backend/src/entities/department.entity.ts` | ✅ Created (Phase A.1) | Snake_case columns, soft-delete, UNIQUE(organization_id, name) |
+| `database/migrations/0056_departments.sql` | ✅ Created (Phase A.2) | Schema + 3 indexes, idempotent (IF NOT EXISTS) |
+| `database/rollback/0056_departments.DOWN.sql` | ✅ Created (Phase A.3) | Reverse-order DROP |
+| `database/migrations/0057_department_permissions.sql` | ✅ Created (Phase A.4) | Catalog + grants to master + admin_org |
+| `database/rollback/0057_department_permissions.DOWN.sql` | ✅ Created (Phase A.5) | Soft-delete catalog rows + reverse grants |
+| `database/MIGRATION_LOG.md` | ✅ Updated (Phase A.6) | Entries for 0056 and 0057 |
+| Phase B–D | ⏳ Pending | Repo/service + controller + tests |
 
 ---
 
-## Phase A: Entity & Migrations (0h / 2h Estimate)
+## Phase A: Entity & Migrations (✅ done)
 
-- **Status**: Not started
-- **Blocker**: None
-- **Next**: Start A.1 when ready to implement
+- **Files created**:
+  - `backend/src/entities/department.entity.ts` — TypeORM entity matching the migration shape; soft-delete via `@DeleteDateColumn`; `@Unique(['organizationId', 'name'])` mirrors the SQL constraint
+  - `database/migrations/0056_departments.sql` — schema + 3 indexes, idempotent
+  - `database/rollback/0056_departments.DOWN.sql` — reverse-order DROP
+  - `database/migrations/0057_department_permissions.sql` — catalog inserts + role grants + denormalize + version bump
+  - `database/rollback/0057_department_permissions.DOWN.sql` — soft-delete catalog + reverse grants + version bump
+  - `database/MIGRATION_LOG.md` — entries for 0056 and 0057
+- **Verified locally**: SQL syntax reviewed by hand (no DB up). Run idempotency / FK behavior TBD on the fresh Supabase target.
+
+### Deviations in Phase A
+
+- **A.4 role list**: `tasks.md` listed `master, admin_sistema, admin_organizacion`. Per migration `0040_rename_roles.sql`, `admin_sistema` was renamed to `master` and `admin_organizacion` to `admin_org`. Used **current** names: `master, admin_org`. `operador_sistema` is intentionally **not** granted (read-only per 0040, proposal scope is "admin_org and above"). The `design.md` D6 example also uses the legacy names; same translation applies if you mirror the controller guard there.
 
 ---
 
 ## Phase B: Repository & Service (0h / 3h Estimate)
 
 - **Status**: Not started
-- **Depends on**: Phase A complete
+- **Depends on**: Phase A complete ✅
+- **Next**: B.1 (repository) → B.2 (service) → B.3 (DTOs) → B.4 (module) → B.5/B.6 (unit tests, Strict TDD on service)
 
 ---
 
@@ -45,6 +62,7 @@
 - **Status**: Not started
 - **Depends on**: Phase C complete
 - **Gate**: sdd-verify
+- **Risk note**: tasks.md D.1 asks for Testcontainers E2E. Per ROADMAP, Testcontainers is blocked locally without Docker daemon. Sub-decision pending: run E2E in CI only, or replace with supertest + module-level mocking. Document decision in D.6.
 
 ---
 
