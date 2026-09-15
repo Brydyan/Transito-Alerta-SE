@@ -45,6 +45,7 @@ export class GeofencingRepository {
       `SELECT id, name, active, created_at
        FROM geo_zones
        WHERE active = true
+         AND polygon IS NOT NULL
          AND ST_Contains(polygon, ST_SetSRID(ST_Point($1, $2), 4326))
        LIMIT 1`,
       [lng, lat],
@@ -66,6 +67,7 @@ export class GeofencingRepository {
       `SELECT id, name, active, created_at
        FROM geo_zones
        WHERE active = true
+         AND polygon IS NOT NULL
          AND ST_DWithin(
            polygon::geography,
            ST_SetSRID(ST_Point($1, $2), 4326)::geography,
