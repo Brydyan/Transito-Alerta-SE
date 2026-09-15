@@ -35,6 +35,7 @@ import { PermissionEntity } from '../../entities/permission.entity';
 export class PermissionLookupService {
   private readonly logger = new Logger(PermissionLookupService.name);
   private cache: Map<string, string> | null = null;
+  private reverseCache: Map<string, string> | null = null;
 
   constructor(
     @InjectRepository(PermissionEntity)
@@ -79,16 +80,58 @@ export class PermissionLookupService {
       select: ['id', 'action', 'resource'],
     });
     const map = new Map<string, string>();
+    const reverse = new Map<string, string>();
     for (const row of rows) {
-      map.set(this.key(row.action, row.resource), row.id);
+      const k = this.key(row.action, row.resource);
+      map.set(k, row.id);
+      reverse.set(row.id, k);
     }
     this.cache = map;
+    this.reverseCache = reverse;
     this.logger.log(`Catalog index rebuilt: ${map.size} permisos activos`);
   }
 
   /** Invalida el cache. La próxima lookup lo reconstruye. */
   invalidate(): void {
     this.cache = null;
+    this.reverseCache = null;
+  }
+
+  /**
+   * Traduce un array de UUIDs del catálogo a sus nombres
+   * `"ACTION resource"` (p. ej. `["READ menu-options"]`).
+   * Usa el mismo canal/cache que `getUuid`; ignora UUIDs
+   * desconocidos (soft-deleted o inexistentes).
+   */
+  async getNamesByUuids(uuids: string[]): Promise<string[]> {
+    if (!this.cache || !this.reverseCache) {
+      await this.buildCache();
+    }
+    const names: string[] = [];
+    for (const uuid of uuids) {
+      const name = this.reverseCache!.get(uuid);
+      if (name) {
+        names.push(name);
+      }
+    }
+    return names;
+  }
+
+  /** Variante síncrona — requiere que el cache ya esté construido. */
+  getNamesByUuidsSync(uuids: string[]): string[] {
+    if (!this.cache || !this.reverseCache) {
+      throw new Error(
+        'PermissionLookupService.getNamesByUuidsSync() llamado antes de buildCache()',
+      );
+    }
+    const names: string[] = [];
+    for (const uuid of uuids) {
+      const name = this.reverseCache.get(uuid);
+      if (name) {
+        names.push(name);
+      }
+    }
+    return names;
   }
 
   private key(action: string, resource: string): string {

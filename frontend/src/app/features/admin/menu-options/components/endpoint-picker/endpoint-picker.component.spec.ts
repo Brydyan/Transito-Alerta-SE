@@ -87,7 +87,7 @@ describe('EndpointPickerComponent', () => {
 
     component.moveAllToAssigned();
     // e2 (POST /users) and e4 (DELETE /users/:id) + existing e1
-    expect(emitted?.length).toBe(3);
+    expect(emitted).toEqual(['e1', 'e2', 'e4']);
   });
 
   it('moves all assigned to available', () => {

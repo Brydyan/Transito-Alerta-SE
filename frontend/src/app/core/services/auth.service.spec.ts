@@ -28,7 +28,8 @@ describe('AuthService', () => {
   const me = {
     user_id: 'user-1',
     device_uuid: 'dev-uuid-1',
-    permissions: tokens.permissions,
+    permissions: ['uuid-read-incidents', 'uuid-create-comments'],
+    permission_names: ['READ incidents', 'CREATE comments'],
   };
 
   beforeEach(() => {
@@ -264,5 +265,29 @@ describe('AuthService', () => {
     expect(service.isAuthenticated()).toBe(false);
     expect(service.accessToken()).toBeNull();
     expect(service.user()).toBeNull();
+  });
+
+  // ───── F5 fix — /auth/me expone permission_names y fetchUser lo mapea ─────
+  it('F5.1: fetchUser usa permission_names cuando está presente (mapea UUIDs → nombres)', () => {
+    service.login({ device_uuid: 'dev-uuid-1' }).subscribe();
+    http.expectOne(`${apiUrl}/login`).flush(tokens);
+    http.expectOne(`${apiUrl}/me`).flush({
+      user_id: 'user-1',
+      device_uuid: 'dev-uuid-1',
+      permissions: ['uuid-read-menu-options', 'uuid-read-incidents'],
+      permission_names: ['READ menu-options', 'READ incidents'],
+    });
+    expect(service.user()?.permissions).toEqual(['READ menu-options', 'READ incidents']);
+  });
+
+  it('F5.2: fetchUser fallback a permissions cuando permission_names no existe (compatibilidad backend viejo)', () => {
+    service.login({ device_uuid: 'dev-uuid-1' }).subscribe();
+    http.expectOne(`${apiUrl}/login`).flush(tokens);
+    http.expectOne(`${apiUrl}/me`).flush({
+      user_id: 'user-1',
+      device_uuid: 'dev-uuid-1',
+      permissions: ['READ incidents'],
+    } as unknown as Record<string, unknown>);
+    expect(service.user()?.permissions).toEqual(['READ incidents']);
   });
 });

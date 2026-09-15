@@ -170,6 +170,7 @@ export class AuthController {
     user_id: string;
     device_uuid: string | null;
     permissions: string[];
+    permission_names: string[];
     /** REG (sc-325) C.1 — booleano derivado de `email_verified_at`.
      *  El `SnakeCaseResponseInterceptor` reescribe toda respuesta
      *  a snake_case; el nombre en TypeScript puede ser
@@ -185,10 +186,12 @@ export class AuthController {
     const userId = req.user!.userId;
     const { deviceUuid, permissions, email_verified, role_name } =
       await this.authService.getMe(userId);
+    const permission_names = await this.authService.getPermissionNames(permissions);
     return {
       user_id: userId,
       device_uuid: deviceUuid,
       permissions,
+      permission_names,
       email_verified,
       role_name,
     };

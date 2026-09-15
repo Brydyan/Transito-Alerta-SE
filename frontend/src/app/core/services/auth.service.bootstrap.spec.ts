@@ -65,6 +65,7 @@ describe('AuthService — hidratación de sesión al arrancar (regresión de rec
       user_id: 'user-1',
       device_uuid: 'dev-uuid-1',
       permissions: [],
+      permission_names: ['READ menu-options', 'READ incidents'],
       email_verified: true,
       role_name: 'admin_org',
     });
@@ -72,6 +73,7 @@ describe('AuthService — hidratación de sesión al arrancar (regresión de rec
     expect(service.isAuthenticated()).toBe(true);
     expect(localStorage.getItem(`auth_access_token_${env}`)).toBe('jwt.access.token');
     expect(service.user()?.id).toBe('user-1');
+    expect(service.user()?.permissions).toEqual(['READ menu-options', 'READ incidents']);
 
     http.verify();
   });

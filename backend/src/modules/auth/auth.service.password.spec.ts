@@ -79,6 +79,7 @@ describe('AuthService — password identity (T3.6)', () => {
       sessionsRepository as unknown as SessionsRepository,
       revocationCache as unknown as RevocationCache,
       graceBuffer as unknown as GraceBuffer,
+      undefined,
       passwordHasher as unknown as PasswordHasher,
     );
   });
