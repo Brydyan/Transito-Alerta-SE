@@ -82,7 +82,7 @@ export class UserFormComponent implements OnInit, OnDestroy {
 
   readonly isAdminOrSuperadmin = computed(() => {
     const role = this.authService.currentUser()?.roleName?.toLowerCase();
-    return role === 'admin' || role === 'superadmin';
+    return role === 'master' || role === 'admin_org';
   });
 
   readonly isLoading = signal(false);
