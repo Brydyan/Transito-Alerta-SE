@@ -74,10 +74,28 @@
 
 ---
 
+## Phase C: Controller & Permissions ✅ done (2026-09-15)
+
+- **Files created**:
+  - `backend/src/modules/departments/departments.controller.ts` — 5 routes with `@RequirePermission` + scoped org check
+  - `backend/src/modules/departments/departments.controller.spec.ts` — 22 tests
+- **Files modified**:
+  - `backend/src/modules/departments/departments.module.ts` — registered `DepartmentsController`
+  - `backend/src/app.module.ts` — added `DepartmentsModule` to imports
+- **Verified**: 56/56 dept tests pass; full backend 1122/1122; tsc 0; lint 0.
+
+### Deviations in Phase C
+
+- **C.1 — no `@CurrentUser()`**: tasks.md used `@CurrentUser()` decorator. The project doesn't define that decorator anywhere; the convention is `@Req() req: AuthenticatedRequest` + `req.user!.scope` / `req.user!.userId` etc. (see `assignments.controller.ts`, `comments.controller.ts`). Used the project's actual convention.
+- **C.3 — 22 tests vs. 25 target**: covered every spec scenario at the controller layer (5 permission metadata + 17 behavioral). Tasks.md target of 25 was aspirational; the wiring-level integration tests via real Testcontainers DB live in Phase D (deferred — `Testcontainers` blocked locally per ROADMAP).
+- **C.2 — query DTO was already created in Phase B.3**, not duplicated here.
+
+---
+
 ## Phase C: Controller & Permissions (0h / 2h Estimate)
 
-- **Status**: Not started
-- **Depends on**: Phase B complete
+- **Status**: ✅ done
+- **Depends on**: Phase B complete ✅
 
 ---
 

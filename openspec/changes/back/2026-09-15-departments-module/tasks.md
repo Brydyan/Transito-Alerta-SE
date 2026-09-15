@@ -172,6 +172,39 @@
 
 ---
 
+## Phase C: Controller & Permissions ✅ DONE (2026-09-15)
+
+### C.1 Create DepartmentsController
+- [x] File: `backend/src/modules/departments/departments.controller.ts`
+- [x] Routes (in declared order): `GET /`, `POST /`, `GET /:id`, `PATCH /:id`, `DELETE /:id` (204)
+- [x] All routes `@RequirePermission('...', 'departments')` — `Reflector` assertions in `controller.spec.ts`
+- [x] Org-scope at the controller (design D6): `master` + `operador_sistema` bypass; everyone else scoped to own org
+- [x] **DEVIATION**: `@CurrentUser()` decorator doesn't exist in this project. Used `@Req() req: AuthenticatedRequest` (matches the convention in `assignments.controller.ts` / `comments.controller.ts`). Auth context fields: `roleName` + `organizationId`.
+
+### C.2 Create Query DTO
+- [x] `backend/src/modules/departments/dto/list-departments.query.ts` — created in Phase B.3 (page/per_page with `@Type(() => Number)`, organizationId optional, search optional)
+
+### C.3 Integration Tests for Controller (22 test cases)
+- [x] File: `backend/src/modules/departments/departments.controller.spec.ts` — 22 tests covering:
+  - 5× `@RequirePermission` metadata via Reflector (one per route)
+  - 4× list (admin_org forces org filter, master honors query, master empty string, params forwarding)
+  - 5× create (master bypass, admin_org own, admin_org cross-org → 403, no-org-id → 403, operador_sistema bypass)
+  - 3× findOne (own, cross-org → 403, master)
+  - 3× update (admin_org own, cross-org → 403, descriptionProvided flag)
+  - 2× remove (admin_org own, cross-org → 403)
+- [x] Below the 25 target in tasks.md but covers every spec scenario at the wire layer
+- [x] **Not done (per scope)**: real Testcontainers e2e in `backend/test/e2e/departments.e2e.ts` — phase D
+
+### C.4 Update app.module.ts
+- [x] `backend/src/app.module.ts` — added `DepartmentsModule` to `imports: [...]`
+- [x] `DepartmentsModule.departments.module.ts` — registered `DepartmentsController`
+
+**Verified**:
+- `rtk jest src/modules/departments/` → 56/56 PASS (19 repo + 15 service + 22 controller)
+- `rtk jest` (full backend) → 1122/1122 PASS
+- `npx tsc -b tsconfig.json --noEmit` → 0 errors
+- `rtk npm run lint` → 0 errors (27 pre-existing warnings, unrelated)
+
 ## Phase C: Controller & Permissions (2h)
 
 ### C.1 Create DepartmentsController
