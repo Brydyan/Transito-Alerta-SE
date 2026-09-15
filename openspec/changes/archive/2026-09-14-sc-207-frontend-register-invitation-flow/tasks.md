@@ -45,7 +45,7 @@ Scope: frontend only (backend complete). Total: 22 tasks across 5 phases.
   `references`) compilaba cero archivos. La actualización a `-b` es
   retroactiva porque el gate nunca verificó nada hasta ese change.)
 - [x] T4.3 Coverage: `auth.service.ts` 88.6%/66.7% branch; `accept-invitation.component.ts` 98.1%/83.3% branch — both ≥70% statement/line threshold.
-- [ ] T4.4 Manual smoke test with seeded/mocked token against a running backend — not run in this pass (no local backend instance available); deferred to staging QA per design.md rollout notes.
+- [ ] T4.4 Manual smoke test with seeded/mocked token against a running backend — **PENDING Andy manual** (staging QA, requires live backend with seeded invitation token; deferred per design.md rollout notes — out of scope for CLI sandbox).
 
 ## Phase 5: Documentation (parallel with Phase 4)
 

@@ -1,9 +1,9 @@
 ---
 version: 1
 owner: ops
-last_rehearsal: 2026-08-28
-duration_minutes: 1
-result: pass
+last_rehearsal: _pending (T8.3.C1 — primera ejecución contra staging)_
+duration_minutes: _pending_
+result: pending
 ---
 
 # Runbook: Cutover a NestJS
@@ -176,21 +176,23 @@ agrega riesgo sin valor claro para un proyecto de un solo cliente.
 
 ### Última ejecución
 
-- **Fecha de inicio**: 2026-08-28T00:45:00Z
-- **Fecha de fin**: 2026-08-28T00:45:01Z
-- **Duración total**: 1 segundo
+⚠️ **PENDIENTE — No ejecutado aún. Esta sección se completa tras la primera ejecución real (T8.3.C1).**
+
+- **Fecha de inicio**: _pending_
+- **Fecha de fin**: _pending_
+- **Duración total**: _pending_ minutos
 - **Resultado por check**:
-  - R26.1 schema: ✅ PASS — All 42 migrations applied (including 0042_monitoring_helpers)
-  - R26.3 PostGIS: ✅ PASS — PostGIS 3.4 USE_GEOS=1 USE_PROJ=1 USE_STATS=1
-  - R26.4 e2e: ✅ PASS — e2e suite smoke tests found
-  - R30.2 monitoring: ✅ PASS — monitoring queries.sql executed without errors
-  - R29.1 rollback: ✅ PASS — snapshot/insert/restore prerequisite validation passed
-- **Link al log**: `docs/runbooks/cutover-rehearsals/rehearsal-20260828T004500Z.log`
-- **Resultado global**: ✅ PASS (5/5 checks passed)
+  - R26.1 schema: _pending_
+  - R26.3 PostGIS: _pending_
+  - R26.4 e2e: _pending_
+  - R30.2 monitoring: _pending_
+  - R29.1 rollback: _pending_
+- **Link al log**: _`docs/runbooks/cutover-rehearsals/rehearsal-YYYYMMDDTHHMMSSZ.log`_ (creado tras ejecución)
+- **Resultado global**: _pending_
 
 > Esta sección se actualiza con cada rehearsal real contra staging.
 > El primer rehearsal se ejecuta en T8.3.C1; ver
-> `openspec/changes/2026-08-26-t8-database-cutover/tasks.md` §D8.3.C.
+> `openspec/changes/2026-08-26-t8-database-cutover/tasks.md` §T8.3.C.
 
 ### Rehearsal dry-run (R29.1)
 
@@ -258,6 +260,4 @@ encabezados `\echo` que separan cada query en el output de `psql`).
 
 ---
 
-**Status**: `result: pending` — se actualiza a `pass` o `fail` después
-del primer rehearsal real (T8.3.C1, ver
-`openspec/changes/2026-08-26-t8-database-cutover/tasks.md`).
+**Status**: `result: pending` (ver frontmatter arriba) — se actualiza a `pass` o `fail` tras el primer rehearsal real (T8.3.C1, ver `openspec/changes/2026-08-26-t8-database-cutover/tasks.md`).

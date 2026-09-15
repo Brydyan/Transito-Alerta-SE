@@ -5,14 +5,14 @@
     <nav class="text-xs font-semibold tracking-wider uppercase mb-3" aria-label="Breadcrumb">
       <ol class="flex flex-wrap items-center gap-2 list-none p-0 m-0">
         <li>
-          <a routerLink="/app/admin/roles" class="text-brand-navy hover:underline">Gestión</a>
+          <a routerLink="/app/admin/roles" class="text-brand-primary hover:underline">Gestión</a>
         </li>
         <li class="text-slate-400">›</li>
         <li>
-          <a routerLink="/app/admin/roles" class="text-brand-navy hover:underline">Roles</a>
+          <a routerLink="/app/admin/roles" class="text-brand-primary hover:underline">Roles</a>
         </li>
         <li class="text-slate-400">›</li>
-        <li class="text-brand-navy/70">
+        <li class="text-brand-primary/70">
           @if (isCreateMode()) {
             Nuevo Rol
           } @else {
@@ -117,8 +117,8 @@
             ></textarea>
 
             <!-- Callout informativo (mock 04-02) -->
-            <div class="mt-4 p-3 bg-brand-navy/5 border border-brand-navy/15 rounded-md flex gap-3 items-start">
-              <span class="shrink-0 text-brand-navy mt-0.5">
+            <div class="mt-4 p-3 bg-brand-primary/5 border border-brand-primary/15 rounded-md flex gap-3 items-start">
+              <span class="shrink-0 text-brand-primary mt-0.5">
                 <i class="bi bi-info-circle text-lg"></i>
               </span>
               <p class="text-sm text-slate-600 mb-0">
@@ -195,7 +195,7 @@
             </div>
             <button
               type="button"
-              class="text-sm font-semibold text-brand-navy hover:underline"
+              class="text-sm font-semibold text-brand-primary hover:underline"
               (click)="toggleExpandAll()"
             >
               {{ allExpanded() ? 'Colapsar todo' : 'Expandir todo' }}
@@ -207,7 +207,7 @@
         <div class="pt-2">
           @if (isLoading()) {
             <div class="flex justify-center items-center py-12">
-              <div class="spinner-border text-brand-navy w-8 h-8 border-2" role="status">
+              <div class="spinner-border text-brand-primary w-8 h-8 border-2" role="status">
                 <span class="sr-only">Cargando permisos...</span>
               </div>
             </div>
@@ -240,11 +240,11 @@
                       >
                         <button
                           type="button"
-                          class="text-slate-800 hover:text-brand-navy transition-colors"
+                          class="text-slate-800 hover:text-brand-primary transition-colors"
                           aria-label="Alternar expansión"
                         >
                           <i
-                            class="bi text-brand-navy text-base"
+                            class="bi text-brand-primary text-base"
                             [class.bi-chevron-down]="expandedGroups().has(group.recurso)"
                             [class.bi-chevron-right]="!expandedGroups().has(group.recurso)"
                           ></i>
@@ -273,7 +273,7 @@
                         (click)="toggleExpansion(group.recurso)"
                       >
                         @if (group.allSelected) {
-                          <span class="badge bg-status-success text-white rounded-full px-3 py-1 text-xs">
+                          <span class="badge bg-status-resuelto text-white rounded-full px-3 py-1 text-xs">
                             {{ group.assignedCount }} / {{ group.items.length }}
                           </span>
                         } @else if (group.assignedCount > 0) {
@@ -328,8 +328,8 @@
                             @for (perm of group.items; track perm.permisoId) {
                               <div
                                 class="card border p-3 h-full cursor-pointer transition-colors"
-                                [class.border-brand-navy]="perm.assigned"
-                                [class.bg-brand-navy/5]="perm.assigned"
+                                [class.border-brand-primary]="perm.assigned"
+                                [class.bg-brand-primary/5]="perm.assigned"
                                 [class.bg-white]="!perm.assigned"
                                 role="button"
                                 tabindex="0"
@@ -425,7 +425,7 @@
           </div>
           <div class="card border-none shadow-sm rounded-lg overflow-hidden">
             <div class="p-5 flex gap-3 items-start">
-              <span class="shrink-0 w-9 h-9 rounded-md bg-brand-navy/10 text-brand-navy flex items-center justify-center">
+              <span class="shrink-0 w-9 h-9 rounded-md bg-brand-primary/10 text-brand-primary flex items-center justify-center">
                 <i class="bi bi-pencil text-lg"></i>
               </span>
               <div>

@@ -101,6 +101,19 @@ export const MENU_MAP: Record<string, MenuDefinition> = {
     group: 'GESTIÓN',
     order: 80,
   },
+  // F6 (`2026-09-11-f6-audit-logs-menu`) — entrada para la pantalla
+  // "Auditoría de Acceso". Gated por permiso `READ audit-logs`
+  // (introducido por migración 0053). Aparece sólo si el usuario
+  // tiene el uuid correspondiente. Sigue a Organizaciones (80) y
+  // precede a Categorías (90) — entry ancilar, no parte del flujo
+  // principal de admin.
+  'Auditoría de Acceso': {
+    route: '/admin/audit-logs',
+    requires: 'READ audit-logs',
+    icon: 'file-text',
+    group: 'GESTIÓN',
+    order: 85,
+  },
   Categorías: {
     route: '/categorias',
     requires: 'READ incident-categories',

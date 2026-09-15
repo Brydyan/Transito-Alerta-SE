@@ -123,16 +123,24 @@ internamente — ver «Ciudadano» más abajo.
 | 2 | **F1** Navegación ✅ | [303](https://app.shortcut.com/upse/story/303) | 2 | Arregla el 404 del sidebar — **completada y archivada 2026-09-02** |
 | — | **324** Test de contraste ✅ | [324](https://app.shortcut.com/upse/story/324) | 2 | Cierra el único requisito de `design-system` sin cobertura. **Completada y archivada 2026-09-02** |
 | — | **315** Fix máquina de estados ✅ | [315](https://app.shortcut.com/upse/story/315) | 3 | Habilita `closed`, declara la máquina. **Completada y archivada 2026-09-03** |
+| — | **T7** Schema parity ✅ | — | 8 | Migraciones 0030–0039, 0041–0045: soft delete, threading, permisos, auditoría. **Completada** (T7.1–T7.9.B: 4 apply batches, 14 specs e2e, 54 migraciones totales) |
+| — | **backend-nestjs-modules** ✅ | — | — | 22 módulos de dominio con DI, verificado contra spec. **Completada** (11/11 tasks, 183 tests verde) |
 | 3 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
 | 4 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
 | — | **REG** Auto-registro ✅ | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano se registra, verifica su correo y publica — **completada y archivada 2026-09-05**, tras 10 rondas de verify y dos archivados revertidos |
 | — | **ANON** Cerrar sin sesión ✅ | [326](https://app.shortcut.com/upse/story/326) | 3 | El login anónimo devuelve 401; el techo de permisos queda vacío — **completada y archivada 2026-09-05** |
 | — | **AUD** Auditoría y revelación ✅ | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría — **completada y archivada 2026-09-06**, tras 3 rondas de verify y un archivado prematuro revertido |
 | — | **MAIL** El correo nunca salió ✅ | [330](https://app.shortcut.com/upse/story/330) | 5 | Dos plantillas que no existían, `trust proxy`, confirmación de correo, la marca — **completada y archivada 2026-09-06**, 3 rondas de verify. Desbloquea F4 |
-| 5 | **F4** Ciudadano | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima |
+| 5 | **F4** Ciudadano ✅ | [306](https://app.shortcut.com/upse/story/306) | 13 | Feed, asistente 4 pasos, mapa, publicación anónima — **completada** (Fase A backend: `incident_followers`, `incident_corroborations`; Fase B frontend: wizard, feed, mapa Leaflet con clustering) |
+| — | **2026-09-05-geo-zones-catalog-contract** 🔲 | — | — | GeoZone CRUD + jerarquía + tree endpoint. **Parcial** (infraestructura base en BD, controller completo; falta: tree endpoint no proyecta `code`, `findAll` no accesible para listar sin geometría) |
+| — | **2026-09-09-roles-stats-endpoint** ✅ | — | — | `GET /api/roles/stats` con cálculo de incidencias asignadas/resueltas. **Completada** (RoleStatsDto, rolesService.getStats(), 480/480 tests PASS) |
+| — | **sc-208 E2E quick-fix** 🔲 | — | — | E2E tests playwright 16 archivos. **Parcial** (playwright config wired, varios tests en `test.skip`, batch 2 pendiente de verify, algunos tests sin credenciales válidas — bloqueado por sc-328) |
+| — | **sc-209 image upload** 🔲 | — | — | Supabase storage completa. **Parcial** (Supabase impl real para comments/avatar con signed URLs; IncidentImageStorageService sigue siendo stub con URLs falsas, no inyecta IStorageClient) |
+| — | **t8-database-cutover** 🔲 | — | — | Artefactos de cutover y monitoreo. **Parcial** (runbook, queries, script de rehearsal creados; tests con Testcontainers/Docker bloqueados, rehearsal real contra staging no ejecutado) |
 | 6 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
 | 7 | **F5** Menús dinámicos | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura |
 | 8 | **F6** Rediseño ✅ | [308](https://app.shortcut.com/upse/story/308) | 5 | Dashboard, Usuarios, Roles, Perfil — **completada y archivada 2026-09-08**, sin verificación en BD real. Bugs encontrados post-archivo: listado de usuarios/roles vacío por mismatch formato API/frontend |
+| — | **sc-323 Bridge token retirement** 🔲 | — | — | Retirar alias de puente `brand-navy/hivis` + status tokens legacy. **En SDD** (proposal, spec, design, tasks listos; ready para sdd-apply) |
 
 **Empezar por F0 → F1. 315 antes de F3. REG antes de ANON, sin excepción.**
 
@@ -497,6 +505,26 @@ F5**, que sustituye `MENU_MAP` por tablas en BD y rehace ese test igual.
 F6 archivó sin verificar usuarios/roles en BD real. Los endpoints devuelven formatos inconsistentes:
 - `/users` → `{ items[], total }`; frontend esperaba `{ data[], meta }`
 - `/roles` → `[array]` directo con campos snake_case; frontend esperaba camelCase/español
+
+---
+
+### Verificación SDD integral — **realizada 2026-09-14**
+
+**Estado de cambios documentados:**
+
+| Cambio | Evidencia | Estado |
+|--------|-----------|--------|
+| **t7-database-schema-parity** | Migraciones 0030–0039, 0041–0045; `AuditEventEntity` con audit_events table; 14 specs e2e con soft delete, index parity, comment threading, domain columns, seeding pipeline | ✅ Aplicado |
+| **backend-nestjs-modules** | 22 módulos exactos en `src/modules/`; estructura DI con `AppModule` importando todos; verify-report documenta 11/11 tasks, build PASS, 183 tests verde | ✅ Aplicado |
+| **F4 citizen-feed-wizard-map** | `FeedComponent` + `FeedFiltersComponent` (árbol 3-estados); `MapComponent` con Leaflet + MarkerClusterGroup + GeoZoneService; `MapPickerComponent` wizard 4 pasos; apply-progress documenta Fase A backend (follower/corroboration), Fase B frontend (wizard, feed, mapa) — todos completados | ✅ Aplicado |
+| **2026-09-05 geo-zones-catalog-contract** | `GeoZoneEntity` con PostGIS polygon; `GeoZonesController` con GET `/geo-zones`, GET `/geo-zones/tree`, CRUD; migraciones 0002, 0013; Frontend `GeoZoneService` con listAll(). **Gaps**: tree endpoint no proyecta `code`, `findAll` no accesible para listar sin geometría — proposal identifica dos blockers activos | 🔲 Parcial |
+| **2026-09-09 roles-stats-endpoint** | `GET /api/roles/stats` en `roles.controller.ts:77` con comentario explícito; `RoleStatsDto` + `rolesService.getStats()`; apply-progress reporta 480/480 tests PASS incluyendo 5 nuevos de `getStats` | ✅ Aplicado |
+| **sc-208 E2E quick-fix** | 16 archivos `.e2e.ts` en `frontend/e2e/`; `playwright.config.ts` presente; apply-progress batch 2 documenta fixes de `testMatch`, `logout()` subscribe, import conversión vitest→jest. **Gaps**: varios tests con `test.skip()` explícito (accept-invitation, comment-flow, otros por BASE_URL/credenciales); estado "READY FOR RE-VERIFY", no archivado | 🔲 Parcial |
+| **sc-209 image upload** | `SupabaseStorageClient` real en `backend/src/core/storage/` con upload, signed URLs, delete; `CommentImageStorageService` usa `IStorageClient` via DI; `AvatarStorageService` idem. **Stub**: `IncidentImageStorageService` genera URLs falsas `storage.example.com`, NO inyecta `IStorageClient`, comentario "no-op stub"; tasks.md sin marcar completas | 🔲 Parcial |
+| **t8-database-cutover** | Migraciones 0040+ hasta 0053 existen; migración 0042 (monitoring helpers) con cutover-validation.e2e-spec.ts; apply-progress documenta runbook, queries de monitoreo, script rehearsal creados. **Bloqueado**: tests con Testcontainers sin Docker daemon, 0042 no aplicada a Supabase staging, rehearsal real no corrido. Estado: "READY FOR VERIFY (con bloqueos documentados)" | 🔲 Parcial |
+| **sc-323 bridge-token-retirement** | Proposal, spec, design, tasks listos en `openspec/changes/sc-323-f6-bridge-token-retirement/`; mapeado 106+ consumidores, 9 variables, 5 fases (Phase 2 bloquea Phase 4 por Tailwind 4 @apply risk); zero visual regression (todos remaps = mismo color). Ready para sdd-apply | 🔲 En SDD (apply pendiente) |
+
+**Conclusión**: 4 cambios completamente aplicados + verificados. 3 cambios parcialmente aplicados (infraestructura base con gaps específicos documentados). 1 cambio en SDD listo para apply. T8 bloqueado por infraestructura (Docker/staging), no por código.
 
 **Impacto**: tablas vacías en admin/usuarios y admin/roles post-implementación. Arreglados en mapeos de servicio (`users.service.ts`, `roles.service.ts`) el 2026-09-08.
 

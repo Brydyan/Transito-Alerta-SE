@@ -2,9 +2,8 @@
   Base Styles
   Unopinionated HTML element styles, resets, and typography defaults.
 
-  F0 — paleta violeta: se sustituyen las referencias residuales a
-  `brand-navy` y `brand-navy-light` por los tokens canónicos
-  `brand-primary` y `brand-primary-hover`.
+  F0 — paleta violeta canónica: `brand-primary`, `brand-primary-hover`,
+  `brand-primary-soft`. F6 (sc-323) retiró los alias bridge heredados.
 */
 
 @layer base {

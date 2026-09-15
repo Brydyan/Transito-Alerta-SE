@@ -19,6 +19,39 @@ function makeTreeRow(overrides: Partial<GeoZoneTreeRow> = {}): GeoZoneTreeRow {
   };
 }
 
+// sc-323-f6 (D5) — `code` is now part of the tree wire so the catalog
+// CRUD can display "EC-17" / "EC-09" without an extra per-zone fetch.
+// The CTE used to omit it; buildZoneTree dropped it on the floor even when
+// present. RED: propagating a non-null code from a CTE row to the final
+// node must round-trip. Today the resulting tree node has no `code` field.
+describe('buildZoneTree — code propagation (sc-323-f6)', () => {
+  it('propagates `code` from CTE rows onto the matching tree node', () => {
+    const rows = [
+      makeTreeRow({ id: 'pich', name: 'Pichincha', code: 'EC-17', parent_id: null }),
+      makeTreeRow({
+        id: 'quito',
+        name: 'Quito',
+        code: 'EC-17-01',
+        parent_id: 'pich',
+        depth: 1,
+      }),
+    ];
+
+    const tree = buildZoneTree(rows);
+
+    expect(tree[0].code).toBe('EC-17');
+    expect(tree[0].children[0].code).toBe('EC-17-01');
+  });
+
+  it('keeps code optional (zones without code still produce a node)', () => {
+    const rows = [makeTreeRow({ id: 'no-code', code: null })];
+
+    const tree = buildZoneTree(rows);
+
+    expect(tree[0].code).toBeNull();
+  });
+});
+
 describe('buildZoneTree (pure fn, no DB)', () => {
   it('links flat CTE rows into a nested tree', () => {
     const rows: GeoZoneTreeRow[] = [

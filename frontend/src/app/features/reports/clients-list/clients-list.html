@@ -115,7 +115,7 @@
     </button>
 
     @if (rangoFechaInvalido()) {
-      <span class="text-status-critical text-sm flex items-center gap-1 ml-auto">
+      <span class="text-prio-high text-sm flex items-center gap-1 ml-auto">
         <i class="bi bi-exclamation-circle"></i>
         La fecha "desde" no puede ser mayor que la fecha "hasta".
       </span>
@@ -198,7 +198,7 @@
             (ngModelChange)="destinatario.set($event)"
           />
           @if (destinatario() && esEmailInvalido()) {
-            <span class="text-status-critical x-small block mt-1">
+            <span class="text-prio-high x-small block mt-1">
               Ingrese un correo electrónico válido.
             </span>
           }

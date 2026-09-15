@@ -112,12 +112,12 @@
 
 ### Fase C — Primer rehearsal contra staging
 
-> **Ejecutado localmente**: T8.3.C1-C3 se completaron en local con Docker (2026-08-28). Los datos en GeoReporta son de test (no producción), pero el procedimiento de rehearsal es idéntico. C1 se repetirá contra Supabase staging cuando haya credenciales de staging disponibles.
+> **PENDIENTE**: El rehearsal script está listo (T8.3.B1-B4 completados), pero aún no se ha ejecutado contra Supabase staging real. Este paso bloqueador debe ejecutarse antes de decidir fecha de cutover a producción.
 
-- [x] **T8.3.C1** — Ejecutar `CUTOVER_MODE=staging ./cutover-rehearsal.sh` contra local Docker. Capturar stdout a `docs/runbooks/cutover-rehearsals/2026-XX-XX.log`. **(1h)** ✅ Completado localmente
-- [x] **T8.3.C2** — Llenar la sección "Última ejecución" de `cutover.md` con la fecha, hora, duración y resultado del paso anterior. Actualizar el front-matter. **(30min)** ✅ Completado
-- [x] **T8.3.C3** — Si la duración total > 30 min, replanificar la ventana de cutover real antes de fijar fecha. Documentar la decisión. **(30min)** ✅ Duración total 1s < 30min; procedimiento validado.
-- [ ] **T8.3.C4** — Si algún check falló, abrir un sub-task `T8.3.C{4+N}` que cierre el gap antes de cualquier cutover real. **(variable)** ✅ Todos los checks pasaron; no aplicable.
+- [ ] **T8.3.C1** — Ejecutar `CUTOVER_MODE=staging ./cutover-rehearsal.sh` contra Supabase staging (requiere credenciales en GitHub secrets `STAGING_DATABASE_URL`, `STAGING_REDIS_URL`). Capturar stdout a `docs/runbooks/cutover-rehearsals/rehearsal-YYYYMMDDTHHMMSSZ.log`. **(1h)**
+- [ ] **T8.3.C2** — Llenar la sección "Última ejecución" de `cutover.md` con la fecha, hora, duración y resultado del paso anterior. Actualizar el front-matter (`last_rehearsal`, `duration_minutes`, `result`). **(30min)**
+- [ ] **T8.3.C3** — Si la duración total > 30 min, replanificar la ventana de cutover real antes de fijar fecha. Documentar la decisión en `cutover.md` §"Dual-write". **(30min)**
+- [ ] **T8.3.C4** — Si algún check falló, abrir un sub-task `T8.3.C{4+N}` que cierre el gap antes de cualquier cutover real. Correr rehearsal de nuevo tras la corrección. **(variable)** Bloqueador.
 
 ---
 
@@ -141,8 +141,8 @@
 
 - [x] **T8.5.C1** — Correr `pnpm test && pnpm run test:e2e && pnpm run test:e2e:cutover` desde `backend/`. Los 3 verdes. **(30min)**
 - [x] **T8.5.C2** — Correr `pnpm run typecheck && pnpm run lint`. Los 2 limpios. **(15min)**
-- [ ] **T8.5.C3** — Actualizar el front-matter de `cutover.md`: `result: pass` después del primer rehearsal exitoso. **(5min)**
-- [ ] **T8.5.C4** — Mover el change a `openspec/changes/archive/2026-XX-XX-t8-database-cutover/`. **(5min)**
+- [ ] **T8.5.C3** — Actualizar el front-matter de `cutover.md`: `result: pass` después de que T8.3.C1/C2 pasen exitosamente. Bloqueado por T8.3.C1/C2. **(5min)**
+- [ ] **T8.5.C4** — Mover el change a `openspec/changes/archive/2026-XX-XX-t8-database-cutover/` tras rehearsal exitoso. Bloqueado por T8.3.C1/C2. **(5min)**
 
 ---
 

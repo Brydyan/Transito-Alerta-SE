@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 
 import { PermissionEntity } from '../../entities/permission.entity';
 
@@ -89,6 +89,26 @@ export class PermissionLookupService {
     this.cache = map;
     this.reverseCache = reverse;
     this.logger.log(`Catalog index rebuilt: ${map.size} permisos activos`);
+  }
+
+  /**
+   * Convierte una lista de UUIDs de permisos a sus descripciones
+   * en formato "ACTION resource". Usado por AuthService.getMe()
+   * para devolver permisos al frontend en un formato que el
+   * permissionGuard pueda usar directamente.
+   */
+  async getDescriptionsByUuids(uuids: string[]): Promise<string[]> {
+    if (!uuids || uuids.length === 0) {
+      return [];
+    }
+    if (!this.cache) {
+      await this.buildCache();
+    }
+    const rows = await this.permissionRepo.find({
+      where: { id: In(uuids), deletedAt: IsNull() },
+      select: ['id', 'action', 'resource'],
+    });
+    return rows.map((row) => `${row.action} ${row.resource}`);
   }
 
   /** Invalida el cache. La próxima lookup lo reconstruye. */

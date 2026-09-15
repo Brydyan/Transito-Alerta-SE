@@ -60,7 +60,7 @@
         </button>
 
         @if (selectedClaves.size > 0) {
-          <span class="badge bg-brand-navy/10 text-brand-navy px-3 py-1.5 rounded-full text-sm">
+          <span class="badge bg-brand-primary/10 text-brand-primary px-3 py-1.5 rounded-full text-sm">
             {{ selectedClaves.size }} seleccionado(s)
           </span>
         }
@@ -109,7 +109,7 @@
             </thead>
             <tbody>
               @for (c of filteredConfigs; track c.clave) {
-                <tr [class.bg-brand-navy/5]="isSelected(c.clave)" class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <tr [class.bg-brand-primary/5]="isSelected(c.clave)" class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                   <td class="pl-6 py-3">
                     <input
                       class="form-check-input table-checkbox m-0"
@@ -132,7 +132,7 @@
                         <span
                           class="badge rounded-full px-2.5 py-1 text-xs font-medium flex items-center"
                           [ngClass]="
-                            c.valor === 'modern' ? 'bg-status-success/10 text-status-success' : 'bg-slate-200 text-slate-800'
+                            c.valor === 'modern' ? 'bg-status-resuelto/10 text-status-resuelto' : 'bg-slate-200 text-slate-800'
                           "
                         >
                           <i
@@ -152,7 +152,7 @@
                       </div>
                     } @else {
                       <span
-                        class="inline-block font-mono text-brand-navy font-semibold bg-slate-100 px-2 py-1 rounded border border-slate-200 text-sm"
+                        class="inline-block font-mono text-brand-primary font-semibold bg-slate-100 px-2 py-1 rounded border border-slate-200 text-sm"
                       >
                         {{ c.valor }}
                       </span>
@@ -184,7 +184,7 @@
                           @if (isReportStyleConfig(c)) {
                             <li>
                               <button
-                                class="w-full text-left px-4 py-2 text-sm text-brand-navy hover:bg-slate-50 flex items-center gap-2"
+                                class="w-full text-left px-4 py-2 text-sm text-brand-primary hover:bg-slate-50 flex items-center gap-2"
                                 type="button"
                                 (click)="toggleReportStyle(c)"
                               >
@@ -208,7 +208,7 @@
                           </li>
                           <li>
                             <button
-                              class="w-full text-left px-4 py-2 text-sm text-status-critical hover:bg-status-critical/5 flex items-center gap-2"
+                              class="w-full text-left px-4 py-2 text-sm text-prio-high hover:bg-prio-high/5 flex items-center gap-2"
                               type="button"
                               (click)="deleteConfig(c)"
                             >
@@ -240,7 +240,7 @@
           <i
             class="bi"
             [ngClass]="
-              isEditing ? 'bi-pencil-square text-brand-navy' : 'bi-plus-circle text-brand-navy'
+              isEditing ? 'bi-pencil-square text-brand-primary' : 'bi-plus-circle text-brand-primary'
             "
           ></i>
           {{ isEditing ? 'Editar Configuración' : 'Nueva Configuración' }}
@@ -261,7 +261,7 @@
           <!-- Clave -->
           <div class="mb-4">
             <label for="configClaveInput" class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
-              Clave de Configuración <span class="text-status-critical">*</span>
+              Clave de Configuración <span class="text-prio-high">*</span>
             </label>
             <input
               id="configClaveInput"
@@ -269,12 +269,12 @@
               class="form-control"
               placeholder="ej: reporte.estilo, NOTIFICACIONES_ENABLED"
               formControlName="clave"
-              [class.border-status-critical]="
+              [class.border-prio-high]="
                 configForm.get('clave')?.invalid && configForm.get('clave')?.touched
               "
             />
             @if (configForm.get('clave')?.invalid && configForm.get('clave')?.touched) {
-              <div class="text-status-critical text-xs mt-1">
+              <div class="text-prio-high text-xs mt-1">
                 Clave obligatoria (letras, números, puntos o guiones).
               </div>
             }
@@ -283,7 +283,7 @@
           <!-- Valor -->
           <div class="mb-4">
             <label for="configValorInput" class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
-              Valor <span class="text-status-critical">*</span>
+              Valor <span class="text-prio-high">*</span>
             </label>
             <input
               id="configValorInput"
@@ -291,12 +291,12 @@
               class="form-control"
               placeholder="ej: modern, 3600000, true"
               formControlName="valor"
-              [class.border-status-critical]="
+              [class.border-prio-high]="
                 configForm.get('valor')?.invalid && configForm.get('valor')?.touched
               "
             />
             @if (configForm.get('valor')?.invalid && configForm.get('valor')?.touched) {
-              <div class="text-status-critical text-xs mt-1">El valor es requerido.</div>
+              <div class="text-prio-high text-xs mt-1">El valor es requerido.</div>
             }
           </div>
 

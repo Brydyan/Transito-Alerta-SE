@@ -266,6 +266,39 @@ describe('MenusService', () => {
     const result = await service.getMenuForUser(USER_MASTER);
 
     expect(result.map((e) => e.route).sort()).toEqual(['/dashboard', '/incidencias', '/inicio', '/mapa'].sort());
+  // Permisos equivalentes al seed de `master@tase.local` (35 permisos).
+  // Sólo los que el mapa D4 requiere para que la entrada quede visible.
+  const ALL_MENU_PERMISSIONS = [
+    'READ incidents',
+    'CREATE incidents',
+    'READ users',
+    'READ roles',
+    'READ organizations',
+    'READ incident-categories',
+    'READ geo-zones',
+    'READ audit-logs',
+  ];
+
+  it('a full-permission user sees every menu entry (11 entries per D4 + F6 audit-logs)', async () => {
+    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
+
+    const result = await service.getMenuForUser('user-1');
+
+    expect(result).toHaveLength(11);
+    // El orden es por `order` ascendente, no por iteración de Object.entries.
+    expect(result.map((e) => e.label)).toEqual([
+      'Dashboard',
+      'Inicio',
+      'Lista de Incidencias',
+      'Mapa',
+      'Reportar',
+      'Usuarios',
+      'Roles',
+      'Organizaciones',
+      'Auditoría de Acceso',
+      'Categorías',
+      'Ubicaciones',
+    ]);
   });
 
   it('Reportar hidden when user lacks CREATE incidents UUID (but has READ incidents)', async () => {
@@ -294,7 +327,13 @@ describe('MenusService', () => {
 
     const result = await service.getMenuForUser(USER_MASTER);
 
-    expect(result).toHaveLength(0);
+    // El orden de la respuesta es estrictamente ascendente por `order`,
+    // no por iteración de Object.entries() — el bug que D3 explícitamente
+    // busca cerrar.
+    const orders = result.map((e) => e.order);
+    expect(orders).toEqual([...orders].sort((a, b) => a - b));
+    expect(result[0].order).toBe(10);  // Dashboard
+    expect(result[10].order).toBe(100); // Ubicaciones
   });
 
   it('parses resource with hyphen correctly via indexOf (incident-categories)', async () => {
@@ -308,6 +347,10 @@ describe('MenusService', () => {
 
     expect(result).toHaveLength(1);
     expect(permissionLookup.getUuid).toHaveBeenCalledWith('READ', 'incident-categories');
+    // Aunque las claves del MENU_MAP se inserten en cualquier orden, la
+    // respuesta viene ordenada por `order` ascendente. Esto protege contra
+    // el modo de fallo original: orden accidental de Object.entries().
+    expect(result.map((e) => e.order)).toEqual([10, 20, 30, 40, 50, 60, 70, 80, 85, 90, 100]);
   });
 
   it('uses per-user cache key so two users of same role can have different menus', async () => {
