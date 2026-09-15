@@ -11,7 +11,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.component';
@@ -42,7 +42,7 @@ import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.comp
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, UiCardComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, UiCardComponent],
   templateUrl: './register.component.html',
   styleUrl: './register.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
