@@ -40,7 +40,7 @@ describe('MenusService', () => {
   it('resolves permissions via AuthService.getPermissionsByUserId (same cache path as PermissionGuard)', async () => {
     authService.getPermissionsByUserId.mockResolvedValue([]);
 
-    await service.getMenuForUser('user-1');
+    await service.getMenuForUser('user-1', null);
 
     expect(authService.getPermissionsByUserId).toHaveBeenCalledWith('user-1');
   });
@@ -48,6 +48,7 @@ describe('MenusService', () => {
   // Permisos equivalentes al seed de `master@tase.local` (35 permisos).
   // Sólo los que el mapa D4 requiere para que la entrada quede visible.
   const ALL_MENU_PERMISSIONS = [
+    'READ dashboard',
     'READ incidents',
     'CREATE incidents',
     'READ users',
@@ -61,7 +62,7 @@ describe('MenusService', () => {
   it('a full-permission user sees every menu entry (11 entries per D4 + F6 audit-logs)', async () => {
     authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
 
-    const result = await service.getMenuForUser('user-1');
+    const result = await service.getMenuForUser('user-1', null);
 
     expect(result).toHaveLength(11);
     // El orden es por `order` ascendente, no por iteración de Object.entries.
@@ -83,7 +84,7 @@ describe('MenusService', () => {
   it('propagates group from the definition (D3/D4)', async () => {
     authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
 
-    const result = await service.getMenuForUser('user-1');
+    const result = await service.getMenuForUser('user-1', null);
 
     const dashboard = result.find((e) => e.label === 'Dashboard');
     const inicio = result.find((e) => e.label === 'Inicio');
@@ -101,7 +102,7 @@ describe('MenusService', () => {
   it('propagates order from the definition (D3/D4)', async () => {
     authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
 
-    const result = await service.getMenuForUser('user-1');
+    const result = await service.getMenuForUser('user-1', null);
 
     // El orden de la respuesta es estrictamente ascendente por `order`,
     // no por iteración de Object.entries() — el bug que D3 explícitamente
@@ -115,7 +116,7 @@ describe('MenusService', () => {
   it('orders the result by order ascending (deterministic, not insertion order)', async () => {
     authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
 
-    const result = await service.getMenuForUser('user-1');
+    const result = await service.getMenuForUser('user-1', null);
 
     // Aunque las claves del MENU_MAP se inserten en cualquier orden, la
     // respuesta viene ordenada por `order` ascendente. Esto protege contra
@@ -128,11 +129,12 @@ describe('MenusService', () => {
     // El grupo queda vacío tras el filtrado y el backend no debe emitir
     // un encabezado huérfano.
     authService.getPermissionsByUserId.mockResolvedValue([
+      'READ dashboard',
       'READ incidents',
       'CREATE incidents',
     ]);
 
-    const result = await service.getMenuForUser('user-1');
+    const result = await service.getMenuForUser('user-1', null);
 
     // Sólo debe ver las entradas del grupo INCIDENCIAS + Dashboard (sin grupo).
     expect(result.map((e) => e.label)).toEqual([
@@ -153,12 +155,13 @@ describe('MenusService', () => {
     // roles, categorías, ni ubicaciones. El menú resultante no debe tener
     // encabezados GESTIÓN/CATÁLOGOS con cero entradas.
     authService.getPermissionsByUserId.mockResolvedValue([
+      'READ dashboard',
       'READ incidents',
       'CREATE incidents',
       'READ organizations',
     ]);
 
-    const result = await service.getMenuForUser('user-1');
+    const result = await service.getMenuForUser('user-1', null);
 
     expect(result.map((e) => e.label)).toEqual([
       'Dashboard',
@@ -183,7 +186,7 @@ describe('MenusService', () => {
       'READ assignments',
     ]);
 
-    const result = await service.getMenuForUser('user-1');
+    const result = await service.getMenuForUser('user-1', null);
 
     expect(result.find((e) => e.label === 'Assignments')).toBeUndefined();
     expect(result.find((e) => e.label === 'Comments')).toBeUndefined();
@@ -192,8 +195,26 @@ describe('MenusService', () => {
   it('a user with no permissions sees an empty menu', async () => {
     authService.getPermissionsByUserId.mockResolvedValue([]);
 
-    const result = await service.getMenuForUser('user-1');
+    const result = await service.getMenuForUser('user-1', null);
 
     expect(result).toEqual([]);
+  });
+
+  it('staff role (master) with full permissions does NOT see Reportar menu (role-based filter)', async () => {
+    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
+
+    const result = await service.getMenuForUser('user-1', 'master');
+
+    expect(result.find((e) => e.label === 'Reportar')).toBeUndefined();
+    expect(result).toHaveLength(10); // 11 minus Reportar
+  });
+
+  it('reporter role with full permissions DOES see Reportar menu (not in admin roles)', async () => {
+    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
+
+    const result = await service.getMenuForUser('user-1', 'reporter');
+
+    expect(result.find((e) => e.label === 'Reportar')).toBeDefined();
+    expect(result).toHaveLength(11); // Full menu
   });
 });
