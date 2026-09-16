@@ -1,4 +1,12 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 /**
  * PATCH /api/departments/:id payload.
@@ -6,6 +14,9 @@ import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
  * `organization_id` is deliberately omitted — per design D4 the dept's
  * organization is immutable; a move would require a separate audited
  * flow that we don't ship yet. The DTO enforces this at the wire.
+ *
+ * 0058: `category_ids` is tri-state — absent ⇒ leave existing assignment
+ * alone; `[]` ⇒ clear all assignments; `[id1, id2, …]` ⇒ replace.
  *
  * Soft-delete reversal (spec S8.2) is OUT OF SCOPE for this change
  * (verify-report W2): admins currently can't undelete a soft-deleted
@@ -24,4 +35,10 @@ export class UpdateDepartmentDto {
   @IsString()
   @MaxLength(500)
   description?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID('4', { each: true })
+  category_ids?: string[];
 }

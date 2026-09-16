@@ -1,4 +1,12 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateDepartmentDto {
   @IsString()
@@ -18,4 +26,17 @@ export class CreateDepartmentDto {
 
   @IsUUID('4')
   organizationId!: string;
+
+  /**
+   * 0058 — incident categories handled by this dept. Optional: when
+   * absent, the dept is created without any assignment (admins can
+   * pick categories later via PATCH). Empty array `[]` is identical
+   * to absent (no categories). 50 is a sanity cap (the category
+   * catalog is O(10s); a 50-category dept would already be absurd).
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID('4', { each: true })
+  category_ids?: string[];
 }

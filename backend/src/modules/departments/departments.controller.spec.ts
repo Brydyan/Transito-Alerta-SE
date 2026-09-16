@@ -35,8 +35,11 @@ describe('DepartmentsController', () => {
   let service: {
     list: jest.Mock;
     create: jest.Mock;
+    createWithCategories: jest.Mock;
     findById: jest.Mock;
+    findByIdWithCategories: jest.Mock;
     update: jest.Mock;
+    updateWithCategories: jest.Mock;
     delete: jest.Mock;
   };
   let controller: DepartmentsController;
@@ -46,8 +49,11 @@ describe('DepartmentsController', () => {
     service = {
       list: jest.fn(),
       create: jest.fn(),
+      createWithCategories: jest.fn(),
       findById: jest.fn(),
+      findByIdWithCategories: jest.fn(),
       update: jest.fn(),
+      updateWithCategories: jest.fn(),
       delete: jest.fn(),
     };
     controller = new DepartmentsController(service as unknown as DepartmentsService);
@@ -148,11 +154,11 @@ describe('DepartmentsController', () => {
       );
     });
 
-    it('master: uses the caller-supplied organizationId when provided', async () => {
+    it('master: uses the caller-supplied organization_id when provided', async () => {
       service.list.mockResolvedValue({ items: [], total: 0 });
 
       await controller.list(
-        { organizationId: 'org-7' } as never,
+        { organization_id: 'org-7' } as never,
         buildReq({ roleName: 'master', organizationId: null }),
       );
 
@@ -161,7 +167,7 @@ describe('DepartmentsController', () => {
       );
     });
 
-    it('master without query.organizationId: opts out of the org filter (empty string passed to repo, which interprets as no-filter)', async () => {
+    it('master without query.organization_id: opts out of the org filter (empty string passed to repo, which interprets as no-filter)', async () => {
       // Spec S2.2: master sees ALL non-deleted depts from all orgs when no
       // filter is provided. The controller signals "no filter" by passing
       // an empty string to the repo; the repo interprets empty/nullish
@@ -187,11 +193,14 @@ describe('DepartmentsController', () => {
       expect(result.items.map((i) => i.organization_id).sort()).toEqual(['org-1', 'org-2']);
     });
 
-    it('admin_org: forwards search + pagination params', async () => {
+    it('admin_org: forwards search + pagination params (snake_case wire)', async () => {
       service.list.mockResolvedValue({ items: [], total: 0 });
 
+      // Wire is snake_case per the project convention
+      // (incident-categories uses @Query('per_page') perPage?: string,
+      // forbidNonWhitelisted: true in main.ts).
       await controller.list(
-        { page: 2, perPage: 25, search: 'traffic' } as never,
+        { page: '2', per_page: '25', search: 'traffic' } as never,
         buildReq({ organizationId: 'org-1', roleName: 'admin_org' }),
       );
 
@@ -208,7 +217,7 @@ describe('DepartmentsController', () => {
     const baseDto = { name: 'Traffic', description: null, organizationId: 'org-1' };
 
     it('master: creates in any org (DTO.organizationId is honored)', async () => {
-      service.create.mockResolvedValue({ ...activeDept, organization_id: 'org-9' });
+      service.createWithCategories.mockResolvedValue({ ...activeDept, organization_id: 'org-9' });
 
       const dto = { ...baseDto, organizationId: 'org-9' };
       const result = await controller.create(
@@ -216,27 +225,27 @@ describe('DepartmentsController', () => {
         buildReq({ roleName: 'master', organizationId: null }),
       );
 
-      expect(service.create).toHaveBeenCalledWith({
+      expect(service.createWithCategories).toHaveBeenCalledWith({
         name: 'Traffic',
         description: null,
         organizationId: 'org-9',
-      });
+      }, []);
       expect(result.organization_id).toBe('org-9');
     });
 
     it('admin_org: creates in own org (DTO.organizationId === user.organizationId)', async () => {
-      service.create.mockResolvedValue(activeDept);
+      service.createWithCategories.mockResolvedValue(activeDept);
 
       await controller.create(
         baseDto as never,
         buildReq({ organizationId: 'org-1', roleName: 'admin_org' }),
       );
 
-      expect(service.create).toHaveBeenCalledWith({
+      expect(service.createWithCategories).toHaveBeenCalledWith({
         name: 'Traffic',
         description: null,
         organizationId: 'org-1',
-      });
+      }, []);
     });
 
     it('admin_org creating in another org: 403', async () => {
@@ -246,7 +255,7 @@ describe('DepartmentsController', () => {
           buildReq({ organizationId: 'org-1', roleName: 'admin_org' }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
-      expect(service.create).not.toHaveBeenCalled();
+      expect(service.createWithCategories).not.toHaveBeenCalled();
     });
 
     it('admin_org with no organizationId on caller: 403 (no fallback)', async () => {
@@ -256,34 +265,35 @@ describe('DepartmentsController', () => {
           buildReq({ organizationId: null, roleName: 'admin_org' }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
-      expect(service.create).not.toHaveBeenCalled();
+      expect(service.createWithCategories).not.toHaveBeenCalled();
     });
 
     it('operador_sistema: bypass (treated like master for scope)', async () => {
-      service.create.mockResolvedValue({ ...activeDept, organization_id: 'org-9' });
+      service.createWithCategories.mockResolvedValue({ ...activeDept, organization_id: 'org-9' });
 
       await controller.create(
         { ...baseDto, organizationId: 'org-9' } as never,
         buildReq({ roleName: 'operador_sistema', organizationId: null }),
       );
 
-      expect(service.create).toHaveBeenCalled();
+      expect(service.createWithCategories).toHaveBeenCalled();
     });
   });
 
   describe('findOne (GET /:id)', () => {
     it('admin_org reading own dept: returns the row', async () => {
       service.findById.mockResolvedValue(activeDept);
+      service.findByIdWithCategories.mockResolvedValue({ department: activeDept, category_ids: [] });
       const result = await controller.findOne(
         'dept-1',
         buildReq({ organizationId: 'org-1', roleName: 'admin_org' }),
       );
-      expect(result).toBe(activeDept);
+      expect(result).toEqual({ department: activeDept, category_ids: [] });
     });
 
     it('admin_org reading another org: 403', async () => {
       service.findById.mockResolvedValue({ ...activeDept, organization_id: 'org-2' });
-
+      service.findByIdWithCategories.mockResolvedValue({ department: { ...activeDept, organization_id: 'org-2' }, category_ids: [] });
       await expect(
         controller.findOne(
           'dept-1',
@@ -294,19 +304,20 @@ describe('DepartmentsController', () => {
 
     it('master reading any dept: returns the row', async () => {
       service.findById.mockResolvedValue({ ...activeDept, organization_id: 'org-9' });
-
+      service.findByIdWithCategories.mockResolvedValue({ department: { ...activeDept, organization_id: 'org-9' }, category_ids: [] });
       const result = await controller.findOne(
         'dept-1',
         buildReq({ roleName: 'master', organizationId: null }),
       );
-      expect(result.organization_id).toBe('org-9');
+      expect(result.department.organization_id).toBe('org-9');
     });
   });
 
   describe('update (PATCH /:id)', () => {
     it('admin_org updating own dept: delegates to service.update with descriptionProvided flag', async () => {
       service.findById.mockResolvedValue(activeDept);
-      service.update.mockResolvedValue({ ...activeDept, name: 'New' });
+      service.findByIdWithCategories.mockResolvedValue({ department: activeDept, category_ids: [] });
+      service.updateWithCategories.mockResolvedValue({ ...activeDept, name: 'New' });
 
       await controller.update(
         'dept-1',
@@ -314,16 +325,16 @@ describe('DepartmentsController', () => {
         buildReq({ organizationId: 'org-1', roleName: 'admin_org' }),
       );
 
-      expect(service.update).toHaveBeenCalledWith('dept-1', {
+      expect(service.updateWithCategories).toHaveBeenCalledWith('dept-1', {
         name: 'New',
         descriptionProvided: true,
         description: 'updated',
-      });
+      }, null);
     });
 
     it('admin_org updating another org: 403 (pre-load fires first)', async () => {
       service.findById.mockResolvedValue({ ...activeDept, organization_id: 'org-2' });
-
+      service.findByIdWithCategories.mockResolvedValue({ department: { ...activeDept, organization_id: 'org-2' }, category_ids: [] });
       await expect(
         controller.update(
           'dept-1',
@@ -331,12 +342,13 @@ describe('DepartmentsController', () => {
           buildReq({ organizationId: 'org-1', roleName: 'admin_org' }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
-      expect(service.update).not.toHaveBeenCalled();
+      expect(service.updateWithCategories).not.toHaveBeenCalled();
     });
 
     it('description undefined → descriptionProvided: false', async () => {
       service.findById.mockResolvedValue(activeDept);
-      service.update.mockResolvedValue(activeDept);
+      service.findByIdWithCategories.mockResolvedValue({ department: activeDept, category_ids: [] });
+      service.updateWithCategories.mockResolvedValue(activeDept);
 
       await controller.update(
         'dept-1',
@@ -344,11 +356,11 @@ describe('DepartmentsController', () => {
         buildReq({ organizationId: 'org-1', roleName: 'admin_org' }),
       );
 
-      expect(service.update).toHaveBeenCalledWith('dept-1', {
+      expect(service.updateWithCategories).toHaveBeenCalledWith('dept-1', {
         name: 'X',
         descriptionProvided: false,
         description: undefined,
-      });
+      }, null);
     });
   });
 
@@ -360,6 +372,7 @@ describe('DepartmentsController', () => {
       // row so the frontend can show "deleted at" in the toast.
       const deletedAt = new Date('2026-09-15T20:00:00Z');
       service.findById.mockResolvedValue(activeDept);
+      service.findByIdWithCategories.mockResolvedValue({ department: activeDept, category_ids: [] });
       service.delete.mockResolvedValue({ id: 'dept-1', deleted_at: deletedAt });
 
       const result = await controller.remove(
@@ -373,7 +386,7 @@ describe('DepartmentsController', () => {
 
     it('admin_org deleting another org: 403 (pre-load fires first)', async () => {
       service.findById.mockResolvedValue({ ...activeDept, organization_id: 'org-2' });
-
+      service.findByIdWithCategories.mockResolvedValue({ department: { ...activeDept, organization_id: 'org-2' }, category_ids: [] });
       await expect(
         controller.remove(
           'dept-1',

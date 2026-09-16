@@ -68,12 +68,18 @@ export class DepartmentsController {
     const user = req.user!;
     const scopedOrgId =
       user.roleName && GLOBAL_ROLES.has(user.roleName)
-        ? query.organizationId
+        ? query.organization_id
         : user.organizationId;
+    // The wire format is snake_case (`page`, `per_page`); the service
+    // contract is camelCase. Manual parseInt for the page sizes with
+    // clamping at the repo layer (1..100).
+    const pageNum = query.page !== undefined ? parseInt(query.page, 10) : undefined;
+    const perPageNum =
+      query.per_page !== undefined ? parseInt(query.per_page, 10) : undefined;
     return this.departmentsService.list({
       organizationId: scopedOrgId ?? '',
-      page: query.page,
-      perPage: query.perPage,
+      page: Number.isFinite(pageNum) ? pageNum : undefined,
+      perPage: Number.isFinite(perPageNum) ? perPageNum : undefined,
       search: query.search,
     });
   }
@@ -94,11 +100,30 @@ export class DepartmentsController {
         throw new ForbiddenException('Cannot create a department in another organization');
       }
     }
-    return this.departmentsService.create({
-      name: dto.name,
-      description: dto.description ?? null,
-      organizationId: dto.organizationId,
-    });
+    return this.departmentsService.createWithCategories(
+      {
+        name: dto.name,
+        description: dto.description ?? null,
+        organizationId: dto.organizationId,
+      },
+      dto.category_ids ?? [],
+    );
+  }
+
+  /**
+   * 0058 — `GET /api/departments/form-data`. Returns the lookup data
+   * the form needs (currently just the active incident categories list).
+   * Kept as a sibling of `/form-data` for other catalog forms
+   * (organizations, geo-zones) — when those grow, extract a shared
+   * helper.
+   */
+  @Get('form-data')
+  @RequirePermission('READ', 'departments')
+  async formData(): Promise<{
+    incident_categories: Array<{ id: string; name: string; parent_id: string | null }>;
+  }> {
+    const rows = await this.departmentsService.listIncidentCategoriesForForm();
+    return { incident_categories: rows };
   }
 
   @Get(':id')
@@ -106,10 +131,10 @@ export class DepartmentsController {
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
-  ): Promise<DepartmentRow> {
+  ): Promise<{ department: DepartmentRow; category_ids: string[] }> {
     const dept = await this.departmentsService.findById(id);
     this.assertSameOrg(dept.organization_id, req);
-    return dept;
+    return this.departmentsService.findByIdWithCategories(id);
   }
 
   @Patch(':id')
@@ -123,11 +148,15 @@ export class DepartmentsController {
     // 404 covers the deleted/missing case.
     const existing = await this.departmentsService.findById(id);
     this.assertSameOrg(existing.organization_id, req);
-    return this.departmentsService.update(id, {
-      name: dto.name,
-      descriptionProvided: dto.description !== undefined,
-      description: dto.description,
-    });
+    return this.departmentsService.updateWithCategories(
+      id,
+      {
+        name: dto.name,
+        descriptionProvided: dto.description !== undefined,
+        description: dto.description,
+      },
+      dto.category_ids ?? null,
+    );
   }
 
   @Delete(':id')

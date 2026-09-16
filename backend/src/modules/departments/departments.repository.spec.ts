@@ -2,13 +2,15 @@ import { DataSource } from 'typeorm';
 import { DepartmentsRepository } from './departments.repository';
 
 /**
- * `back/2026-09-15-departments-module` — Phase B.6
+ * `back/2026-09-15-departments-module` — repository unit tests.
  *
- * Raw-SQL repo: the test strategy is to capture `dataSource.query` calls
- * and assert on the SQL string + params. No DB up; no fixtures. This
- * is the same shape `GeofencingRepository` and `OrganizationsRepository`
- * tests use — see `backend/src/modules/geofencing/geofencing.repository.spec.ts`
- * for the canonical template.
+ * Raw-SQL repo: the test strategy is to capture `dataSource.query`
+ * calls and assert on the SQL string + params. No DB up; no fixtures.
+ *
+ * 0058 added the M:N `department_incident_categories` enrichment on
+ * `list()` — every `repository.list(...)` test now needs THREE
+ * `mockResolvedValueOnce` calls (items, total, category_ids map). The
+ * tests below chain them in that order.
  */
 describe('DepartmentsRepository', () => {
   let dataSource: { query: jest.Mock };
@@ -107,10 +109,14 @@ describe('DepartmentsRepository', () => {
   });
 
   describe('list', () => {
+    // Note: every `repository.list()` test below uses THREE mocks in this
+    // exact order: items → total → category_ids map (loadCategoryIdsByDeptIds).
+
     it('clamps perPage to 100 and page to >= 1', async () => {
       dataSource.query
         .mockResolvedValueOnce([{ id: 'dept-1' }]) // items
-        .mockResolvedValueOnce([{ count: '1' }]); // total
+        .mockResolvedValueOnce([{ count: '1' }]) // total
+        .mockResolvedValueOnce([]); // category_ids map
 
       await repository.list({
         organizationId: 'org-1',
@@ -127,8 +133,9 @@ describe('DepartmentsRepository', () => {
 
     it('applies ILIKE search when provided (case-insensitive partial match)', async () => {
       dataSource.query
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ count: '0' }]);
+        .mockResolvedValueOnce([]) // items
+        .mockResolvedValueOnce([{ count: '0' }]) // total
+        .mockResolvedValueOnce([]); // category_ids map
 
       await repository.list({
         organizationId: 'org-1',
@@ -144,7 +151,8 @@ describe('DepartmentsRepository', () => {
     it('skips the ILIKE clause when search is empty/whitespace', async () => {
       dataSource.query
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ count: '0' }]);
+        .mockResolvedValueOnce([{ count: '0' }])
+        .mockResolvedValueOnce([]);
 
       await repository.list({ organizationId: 'org-1', search: '   ' });
 
@@ -155,7 +163,8 @@ describe('DepartmentsRepository', () => {
     it('always filters soft-deleted rows on departments (d.deleted_at IS NULL)', async () => {
       dataSource.query
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ count: '0' }]);
+        .mockResolvedValueOnce([{ count: '0' }])
+        .mockResolvedValueOnce([]);
 
       await repository.list({ organizationId: 'org-1' });
 
@@ -169,7 +178,8 @@ describe('DepartmentsRepository', () => {
     it('SELECTs organization_name (LEFT JOIN organizations) and user_count (LEFT JOIN users + FILTER aggregate)', async () => {
       dataSource.query
         .mockResolvedValueOnce([{ id: 'dept-1', organization_name: 'Org', user_count: 3 }])
-        .mockResolvedValueOnce([{ count: '1' }]);
+        .mockResolvedValueOnce([{ count: '1' }])
+        .mockResolvedValueOnce([]);
 
       const { items } = await repository.list({ organizationId: 'org-1' });
 
@@ -184,7 +194,10 @@ describe('DepartmentsRepository', () => {
     });
 
     it('returns parsed total as number', async () => {
-      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ count: '47' }]);
+      dataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ count: '47' }])
+        .mockResolvedValueOnce([]);
 
       const { total } = await repository.list({ organizationId: 'org-1' });
       expect(total).toBe(47);
@@ -197,7 +210,8 @@ describe('DepartmentsRepository', () => {
     it('omits the organization_id clause when organizationId is empty (master no-filter path)', async () => {
       dataSource.query
         .mockResolvedValueOnce([{ id: 'dept-1' }])
-        .mockResolvedValueOnce([{ count: '1' }]);
+        .mockResolvedValueOnce([{ count: '1' }])
+        .mockResolvedValueOnce([]);
 
       await repository.list({ organizationId: '' });
 
@@ -209,7 +223,8 @@ describe('DepartmentsRepository', () => {
     it('treats nullish organizationId the same as empty string', async () => {
       dataSource.query
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ count: '0' }]);
+        .mockResolvedValueOnce([{ count: '0' }])
+        .mockResolvedValueOnce([]);
 
       // @ts-expect-error — exercise the runtime guard against a malformed
       // call (organizationId typed as required, but the controller is
@@ -235,7 +250,7 @@ describe('DepartmentsRepository', () => {
       expect(result).toEqual({ id: 'dept-1' });
     });
 
-    it('returns null when the user has no dept or is deleted', async () => {
+    it('returns null when the user has no dept', async () => {
       dataSource.query.mockResolvedValue([]);
       const result = await repository.findByUser('user-1');
       expect(result).toBeNull();
@@ -296,6 +311,62 @@ describe('DepartmentsRepository', () => {
         description: undefined,
       });
       expect(result).toBeNull();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // 0058 — incident-category M:N join
+  // ─────────────────────────────────────────────────────────────────
+
+  describe('replaceCategoriesForDept', () => {
+    it('replaces the dept\'s category assignment in one statement (DELETE + INSERT ... ON CONFLICT)', async () => {
+      dataSource.query.mockResolvedValue([]);
+
+      await repository.replaceCategoriesForDept('dept-1', ['cat-1', 'cat-2', 'cat-3']);
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('DELETE FROM department_incident_categories WHERE department_id = $1');
+      expect(sql).toContain('INSERT INTO department_incident_categories');
+      expect(sql).toContain('UNNEST($2::uuid[])');
+      expect(sql).toContain('ON CONFLICT DO NOTHING');
+      expect(params).toEqual(['dept-1', ['cat-1', 'cat-2', 'cat-3']]);
+    });
+
+    it('issues DELETE-only when categoryIds is empty (wipe dept\'s scope)', async () => {
+      dataSource.query.mockResolvedValue([]);
+
+      await repository.replaceCategoriesForDept('dept-1', []);
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('DELETE FROM department_incident_categories WHERE department_id = $1');
+      expect(sql).not.toContain('INSERT');
+      expect(params).toEqual(['dept-1']);
+    });
+  });
+
+  describe('loadCategoryIdsByDeptIds', () => {
+    it('returns an empty map when given an empty list (short-circuit)', async () => {
+      const map = await repository.loadCategoryIdsByDeptIds([]);
+      expect(map.size).toBe(0);
+      // No SQL fired for empty input
+      expect(dataSource.query).not.toHaveBeenCalled();
+    });
+
+    it('groups the rows by department_id', async () => {
+      dataSource.query.mockResolvedValue([
+        { department_id: 'dept-1', incident_category_id: 'cat-a' },
+        { department_id: 'dept-1', incident_category_id: 'cat-b' },
+        { department_id: 'dept-2', incident_category_id: 'cat-c' },
+      ]);
+
+      const map = await repository.loadCategoryIdsByDeptIds(['dept-1', 'dept-2']);
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('department_id = ANY($1::uuid[])');
+      expect(params).toEqual([['dept-1', 'dept-2']]);
+
+      expect(map.get('dept-1')).toEqual(['cat-a', 'cat-b']);
+      expect(map.get('dept-2')).toEqual(['cat-c']);
     });
   });
 });

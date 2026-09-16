@@ -16,6 +16,16 @@ export interface ListResult {
 }
 
 /**
+ * Result envelope for the GET /api/departments/:id endpoint (single row
+ * with its M:N category assignment). Mirrors the list shape so the
+ * frontend can render detail + list with the same interface.
+ */
+export interface DepartmentDetail {
+  department: DepartmentRow;
+  category_ids: string[];
+}
+
+/**
  * DepartmentsService (`back/2026-09-15-departments-module`).
  *
  * Layered authorization lives at the controller (design D6). This
@@ -60,12 +70,36 @@ export class DepartmentsService {
     return this.deptRepo.create(input);
   }
 
+  /**
+   * 0058-aware: persists the dept + writes the M:N assignment in one
+   * trip. `categoryIds` may be empty (clears the dept's scope).
+   */
+  async createWithCategories(
+    input: CreateDepartmentInput,
+    categoryIds: string[],
+  ): Promise<DepartmentRow> {
+    const created = await this.create(input);
+    await this.deptRepo.replaceCategoriesForDept(created.id, categoryIds);
+    return created;
+  }
+
   async findById(id: string): Promise<DepartmentRow> {
     const dept = await this.deptRepo.findByIdActive(id);
     if (!dept) {
       throw new NotFoundException(`Department ${id} not found or has been deleted`);
     }
     return dept;
+  }
+
+  /**
+   * 0058-aware: detail endpoint returns the dept + its M:N assignment.
+   * Same shape as one item in `list()` so the frontend reuses the
+   * `IDepartment` interface.
+   */
+  async findByIdWithCategories(id: string): Promise<DepartmentDetail> {
+    const dept = await this.findById(id);
+    const map = await this.deptRepo.loadCategoryIdsByDeptIds([dept.id]);
+    return { department: dept, category_ids: map.get(dept.id) ?? [] };
   }
 
   async list(filters: ListDepartmentsFilters): Promise<ListResult> {
@@ -76,6 +110,24 @@ export class DepartmentsService {
     const updated = await this.deptRepo.update(id, patch);
     if (!updated) {
       throw new NotFoundException(`Department ${id} not found or has been deleted`);
+    }
+    return updated;
+  }
+
+  /**
+   * 0058-aware: persists the patch + rewrites the M:N assignment.
+   * `categoryIds === null` means "don't touch the assignment" (used
+   * when the caller omits the field on PATCH); an empty array means
+   * "wipe it".
+   */
+  async updateWithCategories(
+    id: string,
+    patch: UpdateDepartmentPatch,
+    categoryIds: string[] | null,
+  ): Promise<DepartmentRow> {
+    const updated = await this.update(id, patch);
+    if (categoryIds !== null) {
+      await this.deptRepo.replaceCategoriesForDept(updated.id, categoryIds);
     }
     return updated;
   }
@@ -118,5 +170,24 @@ export class DepartmentsService {
 
   async findByUser(userId: string): Promise<DepartmentRow | null> {
     return this.deptRepo.findByUser(userId);
+  }
+
+  /**
+   * 0058 — exposed so the controller's `GET /form-data` can ship the
+   * active incident categories to the form. Read-only; the repo owns
+   * the SQL. Returns a flat list (no tree join) — the form renders the
+   * tree client-side from `parent_id`.
+   */
+  async listIncidentCategoriesForForm(): Promise<
+    Array<{ id: string; name: string; parent_id: string | null }>
+  > {
+    const rows: Array<{ id: string; name: string; parent_id: string | null }> =
+      await this.deptRepo['dataSource'].query(
+        `SELECT id, name, parent_id
+           FROM incident_categories
+          WHERE deleted_at IS NULL
+          ORDER BY parent_id NULLS FIRST, name`,
+      );
+    return rows;
   }
 }

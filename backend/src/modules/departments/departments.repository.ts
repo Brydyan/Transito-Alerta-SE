@@ -26,11 +26,20 @@ export interface DepartmentRow {
  * query at one round-trip; without them the frontend would issue
  * `1 + N` round-trips for a list of N depts (one for each org, one per
  * dept for users).
+ *
+ * 0058 added a second enrichment: `category_ids` (the M:N list of
+ * incident categories this dept handles), populated via a separate
+ * `loadCategoryIdsByDeptIds` call after the main list query. The
+ * matrix UI on `app/departamentos/new` renders one checkbox per
+ * category; the list view shows the dept's full scope as badges.
  */
 export interface EnrichedDepartmentRow extends DepartmentRow {
   organization_name: string;
   /** Users whose `department_id` matches AND `users.deleted_at IS NULL`. */
   user_count: number;
+  /** M:N — incident categories handled by this dept (subset of all
+   *  categories). `[]` when the dept is scope-less. */
+  category_ids: string[];
 }
 
 /** Fields needed to INSERT a new dept. `id` is DB-generated. */
@@ -218,6 +227,14 @@ export class DepartmentsRepository {
       params,
     );
 
+    // 0058: attach the M:N category assignment to every row in a single
+    // follow-up query (no N+1). If `items` is empty the map is empty;
+    // loadCategoryIdsByDeptIds short-circuits on an empty list.
+    const categoryMap = await this.loadCategoryIdsByDeptIds(items.map((i) => i.id));
+    for (const item of items) {
+      item.category_ids = categoryMap.get(item.id) ?? [];
+    }
+
     return { items, total: parseInt(countRows[0]?.count ?? '0', 10) };
   }
 
@@ -260,6 +277,66 @@ export class DepartmentsRepository {
       [departmentId],
     );
     return result[1];
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Incident-category join (M:N via `department_incident_categories`).
+  // 0058 added this join table; the repo owns the read + write side.
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Replace the dept's incident-category assignment with `categoryIds`.
+   * Used on `create()` and `update()` paths. The DB-level cascade on
+   * dept delete + the composite PK make the "idempotent" semantics
+   * trivial — we just delete-then-insert in a single round-trip.
+   */
+  async replaceCategoriesForDept(deptId: string, categoryIds: string[]): Promise<void> {
+    if (categoryIds.length === 0) {
+      // Empty array → wipe the dept's assignments (intentional; lets an
+      // admin "clear" the dept's scope). Equivalent to the delete-only
+      // path but kept separate for clarity.
+      await this.dataSource.query(
+        'DELETE FROM department_incident_categories WHERE department_id = $1',
+        [deptId],
+      );
+      return;
+    }
+    // Single statement with `unnest` so the whole replacement is one
+    // round-trip and atomic. ON CONFLICT DO NOTHING preserves the rows
+    // the caller re-submitted (idempotent on the client side).
+    await this.dataSource.query(
+      `DELETE FROM department_incident_categories WHERE department_id = $1;
+       INSERT INTO department_incident_categories (department_id, incident_category_id)
+       SELECT $1, UNNEST($2::uuid[])
+       ON CONFLICT DO NOTHING`,
+      [deptId, categoryIds],
+    );
+  }
+
+  /**
+   * Bulk-load the category id list for the given depts in one query.
+   * Used by `list()` to attach `category_ids` to every row without
+   * an N+1. Result: Map<deptId, categoryId[]>.
+   */
+  async loadCategoryIdsByDeptIds(deptIds: string[]): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    if (deptIds.length === 0) {
+      return map;
+    }
+    const rows: Array<{ department_id: string; incident_category_id: string }> =
+      await this.dataSource.query(
+        `SELECT department_id, incident_category_id
+           FROM department_incident_categories
+          WHERE department_id = ANY($1::uuid[])
+          ORDER BY department_id, incident_category_id`,
+        [deptIds],
+      );
+    for (const row of rows) {
+      const list = map.get(row.department_id) ?? [];
+      list.push(row.incident_category_id);
+      map.set(row.department_id, list);
+    }
+    return map;
   }
 
   async update(id: string, patch: UpdateDepartmentPatch): Promise<DepartmentRow | null> {
