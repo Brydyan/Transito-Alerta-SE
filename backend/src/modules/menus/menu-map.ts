@@ -105,8 +105,8 @@ export const MENU_MAP: Record<string, MenuDefinition> = {
     route: '/admin/departments',
     requires: 'READ departments',
     icon: 'building-2',
-    group: 'CATÁLOGOS',
-    order: 95,
+    group: 'GESTIÓN',
+    order: 82,
   },
   // F6 (`2026-09-11-f6-audit-logs-menu`) — entrada para la pantalla
   // "Auditoría de Acceso". Gated por permiso `READ audit-logs`
