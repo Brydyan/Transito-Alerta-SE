@@ -26,8 +26,11 @@ const UUID_READ_GEO_ZONES = '85b875fd-2799-47f8-9bed-2980cfefc207';
 const UUID_READ_ORGANIZATIONS = '84de7209-9a21-45fd-a761-d3004c87ba30';
 const UUID_READ_USERS = 'f495d231-f3ae-4b41-a0b7-a7fb8b742d2a';
 const UUID_READ_ROLES = '64cabc44-7181-40fe-86af-9de857e83646';
+const UUID_READ_DASHBOARD = '9e2b9b6a-34c0-4f6c-8c0a-406120c1a219';
+const UUID_READ_AUDIT_LOGS = '8317d614-f64a-4b69-bfa2-e191bb1b0f84';
 
 const PERM_LOOKUP_MAP = new Map<string, string>([
+  ['READ dashboard', UUID_READ_DASHBOARD],
   ['READ incidents', UUID_READ_INCIDENTS],
   ['CREATE incidents', UUID_CREATE_INCIDENTS],
   ['READ incident-categories', UUID_READ_INCIDENT_CATEGORIES],
@@ -35,6 +38,7 @@ const PERM_LOOKUP_MAP = new Map<string, string>([
   ['READ organizations', UUID_READ_ORGANIZATIONS],
   ['READ users', UUID_READ_USERS],
   ['READ roles', UUID_READ_ROLES],
+  ['READ audit-logs', UUID_READ_AUDIT_LOGS],
 ]);
 
 function makePermissionLookupMock() {

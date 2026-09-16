@@ -27,9 +27,12 @@ const UUID_READ_GEO_ZONES = '85b875fd-2799-47f8-9bed-2980cfefc207';
 const UUID_READ_ORGANIZATIONS = '84de7209-9a21-45fd-a761-d3004c87ba30';
 const UUID_READ_USERS = 'f495d231-f3ae-4b41-a0b7-a7fb8b742d2a';
 const UUID_READ_ROLES = '64cabc44-7181-40fe-86af-9de857e83646';
+const UUID_READ_DASHBOARD = '9e2b9b6a-34c0-4f6c-8c0a-406120c1a219';
+const UUID_READ_AUDIT_LOGS = '8317d614-f64a-4b69-bfa2-e191bb1b0f84';
 
 // MENU_MAP requires → UUID lookup table (mirrors production catalog)
 const PERM_LOOKUP_MAP = new Map<string, string>([
+  ['READ dashboard', UUID_READ_DASHBOARD],
   ['READ incidents', UUID_READ_INCIDENTS],
   ['CREATE incidents', UUID_CREATE_INCIDENTS],
   ['READ incident-categories', UUID_READ_INCIDENT_CATEGORIES],
@@ -37,6 +40,7 @@ const PERM_LOOKUP_MAP = new Map<string, string>([
   ['READ organizations', UUID_READ_ORGANIZATIONS],
   ['READ users', UUID_READ_USERS],
   ['READ roles', UUID_READ_ROLES],
+  ['READ audit-logs', UUID_READ_AUDIT_LOGS],
 ]);
 
 function makePermissionLookupMock() {
@@ -247,8 +251,8 @@ describe('MenusService', () => {
     expect(result[0].route).toBe('/admin/custom');
   });
 
-  it('user WITH READ incidents UUID sees Dashboard/Inicio/Lista/Mapa (happy path)', async () => {
-    authService.getPermissionsByUserId.mockResolvedValue([UUID_READ_INCIDENTS]);
+  it('user WITH READ dashboard + READ incidents UUIDs sees Dashboard/Inicio/Lista/Mapa (happy path)', async () => {
+    authService.getPermissionsByUserId.mockResolvedValue([UUID_READ_DASHBOARD, UUID_READ_INCIDENTS]);
     const dashboard = Object.assign(new MenuOptionEntity(), {
       id: 'd1', name: 'Dashboard', route: '/dashboard', parentId: null, displayOrder: 10, isActive: true, deletedAt: null,
     });
@@ -270,22 +274,45 @@ describe('MenusService', () => {
 
   // Permisos equivalentes al seed de `master@tase.local` (35 permisos).
   // Sólo los que el mapa D4 requiere para que la entrada quede visible.
-  const ALL_MENU_PERMISSIONS = [
-    'READ dashboard',
-    'READ incidents',
-    'CREATE incidents',
-    'READ users',
-    'READ roles',
-    'READ organizations',
-    'READ incident-categories',
-    'READ geo-zones',
-    'READ audit-logs',
+  // (UUIDs — la implementación F6 compara UUIDs, no strings.)
+  const ALL_MENU_PERMISSION_UUIDS = [
+    UUID_READ_DASHBOARD,
+    UUID_READ_INCIDENTS,
+    UUID_CREATE_INCIDENTS,
+    UUID_READ_USERS,
+    UUID_READ_ROLES,
+    UUID_READ_ORGANIZATIONS,
+    UUID_READ_INCIDENT_CATEGORIES,
+    UUID_READ_GEO_ZONES,
+    UUID_READ_AUDIT_LOGS,
+  ];
+
+  // Las 11 entradas canónicas de D4 (mismo shape que la BD seed 0055).
+  function menuOption(overrides: Partial<MenuOptionEntity>): MenuOptionEntity {
+    return Object.assign(new MenuOptionEntity(), {
+      id: 'x', name: 'x', route: '/x', parentId: null, displayOrder: 0,
+      isActive: true, deletedAt: null,
+    }, overrides);
+  }
+  const ALL_MENU_OPTIONS = [
+    menuOption({ id: 'd1', name: 'Dashboard', route: '/dashboard', displayOrder: 10 }),
+    menuOption({ id: 'i1', name: 'Inicio', route: '/inicio', displayOrder: 20 }),
+    menuOption({ id: 'i2', name: 'Lista de Incidencias', route: '/incidencias', displayOrder: 30 }),
+    menuOption({ id: 'i3', name: 'Mapa', route: '/mapa', displayOrder: 40 }),
+    menuOption({ id: 'i4', name: 'Reportar', route: '/reportar', displayOrder: 50 }),
+    menuOption({ id: 'g1', name: 'Usuarios', route: '/admin/users', displayOrder: 60 }),
+    menuOption({ id: 'g2', name: 'Roles', route: '/admin/roles', displayOrder: 70 }),
+    menuOption({ id: 'g3', name: 'Organizaciones', route: '/organizaciones', displayOrder: 80 }),
+    menuOption({ id: 'g4', name: 'Auditoría de Acceso', route: '/admin/audit-logs', displayOrder: 85 }),
+    menuOption({ id: 'c1', name: 'Categorías', route: '/categorias', displayOrder: 90 }),
+    menuOption({ id: 'c2', name: 'Ubicaciones', route: '/ubicaciones', displayOrder: 100 }),
   ];
 
   it('a full-permission user sees every menu entry (11 entries per D4 + F6 audit-logs)', async () => {
-    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
+    optionRepo.qb.getMany.mockResolvedValue(ALL_MENU_OPTIONS);
+    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSION_UUIDS);
 
-    const result = await service.getMenuForUser('user-1', null);
+    const result = await service.getMenuForUser('user-1');
 
     expect(result).toHaveLength(11);
     // El orden es por `order` ascendente, no por iteración de Object.entries.
@@ -330,13 +357,8 @@ describe('MenusService', () => {
 
     const result = await service.getMenuForUser(USER_MASTER);
 
-    // El orden de la respuesta es estrictamente ascendente por `order`,
-    // no por iteración de Object.entries() — el bug que D3 explícitamente
-    // busca cerrar.
-    const orders = result.map((e) => e.order);
-    expect(orders).toEqual([...orders].sort((a, b) => a - b));
-    expect(result[0].order).toBe(10);  // Dashboard
-    expect(result[10].order).toBe(100); // Ubicaciones
+    expect(result.map((e) => e.route)).not.toContain('/admin/users');
+    expect(permissionLookup.getUuid).toHaveBeenCalledWith('READ', 'users');
   });
 
   it('parses resource with hyphen correctly via indexOf (incident-categories)', async () => {
@@ -350,10 +372,7 @@ describe('MenusService', () => {
 
     expect(result).toHaveLength(1);
     expect(permissionLookup.getUuid).toHaveBeenCalledWith('READ', 'incident-categories');
-    // Aunque las claves del MENU_MAP se inserten en cualquier orden, la
-    // respuesta viene ordenada por `order` ascendente. Esto protege contra
-    // el modo de fallo original: orden accidental de Object.entries().
-    expect(result.map((e) => e.order)).toEqual([10, 20, 30, 40, 50, 60, 70, 80, 85, 90, 100]);
+    expect(result.map((e) => e.order)).toEqual([90]);
   });
 
   it('uses per-user cache key so two users of same role can have different menus', async () => {
@@ -362,22 +381,25 @@ describe('MenusService', () => {
     userRepo.findOne.mockResolvedValue(
       Object.assign(new UserEntity(), { id: userId2, roleId: ROLE_MASTER }),
     );
-  
 
-await service.getMenuForUser(userId2);
+    await service.getMenuForUser(userId2);
+
+    expect(redis.get).toHaveBeenCalledWith(`menu:v1:user:${userId2}`);
+    expect(redis.setex).toHaveBeenCalledWith(`menu:v1:user:${userId2}`, 3600, '[]');
   });
 
   it('omits groups that become empty after permission filtering', async () => {
     // Un usuario con permisos reducidos: no ve ni CATÁLOGOS ni GESTIÓN.
     // El grupo queda vacío tras el filtrado y el backend no debe emitir
     // un encabezado huérfano.
+    optionRepo.qb.getMany.mockResolvedValue(ALL_MENU_OPTIONS);
     authService.getPermissionsByUserId.mockResolvedValue([
-      'READ dashboard',
-      'READ incidents',
-      'CREATE incidents',
+      UUID_READ_DASHBOARD,
+      UUID_READ_INCIDENTS,
+      UUID_CREATE_INCIDENTS,
     ]);
 
-    const result = await service.getMenuForUser('user-1', null);
+    const result = await service.getMenuForUser('user-1');
 
     // Sólo debe ver las entradas del grupo INCIDENCIAS + Dashboard (sin grupo).
     expect(result.map((e) => e.label)).toEqual([
@@ -387,9 +409,12 @@ await service.getMenuForUser(userId2);
       'Mapa',
       'Reportar',
     ]);
-    // No debe haber entradas con grupo GESTIÓN ni CATÁLOGOS.
-    expect(result.find((e) => e.group === 'GESTIÓN')).toBeUndefined();
-    expect(result.find((e) => e.group === 'CATÁLOGOS')).toBeUndefined();
+    // Ninguna entrada de los grupos GESTIÓN ni CATÁLOGOS llega al wire.
+    expect(result.map((e) => e.label)).not.toContain('Usuarios');
+    expect(result.map((e) => e.label)).not.toContain('Roles');
+    expect(result.map((e) => e.label)).not.toContain('Organizaciones');
+    expect(result.map((e) => e.label)).not.toContain('Categorías');
+    expect(result.map((e) => e.label)).not.toContain('Ubicaciones');
   });
 
   it('operador_org (15 permisos) sees a coherent subset without orphan headers (F1.2.3)', async () => {
@@ -397,14 +422,15 @@ await service.getMenuForUser(userId2);
     // incidencias (lectura y creación) y a organizaciones. NO ve usuarios,
     // roles, categorías, ni ubicaciones. El menú resultante no debe tener
     // encabezados GESTIÓN/CATÁLOGOS con cero entradas.
+    optionRepo.qb.getMany.mockResolvedValue(ALL_MENU_OPTIONS);
     authService.getPermissionsByUserId.mockResolvedValue([
-      'READ dashboard',
-      'READ incidents',
-      'CREATE incidents',
-      'READ organizations',
+      UUID_READ_DASHBOARD,
+      UUID_READ_INCIDENTS,
+      UUID_CREATE_INCIDENTS,
+      UUID_READ_ORGANIZATIONS,
     ]);
 
-    const result = await service.getMenuForUser('user-1', null);
+    const result = await service.getMenuForUser('user-1');
 
     expect(result.map((e) => e.label)).toEqual([
       'Dashboard',
@@ -414,26 +440,24 @@ await service.getMenuForUser(userId2);
       'Reportar',
       'Organizaciones',
     ]);
-    // GESTIÓN tiene una entrada (Organizaciones) — no es huérfano.
-    expect(result.filter((e) => e.group === 'GESTIÓN')).toHaveLength(1);
-    // CATÁLOGOS queda vacío y no aparece.
-    expect(result.find((e) => e.group === 'CATÁLOGOS')).toBeUndefined();
+    // GESTIÓN sobrevive con una sola entrada (Organizaciones), no como huérfano.
+    expect(result.map((e) => e.label)).toContain('Organizaciones');
+    // CATÁLOGOS queda vacío: ninguna de sus entradas llega al wire.
+    expect(result.map((e) => e.label)).not.toContain('Categorías');
+    expect(result.map((e) => e.label)).not.toContain('Ubicaciones');
   });
 
-  it('a user lacking READ assignments does not see a stale Assignments entry (regresión)', async () => {
+  it('omits stale leftovers: entries the current MENU_MAP retired never reach the wire', async () => {
     // F1.1.3 retiró `Assignments` del mapa. Si vuelve a aparecer con un
     // permiso que el usuario no tiene, el resultado debe seguir limpio:
     // ninguna entrada con label `Assignments`.
-    authService.getPermissionsByUserId.mockResolvedValue([
-      'READ incidents',
-      'READ assignments',
-    ]);
+    optionRepo.qb.getMany.mockResolvedValue(ALL_MENU_OPTIONS);
+    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSION_UUIDS);
 
-    const result = await service.getMenuForUser('user-1', null);
+    const result = await service.getMenuForUser('user-1');
 
-    expect(result).toBeDefined();
-    expect(redis.get).toHaveBeenCalledWith(`menu:v1:user:${userId2}`);
-    expect(redis.setex).toHaveBeenCalledWith(`menu:v1:user:${userId2}`, 3600, '[]');
+    expect(result.find((e) => e.label === 'Assignments')).toBeUndefined();
+    expect(result.find((e) => e.label === 'Comments')).toBeUndefined();
   });
 
   it('same role, extra permission via users.permissions deviation gets extra menu entry (per-user cache)', async () => {
@@ -461,19 +485,14 @@ await service.getMenuForUser(userId2);
     expect(result.map((e) => e.route)).toContain('/categorias');
   });
 
-  it('staff role (master) with full permissions does NOT see Reportar menu (role-based filter)', async () => {
-    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
+  it('reportar visibility is governed by CREATE incidents UUID (any role) — matrix-driven since 0055', async () => {
+    // Post-0055 el menú es DB-driven: la matriz `menu_option_roles` + el UUID
+    // efectivo del usuario deciden la visibilidad (no hay filtro por nombre de rol).
+    optionRepo.qb.getMany.mockResolvedValue(ALL_MENU_OPTIONS);
+    // Usuario con todos los permisos del mapa SÍ ve Reportar (CREATE incidents).
+    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSION_UUIDS);
 
-    const result = await service.getMenuForUser('user-1', 'master');
-
-    expect(result.find((e) => e.label === 'Reportar')).toBeUndefined();
-    expect(result).toHaveLength(10); // 11 minus Reportar
-  });
-
-  it('reporter role with full permissions DOES see Reportar menu (not in admin roles)', async () => {
-    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
-
-    const result = await service.getMenuForUser('user-1', 'reporter');
+    const result = await service.getMenuForUser('user-1');
 
     expect(result.find((e) => e.label === 'Reportar')).toBeDefined();
     expect(result).toHaveLength(11); // Full menu
