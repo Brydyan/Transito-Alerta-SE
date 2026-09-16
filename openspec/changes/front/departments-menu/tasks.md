@@ -80,6 +80,17 @@ Chain strategy: pending
 - [ ] 1.9 Propagate `EnrichedDepartmentRow` through `DepartmentsService.list()` return type and `DepartmentsController.list()` return type.
 - [ ] 1.10 Add `Departamentos` entry to `backend/src/modules/menus/menu-map.ts` — route `/departamentos`, requires `READ departments`, icon `building-2`, group `CATÁLOGOS`, order `95` (between Categorías=90 and Ubicaciones=100).
 
+## Phase 2: Frontend Interfaces + Service ✅ DONE (2026-09-15)
+
+### 2.1 IDepartment interface
+- [x] `frontend/src/app/features/catalogs/departments/interfaces/idepartment.interface.ts` — `IDepartment` (with optional `organization_name` + `user_count` from enriched list), `ICreateDepartmentDto`, `IUpdateDepartmentDto`, `IDepartmentListParams`, `IDepartmentListResult`, `IDeleteDepartmentResponse` (D8 envelope)
+
+### 2.2 [RED] DepartmentService spec
+- [x] `frontend/src/app/features/catalogs/departments/services/department.service.spec.ts` — 9 tests covering list (3), getById, create (2), update, remove
+
+### 2.3 [GREEN] DepartmentService impl
+- [x] `frontend/src/app/features/catalogs/departments/services/department.service.ts` — 5 methods (list/getById/create/update/remove) via `HttpService`, base URL `/departments`
+
 ## Phase 2: Frontend Interfaces + Service
 
 - [ ] 2.1 Create `frontend/src/app/features/catalogs/departments/interfaces/idepartment.interface.ts` with: `IDepartment`, `ICreateDepartmentDto`, `IUpdateDepartmentDto`, `IDepartmentListParams`, `IDepartmentListResult`.
