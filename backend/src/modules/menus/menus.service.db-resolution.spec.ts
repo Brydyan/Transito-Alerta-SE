@@ -8,7 +8,7 @@ import { UserEntity } from '../../entities/user.entity';
 import { AuthService } from '../auth/auth.service';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { MenusService } from './menus.service';
-import { MENU_MAP } from './menu-map';
+import { MENU_MAP, MenuEntry } from './menu-map';
 
 /**
  * F5.4 — Resolution tests (STRICT TDD).
@@ -256,7 +256,7 @@ describe('MenusService — DB resolution (F5.4, strict TDD)', () => {
 
       const result = await service.getMenuForUser(USER_MASTER);
 
-      expect(result[0].children.map((c: any) => c.label)).toEqual(['First', 'Last']);
+      expect(result[0].children.map((c: MenuEntry) => c.label)).toEqual(['First', 'Last']);
     });
   });
 
@@ -337,7 +337,7 @@ describe('MenusService — DB resolution (F5.4, strict TDD)', () => {
         updatedAt: new Date(),
       }));
 
-      optionRepo.qb.getMany.mockResolvedValue(dbRows as any);
+      optionRepo.qb.getMany.mockResolvedValue(dbRows as unknown as MenuOptionEntity[]);
 
       const result = await service.getMenuForUser(USER_MASTER);
 
@@ -363,7 +363,7 @@ describe('MenusService — DB resolution (F5.4, strict TDD)', () => {
         updatedAt: new Date(),
       }));
 
-      optionRepo.qb.getMany.mockResolvedValue(dbRows as any);
+      optionRepo.qb.getMany.mockResolvedValue(dbRows as unknown as MenuOptionEntity[]);
 
       const result = await service.getMenuForUser(USER_MASTER);
 

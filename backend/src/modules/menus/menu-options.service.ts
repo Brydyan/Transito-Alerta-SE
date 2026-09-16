@@ -202,7 +202,7 @@ export class MenuOptionsService {
         canWrite: access?.canWrite ?? false,
       };
 
-      const scope = (role as any).scope ?? 'organization';
+      const scope = role.scope ?? 'organization';
       if (scope === 'platform') {
         matrix.platform.push(entry);
       } else if (scope === 'public') {

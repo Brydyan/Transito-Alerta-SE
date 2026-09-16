@@ -6,6 +6,7 @@ import { RoleEntity } from '../../entities/role.entity';
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
 import { AuthService } from '../auth/auth.service';
+import { AvatarStorageService } from './avatar-storage.service';
 import { SessionsRepository } from '../sessions/sessions.repository';
 
 const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
@@ -51,7 +52,7 @@ describe('UsersService', () => {
     sessionsRepository = { findActiveByUser: jest.fn(), findManageableTarget: jest.fn() };
     service = new UsersService(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
-      avatarStorage as unknown as any,
+      avatarStorage as unknown as AvatarStorageService,
       roleRepo as unknown as jest.Mocked<Repository<RoleEntity>>,
       orgRepo as unknown as jest.Mocked<Repository<OrganizationEntity>>,
       authService as unknown as AuthService,

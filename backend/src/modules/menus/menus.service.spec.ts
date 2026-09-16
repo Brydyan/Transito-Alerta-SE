@@ -364,8 +364,9 @@ describe('MenusService', () => {
     );
   
 
-    await service.getMenuForUser(userId2);
-  }
+await service.getMenuForUser(userId2);
+  });
+
   it('omits groups that become empty after permission filtering', async () => {
     // Un usuario con permisos reducidos: no ve ni CATÁLOGOS ni GESTIÓN.
     // El grupo queda vacío tras el filtrado y el backend no debe emitir
@@ -430,6 +431,7 @@ describe('MenusService', () => {
 
     const result = await service.getMenuForUser('user-1', null);
 
+    expect(result).toBeDefined();
     expect(redis.get).toHaveBeenCalledWith(`menu:v1:user:${userId2}`);
     expect(redis.setex).toHaveBeenCalledWith(`menu:v1:user:${userId2}`, 3600, '[]');
   });

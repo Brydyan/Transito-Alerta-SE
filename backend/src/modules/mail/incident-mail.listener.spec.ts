@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import type { Repository } from 'typeorm';
+import type { DataSource, Repository } from 'typeorm';
 import type { Redis } from 'ioredis';
 import { IncidentMailListener, INCIDENT_MAIL_CONSUMER_GROUP } from './incident-mail.listener';
 import { MailService } from './mail.service';
@@ -26,7 +26,7 @@ describe('IncidentMailListener', () => {
       redis as unknown as jest.Mocked<Redis>,
       mailService as unknown as MailService,
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
-      dataSource as unknown as any,
+      dataSource as unknown as DataSource,
     );
   });
 
