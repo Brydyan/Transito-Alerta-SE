@@ -212,7 +212,7 @@ describe('MENU_MAP coherence with app routes (F1, D6)', () => {
       expect(entry.route).toBe('/departamentos');
       expect(entry.requires).toBe('READ departments');
       expect(entry.group).toBe('GESTIÓN');
-      expect(entry.order).toBe(81);
+      expect(entry.order).toBe(82);
       expect(entry.icon).toMatch(/^[a-z][a-z0-9-]*$/);
     });
 
