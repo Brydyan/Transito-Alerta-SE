@@ -97,6 +97,18 @@ Chain strategy: pending
 - [ ] 2.2 [RED] Write failing test in `frontend/src/app/features/catalogs/departments/services/department.service.spec.ts`: `list()` calls `GET /api/departments` with correct `page`, `perPage`, `search` params; `getById()` calls `GET /api/departments/:id`; `create()` calls `POST`; `update()` calls `PATCH`; `remove()` calls `DELETE`.
 - [ ] 2.3 [GREEN] Create `frontend/src/app/features/catalogs/departments/services/department.service.ts` with `list(params)`, `getById(id)`, `create(dto)`, `update(id, dto)`, `remove(id)` via `HttpClient`; base URL `/departments`.
 
+## Phase 3: DepartmentListComponent ✅ DONE (2026-09-15)
+
+### 3.1 [RED] DepartmentListComponent spec
+- [x] `department-list.component.spec.ts` — 5 tests: rows render, empty state, Organization column hidden for admin_org (D9), delete confirm flow, search debounce (400ms)
+
+### 3.2 [GREEN] DepartmentListComponent impl
+- [x] `department-list.component.ts` — signals `departments/isLoading/searchInput/currentPage/pageSize/totalItems`, computed `showOrganizationColumn` (D9), pageSizeOptions `[10, 20, 50]` (D5), debounce 400ms (D4), delete confirm with `user_count > 0` warning, `delete_at` rendered in toast (D8)
+- [x] `GLOBAL_ROLES = {'master', 'operador_sistema'}` mirrors the backend controller's scope set
+
+### 3.3 DepartmentListComponent template
+- [x] `department-list.component.html` — UiPageHeader + New button (`*hasPermission="'CREATE departments'"`), toolbar (search + page-size), table skeleton / empty / rows / pagination, columns Name/Description/Organization (conditional)/Users/Created/Actions, Edit + Delete buttons with `*hasPermission` and `data-testid="dept-delete-btn"`
+
 ## Phase 3: DepartmentListComponent
 
 - [ ] 3.1 [RED] Write failing test in `frontend/src/app/features/catalogs/departments/department-list/department-list.component.spec.ts` for: initial load shows skeleton → then table; empty-state when `total === 0`; search fires exactly one request after 400ms debounce; page size change resets to page 1; delete confirm flow calls `remove()` and reloads.
