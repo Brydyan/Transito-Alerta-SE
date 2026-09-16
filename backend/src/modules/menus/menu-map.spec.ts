@@ -206,22 +206,29 @@ describe('MENU_MAP coherence with app routes (F1, D6)', () => {
   // route are added together in Phase 5 to keep the CRITICAL-2 test
   // green at every commit.
   describe('Departamentos entry (front/2026-09-15-departments-menu)', () => {
-    it('exists with route /departamentos, requires READ departments, group CATALOGOS, order 95', () => {
+    it('exists with route /departamentos, requires READ departments, group GESTION, order 81', () => {
       const entry = MENU_MAP['Departamentos'];
       expect(entry).toBeDefined();
       expect(entry.route).toBe('/departamentos');
       expect(entry.requires).toBe('READ departments');
-      expect(entry.group).toBe('CATÁLOGOS');
-      expect(entry.order).toBe(95);
+      expect(entry.group).toBe('GESTIÓN');
+      expect(entry.order).toBe(81);
       expect(entry.icon).toMatch(/^[a-z][a-z0-9-]*$/);
     });
 
-    it('sits between Categorías (order 90) and Ubicaciones (order 100) by ascending order', () => {
-      const cats = MENU_MAP['Categorías']?.order;
+    it('sits directly under Organizaciones (order 80) within the GESTIÓN group', () => {
+      const orgs = MENU_MAP['Organizaciones']?.order;
+      const orgsGroup = MENU_MAP['Organizaciones']?.group;
       const depts = MENU_MAP['Departamentos']?.order;
-      const locs = MENU_MAP['Ubicaciones']?.order;
-      expect(cats).toBeLessThan(depts!);
-      expect(depts).toBeLessThan(locs!);
+      const deptsGroup = MENU_MAP['Departamentos']?.group;
+      // Same group so they render adjacent in the sidebar
+      expect(orgsGroup).toBe(deptsGroup);
+      // Departments right after Organizaciones (consecutive ordering
+      // preserves the "below Organizaciones" visual placement)
+      expect(orgs).toBeLessThan(depts!);
+      // No item from a later group should land between them
+      const roles = MENU_MAP['Roles']?.order ?? 0;
+      expect(roles).toBeLessThan(orgs!);
     });
   });
 });

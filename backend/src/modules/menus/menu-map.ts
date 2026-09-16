@@ -96,10 +96,22 @@ export const MENU_MAP: Record<string, MenuDefinition> = {
     group: 'GESTIÓN',
     order: 80,
   },
+  // front/2026-09-15-departments-menu: live in the GESTIÓN group
+  // (departments are an org subdivision, not a taxonomy item) and
+  // sit directly under Organizaciones (order 81 — between
+  // Organizaciones at 80 and `Auditoría de Acceso` at 85).
+  // The route `/app/departamentos` is wired in Phase 5.1 of the same change.
+  Departamentos: {
+    route: '/departamentos',
+    requires: 'READ departments',
+    icon: 'building-2',
+    group: 'GESTIÓN',
+    order: 81,
+  },
   // F6 (`2026-09-11-f6-audit-logs-menu`) — entrada para la pantalla
   // "Auditoría de Acceso". Gated por permiso `READ audit-logs`
   // (introducido por migración 0053). Aparece sólo si el usuario
-  // tiene el uuid correspondiente. Sigue a Organizaciones (80) y
+  // tiene el uuid correspondiente. Sigue a Departamentos (81) y
   // precede a Categorías (90) — entry ancilar, no parte del flujo
   // principal de admin.
   'Auditoría de Acceso': {
@@ -115,19 +127,6 @@ export const MENU_MAP: Record<string, MenuDefinition> = {
     icon: 'tag',
     group: 'CATÁLOGOS',
     order: 90,
-  },
-  // front/2026-09-15-departments-menu (D6): positioned between
-  // Categorías (90) and Ubicaciones (100). The backend gate is
-  // `READ departments` (migration 0057 added the catalog row).
-  // The route `/app/departamentos` is wired in Phase 5.1 of the same
-  // change (kept together to keep the CRITICAL-2 coherence test green
-  // at every commit).
-  Departamentos: {
-    route: '/departamentos',
-    requires: 'READ departments',
-    icon: 'building-2',
-    group: 'CATÁLOGOS',
-    order: 95,
   },
   Ubicaciones: {
     route: '/ubicaciones',
