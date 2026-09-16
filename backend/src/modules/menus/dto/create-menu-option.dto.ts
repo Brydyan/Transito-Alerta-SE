@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Matches, Min, ValidateIf } from 'class-validator';
 
 /**
  * DTO for POST /api/menu-options — create a new menu option.
@@ -19,8 +19,12 @@ export class CreateMenuOptionDto {
   icon?: string;
 
   @IsOptional()
-  @IsUUID()
-  parentId?: string;
+  @ValidateIf((object, value) => value !== null)
+  // Formato UUID genérico (cualquier versión). Postgres acepta versiones 0
+  // como los IDs sembrados (a0000000-...); @IsUUID() solo valida v1-v5 y
+  // rechazaba parentId de la lista del catálogo con 400.
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+  parentId?: string | null;
 
   @IsInt()
   @Min(0)

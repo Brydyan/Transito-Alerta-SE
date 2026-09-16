@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Matches, Min, ValidateIf } from 'class-validator';
 
 /**
  * DTO for PATCH /api/menu-options/:id — update an existing menu option.
@@ -22,7 +22,9 @@ export class UpdateMenuOptionDto {
   icon?: string | null;
 
   @IsOptional()
-  @IsUUID()
+  @ValidateIf((object, value) => value !== null)
+  // Formato UUID genérico (cualquier versión) — ver F5.5.2 parentId validator.
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
   parentId?: string | null;
 
   @IsOptional()
