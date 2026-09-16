@@ -14,6 +14,10 @@ import { UiIconComponent } from '../../../../../shared/components/ui-icon/ui-ico
  * MenuTreeComponent (F5.6.3) — hierarchical tree with expand/collapse
  * and "Agregar menú" action for creating child menu options.
  *
+ * Business rule: the "+" (Agregar submenú) button appears ONLY on
+ * root/parent items (parent_id === null). Children/submenus cannot add
+ * further nested levels. Persistent choice — kept as is.
+ *
  * This is the ADMIN tree view (management screen), NOT the citizen sidebar.
  * Expand/collapse IS correct here — the citizen sidebar keeps its flat look.
  */

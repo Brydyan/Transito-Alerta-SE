@@ -38,6 +38,27 @@ describe('MenuTreeComponent', () => {
     expect(children.map((c) => c.name)).toEqual(['Inicio', 'Mapa']);
   });
 
+  it('shows the add-submenu button only on root/parent items, not on children', () => {
+    // No node expanded yet — only the 3 root items render their "+"
+    const buttons = (node: HTMLElement) =>
+      Array.from(node.querySelectorAll<HTMLButtonElement>('button[title="Agregar submenú"]'));
+
+    expect(buttons(fixture.nativeElement).length).toBe(3); // Dashboard, Incidencias, Usuarios
+
+    // Expand "Incidencias" (a2) — its children render WITHOUT the "+"
+    component.toggleExpand('a2');
+    fixture.detectChanges();
+
+    const nodeRow = (name: string) =>
+      Array.from(
+        fixture.nativeElement.querySelectorAll<HTMLElement>('div.tree-node'),
+      ).find((node) => node.querySelector('span.text-sm')?.textContent?.trim() === name)!;
+
+    expect(buttons(nodeRow('Incidencias')).length).toBe(1);
+    expect(buttons(nodeRow('Inicio')).length).toBe(0);
+    expect(buttons(nodeRow('Mapa')).length).toBe(0);
+  });
+
   it('emits selected when a node is clicked', () => {
     let emitted: string | null = null;
     component.selected.subscribe((id) => (emitted = id));
