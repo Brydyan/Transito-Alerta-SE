@@ -12,6 +12,7 @@ import { IDepartment } from '../interfaces/idepartment.interface';
 describe('DepartmentFormComponent', () => {
   let mockDepartmentService: {
     getById: jest.Mock;
+    getFormData: jest.Mock;
     create: jest.Mock;
     update: jest.Mock;
   };
@@ -39,6 +40,9 @@ describe('DepartmentFormComponent', () => {
   beforeEach(() => {
     mockDepartmentService = {
       getById: jest.fn().mockReturnValue(of(baseDept)),
+      getFormData: jest.fn().mockReturnValue(
+        of({ incident_categories: [] }),
+      ),
       create: jest.fn().mockReturnValue(of(baseDept)),
       update: jest.fn().mockReturnValue(of({ ...baseDept, name: 'Updated' })),
     };
@@ -90,6 +94,7 @@ describe('DepartmentFormComponent', () => {
         name: 'New Dept',
         description: 'Test',
         organization_id: 'org-1',
+        category_ids: [],
       });
       expect(mockToastService.success).toHaveBeenCalledWith(expect.stringContaining('creado'));
     });
@@ -154,7 +159,7 @@ describe('DepartmentFormComponent', () => {
 
       expect(mockDepartmentService.update).toHaveBeenCalledWith(
         'dept-1',
-        expect.objectContaining({ name: 'Traffic' }),
+        expect.objectContaining({ name: 'Traffic', category_ids: [] }),
       );
       expect(mockToastService.success).toHaveBeenCalledWith(expect.stringContaining('actualizado'));
     });

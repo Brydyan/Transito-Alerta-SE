@@ -100,6 +100,53 @@
       </small>
     </div>
 
+    <!-- 0058 — Incident categories the dept handles. Matrix-style checkbox
+         group (one per category), same visual feel as the role-editor's
+         permission matrix. Categories with a `parent_id` are visually
+         indented as children. The dept can opt into multiple leaf
+         categories independently of their parent. -->
+    <div class="mb-4">
+      <label class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
+        Tipos de incidencia que gestiona
+      </label>
+      <p class="text-xs text-slate-500 mb-3">
+        Marcá los tipos de incidencia que este departamento va a gestionar.
+        Podes dejarlo vacío y asignarlos después.
+      </p>
+
+      <fieldset
+        class="border border-slate-200 rounded-md p-3 max-h-64 overflow-y-auto"
+        data-testid="dept-category-list"
+      >
+        <legend class="sr-only">Tipos de incidencia</legend>
+
+        <ng-container *ngIf="incidentCategories().length > 0; else noCats">
+          <label
+            *ngFor="let cat of incidentCategories()"
+            class="flex items-start gap-2 py-1.5 px-2 rounded hover:bg-slate-50 cursor-pointer"
+            [class.pl-6]="cat.parent_id !== null"
+            [attr.data-testid]="'dept-cat-' + cat.id"
+          >
+            <input
+              type="checkbox"
+              class="form-check-input mt-1"
+              [checked]="selectedCategoryIds().includes(cat.id)"
+              (change)="toggleCategory(cat.id, $any($event.target).checked)"
+            />
+            <span class="text-sm text-slate-800">
+              {{ cat.name }}
+            </span>
+          </label>
+        </ng-container>
+
+        <ng-template #noCats>
+          <p class="text-sm text-slate-500 italic">
+            No hay tipos de incidencia activos en el sistema.
+          </p>
+        </ng-template>
+      </fieldset>
+    </div>
+
     <!-- Footer -->
     <div class="flex justify-end items-center gap-3 mt-6">
       <button

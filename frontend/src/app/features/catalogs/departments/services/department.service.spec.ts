@@ -84,12 +84,17 @@ describe('DepartmentService', () => {
   });
 
   describe('getById', () => {
-    it('GETs /departments/:id', (done) => {
-      httpMock.get.mockReturnValue(of(mockDept));
+    it('GETs /departments/:id and unwraps the { department, category_ids } envelope', (done) => {
+      const envelope = {
+        department: mockDept,
+        category_ids: ['cat-1', 'cat-2'],
+      };
+      httpMock.get.mockReturnValue(of(envelope));
 
       service.getById('dept-1').subscribe((dept) => {
         expect(httpMock.get).toHaveBeenCalledWith('/departments/dept-1');
         expect(dept.id).toBe('dept-1');
+        expect(dept.category_ids).toEqual(['cat-1', 'cat-2']);
         done();
       });
     });

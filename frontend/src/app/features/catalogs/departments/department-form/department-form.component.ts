@@ -18,6 +18,13 @@ import { ConfirmDialogService } from '../../../../shared/components/confirm-dial
 import { AuthService } from '../../../../core/services/auth.service';
 import { OrganizationService } from '../../organizations/services/organization.service';
 import { IOrganization } from '../../organizations/interfaces/iorganization.interface';
+
+/** 0058 — incident category shape used by the form's checkbox list. */
+export interface IIncidentCategoryOption {
+  id: string;
+  name: string;
+  parent_id: string | null;
+}
 import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
@@ -72,6 +79,12 @@ export class DepartmentFormComponent implements OnInit {
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
   readonly organizations = signal<IOrganization[]>([]);
+  /** 0058 — incident categories the dept can be assigned to.
+   *  Loaded once via form-data on init for both create + edit paths. */
+  readonly incidentCategories = signal<IIncidentCategoryOption[]>([]);
+  /** Selected category ids for the create/edit payload. Stored as a
+   *  signal so the checkbox group can render the bound state cleanly. */
+  readonly selectedCategoryIds = signal<string[]>([]);
   /** Inline field error from the server (e.g. 409 → name collision). */
   readonly nameServerError = signal<string | null>(null);
   /** Sticky banner above the form for cross-field errors. */
@@ -95,6 +108,9 @@ export class DepartmentFormComponent implements OnInit {
     // organization_id is added below (with conditional `required`) once
     // we know whether the caller can choose or is locked to their own org.
     organization_id: [''],
+    // 0058 — the M:N assignment. Held as a FormControlArray for the
+    // checkbox group; the submit handler flattens it into `category_ids`.
+    category_ids: this.fb.control<string[]>([]),
   });
 
   get nameControl() {
@@ -105,6 +121,9 @@ export class DepartmentFormComponent implements OnInit {
   }
   get organizationIdControl() {
     return this.form.get('organization_id')!;
+  }
+  get categoryIdsControl() {
+    return this.form.get('category_ids')!;
   }
 
   fieldInvalid(field: string): boolean {
@@ -157,9 +176,50 @@ export class DepartmentFormComponent implements OnInit {
     if (this.isGlobalRole()) {
       this.loadOrganizations();
     }
+    // 0058 — always load the form-data lookup (for the category checkbox
+    // group). Both create + edit need it; the load is a single
+    // round-trip regardless of mode.
+    this.loadFormData();
     if (this.isEditing()) {
       this.loadDepartment(this.id!);
     }
+  }
+
+  /** 0058 — single endpoint, two sources of truth (orgs + categories).
+   *  We split the subscription so each signal updates independently;
+   *  if one fails the other still lights up the form. */
+  private loadFormData(): void {
+    this.departmentService
+      .getFormData()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          // Sort alphabetically for predictable display in the checkbox group.
+          const sorted = [...data.incident_categories].sort((a, b) =>
+            a.name.localeCompare(b.name),
+          );
+          this.incidentCategories.set(sorted);
+        },
+        error: () => {
+          this.bannerError.set(
+            'No se pudieron cargar los tipos de incidencia. Podes crear el departamento sin tipos y asignarlos después.',
+          );
+        },
+      });
+  }
+
+  /** 0058 — toggle a category in the selected set. */
+  toggleCategory(categoryId: string, checked: boolean): void {
+    const current = this.selectedCategoryIds();
+    if (checked) {
+      if (current.includes(categoryId)) return;
+      this.selectedCategoryIds.set([...current, categoryId]);
+    } else {
+      if (!current.includes(categoryId)) return;
+      this.selectedCategoryIds.set(current.filter((id) => id !== categoryId));
+    }
+    // Keep the form control in sync so submit reads from `form.value.category_ids`.
+    this.categoryIdsControl.setValue(this.selectedCategoryIds());
   }
 
   private loadOrganizations(): void {
@@ -203,9 +263,17 @@ export class DepartmentFormComponent implements OnInit {
     // holds their locked-in org from the auth context. Either way the
     // form value is the single source of truth at submit time.
     const organizationId = (this.form.value.organization_id as string) ?? null;
+    // 0058 — the checkbox group writes to `selectedCategoryIds` (signal)
+    // which mirrors into the form control at toggle time. Read from
+    // form.value to keep the single source of truth at submit.
+    const categoryIds =
+      (this.form.value.category_ids as string[] | null) ?? [];
 
     if (this.isEditing()) {
-      this.departmentService.update(this.id!, { name, description }).subscribe({
+      // PATCH — `category_ids` is tri-state on the wire; sending the
+      // current selection is the normal path. (Absent = no-op, [] = wipe,
+      // [..] = replace. The form always sends [..].)
+      this.departmentService.update(this.id!, { name, description, category_ids: categoryIds }).subscribe({
         next: () => {
           this.toastService.success('Departamento actualizado correctamente');
           this.isSaving.set(false);
@@ -225,7 +293,7 @@ export class DepartmentFormComponent implements OnInit {
         return;
       }
       this.departmentService
-        .create({ name, description, organization_id: organizationId })
+        .create({ name, description, organization_id: organizationId, category_ids: categoryIds })
         .subscribe({
           next: () => {
             this.toastService.success('Departamento creado correctamente');
@@ -268,6 +336,12 @@ export class DepartmentFormComponent implements OnInit {
           description: dept.description ?? '',
           organization_id: dept.organization_id,
         });
+        // 0058 — pre-fill the category checkbox group from the row's
+        // own category_ids. `getById()` returns the unwrapped envelope
+        // (department + category_ids merged into one IDepartment).
+        const ids = dept.category_ids ?? [];
+        this.selectedCategoryIds.set(ids);
+        this.categoryIdsControl.setValue(ids);
         this.isLoading.set(false);
       },
       error: () => {

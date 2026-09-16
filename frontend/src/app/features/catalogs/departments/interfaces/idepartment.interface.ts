@@ -22,6 +22,8 @@ export interface IDepartment {
   organization_id: string;
   organization_name?: string;
   user_count?: number;
+  /** 0058 — incident categories handled by this dept (M:N). */
+  category_ids?: string[];
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -32,6 +34,8 @@ export interface ICreateDepartmentDto {
   name: string;
   description?: string | null;
   organization_id: string;
+  /** 0058 — incident categories handled by the dept (optional). */
+  category_ids?: string[];
 }
 
 /**
@@ -39,10 +43,14 @@ export interface ICreateDepartmentDto {
  * deliberately absent — the dept's organization is immutable per design
  * D4; the controller would silently strip the field if the body sent
  * it.
+ *
+ * 0058: `category_ids` is tri-state on PATCH — absent ⇒ leave the
+ * assignment alone; `[]` ⇒ clear all; `[…]` ⇒ replace.
  */
 export interface IUpdateDepartmentDto {
   name?: string;
   description?: string | null;
+  category_ids?: string[];
 }
 
 /** Query string for GET /api/departments. snake_case matches the wire. */
@@ -68,3 +76,13 @@ export interface IDeleteDepartmentResponse {
   id: string;
   deleted_at: string;
 }
+
+/** 0058 — payload of GET /api/departments/form-data. */
+export interface IDepartmentFormData {
+  incident_categories: Array<{
+    id: string;
+    name: string;
+    parent_id: string | null;
+  }>;
+}
+
