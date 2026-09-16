@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { BehaviorSubject } from 'rxjs';
 import { IncidentService } from './incident.service';
 import { HttpService } from './http.service';
 import { Incident, IncidentStatus, IncidentPriority } from '../models/incident.model';
@@ -267,16 +268,18 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
       expect(res.updated_at).toBeDefined();
 
       // Negative assertions: wire does NOT return the full 25 fields.
-      expect((res as any).description).toBeUndefined();
-      expect((res as any).lat).toBeUndefined();
-      expect((res as any).lng).toBeUndefined();
-      expect((res as any).citizen_id).toBeUndefined();
-      expect((res as any).category_id).toBeUndefined();
+      expect((res as unknown as Record<string, unknown>)['description']).toBeUndefined();
+      expect((res as unknown as Record<string, unknown>)['lat']).toBeUndefined();
+      expect((res as unknown as Record<string, unknown>)['lng']).toBeUndefined();
+      expect((res as unknown as Record<string, unknown>)['citizen_id']).toBeUndefined();
+      expect((res as unknown as Record<string, unknown>)['category_id']).toBeUndefined();
 
       // Cache partial merge: la entrada en `incidents$` debe tener
       // `claimed_by` actualizado a 'user-1' (no `null`), pero el resto
       // de los campos del modelo se preservan.
-      const cached = (service as any).incidents$.value.find((i: Incident) => i.id === 'inc-1');
+      const cached = (service as unknown as { incidents$: BehaviorSubject<Incident[]> }).incidents$.value.find(
+        (i: Incident) => i.id === 'inc-1',
+      );
       expect(cached?.claimed_by).toBe('user-1');
       expect(cached?.description).toBe('Large crater blocking the right lane');
       expect(cached?.lat).toBe(-2.2);
@@ -322,14 +325,16 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
       expect(res.updated_at).toBeDefined();
 
       // Negative assertions: Wire does NOT return the full 25 fields
-      expect((res as any).description).toBeUndefined();
-      expect((res as any).lat).toBeUndefined();
-      expect((res as any).lng).toBeUndefined();
-      expect((res as any).citizen_id).toBeUndefined();
-      expect((res as any).category_id).toBeUndefined();
+      expect((res as unknown as Record<string, unknown>)['description']).toBeUndefined();
+      expect((res as unknown as Record<string, unknown>)['lat']).toBeUndefined();
+      expect((res as unknown as Record<string, unknown>)['lng']).toBeUndefined();
+      expect((res as unknown as Record<string, unknown>)['citizen_id']).toBeUndefined();
+      expect((res as unknown as Record<string, unknown>)['category_id']).toBeUndefined();
 
       // Cache partial merge assertion: cache preserves full fields
-      const cached = (service as any).incidents$.value.find((i: Incident) => i.id === 'inc-1');
+      const cached = (service as unknown as { incidents$: BehaviorSubject<Incident[]> }).incidents$.value.find(
+        (i: Incident) => i.id === 'inc-1',
+      );
       expect(cached?.description).toBe('Large crater blocking the right lane');
       expect(cached?.lat).toBe(-2.2);
       expect(cached?.claimed_by).toBeNull();

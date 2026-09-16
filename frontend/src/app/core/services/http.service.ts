@@ -12,24 +12,33 @@ export class HttpService {
 
   constructor(private http: HttpClient) {}
 
-  get<T>(endpoint: string, params?: any): Observable<T> {
+  get<T>(
+    endpoint: string,
+    params?: HttpParams | object,
+  ): Observable<T> {
     let httpParams = new HttpParams();
     if (params) {
-      Object.keys(params).forEach(key => {
-        if (params[key] !== null && params[key] !== undefined) {
-          httpParams = httpParams.set(key, params[key]);
-        }
-      });
+      if (params instanceof HttpParams) {
+        httpParams = params;
+      } else {
+        const record = params as Record<string, unknown>;
+        Object.keys(record).forEach(key => {
+          const value = record[key];
+          if (value !== null && value !== undefined) {
+            httpParams = httpParams.set(key, String(value));
+          }
+        });
+      }
     }
     return this.http.get<T>(`${this.baseUrl}${endpoint}`, { params: httpParams });
   }
 
-  post<T>(endpoint: string, body: any): Observable<T> {
-    return this.http.post<T>(`${this.baseUrl}${endpoint}`, body);
+  post<T>(endpoint: string, body: unknown): Observable<T> {
+    return this.http.post<T>(`${this.baseUrl}${endpoint}`, body as object);
   }
 
-  patch<T>(endpoint: string, body: any): Observable<T> {
-    return this.http.patch<T>(`${this.baseUrl}${endpoint}`, body);
+  patch<T>(endpoint: string, body: unknown): Observable<T> {
+    return this.http.patch<T>(`${this.baseUrl}${endpoint}`, body as object);
   }
 
   delete<T>(endpoint: string): Observable<T> {

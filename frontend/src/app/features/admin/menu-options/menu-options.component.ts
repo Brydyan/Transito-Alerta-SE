@@ -268,7 +268,7 @@ export class MenuOptionsComponent implements OnInit {
       });
   }
 
-  private loadAssignedEndpoints(optionId: string): void {
+  private loadAssignedEndpoints(_optionId: string): void {
     // The backend doesn't have a separate endpoint for assigned endpoints.
     // The MenuOption entity has endpoints via the menu_option_endpoints junction.
     // We'll get them from the findOne response (if populated) or from the assign response.

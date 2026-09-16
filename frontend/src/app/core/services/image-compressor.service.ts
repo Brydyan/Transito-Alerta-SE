@@ -8,7 +8,7 @@ export class ImageCompressorService {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
 
-      reader.onload = (event: any) => {
+      reader.onload = (event: ProgressEvent<FileReader>) => {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
@@ -33,7 +33,7 @@ export class ImageCompressorService {
         };
 
         img.onerror = () => reject('Failed to load image');
-        img.src = event.target.result;
+        img.src = (event.target as FileReader | null)?.result as string;
       };
 
       reader.onerror = () => reject('Failed to read file');

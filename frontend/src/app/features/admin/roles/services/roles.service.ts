@@ -37,16 +37,21 @@ export class RolesService {
     if (search && search.trim().length > 0) {
       params = params.set('search', search.trim());
     }
+    interface RolesWireItem {
+      id?: string;
+      name?: string;
+      permissions?: unknown[];
+    }
     return this.http
-      .get<any[] | { data: any[] }>(this.rolesUrl, { params, withCredentials: true })
+      .get<RolesWireItem[] | { data: RolesWireItem[] }>(this.rolesUrl, { params, withCredentials: true })
       .pipe(
         map((res) => {
           const roles = Array.isArray(res) ? res : res?.data ?? [];
-          return roles.map((r: any) => ({
-            rolId: r.id,
-            nombre: r.name,
+          return roles.map((r: RolesWireItem) => ({
+            rolId: r.id ?? '',
+            nombre: r.name ?? '',
             permissionCount: r.permissions?.length ?? 0,
-            isSystemRole: r.name && ['master', 'operador_sistema'].includes(r.name),
+            isSystemRole: r.name ? ['master', 'operador_sistema'].includes(r.name) : false,
           }));
         })
       );

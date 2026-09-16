@@ -10,13 +10,20 @@ import { GeoZoneService } from '../../locations/services/geo-zone.service';
 import { IncidentCategoryService } from '../../incident-categories/services/incident-category.service';
 
 describe('OrganizationFormComponent', () => {
-  let mockOrganizationService: any;
-  let mockZoneService: any;
-  let mockCategoryService: any;
-  let mockToastService: any;
-  let mockDialogService: any;
-  let mockActivatedRoute: any;
-  let mockRouter: any;
+  let mockOrganizationService: {
+    create: jest.Mock;
+    getById: jest.Mock;
+    update: jest.Mock;
+    list: jest.Mock;
+    listAll: jest.Mock;
+    formData: jest.Mock;
+  };
+  let mockZoneService: { listAll: jest.Mock };
+  let mockCategoryService: { list: jest.Mock };
+  let mockToastService: { success: jest.Mock; error: jest.Mock };
+  let mockDialogService: { confirm: jest.Mock };
+  let mockActivatedRoute: { snapshot: { paramMap: { get: () => string | null } } };
+  let mockRouter: { navigate: jest.Mock };
 
   beforeEach(() => {
     mockOrganizationService = {

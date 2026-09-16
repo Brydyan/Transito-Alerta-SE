@@ -24,7 +24,7 @@ describe('HttpService', () => {
     const dummyData = { id: 1, name: 'Test' };
     const params = { page: 1, limit: 10 };
 
-    service.get<any>('/test', params).subscribe(res => {
+    service.get<typeof dummyData>('/test', params).subscribe(res => {
       expect(res).toEqual(dummyData);
     });
 
@@ -32,12 +32,12 @@ describe('HttpService', () => {
     expect(req.request.method).toBe('GET');
     req.flush(dummyData);
   });
-  
+
   it('should send POST request', () => {
     const dummyData = { id: 1 };
     const body = { title: 'New' };
 
-    service.post<any>('/test', body).subscribe(res => {
+    service.post<typeof dummyData>('/test', body).subscribe(res => {
       expect(res).toEqual(dummyData);
     });
 

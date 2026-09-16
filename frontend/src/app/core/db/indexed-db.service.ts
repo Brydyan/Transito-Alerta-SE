@@ -12,6 +12,7 @@ export interface PendingIncident extends DBSchema {
       longitude: number;
       photo?: Blob;
       imageUrl?: string;
+      priority?: import('../models/incident.model').IncidentPriority;
       status: 'pending' | 'synced' | 'failed';
       attempts: number;
       createdAt: Date;
@@ -23,6 +24,8 @@ export interface PendingIncident extends DBSchema {
     };
   };
 }
+
+type PendingIncidentRecord = PendingIncident['pending_incidents']['value'];
 
 @Injectable({
   providedIn: 'root',
@@ -42,7 +45,12 @@ export class IndexedDbService {
     });
   }
 
-  async addPendingIncident(incident: any): Promise<string> {
+  async addPendingIncident(
+    incident: Partial<Omit<PendingIncidentRecord, 'status' | 'attempts' | 'createdAt'>> & {
+      id?: string;
+      title: string;
+    },
+  ): Promise<string> {
     const id = incident.id || crypto.randomUUID();
     await this.db.add('pending_incidents', {
       ...incident,
@@ -50,15 +58,15 @@ export class IndexedDbService {
       status: 'pending',
       attempts: 0,
       createdAt: new Date(),
-    });
+    } as PendingIncidentRecord);
     return id;
   }
 
-  async getPendingIncidents(): Promise<any[]> {
+  async getPendingIncidents(): Promise<PendingIncidentRecord[]> {
     return this.db.getAll('pending_incidents');
   }
 
-  async getPendingByStatus(status: 'pending' | 'synced' | 'failed'): Promise<any[]> {
+  async getPendingByStatus(status: 'pending' | 'synced' | 'failed'): Promise<PendingIncidentRecord[]> {
     return this.db.getAllFromIndex('pending_incidents', 'by-status', status);
   }
 

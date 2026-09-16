@@ -28,7 +28,13 @@ export class OfflineSyncService {
     this.initOfflineSync();
   }
 
-  async queueIncident(incident: any, photo?: File): Promise<string> {
+  async queueIncident(
+    incident: Partial<Omit<import('../db/indexed-db.service').PendingIncident['pending_incidents']['value'], 'status' | 'attempts' | 'createdAt' | 'photo' | 'imageUrl'>> & {
+      id?: string;
+      title: string;
+    },
+    photo?: File,
+  ): Promise<string> {
     let photoBlob: Blob | undefined;
 
     if (photo) {
@@ -68,11 +74,12 @@ export class OfflineSyncService {
 
         await this.indexedDb.updateIncidentStatus(incident.id, 'synced');
         synced++;
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
         await this.indexedDb.updateIncidentStatus(
           incident.id,
           incident.attempts >= 3 ? 'failed' : 'pending',
-          error.message,
+          message,
         );
         failed++;
       }
@@ -90,11 +97,11 @@ export class OfflineSyncService {
     return result;
   }
 
-  async getPendingIncidents(): Promise<any[]> {
+  async getPendingIncidents(): Promise<import('../db/indexed-db.service').PendingIncident['pending_incidents']['value'][]> {
     return this.indexedDb.getPendingIncidents();
   }
 
-  getPendingIncidents$(): Observable<any[]> {
+  getPendingIncidents$(): Observable<import('../db/indexed-db.service').PendingIncident['pending_incidents']['value'][]> {
     return new Observable(observer => {
       this.getPendingIncidents().then(incidents => {
         observer.next(incidents);

@@ -195,7 +195,6 @@ export class UsersListComponent implements OnInit {
             'No se pudieron cargar los usuarios. Intenta nuevamente.',
             'Error',
           );
-          // eslint-disable-next-line no-console
           console.error('[UsersList] load failed:', err);
           return of(null);
         }),

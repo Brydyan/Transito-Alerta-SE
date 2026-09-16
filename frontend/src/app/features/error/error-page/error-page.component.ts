@@ -45,7 +45,6 @@ export class ErrorPageComponent implements OnInit {
     // sólo aplanaba 1 nivel y ocultaba rutas anidadas como
     // `app > admin > users > new`. Esta versión recorre el árbol
     // completo para que cualquier ruta que matchee sea visible.
-    // eslint-disable-next-line no-console
     console.error(
       '[ErrorPage] No route matched. URL intentada:',
       this.attemptedUrl,
