@@ -179,6 +179,36 @@ Chain strategy: pending
 - [ ] 7.2 [RED] Add edge-case tests in `frontend/src/app/features/catalogs/departments/department-form/department-form.component.spec.ts`: 422 validation errors display per-field; 403 cross-org response shows error toast.
 - [ ] 7.3 [GREEN] Verify all frontend tests pass: `cd frontend && npx ng test --watch=false`.
 
+## Phase 8: Verification + Cleanup ✅ DONE (automated; 8.5 manual PENDING Andy)
+
+### 8.1 Backend lint + typecheck
+- [x] `cd backend && rtk npm run lint` → 0 errors
+- [x] `cd backend && npx tsc -b tsconfig.json --noEmit` → 0 errors
+
+### 8.2 Frontend build
+- [x] `cd frontend && rtk pnpm run build` → success
+
+### 8.3 Full backend suite
+- [x] `cd backend && rtk jest` → **1129/1129 PASS**
+
+### 8.4 Full frontend suite
+- [x] `cd frontend && rtk jest` → **659/659 PASS**
+
+### 8.5 Manual smoke (PENDING Andy)
+- [ ] Master sees Organization column; admin_org does not (D9)
+- [ ] Create / Edit / Delete flows end-to-end on `/app/departamentos`
+- [ ] 409 inline error on duplicate name in same org
+- [ ] 404 toast + redirect on race-deleted dept
+- [ ] 400ms debounce on search; 10/20/50 page size options
+- [ ] Delete confirm warns when `user_count > 0`
+
+### Exit Criteria ✅
+- [x] All automated gates green
+- [ ] Manual smoke (8.5) — pending Andy after migrations applied to fresh Supabase
+- [x] MIGRATION_LOG up to date (0056 + 0057 entries added in `back/2026-09-15-departments-module` phase)
+- [x] No FIXMEs or TODOs in code
+- [x] Deviations documented in apply-progress.md
+
 ## Phase 8: Verification + Cleanup
 
 - [ ] 8.1 Run `cd backend && npm run lint && npm run typecheck` — fix any issues.
