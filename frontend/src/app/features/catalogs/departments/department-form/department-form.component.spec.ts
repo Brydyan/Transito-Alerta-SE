@@ -6,7 +6,7 @@ import { ConfirmDialogService } from '../../../../shared/components/confirm-dial
 import { AuthService } from '../../../../core/services/auth.service';
 import { OrganizationService } from '../../organizations/services/organization.service';
 import { of, throwError } from 'rxjs';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { IDepartment } from '../interfaces/idepartment.interface';
 
 describe('DepartmentFormComponent', () => {
@@ -378,6 +378,146 @@ describe('DepartmentFormComponent', () => {
       await new Promise((r) => setTimeout(r, 0));
       // The component's else-branch uses the server's message verbatim.
       expect(mockToastService.error).toHaveBeenCalledWith(serverMsg);
+    });
+  });
+
+  describe('toggleCategory', () => {
+    it('toggleCategory: adds category ID when checked=true', async () => {
+      const { fixture } = await render(DepartmentFormComponent, {
+        providers: [
+          { provide: DepartmentService, useValue: mockDepartmentService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: ActivatedRoute, useValue: makeRoute(null) },
+          { provide: OrganizationService, useValue: mockOrganizationService },
+        ],
+      });
+
+      const component = fixture.componentInstance as DepartmentFormComponent;
+      component.incidentCategories.set([
+        { id: 'cat-1', name: 'Vialidad', parent_id: null },
+      ]);
+
+      component.toggleCategory('cat-1', true);
+
+      expect(component.selectedCategoryIds()).toContain('cat-1');
+      expect(component.categoryIdsControl.value).toContain('cat-1');
+    });
+
+    it('toggleCategory: removes category ID when checked=false', async () => {
+      const { fixture } = await render(DepartmentFormComponent, {
+        providers: [
+          { provide: DepartmentService, useValue: mockDepartmentService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: ActivatedRoute, useValue: makeRoute(null) },
+          { provide: OrganizationService, useValue: mockOrganizationService },
+        ],
+      });
+
+      const component = fixture.componentInstance as DepartmentFormComponent;
+      component.selectedCategoryIds.set(['cat-1']);
+
+      component.toggleCategory('cat-1', false);
+
+      expect(component.selectedCategoryIds()).not.toContain('cat-1');
+      expect(component.categoryIdsControl.value).not.toContain('cat-1');
+    });
+
+    it('edit mode: pre-fills selectedCategoryIds from loaded department', async () => {
+      mockDepartmentService.getById.mockReturnValue(
+        of({ ...baseDept, category_ids: ['cat-1', 'cat-2'] }),
+      );
+
+      await render(DepartmentFormComponent, {
+        providers: [
+          { provide: DepartmentService, useValue: mockDepartmentService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: ActivatedRoute, useValue: makeRoute('dept-1') },
+          { provide: OrganizationService, useValue: mockOrganizationService },
+        ],
+      });
+
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(mockDepartmentService.getById).toHaveBeenCalledWith('dept-1');
+    });
+  });
+
+  describe('onCancel', () => {
+    it('onCancel: clean form navigates immediately', async () => {
+      const { fixture } = await render(DepartmentFormComponent, {
+        providers: [
+          { provide: DepartmentService, useValue: mockDepartmentService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: ActivatedRoute, useValue: makeRoute(null) },
+          { provide: OrganizationService, useValue: mockOrganizationService },
+        ],
+      });
+
+      const component = fixture.componentInstance as DepartmentFormComponent;
+      const router = fixture.debugElement.injector.get(Router);
+      jest.spyOn(router, 'navigate');
+      component.form.markAsUntouched();
+
+      component.onCancel();
+
+      expect(router.navigate).toHaveBeenCalled();
+      expect(mockDialogService.confirm).not.toHaveBeenCalled();
+    });
+
+    it('onCancel: dirty form shows confirm dialog', async () => {
+      const { fixture } = await render(DepartmentFormComponent, {
+        providers: [
+          { provide: DepartmentService, useValue: mockDepartmentService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: ActivatedRoute, useValue: makeRoute(null) },
+          { provide: OrganizationService, useValue: mockOrganizationService },
+        ],
+      });
+
+      const component = fixture.componentInstance as DepartmentFormComponent;
+      const router = fixture.debugElement.injector.get(Router);
+      jest.spyOn(router, 'navigate');
+      component.form.markAsDirty();
+
+      component.onCancel();
+
+      expect(mockDialogService.confirm).toHaveBeenCalled();
+    });
+
+    it('onCancel: dirty form + user declines → stays in form', async () => {
+      mockDialogService.confirm.mockReturnValue(of(false));
+
+      const { fixture } = await render(DepartmentFormComponent, {
+        providers: [
+          { provide: DepartmentService, useValue: mockDepartmentService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: ActivatedRoute, useValue: makeRoute(null) },
+          { provide: OrganizationService, useValue: mockOrganizationService },
+        ],
+      });
+
+      const component = fixture.componentInstance as DepartmentFormComponent;
+      const router = fixture.debugElement.injector.get(Router);
+      jest.spyOn(router, 'navigate');
+      component.form.markAsDirty();
+
+      component.onCancel();
+
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(router.navigate).not.toHaveBeenCalled();
     });
   });
 });

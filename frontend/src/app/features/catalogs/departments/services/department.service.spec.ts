@@ -156,4 +156,23 @@ describe('DepartmentService', () => {
       });
     });
   });
+
+  describe('getFormData', () => {
+    it('GETs /departments/form-data and returns incident_categories', (done) => {
+      const formData = {
+        incident_categories: [
+          { id: 'cat-1', name: 'Vialidad', parent_id: null },
+          { id: 'cat-2', name: 'Seguridad', parent_id: null },
+        ],
+      };
+      httpMock.get.mockReturnValue(of(formData));
+
+      service.getFormData().subscribe((data) => {
+        expect(httpMock.get).toHaveBeenCalledWith('/departments/form-data');
+        expect(data.incident_categories).toBeDefined();
+        expect(data.incident_categories.length).toBe(2);
+        done();
+      });
+    });
+  });
 });

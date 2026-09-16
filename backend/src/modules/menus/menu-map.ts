@@ -96,17 +96,17 @@ export const MENU_MAP: Record<string, MenuDefinition> = {
     group: 'GESTIÓN',
     order: 80,
   },
-  // front/2026-09-15-departments-menu: live in the GESTIÓN group
-  // (departments are an org subdivision, not a taxonomy item) and
-  // sit directly under Organizaciones (order 81 — between
-  // Organizaciones at 80 and `Auditoría de Acceso` at 85).
-  // The route `/app/departamentos` is wired in Phase 5.1 of the same change.
+  // front/2026-09-15-departments-menu: live in the CATÁLOGOS group,
+  // order 95, between Categorías (90) and Ubicaciones (100).
+  // Departments are reference data (like categories/locations) and live
+  // in the taxonomy section, not in GESTIÓN. The route `/app/admin/departments`
+  // is wired in Phase 4 of the same change.
   Departamentos: {
-    route: '/departamentos',
+    route: '/admin/departments',
     requires: 'READ departments',
     icon: 'building-2',
-    group: 'GESTIÓN',
-    order: 81,
+    group: 'CATÁLOGOS',
+    order: 95,
   },
   // F6 (`2026-09-11-f6-audit-logs-menu`) — entrada para la pantalla
   // "Auditoría de Acceso". Gated por permiso `READ audit-logs`
