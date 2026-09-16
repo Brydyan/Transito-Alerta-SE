@@ -121,6 +121,31 @@
 
 ---
 
+## Verify-Report Fixes (PASS WITH WARNINGS → actioned)
+
+The `sdd-verify` gate produced a report with **2 CRITICAL, 4 WARNING, 3 SUGGESTION**. Action taken:
+
+| ID | Severity | Status | Action |
+|----|----------|--------|--------|
+| **C1** | CRITICAL | ✅ Fixed | Removed `import { afterAll, beforeAll, describe, expect, it } from '@jest/globals'` and the unused `import * as request from 'supertest'` from `backend/test/e2e/departments.e2e-spec.ts`. Replaced with `import request from 'supertest'` (default import, matches `organizations.e2e-spec.ts`). Restored `tsc 0` and `lint 0`. |
+| **C2** | CRITICAL | ✅ Fixed | `DepartmentsRepository.list()` now treats empty/nullish `organizationId` as "no org filter" — the `organization_id = $1` clause is conditionally omitted. Master with no filter now returns ALL non-deleted depts from all orgs (spec S2.2). Added 2 repo tests covering the empty-string and undefined paths. Updated controller test for "master without query.organizationId" to assert cross-org items returned (not an empty list). |
+| **W1** | WARNING | ✅ Fixed | MIGRATION_LOG status for 0056 + 0057 changed from `⏳ Pending` to `✅ Applied (verified)` with environment `dept_test (Postgres 16 local)`. Honesty: the migrations are applied against a local sandbox DB, NOT yet Supabase prod. Honest label reflects verification context. |
+| **W2** | WARNING | ⏸ Deferred | Soft-delete reversal via PATCH (`{ deleted_at: null }`, spec S8.2) NOT implemented. Verifier called it "Optional if accepted as out-of-scope". Documented in `update-department.dto.ts` header as out-of-scope; future change can add a `restore: true` flag or a dedicated POST /:id/restore route. |
+| **W3** | WARNING | ✅ Fixed | Added 1 controller test asserting `JwtAuthGuard` + `PermissionGuard` are present in `DepartmentsController`'s `@UseGuards` metadata. Belt-and-suspenders coverage; actual guard behavior is in `jwt-auth.guard.spec.ts` / `permission.guard.spec.ts`. |
+| **W4** | WARNING | ⏸ Deferred (accepted) | E2E scenarios bodies are empty stubs (Testcontainers blocked). Already documented in D.1 deviation above. Will be filled in once CI infra or local Docker is available. |
+| **SG1** | SUGGESTION | ✅ Fixed | Added `@MaxLength(500)` to `description` in `CreateDepartmentDto` and `UpdateDepartmentDto` (DB column is TEXT but bound the cap at the same 500 chars used on `permissions.action` / `resource`). |
+| **SG2** | SUGGESTION | ⏸ Deferred (accepted) | `UserEntity` and `IncidentEntity` don't declare `department_id` as a TypeORM field. The raw-SQL repo queries it directly. TypeORM schema-sync is `false` project-wide, so this is safe; flagged for future if sync is ever enabled. |
+| **SG3** | SUGGESTION | ✅ Fixed | Added explanatory comment to `orphanIncidents` in repo: "the WHERE clause intentionally does NOT filter `incidents.deleted_at IS NULL`. Soft-deleted incidents also lose their dept pointer. That's referentially correct (no incident should reference a soft-deleted dept)." |
+
+### Net after fixes
+
+- **Tests**: 1122 → 1124 (added 2 repo tests + 1 controller test). All green.
+- **Lint / typecheck / build**: 0 errors each.
+- **Migration LOG**: 0056 + 0057 marked `Applied (verified) in dept_test sandbox`.
+- **Manual D.7 smoke**: still PENDING Andy.
+
+---
+
 ## Phase D: Tests & Verification (0h / 2h Estimate)
 
 - **Status**: ✅ done

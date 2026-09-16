@@ -54,6 +54,18 @@ describe('DepartmentsController', () => {
     reflector = new Reflector();
   });
 
+  // sc-323 sibling / 2026-09-15-departments-module verify-report W3:
+  // guard behavior is exercised in `permission.guard.spec.ts` and
+  // `jwt-auth.guard.spec.ts`. Here we only assert the controller's
+  // wiring (it lists the guards in its `@UseGuards` metadata) so a
+  // future refactor that drops either guard trips a unit-level red.
+  it('is wired with JwtAuthGuard + PermissionGuard at the class level', () => {
+    const guards: unknown[] =
+      Reflect.getMetadata('__guards__', DepartmentsController) ?? [];
+    const guardNames = guards.map((g) => (g as { name: string }).name);
+    expect(guardNames).toEqual(expect.arrayContaining(['JwtAuthGuard', 'PermissionGuard']));
+  });
+
   const buildReq = (overrides: Partial<AuthenticatedRequest['user']>): AuthenticatedRequest => {
     const baseUser = {
       userId: 'user-1',
@@ -125,10 +137,20 @@ describe('DepartmentsController', () => {
       );
     });
 
-    it('master without query.organizationId: sends empty string (caller opted out of org filter)', async () => {
-      service.list.mockResolvedValue({ items: [], total: 0 });
+    it('master without query.organizationId: opts out of the org filter (empty string passed to repo, which interprets as no-filter)', async () => {
+      // Spec S2.2: master sees ALL non-deleted depts from all orgs when no
+      // filter is provided. The controller signals "no filter" by passing
+      // an empty string to the repo; the repo interprets empty/nullish
+      // organizationId as "do not constrain by org".
+      service.list.mockResolvedValue({
+        items: [
+          { ...activeDept, id: 'dept-a', organization_id: 'org-1' },
+          { ...activeDept, id: 'dept-b', organization_id: 'org-2' },
+        ],
+        total: 2,
+      });
 
-      await controller.list(
+      const result = await controller.list(
         {} as never,
         buildReq({ roleName: 'master', organizationId: null }),
       );
@@ -136,6 +158,9 @@ describe('DepartmentsController', () => {
       expect(service.list).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: '' }),
       );
+      // Result reflects what the repo returns under no-filter — both
+      // orgs visible. This is what spec S2.2 promises.
+      expect(result.items.map((i) => i.organization_id).sort()).toEqual(['org-1', 'org-2']);
     });
 
     it('admin_org: forwards search + pagination params', async () => {

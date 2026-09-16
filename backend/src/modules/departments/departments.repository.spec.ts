@@ -167,6 +167,36 @@ describe('DepartmentsRepository', () => {
       const { total } = await repository.list({ organizationId: 'org-1' });
       expect(total).toBe(47);
     });
+
+    // sc-323 sibling / 2026-09-15-departments-module verify-report C2:
+    // spec S2.2 requires master to see all non-deleted depts from all orgs
+    // when no org filter is provided. The signal from the controller is
+    // an empty-string organizationId (the controller's scopedOrgId ?? '').
+    it('omits the organization_id clause when organizationId is empty (master no-filter path)', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([{ id: 'dept-1' }])
+        .mockResolvedValueOnce([{ count: '1' }]);
+
+      await repository.list({ organizationId: '' });
+
+      const itemsSql = dataSource.query.mock.calls[0][0];
+      expect(itemsSql).not.toContain('organization_id =');
+      expect(itemsSql).toContain('WHERE deleted_at IS NULL');
+    });
+
+    it('treats nullish organizationId the same as empty string', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ count: '0' }]);
+
+      // @ts-expect-error — exercise the runtime guard against a malformed
+      // call (organizationId typed as required, but the controller is
+      // the only caller and we want belt-and-suspenders coverage).
+      await repository.list({ organizationId: undefined });
+
+      const itemsSql = dataSource.query.mock.calls[0][0];
+      expect(itemsSql).not.toContain('organization_id =');
+    });
   });
 
   describe('findByUser', () => {

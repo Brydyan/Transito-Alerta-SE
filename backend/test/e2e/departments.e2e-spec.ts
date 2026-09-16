@@ -22,10 +22,8 @@
  * `admin_org`, `operador_sistema`, `no-org`).
  */
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
 
 import { AppModule } from '../../src/app.module';
 import { JwtAuthGuard } from '../../src/modules/auth/jwt-auth.guard';

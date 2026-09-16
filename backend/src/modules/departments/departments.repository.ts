@@ -136,8 +136,24 @@ export class DepartmentsRepository {
     const page = Math.max(filters.page ?? 1, 1);
     const offset = (page - 1) * perPage;
 
-    const conditions: string[] = ['deleted_at IS NULL', 'organization_id = $1'];
-    const params: unknown[] = [filters.organizationId];
+    // sc-323 sibling / 2026-09-15-departments-module verify-report C2:
+    // when the controller skips the org filter for master (no
+    // `query.organizationId` provided), `organizationId` arrives here as
+    // an empty string. A UUID column cannot match `''`, so the previous
+    // version returned 0 rows. Now: an empty/nullish `organizationId`
+    // means "no filter" — master sees all non-deleted depts. The
+    // controller already gates master-only; this is a defense-in-depth
+    // for any other caller that bypasses the scope check.
+    const hasOrgFilter =
+      typeof filters.organizationId === 'string' && filters.organizationId.length > 0;
+
+    const conditions: string[] = ['deleted_at IS NULL'];
+    const params: unknown[] = [];
+
+    if (hasOrgFilter) {
+      params.push(filters.organizationId);
+      conditions.push(`organization_id = $${params.length}`);
+    }
 
     if (filters.search && filters.search.trim().length > 0) {
       params.push(`%${filters.search.trim()}%`);
@@ -186,6 +202,15 @@ export class DepartmentsRepository {
    * Orphan-pass for `DepartmentsService.delete()`. Sets `department_id = NULL`
    * on every incident that referenced the about-to-be-deleted dept, so
    * those rows fall back to the "org-wide" scope (design D3 + D2).
+   *
+   * NOTE (verify-report SG3): the WHERE clause intentionally does NOT
+   * filter `incidents.deleted_at IS NULL`. Soft-deleted incidents also
+   * lose their dept pointer. That's referentially correct (no incident
+   * should reference a soft-deleted dept) and avoids resurrecting an
+   * incident into the wrong scope if it is ever restored in the future.
+   * If this becomes a UX problem (e.g. admins restoring incidents after
+   * restoring their dept), revisit and split: skip the orphan pass for
+   * soft-deleted incidents, or move the cleanup to a trigger.
    */
   async orphanIncidents(departmentId: string): Promise<number> {
     const result: [unknown, number] = await this.dataSource.query(
