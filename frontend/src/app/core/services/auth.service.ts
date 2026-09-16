@@ -1,7 +1,8 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject, type Signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, catchError, throwError, tap, shareReplay } from 'rxjs';
+import { jwtDecode } from 'jwt-decode';
 import {
   AcceptInvitationDto,
   AuthTokens,
@@ -57,11 +58,48 @@ export class AuthService {
   readonly refreshToken = signal<string | null>(this.getStored('refresh_token'));
   readonly user = signal<User | null>(null);
 
-  readonly isAuthenticated = computed(() => !!this.accessToken());
+  readonly isAuthenticated = computed(() => {
+    const token = this.accessToken();
+    return !!token && !this.isTokenExpired(token);
+  });
   readonly currentUser = computed(() => this.user());
   readonly token = this.accessToken; // legacy alias used by auth.interceptor.ts
 
   private refreshInProgress$: Observable<AuthTokens> | null = null;
+
+  /** 2026-09-15-auth-token-expiration-fix (Phase B) — flipped to
+   *  `false` when hydrateSession completes (success, 401, or network
+   *  error). Guards wait on `sessionValidationComplete` before deciding.
+   */
+  private sessionValidating = signal<boolean>(true);
+  readonly sessionValidationComplete: Signal<boolean> = computed(() => !this.sessionValidating());
+
+  /**
+   * Decode a JWT and check whether its `exp` claim is at or before now.
+   *
+   *   - Returns `true` for: undefined/null, malformed strings (parse
+   *     error), and tokens whose `exp` is in the past.
+   *   - Returns `false` for: tokens whose `exp` is strictly in the
+   *     future.
+   *
+   * The signature is NOT verified (per design.md "Security
+   * Considerations"): we trust the server that issued the token, this
+   * helper only short-circuits the obvious case of an expired JWT sitting
+   * in localStorage before the next /auth/me call gets a chance to 401.
+   */
+  private isTokenExpired(token?: string | null): boolean {
+    if (!token) return true;
+    try {
+      const decoded = jwtDecode<{ exp?: number }>(token);
+      if (!decoded.exp) return true;
+      // exp is in seconds (RFC 7519); Date.now() is in milliseconds.
+      return Date.now() >= decoded.exp * 1000;
+    } catch {
+      // Anything that isn't a parseable JWT (typo, truncation, garbage
+      // from a wrong localStorage namespace) is treated as expired.
+      return true;
+    }
+  }
 
   constructor() {
     // If we have a token in storage but no in-memory user, try to
@@ -81,6 +119,12 @@ export class AuthService {
     // inyección ya se vació — ahí `AuthService` es un objeto normal.
     if (this.accessToken() && !this.user()) {
       queueMicrotask(() => this.hydrateSession());
+    } else {
+      // 2026-09-15-auth-token-expiration-fix (B.2): no token in
+      // localStorage (or user already hydrated) means there is nothing
+      // to validate. Mark validation complete immediately so guards
+      // don't deadlock waiting on a session that never started.
+      this.sessionValidating.set(false);
     }
   }
 
@@ -100,6 +144,19 @@ export class AuthService {
         if (err?.status === 401) {
           this.clearAuthState();
         }
+        // 2026-09-15-auth-token-expiration-fix (B.3): validation
+        // always terminates — success, 401, OR any other error (5xx,
+        // network) — so guards can decide. Other errors keep the
+        // token: client can't tell whether the token is bad or the
+        // backend is down, and a network hiccup shouldn't force a
+        // re-login on a token that may still be valid.
+        this.sessionValidating.set(false);
+      },
+      complete: () => {
+        // fetchUser completes synchronously only when it succeeds; the
+        // tap() inside already populated `user`. Mirror the error
+        // branch so the signal flips in either case.
+        this.sessionValidating.set(false);
       },
     });
   }
@@ -136,7 +193,20 @@ export class AuthService {
     if (this.refreshInProgress$) {
       return this.refreshInProgress$;
     }
-    const body: RefreshRequest = { refresh_token: this.refreshToken() ?? '' };
+
+    // 2026-09-15-auth-token-expiration-fix (Phase C, design D4):
+    // short-circuit if the refresh_token is already expired (or
+    // missing/malformed). Saves the network round-trip, drops the
+    // session immediately, and emits a synthetic error so callers
+    // (e.g. authInterceptor) don't see a silent success.
+    const storedRefresh = this.refreshToken();
+    if (!storedRefresh || this.isTokenExpired(storedRefresh)) {
+      this.clearAuthState();
+      this.router.navigate(['/login']);
+      return throwError(() => new Error('Refresh token expired or missing'));
+    }
+
+    const body: RefreshRequest = { refresh_token: storedRefresh };
     this.refreshInProgress$ = this.http
       .post<AuthTokens>(`${this.API_URL}/refresh`, body)
       .pipe(

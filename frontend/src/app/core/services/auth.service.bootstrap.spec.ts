@@ -30,9 +30,26 @@ describe('AuthService — hidratación de sesión al arrancar (regresión de rec
   const apiUrl = `${environment.apiUrl}/auth`;
   const env = environment.production ? 'production' : 'development';
 
+  // 2026-09-15-auth-token-expiration-fix — store valid JWTs (parseable
+  // by jwtDecode). Pre-fix isAuthenticated was a pure existence check
+  // and any opaque string counted as authenticated; post-fix the
+  // expiresAt claim matters.
+  const b64url = (obj: object): string => {
+    // eslint-disable-next-line no-undef
+    if (typeof btoa !== 'undefined') return btoa(JSON.stringify(obj));
+    // eslint-disable-next-line no-undef
+    return Buffer.from(JSON.stringify(obj)).toString('base64');
+  };
+  const validJwt = (exp: number) =>
+    `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url({ exp })}.sig`;
+  const futureAccessExp = Math.floor(Date.now() / 1000) + 3600;
+  const futureRefreshExp = futureAccessExp + 86400;
+  const accessTokenStr = validJwt(futureAccessExp);
+  const refreshTokenStr = validJwt(futureRefreshExp);
+
   function bootWithStoredSession(): { service: AuthService; http: HttpTestingController } {
-    localStorage.setItem(`auth_access_token_${env}`, 'jwt.access.token');
-    localStorage.setItem(`auth_refresh_token_${env}`, 'jwt.refresh.token');
+    localStorage.setItem(`auth_access_token_${env}`, accessTokenStr);
+    localStorage.setItem(`auth_refresh_token_${env}`, refreshTokenStr);
 
     TestBed.configureTestingModule({
       providers: [
@@ -60,7 +77,7 @@ describe('AuthService — hidratación de sesión al arrancar (regresión de rec
     await Promise.resolve();
 
     const meReq = http.expectOne(`${apiUrl}/me`);
-    expect(meReq.request.headers.get('Authorization')).toBe('Bearer jwt.access.token');
+    expect(meReq.request.headers.get('Authorization')).toBe(`Bearer ${accessTokenStr}`);
     meReq.flush({
       user_id: 'user-1',
       device_uuid: 'dev-uuid-1',
@@ -71,7 +88,7 @@ describe('AuthService — hidratación de sesión al arrancar (regresión de rec
     });
 
     expect(service.isAuthenticated()).toBe(true);
-    expect(localStorage.getItem(`auth_access_token_${env}`)).toBe('jwt.access.token');
+    expect(localStorage.getItem(`auth_access_token_${env}`)).toBe(accessTokenStr);
     expect(service.user()?.id).toBe('user-1');
     expect(service.user()?.permissions).toEqual(['READ menu-options', 'READ incidents']);
 
@@ -87,7 +104,7 @@ describe('AuthService — hidratación de sesión al arrancar (regresión de rec
       .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
 
     expect(service.isAuthenticated()).toBe(true);
-    expect(localStorage.getItem(`auth_access_token_${env}`)).toBe('jwt.access.token');
+    expect(localStorage.getItem(`auth_access_token_${env}`)).toBe(accessTokenStr);
 
     http.verify();
   });

@@ -12,6 +12,25 @@ import {
 import { authInterceptor } from './auth.interceptor';
 import { AuthService } from '../services/auth.service';
 
+// 2026-09-15-auth-token-expiration-fix — interceptor tests must seed
+// parseable JWTs because AuthService.refresh() now decodes the
+// refresh_token's `exp` claim proactively. Opaque strings would fail
+// the parse and short-circuit the HTTP call.
+const enc = (s: string): string => {
+  // eslint-disable-next-line no-undef
+  if (typeof btoa !== 'undefined') return btoa(s);
+  // eslint-disable-next-line no-undef
+  return Buffer.from(s, 'binary').toString('base64');
+};
+const b64url = (obj: object): string =>
+  enc(JSON.stringify(obj)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+const jwtWithExp = (exp: number): string =>
+  `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url({ exp })}.sig`;
+const JWT_ACCESS_1 = jwtWithExp(Math.floor(Date.now() / 1000) + 3600);
+const JWT_REFRESH_1 = jwtWithExp(Math.floor(Date.now() / 1000) + 86400);
+const JWT_ACCESS_2 = jwtWithExp(Math.floor(Date.now() / 1000) + 3600);
+const JWT_REFRESH_2 = jwtWithExp(Math.floor(Date.now() / 1000) + 86400);
+
 /**
  * E3 — auth.interceptor.spec.ts.
  *
@@ -63,10 +82,10 @@ describe('AuthInterceptor', () => {
 
   // ───── E3.1 — JWT injected on authed calls ─────
   it('attaches Authorization: Bearer <token> when the user is signed in', () => {
-    auth.accessToken.set('jwt-1');
+    auth.accessToken.set(JWT_ACCESS_1);
     http.get('/api/incidents').subscribe();
     const req = backend.expectOne('/api/incidents');
-    expect(req.request.headers.get('Authorization')).toBe('Bearer jwt-1');
+    expect(req.request.headers.get('Authorization')).toBe(`Bearer ${JWT_ACCESS_1}`);
     req.flush([]);
   });
 
@@ -80,8 +99,8 @@ describe('AuthInterceptor', () => {
 
   // ───── E3.3 — 401 on a regular call → refresh + retry ─────
   it('on 401 from a regular call, refreshes and retries the original request', () => {
-    auth.accessToken.set('jwt-1');
-    auth.refreshToken.set('rt-1');
+    auth.accessToken.set(JWT_ACCESS_1);
+    auth.refreshToken.set(JWT_REFRESH_1);
 
     http.get('/api/incidents').subscribe();
     backend
@@ -91,15 +110,15 @@ describe('AuthInterceptor', () => {
     const refresh = backend.expectOne('/api/auth/refresh');
     expect(refresh.request.method).toBe('POST');
     // Real backend contract: refresh_token in body, snake_case.
-    expect(refresh.request.body).toEqual({ refresh_token: 'rt-1' });
+    expect(refresh.request.body).toEqual({ refresh_token: JWT_REFRESH_1 });
     refresh.flush({
-      access_token: 'jwt-2',
-      refresh_token: 'rt-2',
+      access_token: JWT_ACCESS_2,
+      refresh_token: JWT_REFRESH_2,
       permissions: ['READ incidents'],
     });
 
     const retry = backend.expectOne('/api/incidents');
-    expect(retry.request.headers.get('Authorization')).toBe('Bearer jwt-2');
+    expect(retry.request.headers.get('Authorization')).toBe(`Bearer ${JWT_ACCESS_2}`);
     retry.flush([]);
 
     // The post-refresh /me fires too.
@@ -112,8 +131,8 @@ describe('AuthInterceptor', () => {
 
   // ───── E3.4 — 401 on the refresh endpoint itself does NOT recurse ─────
   it('does NOT retry on 401 from /auth/refresh (would loop forever)', () => {
-    auth.accessToken.set('jwt-1');
-    auth.refreshToken.set('rt-1');
+    auth.accessToken.set(JWT_ACCESS_1);
+    auth.refreshToken.set(JWT_REFRESH_1);
 
     // The refresh endpoint returns 401 (refresh token expired).
     // The interceptor must surface this error and NOT try to

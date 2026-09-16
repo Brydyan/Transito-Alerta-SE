@@ -271,6 +271,7 @@ describe('MenusService', () => {
   // Permisos equivalentes al seed de `master@tase.local` (35 permisos).
   // Sólo los que el mapa D4 requiere para que la entrada quede visible.
   const ALL_MENU_PERMISSIONS = [
+    'READ dashboard',
     'READ incidents',
     'CREATE incidents',
     'READ users',
@@ -284,7 +285,7 @@ describe('MenusService', () => {
   it('a full-permission user sees every menu entry (11 entries per D4 + F6 audit-logs)', async () => {
     authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
 
-    const result = await service.getMenuForUser('user-1');
+    const result = await service.getMenuForUser('user-1', null);
 
     expect(result).toHaveLength(11);
     // El orden es por `order` ascendente, no por iteración de Object.entries.
@@ -361,8 +362,73 @@ describe('MenusService', () => {
     userRepo.findOne.mockResolvedValue(
       Object.assign(new UserEntity(), { id: userId2, roleId: ROLE_MASTER }),
     );
+  
 
     await service.getMenuForUser(userId2);
+  }
+  it('omits groups that become empty after permission filtering', async () => {
+    // Un usuario con permisos reducidos: no ve ni CATÁLOGOS ni GESTIÓN.
+    // El grupo queda vacío tras el filtrado y el backend no debe emitir
+    // un encabezado huérfano.
+    authService.getPermissionsByUserId.mockResolvedValue([
+      'READ dashboard',
+      'READ incidents',
+      'CREATE incidents',
+    ]);
+
+    const result = await service.getMenuForUser('user-1', null);
+
+    // Sólo debe ver las entradas del grupo INCIDENCIAS + Dashboard (sin grupo).
+    expect(result.map((e) => e.label)).toEqual([
+      'Dashboard',
+      'Inicio',
+      'Lista de Incidencias',
+      'Mapa',
+      'Reportar',
+    ]);
+    // No debe haber entradas con grupo GESTIÓN ni CATÁLOGOS.
+    expect(result.find((e) => e.group === 'GESTIÓN')).toBeUndefined();
+    expect(result.find((e) => e.group === 'CATÁLOGOS')).toBeUndefined();
+  });
+
+  it('operador_org (15 permisos) sees a coherent subset without orphan headers (F1.2.3)', async () => {
+    // Subset representativo: el operador de organización tiene acceso a
+    // incidencias (lectura y creación) y a organizaciones. NO ve usuarios,
+    // roles, categorías, ni ubicaciones. El menú resultante no debe tener
+    // encabezados GESTIÓN/CATÁLOGOS con cero entradas.
+    authService.getPermissionsByUserId.mockResolvedValue([
+      'READ dashboard',
+      'READ incidents',
+      'CREATE incidents',
+      'READ organizations',
+    ]);
+
+    const result = await service.getMenuForUser('user-1', null);
+
+    expect(result.map((e) => e.label)).toEqual([
+      'Dashboard',
+      'Inicio',
+      'Lista de Incidencias',
+      'Mapa',
+      'Reportar',
+      'Organizaciones',
+    ]);
+    // GESTIÓN tiene una entrada (Organizaciones) — no es huérfano.
+    expect(result.filter((e) => e.group === 'GESTIÓN')).toHaveLength(1);
+    // CATÁLOGOS queda vacío y no aparece.
+    expect(result.find((e) => e.group === 'CATÁLOGOS')).toBeUndefined();
+  });
+
+  it('a user lacking READ assignments does not see a stale Assignments entry (regresión)', async () => {
+    // F1.1.3 retiró `Assignments` del mapa. Si vuelve a aparecer con un
+    // permiso que el usuario no tiene, el resultado debe seguir limpio:
+    // ninguna entrada con label `Assignments`.
+    authService.getPermissionsByUserId.mockResolvedValue([
+      'READ incidents',
+      'READ assignments',
+    ]);
+
+    const result = await service.getMenuForUser('user-1', null);
 
     expect(redis.get).toHaveBeenCalledWith(`menu:v1:user:${userId2}`);
     expect(redis.setex).toHaveBeenCalledWith(`menu:v1:user:${userId2}`, 3600, '[]');
@@ -391,5 +457,23 @@ describe('MenusService', () => {
     result = await service.getMenuForUser(USER_EXTRA);
     expect(result.map((e) => e.route)).toContain('/admin/users');
     expect(result.map((e) => e.route)).toContain('/categorias');
+  });
+
+  it('staff role (master) with full permissions does NOT see Reportar menu (role-based filter)', async () => {
+    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
+
+    const result = await service.getMenuForUser('user-1', 'master');
+
+    expect(result.find((e) => e.label === 'Reportar')).toBeUndefined();
+    expect(result).toHaveLength(10); // 11 minus Reportar
+  });
+
+  it('reporter role with full permissions DOES see Reportar menu (not in admin roles)', async () => {
+    authService.getPermissionsByUserId.mockResolvedValue(ALL_MENU_PERMISSIONS);
+
+    const result = await service.getMenuForUser('user-1', 'reporter');
+
+    expect(result.find((e) => e.label === 'Reportar')).toBeDefined();
+    expect(result).toHaveLength(11); // Full menu
   });
 });

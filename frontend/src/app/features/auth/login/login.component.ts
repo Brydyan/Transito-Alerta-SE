@@ -1,7 +1,7 @@
 import { Component, ChangeDetectionStrategy, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { Router, ActivatedRoute } from '@angular/router';
+import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 // Import updated AuthService
 import { AuthService } from '../../../core/services/auth.service';
 import {
@@ -13,7 +13,7 @@ import {
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
   animations: [fadeAnimation, slideUpAnimation, staggerFormElements],
