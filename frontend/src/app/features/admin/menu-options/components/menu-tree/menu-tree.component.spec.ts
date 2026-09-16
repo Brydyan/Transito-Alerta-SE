@@ -49,14 +49,14 @@ describe('MenuTreeComponent', () => {
     component.toggleExpand('a2');
     fixture.detectChanges();
 
-    const nodeRow = (name: string) =>
-      Array.from(
-        fixture.nativeElement.querySelectorAll<HTMLElement>('div.tree-node'),
-      ).find((node) => node.querySelector('span.text-sm')?.textContent?.trim() === name)!;
+    const nodeRow = (name: string): HTMLElement | undefined =>
+      (Array.from(
+        fixture.nativeElement.querySelectorAll('div.tree-node'),
+      ) as HTMLElement[]).find((node) => node.querySelector('span.text-sm')?.textContent?.trim() === name);
 
-    expect(buttons(nodeRow('Incidencias')).length).toBe(1);
-    expect(buttons(nodeRow('Inicio')).length).toBe(0);
-    expect(buttons(nodeRow('Mapa')).length).toBe(0);
+    expect(buttons(nodeRow('Incidencias')!).length).toBe(1);
+    expect(buttons(nodeRow('Inicio')!).length).toBe(0);
+    expect(buttons(nodeRow('Mapa')!).length).toBe(0);
   });
 
   it('emits selected when a node is clicked', () => {
