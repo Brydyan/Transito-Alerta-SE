@@ -53,6 +53,7 @@
  */
 'use strict';
 
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../backend/.env') });
 const { Client } = require('./lib/deps');
 const { enforce } = require('./lib/guard');
 const { SEED, NS_SEED, mulberry32, randInt, pick, uuidV5 } = require('./lib/rand');
@@ -661,7 +662,9 @@ async function batchInsertIncidents(client, rows) {
 }
 
 async function main() {
-  const client = new Client();
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL || `postgres://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'postgres'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'transito_alerta'}`
+  });
   try {
     await client.connect();
   } catch (err) {

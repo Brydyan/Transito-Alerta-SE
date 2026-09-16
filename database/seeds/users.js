@@ -32,7 +32,7 @@
  */
 'use strict';
 
-require('dotenv').config({ path: __dirname + '/.env' });
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../backend/.env') });
 
 const { Client, bcrypt } = require('./lib/deps');
 const { enforce } = require('./lib/guard');
@@ -305,7 +305,7 @@ async function run(client, opts = {}) {
 
 async function main() {
   const client = new Client({
-    connectionString: process.env.DATABASE_URL
+    connectionString: process.env.DATABASE_URL || `postgres://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'postgres'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'transito_alerta'}`
   });
   try {
     await client.connect();
