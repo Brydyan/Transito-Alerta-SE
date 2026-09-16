@@ -4,6 +4,7 @@ import { DepartmentService } from '../services/department.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { AuthService } from '../../../../core/services/auth.service';
+import { OrganizationService } from '../../organizations/services/organization.service';
 import { of, throwError } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 import { IDepartment } from '../interfaces/idepartment.interface';
@@ -17,6 +18,7 @@ describe('DepartmentFormComponent', () => {
   let mockToastService: { success: jest.Mock; error: jest.Mock };
   let mockDialogService: { confirm: jest.Mock };
   let mockAuthService: { currentUser: jest.Mock };
+  let mockOrganizationService: { list: jest.Mock };
 
   const baseDept: IDepartment = {
     id: 'dept-1',
@@ -48,6 +50,17 @@ describe('DepartmentFormComponent', () => {
         organizationId: 'org-1',
       }),
     };
+    mockOrganizationService = {
+      list: jest.fn().mockReturnValue(
+        of({
+          items: [
+            { id: 'org-1', name: 'GAD Quito', zone_id: null, parent_id: null, incident_category_id: null, max_active_claims: 5, created_at: '2026-01-01' },
+            { id: 'org-2', name: 'GAD Guayaquil', zone_id: null, parent_id: null, incident_category_id: null, max_active_claims: 5, created_at: '2026-01-01' },
+          ],
+          total: 2,
+        }),
+      ),
+    };
   });
 
   describe('create mode (no :id param)', () => {
@@ -59,6 +72,7 @@ describe('DepartmentFormComponent', () => {
           { provide: ConfirmDialogService, useValue: mockDialogService },
           { provide: AuthService, useValue: mockAuthService },
           { provide: ActivatedRoute, useValue: makeRoute(null) },
+          { provide: OrganizationService, useValue: mockOrganizationService },
         ],
       });
 
@@ -88,6 +102,7 @@ describe('DepartmentFormComponent', () => {
           { provide: ConfirmDialogService, useValue: mockDialogService },
           { provide: AuthService, useValue: mockAuthService },
           { provide: ActivatedRoute, useValue: makeRoute(null) },
+          { provide: OrganizationService, useValue: mockOrganizationService },
         ],
       });
 
@@ -112,6 +127,7 @@ describe('DepartmentFormComponent', () => {
           { provide: ConfirmDialogService, useValue: mockDialogService },
           { provide: AuthService, useValue: mockAuthService },
           { provide: ActivatedRoute, useValue: makeRoute('dept-1') },
+          { provide: OrganizationService, useValue: mockOrganizationService },
         ],
       });
 
@@ -129,6 +145,7 @@ describe('DepartmentFormComponent', () => {
           { provide: ConfirmDialogService, useValue: mockDialogService },
           { provide: AuthService, useValue: mockAuthService },
           { provide: ActivatedRoute, useValue: makeRoute('dept-1') },
+          { provide: OrganizationService, useValue: mockOrganizationService },
         ],
       });
 
@@ -159,6 +176,7 @@ describe('DepartmentFormComponent', () => {
           { provide: ConfirmDialogService, useValue: mockDialogService },
           { provide: AuthService, useValue: mockAuthService },
           { provide: ActivatedRoute, useValue: makeRoute(null) },
+          { provide: OrganizationService, useValue: mockOrganizationService },
         ],
       });
 
@@ -185,6 +203,7 @@ describe('DepartmentFormComponent', () => {
           { provide: ConfirmDialogService, useValue: mockDialogService },
           { provide: AuthService, useValue: mockAuthService },
           { provide: ActivatedRoute, useValue: makeRoute('dept-1') },
+          { provide: OrganizationService, useValue: mockOrganizationService },
         ],
       });
 
@@ -215,6 +234,7 @@ describe('DepartmentFormComponent', () => {
           { provide: ConfirmDialogService, useValue: mockDialogService },
           { provide: AuthService, useValue: mockAuthService },
           { provide: ActivatedRoute, useValue: makeRoute(null) },
+          { provide: OrganizationService, useValue: mockOrganizationService },
         ],
       });
 
@@ -232,6 +252,94 @@ describe('DepartmentFormComponent', () => {
       const inlineErr = screen.queryByText(/Este nombre no es válido/i);
       const toastCalled = mockToastService.error.mock.calls.length > 0;
       expect(inlineErr !== null || toastCalled).toBe(true);
+    });
+
+    // Organization selector — D9-style: master sees a dropdown,
+    // admin_org sees the org field locked to their own.
+    describe('organization selector (master vs admin_org)', () => {
+      it('master sees a <select> populated with the org list (one <option> per org)', async () => {
+        mockAuthService.currentUser.mockReturnValue({
+          roleName: 'master',
+          organizationId: null,
+        });
+
+        await render(DepartmentFormComponent, {
+          providers: [
+            { provide: DepartmentService, useValue: mockDepartmentService },
+            { provide: ToastService, useValue: mockToastService },
+            { provide: ConfirmDialogService, useValue: mockDialogService },
+            { provide: AuthService, useValue: mockAuthService },
+            { provide: ActivatedRoute, useValue: makeRoute(null) },
+            { provide: OrganizationService, useValue: mockOrganizationService },
+          ],
+        });
+
+        // Allow the list() observable to resolve
+        await new Promise((r) => setTimeout(r, 0));
+
+        const select = screen.getByLabelText(/Organización/i);
+        expect(select.tagName).toBe('SELECT');
+        // The two mock orgs plus the placeholder option
+        const options = (select as HTMLSelectElement).querySelectorAll('option');
+        expect(options.length).toBe(3); // placeholder + 2 orgs
+        // The component sorts alphabetically (localeCompare), so
+        // "GAD Guayaquil" (G) comes before "GAD Quito" (Q).
+        expect(options[1].textContent).toContain('GAD Guayaquil');
+        expect(options[2].textContent).toContain('GAD Quito');
+      });
+
+      it('admin_org sees the org field as a readonly text input locked to their own org', async () => {
+        await render(DepartmentFormComponent, {
+          providers: [
+            { provide: DepartmentService, useValue: mockDepartmentService },
+            { provide: ToastService, useValue: mockToastService },
+            { provide: ConfirmDialogService, useValue: mockDialogService },
+            { provide: AuthService, useValue: mockAuthService },
+            { provide: ActivatedRoute, useValue: makeRoute(null) },
+            { provide: OrganizationService, useValue: mockOrganizationService },
+          ],
+        });
+
+        // The select should NOT be in the DOM for admin_org
+        expect(screen.queryByRole('combobox')).toBeNull();
+        const input = screen.getByLabelText(/Organización/i) as HTMLInputElement;
+        expect(input.tagName).toBe('INPUT');
+        expect(input.readOnly).toBe(true);
+        expect(input.value).toBe('org-1');
+      });
+
+      it('submit fails with a banner error when no organization is selected', async () => {
+        // Master picks nothing → form is invalid (organization_id required).
+        mockAuthService.currentUser.mockReturnValue({
+          roleName: 'master',
+          organizationId: null,
+        });
+
+        await render(DepartmentFormComponent, {
+          providers: [
+            { provide: DepartmentService, useValue: mockDepartmentService },
+            { provide: ToastService, useValue: mockToastService },
+            { provide: ConfirmDialogService, useValue: mockDialogService },
+            { provide: AuthService, useValue: mockAuthService },
+            { provide: ActivatedRoute, useValue: makeRoute(null) },
+            { provide: OrganizationService, useValue: mockOrganizationService },
+          ],
+        });
+
+        const nameInput = screen.getByLabelText(/Nombre/i) as HTMLInputElement;
+        nameInput.value = 'X';
+        fireEvent.input(nameInput);
+        const submitBtn = screen.getByRole('button', { name: /Crear departamento/i });
+        fireEvent.click(submitBtn);
+
+        await new Promise((r) => setTimeout(r, 0));
+        // Submit didn't fire create() because organization_id was empty
+        expect(mockDepartmentService.create).not.toHaveBeenCalled();
+        // The submit button is disabled while the form is invalid, but
+        // we still fire the click — the form's markAllAsTouched + return
+        // path runs and the inline error renders under the field.
+        expect(screen.queryByText(/Selecciona una organización/i)).toBeTruthy();
+      });
     });
 
     // 7.2 — 403 cross-org response surfaces as toast (server-side gate
@@ -252,6 +360,7 @@ describe('DepartmentFormComponent', () => {
           { provide: ConfirmDialogService, useValue: mockDialogService },
           { provide: AuthService, useValue: mockAuthService },
           { provide: ActivatedRoute, useValue: makeRoute(null) },
+          { provide: OrganizationService, useValue: mockOrganizationService },
         ],
       });
 

@@ -63,6 +63,43 @@
       </small>
     </div>
 
+    <!-- Organization: dropdown for global roles (master, operador_sistema);
+         read-only text for admin_org (locked to their own org). The org_id
+         is still bound to the form so submit passes it through; the
+         readonly attribute prevents the user from changing it (D9-style
+         org-scope: non-global roles can't escape their own org). -->
+    <div class="mb-4">
+      <label for="dept-organization_id" class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
+        Organización <span *ngIf="showOrgSelector()" class="text-status-critical">*</span>
+      </label>
+
+      <select
+        *ngIf="showOrgSelector()"
+        id="dept-organization_id"
+        class="form-control"
+        formControlName="organization_id"
+        [class.border-status-critical]="fieldInvalid('organization_id')"
+        aria-label="Organización"
+      >
+        <option value="" disabled>Selecciona una organización…</option>
+        <option *ngFor="let org of organizations()" [value]="org.id">{{ org.name }}</option>
+      </select>
+
+      <input
+        *ngIf="!showOrgSelector()"
+        id="dept-organization_id"
+        type="text"
+        class="form-control"
+        formControlName="organization_id"
+        readonly
+        aria-label="Organización"
+      />
+
+      <small *ngIf="fieldInvalid('organization_id')" class="text-status-critical text-xs mt-1 block" role="alert">
+        Selecciona una organización.
+      </small>
+    </div>
+
     <!-- Footer -->
     <div class="flex justify-end items-center gap-3 mt-6">
       <button

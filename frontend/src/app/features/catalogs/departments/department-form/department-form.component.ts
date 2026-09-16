@@ -5,18 +5,28 @@ import {
   signal,
   computed,
   OnInit,
+  DestroyRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { DepartmentService } from '../services/department.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { AuthService } from '../../../../core/services/auth.service';
+import { OrganizationService } from '../../organizations/services/organization.service';
+import { IOrganization } from '../../organizations/interfaces/iorganization.interface';
 import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
+
+// Roles that bypass the per-org scoping (mirror of backend's
+// DepartmentsController.GLOBAL_ROLES set). Used by the form to decide
+// whether to render the org selector (master/operador_sistema) vs. fix
+// the org to the caller's own (admin_org).
+const GLOBAL_ROLES = new Set(['master', 'operador_sistema']);
 
 /**
  * DepartmentFormComponent (`front/2026-09-15-departments-menu`).
@@ -50,23 +60,41 @@ export class DepartmentFormComponent implements OnInit {
   private readonly toastService = inject(ToastService);
   private readonly dialogService = inject(ConfirmDialogService);
   private readonly authService = inject(AuthService);
+  private readonly organizationService = inject(OrganizationService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly id = this.route.snapshot.paramMap.get('id') ?? null;
 
   readonly isEditing = computed(() => this.id !== null);
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
+  readonly organizations = signal<IOrganization[]>([]);
   /** Inline field error from the server (e.g. 409 → name collision). */
   readonly nameServerError = signal<string | null>(null);
   /** Sticky banner above the form for cross-field errors. */
   readonly bannerError = signal<string | null>(null);
 
+  /** D9-style: master + operador_sistema see an org selector; admin_org
+   *  sees the org field locked to their own (no choice). */
+  readonly isGlobalRole = computed(() => {
+    const role = this.authService.currentUser()?.roleName ?? null;
+    return role !== null && GLOBAL_ROLES.has(role);
+  });
+  readonly showOrgSelector = this.isGlobalRole;
+  /** The caller's own org, when isGlobalRole is false. */
+  readonly ownOrganizationId = computed(
+    () => this.authService.currentUser()?.organizationId ?? null,
+  );
+
   readonly form: FormGroup = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(255)]],
     description: ['', [Validators.maxLength(500)]],
+    // organization_id is added below (with conditional `required`) once
+    // we know whether the caller can choose or is locked to their own org.
+    organization_id: [''],
   });
 
   get nameControl() {
@@ -74,6 +102,9 @@ export class DepartmentFormComponent implements OnInit {
   }
   get descriptionControl() {
     return this.form.get('description')!;
+  }
+  get organizationIdControl() {
+    return this.form.get('organization_id')!;
   }
 
   fieldInvalid(field: string): boolean {
@@ -102,9 +133,56 @@ export class DepartmentFormComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Apply the `required` rule on organization_id AFTER we've decided
+    // whether the caller is locked to their own org or picks from a list.
+    const ownOrgId = this.ownOrganizationId();
+    if (this.isGlobalRole()) {
+      // master / operador_sistema pick from the org list once it loads.
+      this.organizationIdControl.setValidators([Validators.required]);
+    } else if (ownOrgId) {
+      // admin_org is locked to their own org — pre-fill the value. We do
+      // NOT disable the control, because Angular excludes disabled
+      // controls from `form.value`, which would wipe the value at submit
+      // time. Instead the template renders it as `readonly` visually.
+      this.organizationIdControl.setValue(ownOrgId, { emitEvent: false });
+    } else {
+      // Defensive: non-global user without an organizationId — the
+      // backend will 403, but we surface a clear error before submitting.
+      this.bannerError.set(
+        'Tu cuenta no tiene una organización asignada. Pídele al master que te asigne una.',
+      );
+    }
+    this.organizationIdControl.updateValueAndValidity({ emitEvent: false });
+
+    if (this.isGlobalRole()) {
+      this.loadOrganizations();
+    }
     if (this.isEditing()) {
       this.loadDepartment(this.id!);
     }
+  }
+
+  private loadOrganizations(): void {
+    // list({ per_page: 100 }) — `OrganizationService` clamps at 100 silently
+    // per MAX_PAGE_SIZE in organizations.repository.ts. For the dropdown,
+    // 100 is more than enough for any realistic catalog size; if it grows
+    // past that, switch to a typeahead/autocomplete.
+    this.organizationService
+      .list({ per_page: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          // Sort by name for predictable order in the dropdown.
+          this.organizations.set(
+            [...result.items].sort((a, b) => a.name.localeCompare(b.name)),
+          );
+        },
+        error: () => {
+          this.bannerError.set(
+            'No se pudieron cargar las organizaciones. Intenta recargar la página.',
+          );
+        },
+      });
   }
 
   onSubmit(): void {
@@ -120,7 +198,11 @@ export class DepartmentFormComponent implements OnInit {
     const name = (this.form.value.name as string).trim();
     const description =
       (this.form.value.description as string | null)?.trim() || null;
-    const userOrgId = this.authService.currentUser()?.organizationId ?? null;
+    // For master / operador_sistema: the form's organization_id field
+    // holds the caller's choice from the dropdown. For admin_org: it
+    // holds their locked-in org from the auth context. Either way the
+    // form value is the single source of truth at submit time.
+    const organizationId = (this.form.value.organization_id as string) ?? null;
 
     if (this.isEditing()) {
       this.departmentService.update(this.id!, { name, description }).subscribe({
@@ -132,18 +214,18 @@ export class DepartmentFormComponent implements OnInit {
         error: (err) => this.handleSubmitError(err),
       });
     } else {
-      if (!userOrgId) {
-        // Defensive: admin_org without organizationId should not be able
-        // to create a dept (the backend would 403 it anyway). Block
-        // client-side to fail fast and give a clear error.
+      if (!organizationId) {
+        // Defensive: caller has no org selected (e.g. admin_org with no
+        // assigned org, or master with empty dropdown). Block client-side
+        // to fail fast; the backend would also reject this with 400.
         this.bannerError.set(
-          'No se puede crear un departamento sin una organización asociada al usuario.',
+          'Selecciona una organización antes de crear el departamento.',
         );
         this.isSaving.set(false);
         return;
       }
       this.departmentService
-        .create({ name, description, organization_id: userOrgId })
+        .create({ name, description, organization_id: organizationId })
         .subscribe({
           next: () => {
             this.toastService.success('Departamento creado correctamente');
@@ -184,6 +266,7 @@ export class DepartmentFormComponent implements OnInit {
         this.form.patchValue({
           name: dept.name,
           description: dept.description ?? '',
+          organization_id: dept.organization_id,
         });
         this.isLoading.set(false);
       },
