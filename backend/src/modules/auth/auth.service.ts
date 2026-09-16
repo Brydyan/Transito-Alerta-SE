@@ -12,7 +12,6 @@ import { AuthConfig } from '../../config/auth.config';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { resolveSubjectScope } from '../../common/authz/resolve-subject-scope';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { sha256Hex, timingSafeEqualHex } from '../../common/crypto/session-hash';
 import { BufferedTokenPair, GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
@@ -467,9 +466,9 @@ export class AuthService {
     const ctx = await this.getAuthContextByUserId(user.id);
     // F6 fix: Convert UUID permissions to "ACTION resource" strings so frontend
     // permissionGuard can validate with includes() directly.
-    const permissionStrings = await this.permissionLookup.getDescriptionsByUuids(
-      ctx.permissions,
-    );
+    const permissionStrings = this.permissionLookup
+      ? await this.permissionLookup.getDescriptionsByUuids(ctx.permissions)
+      : ctx.permissions;
     return {
       deviceUuid: user.deviceUuid,
       permissions: permissionStrings,

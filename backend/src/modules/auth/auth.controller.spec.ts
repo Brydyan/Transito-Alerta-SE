@@ -19,7 +19,6 @@ describe('AuthController', () => {
     loginWithPassword: jest.Mock;
     refresh: jest.Mock;
     getMe: jest.Mock;
-    getPermissionNames: jest.Mock;
     revokeSession: jest.Mock;
     changePassword: jest.Mock;
     issueSessionForNewIdentity: jest.Mock;
@@ -34,7 +33,6 @@ describe('AuthController', () => {
       loginWithPassword: jest.fn(),
       refresh: jest.fn(),
       getMe: jest.fn(),
-      getPermissionNames: jest.fn().mockResolvedValue([]),
       revokeSession: jest.fn(),
       changePassword: jest.fn(),
       issueSessionForNewIdentity: jest.fn(),
@@ -182,7 +180,6 @@ describe('AuthController', () => {
         // redirect al composer del OTP.
         role_name: 'reporter',
       });
-      authService.getPermissionNames.mockResolvedValue(['READ incidents', 'CREATE incidents']);
       const req = {
         user: { userId: 'user-1', permissions: [], sessionId: 'sid-1', isAnonymous: false },
       } as unknown as AuthenticatedRequest;
@@ -190,7 +187,6 @@ describe('AuthController', () => {
       const result = await controller.me(req);
 
       expect(authService.getMe).toHaveBeenCalledWith('user-1');
-      expect(authService.getPermissionNames).toHaveBeenCalledWith(['READ incidents', 'CREATE incidents']);
       // C.2 — la afirmación es sobre la **respuesta** completa,
       // no sobre la llamada al service. `toEqual` (no
       // `toMatch`) atrapa la regresión del Fix 12: un cambio
@@ -215,7 +211,6 @@ describe('AuthController', () => {
         email_verified: true,
         role_name: 'reporter',
       });
-      authService.getPermissionNames.mockResolvedValue(['READ incidents']);
       const req = {
         user: { userId: 'user-2', permissions: [], sessionId: 'sid-2', isAnonymous: false },
       } as unknown as AuthenticatedRequest;
@@ -234,7 +229,6 @@ describe('AuthController', () => {
         email_verified: false,
         role_name: 'reporter',
       });
-      authService.getPermissionNames.mockResolvedValue(['READ incidents']);
       const req = {
         user: { userId: 'user-2', permissions: [], sessionId: 'sid-2', isAnonymous: false },
       } as unknown as AuthenticatedRequest;
@@ -258,7 +252,6 @@ describe('AuthController', () => {
         email_verified: false,
         role_name: 'operador_org',
       });
-      authService.getPermissionNames.mockResolvedValue(['CREATE incidents']);
       const req = {
         user: { userId: 'user-staff', permissions: [], sessionId: 'sid-staff', isAnonymous: false },
       } as unknown as AuthenticatedRequest;
@@ -281,7 +274,6 @@ describe('AuthController', () => {
         email_verified: false,
         role_name: null,
       });
-      authService.getPermissionNames.mockResolvedValue(['READ incidents', 'CREATE incidents']);
       const req = {
         user: { userId: 'user-anon', permissions: [], sessionId: null, isAnonymous: true },
       } as unknown as AuthenticatedRequest;
@@ -292,24 +284,26 @@ describe('AuthController', () => {
       expect(result.permission_names).toEqual(['READ incidents', 'CREATE incidents']);
     });
 
-    it('F5 fix: incluye `permission_names` traducidos desde UUIDs para el guard del frontend', async () => {
-      const uuidReadMenu = 'd319c24e-f073-49b5-b1d0-9fb7ee002879';
+    it('F5 fix: `permission_names` replica `permissions` (getMe ya traduce UUIDs → strings)', async () => {
+      // getMe ya devuelve `permissions` como strings "ACTION resource"
+      // (traducción F6 vive en AuthService.getMe). El controller NO debe
+      // re-traducir: pasar strings a getPermissionNames() (que espera
+      // UUIDs) dejaba `permission_names: []` y rompía el guard del
+      // frontend para todos los roles.
       authService.getMe.mockResolvedValue({
         deviceUuid: 'device-abc',
-        permissions: [uuidReadMenu],
+        permissions: ['READ menu-options', 'READ incidents'],
         email_verified: false,
         role_name: 'master',
       });
-      authService.getPermissionNames.mockResolvedValue(['READ menu-options']);
       const req = {
         user: { userId: 'user-1', permissions: [], sessionId: 'sid-1', isAnonymous: false },
       } as unknown as AuthenticatedRequest;
 
       const result = await controller.me(req);
 
-      expect(authService.getPermissionNames).toHaveBeenCalledWith([uuidReadMenu]);
-      expect(result.permissions).toEqual([uuidReadMenu]);
-      expect(result.permission_names).toEqual(['READ menu-options']);
+      expect(result.permissions).toEqual(['READ menu-options', 'READ incidents']);
+      expect(result.permission_names).toEqual(result.permissions);
     });
   });
 

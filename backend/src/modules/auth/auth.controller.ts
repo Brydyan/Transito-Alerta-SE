@@ -186,7 +186,15 @@ export class AuthController {
     const userId = req.user!.userId;
     const { deviceUuid, permissions, email_verified, role_name } =
       await this.authService.getMe(userId);
-    const permission_names = await this.authService.getPermissionNames(permissions);
+    // F6 (sin doble traducción): `getMe()` ya devuelve `permissions`
+    // como strings "ACTION resource" (UUIDs → nombres). Re-traducir
+    // aquí con `getPermissionNames()` trata strings como si fueran
+    // UUIDs, el lookup inverso no matchea nada y el wire quedaba
+    // `permission_names: []` → el guard del frontend veía permisos
+    // vacíos para TODOS los roles → dashboard. `permission_names`
+    // es el mismo contenido que `permissions`; se expone como alias
+    // para no romper el consumidor que prefiere ese campo.
+    const permission_names = permissions;
     return {
       user_id: userId,
       device_uuid: deviceUuid,
