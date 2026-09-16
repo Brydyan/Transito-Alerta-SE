@@ -134,6 +134,13 @@ Chain strategy: pending
 - [ ] 4.2 [GREEN] Create `frontend/src/app/features/catalogs/departments/department-form/department-form.component.ts` — `FormGroup` with `name` (required, `maxLength(255)`) and `description` (`maxLength(500)`); signals `isEditing` (computed from route param), `isLoading`, `isSaving`, `serverErrors`; `ngOnInit` loads via `getById` when editing; `onSubmit` dispatches create or update; `handleError` maps 409 → inline name error, 404 → toast + navigate to list, other → generic toast; `onCancel` checks `form.dirty` → `ConfirmDialogService`.
 - [ ] 4.3 Create `frontend/src/app/features/catalogs/departments/department-form/department-form.component.html` — `name` field with required + maxlength validation messages; `description` textarea with maxlength; organization_id shown read-only in edit mode; Save / Cancel buttons; breadcrumb.
 
+## Phase 5: Routing ✅ DONE (2026-09-15)
+
+### 5.1 Add `departamentos` route block
+- [x] `frontend/src/app/app.routes.ts` — inserted between `categorias` and `ubicaciones` blocks: list (`path: ''`), new (`canActivate: [permissionGuard]`, `permission: 'CREATE departments'`), `:id/edit` (`canActivate: [permissionGuard]`, `permission: 'UPDATE departments'`); all 3 routes use `loadComponent` for lazy loading; `breadcrumb` + `title` + `phase` data for the global chrome
+- [x] **`menu-map.ts` 1.10 — entry added back** (deferred from Phase 1)
+- [x] **`menu-map.spec.ts` — `describe.skip` flipped to `describe`**: both tests for the Departamentos entry now execute live; CRITICAL-2 coherence test (route segments in app.routes.ts) stays green because the frontend route was added in the same commit
+
 ## Phase 5: Routing
 
 - [ ] 5.1 Add `departamentos` route block to `frontend/src/app/app.routes.ts` (inside `/app` children, after `organizaciones`): list route (`path: ''`), new route (`path: 'new'`, `canActivate: [permissionGuard]`, `data.permission: 'CREATE departments'`), edit route (`path: ':id/edit'`, `canActivate: [permissionGuard]`, `data.permission: 'UPDATE departments'`).

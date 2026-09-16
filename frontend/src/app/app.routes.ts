@@ -337,6 +337,42 @@ export const routes: Routes = [
         ],
       },
       {
+        // front/2026-09-15-departments-menu (Phase 5.1): the CRUD UI
+        // lives at /app/departamentos. Sibling of categorias / ubicaciones
+        // in the CATÁLOGOS group. Mirrors the categorias route tree
+        // shape (list / new / :id/edit).
+        path: 'departamentos',
+        data: { breadcrumb: 'Departamentos', title: 'Departamentos', phase: 'F6' },
+        children: [
+          {
+            path: '',
+            data: { breadcrumb: 'Departamentos' },
+            loadComponent: () =>
+              import(
+                './features/catalogs/departments/department-list/department-list.component'
+              ).then((m) => m.DepartmentListComponent),
+          },
+          {
+            path: 'new',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Nuevo Departamento', permission: 'CREATE departments' },
+            loadComponent: () =>
+              import(
+                './features/catalogs/departments/department-form/department-form.component'
+              ).then((m) => m.DepartmentFormComponent),
+          },
+          {
+            path: ':id/edit',
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Editar Departamento', permission: 'UPDATE departments' },
+            loadComponent: () =>
+              import(
+                './features/catalogs/departments/department-form/department-form.component'
+              ).then((m) => m.DepartmentFormComponent),
+          },
+        ],
+      },
+      {
         path: 'ubicaciones',
         data: { breadcrumb: 'Ubicaciones', title: 'Ubicaciones', phase: 'F2' },
         children: [
