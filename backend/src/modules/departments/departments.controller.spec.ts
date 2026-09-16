@@ -109,6 +109,30 @@ describe('DepartmentsController', () => {
   });
 
   describe('list (GET /)', () => {
+    // front/2026-09-15-departments-menu 6.1: the response items carry
+    // organization_name + user_count from the LEFT JOIN (design D2).
+    it('returns the enriched shape from the service (organization_name + user_count preserved through the controller)', async () => {
+      const enriched = [
+        {
+          ...activeDept,
+          organization_id: 'org-1',
+          organization_name: 'GAD Quito',
+          user_count: 7,
+        },
+      ];
+      service.list.mockResolvedValue({ items: enriched, total: 1 });
+
+      const result = await controller.list(
+        {} as never,
+        buildReq({ roleName: 'master', organizationId: null }),
+      );
+
+      expect(result.items[0]).toMatchObject({
+        organization_name: 'GAD Quito',
+        user_count: 7,
+      });
+    });
+
     it('admin_org: forces org filter to the caller\'s org (ignores query.organizationId)', async () => {
       service.list.mockResolvedValue({ items: [activeDept], total: 1 });
 

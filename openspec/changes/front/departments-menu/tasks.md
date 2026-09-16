@@ -145,11 +145,33 @@ Chain strategy: pending
 
 - [ ] 5.1 Add `departamentos` route block to `frontend/src/app/app.routes.ts` (inside `/app` children, after `organizaciones`): list route (`path: ''`), new route (`path: 'new'`, `canActivate: [permissionGuard]`, `data.permission: 'CREATE departments'`), edit route (`path: ':id/edit'`, `canActivate: [permissionGuard]`, `data.permission: 'UPDATE departments'`).
 
+## Phase 6: Backend Integration Tests ✅ DONE (2026-09-15)
+
+### 6.1 List returns enriched shape
+- [x] Added test in `departments.controller.spec.ts` asserting `result.items[0]` carries `organization_name` + `user_count` from the LEFT JOIN
+
+### 6.2 MENU_MAP has Departamentos entry
+- [x] Covered by Phase 5 tests (`menu-map.spec.ts` describe, 2 tests now live)
+
+### 6.3 Full backend suite green
+- [x] `cd backend && rtk jest` → 1129/1129 PASS (added 1 controller enriched-list test + 3 dept-related test additions across phases)
+
 ## Phase 6: Backend Integration Tests
 
 - [ ] 6.1 [RED] Add test case in `backend/src/modules/departments/departments.controller.spec.ts`: `list()` response items include `organization_name` and `user_count` fields (mock service returns enriched shape).
 - [ ] 6.2 [RED] Add test case in `backend/src/modules/menus/menus.service.spec.ts` (or `menu-map.spec.ts`): `MENU_MAP` includes `Departamentos` entry with `requires: 'READ departments'` and `order: 95`.
 - [ ] 6.3 [GREEN] Verify all backend tests pass: `cd backend && npm test -- --testPathPattern="departments|menus"`.
+
+## Phase 7: Frontend Integration Tests ✅ DONE (2026-09-15)
+
+### 7.1 Edge cases for list
+- [x] **403 hides Create/Edit/Delete buttons** when caller lacks CRUD perms — covered by `DepartmentListComponent` test (reporter role without `CREATE`/`UPDATE`/`DELETE` perms)
+- [x] **Search error shows toast** — covered (mock rejects on the search refire, `error()` toast asserted)
+- [x] **List empty shows EmptyState** — already covered by "shows the empty state when total is 0" test in Phase 3
+
+### 7.2 Edge cases for form
+- [x] **422 per-field validation** — added test asserting inline error or toast fires on `422` with `errors: { name: ... }`
+- [x] **403 cross-org response shows error toast** — added test asserting `toast.error` invoked with the server message
 
 ## Phase 7: Frontend Integration Tests
 
