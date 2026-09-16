@@ -329,19 +329,25 @@ describe('DepartmentsController', () => {
   });
 
   describe('remove (DELETE /:id)', () => {
-    it('admin_org deleting own dept: delegates to service.delete', async () => {
+    it('admin_org deleting own dept: returns the deleted row shape (id, deleted_at)', async () => {
+      // front/2026-09-15-departments-menu D8: DELETE returns 200 with
+      // { id, deleted_at }, not 204. The controller's HTTP code is now
+      // the default (200), and the response body carries the soft-deleted
+      // row so the frontend can show "deleted at" in the toast.
+      const deletedAt = new Date('2026-09-15T20:00:00Z');
       service.findById.mockResolvedValue(activeDept);
-      service.delete.mockResolvedValue(undefined);
+      service.delete.mockResolvedValue({ id: 'dept-1', deleted_at: deletedAt });
 
-      await controller.remove(
+      const result = await controller.remove(
         'dept-1',
         buildReq({ organizationId: 'org-1', roleName: 'admin_org' }),
       );
 
       expect(service.delete).toHaveBeenCalledWith('dept-1');
+      expect(result).toEqual({ id: 'dept-1', deleted_at: deletedAt });
     });
 
-    it('admin_org deleting another org: 403', async () => {
+    it('admin_org deleting another org: 403 (pre-load fires first)', async () => {
       service.findById.mockResolvedValue({ ...activeDept, organization_id: 'org-2' });
 
       await expect(

@@ -4,8 +4,6 @@ import {
   Delete,
   ForbiddenException,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -20,7 +18,7 @@ import { PermissionGuard } from '../../common/guards/permission.guard';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DepartmentRow } from './departments.repository';
-import { DepartmentsService } from './departments.service';
+import { DepartmentsService, ListResult } from './departments.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { ListDepartmentsQuery } from './dto/list-departments.query';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
@@ -66,7 +64,7 @@ export class DepartmentsController {
   async list(
     @Query() query: ListDepartmentsQuery,
     @Req() req: AuthenticatedRequest,
-  ): Promise<{ items: DepartmentRow[]; total: number }> {
+  ): Promise<ListResult> {
     const user = req.user!;
     const scopedOrgId =
       user.roleName && GLOBAL_ROLES.has(user.roleName)
@@ -134,14 +132,13 @@ export class DepartmentsController {
 
   @Delete(':id')
   @RequirePermission('DELETE', 'departments')
-  @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
-  ): Promise<void> {
+  ): Promise<{ id: string; deleted_at: Date }> {
     const existing = await this.departmentsService.findById(id);
     this.assertSameOrg(existing.organization_id, req);
-    await this.departmentsService.delete(id);
+    return this.departmentsService.delete(id);
   }
 
   /**

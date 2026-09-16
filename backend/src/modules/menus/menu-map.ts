@@ -116,6 +116,12 @@ export const MENU_MAP: Record<string, MenuDefinition> = {
     group: 'CATÁLOGOS',
     order: 90,
   },
+  // front/2026-09-15-departments-menu (D6): ENTRY ADDED IN PHASE 5.
+  // The MENU_MAP↔app.routes.ts coherence test (CRITICAL-2 from F1) requires
+  // every route's segments to be declared in the frontend router. The
+  // `/app/departamentos` route tree is added in Phase 5 (tasks.md 5.1)
+  // alongside the DepartmentList/Form components. Splitting the entry
+  // addition until then keeps the coherence test green at every commit.
   Ubicaciones: {
     route: '/ubicaciones',
     requires: 'READ geo-zones',

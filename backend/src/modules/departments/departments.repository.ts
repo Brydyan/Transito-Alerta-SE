@@ -19,6 +19,20 @@ export interface DepartmentRow {
   deleted_at: Date | null;
 }
 
+/**
+ * `front/2026-09-15-departments-menu` D2 — list rows are enriched with
+ * the parent org's name (`organization_name`) and a live count of
+ * non-deleted users in the dept (`user_count`). The joins keep the
+ * query at one round-trip; without them the frontend would issue
+ * `1 + N` round-trips for a list of N depts (one for each org, one per
+ * dept for users).
+ */
+export interface EnrichedDepartmentRow extends DepartmentRow {
+  organization_name: string;
+  /** Users whose `department_id` matches AND `users.deleted_at IS NULL`. */
+  user_count: number;
+}
+
 /** Fields needed to INSERT a new dept. `id` is DB-generated. */
 export interface CreateDepartmentInput {
   name: string;
@@ -56,6 +70,16 @@ const SELECT_COLUMNS =
   'id, name, description, organization_id, created_at, updated_at, deleted_at';
 
 /**
+ * `list()` projection adds the two enriched columns (design D2). Kept
+ * separate from `SELECT_COLUMNS` so non-list queries (findById,
+ * findByIdActive) don't pay the join cost.
+ */
+const ENRICHED_SELECT_COLUMNS =
+  'd.id, d.name, d.description, d.organization_id, d.created_at, d.updated_at, d.deleted_at, ' +
+  'o.name AS organization_name, ' +
+  'COUNT(u.id) FILTER (WHERE u.deleted_at IS NULL) AS user_count';
+
+/**
  * DepartmentsRepository (`back/2026-09-15-departments-module`) — raw SQL
  * via `dataSource.query()`, mirroring the project's dominant pattern
  * (`OrganizationsRepository`, `GeoZonesRepository`, `GeofencingRepository`).
@@ -88,13 +112,17 @@ export class DepartmentsRepository {
     return rows[0];
   }
 
-  /** Soft delete via `deleted_at = now()`. Returns whether a row was affected. */
-  async softDelete(id: string): Promise<boolean> {
-    const result: [Array<{ id: string }>, number] = await this.dataSource.query(
-      `UPDATE departments SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+  /** Soft delete via `deleted_at = now()`. Returns the deleted row's id + timestamp,
+   * or null when no active row matched. Frontend uses the timestamp to render
+   * "deleted at HH:MM" in a confirm toast (D8 of the menus change). */
+  async softDelete(id: string): Promise<{ id: string; deleted_at: Date } | null> {
+    const rows: Array<{ id: string; deleted_at: Date }> = await this.dataSource.query(
+      `UPDATE departments SET deleted_at = now()
+        WHERE id = $1 AND deleted_at IS NULL
+        RETURNING id, deleted_at`,
       [id],
     );
-    return result[1] > 0;
+    return rows[0] ?? null;
   }
 
   /** Hard-fetches a dept by id, including soft-deleted rows. Service is the gate. */
@@ -131,7 +159,7 @@ export class DepartmentsRepository {
 
   async list(
     filters: ListDepartmentsFilters,
-  ): Promise<{ items: DepartmentRow[]; total: number }> {
+  ): Promise<{ items: EnrichedDepartmentRow[]; total: number }> {
     const perPage = Math.min(filters.perPage ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     const page = Math.max(filters.page ?? 1, 1);
     const offset = (page - 1) * perPage;
@@ -147,32 +175,46 @@ export class DepartmentsRepository {
     const hasOrgFilter =
       typeof filters.organizationId === 'string' && filters.organizationId.length > 0;
 
-    const conditions: string[] = ['deleted_at IS NULL'];
+    // We always join `organizations` (for `organization_name`) and
+    // `users` (for `user_count`). The WHERE on `departments` is the
+    // only filter that matters for the page; the joined tables are
+    // LEFT JOINed so a dept with zero users or with an org that has
+    // been soft-deleted still appears.
+    //
+    // Important: the COUNT is a `FILTER (WHERE u.deleted_at IS NULL)`
+    // aggregate inside the dept row, not a global COUNT. We do NOT
+    // GROUP BY `u.id` (which would explode the row count) — Postgres
+    // aggregates per `dept_id` partition thanks to the join key.
+    const conditions: string[] = ['d.deleted_at IS NULL'];
     const params: unknown[] = [];
 
     if (hasOrgFilter) {
       params.push(filters.organizationId);
-      conditions.push(`organization_id = $${params.length}`);
+      conditions.push(`d.organization_id = $${params.length}`);
     }
 
     if (filters.search && filters.search.trim().length > 0) {
       params.push(`%${filters.search.trim()}%`);
-      conditions.push(`name ILIKE $${params.length}`);
+      conditions.push(`d.name ILIKE $${params.length}`);
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
     const itemsParams = [...params, perPage, offset];
 
-    const items: DepartmentRow[] = await this.dataSource.query(
-      `SELECT ${SELECT_COLUMNS} FROM departments
+    const items: EnrichedDepartmentRow[] = await this.dataSource.query(
+      `SELECT ${ENRICHED_SELECT_COLUMNS}
+         FROM departments d
+         LEFT JOIN organizations o ON o.id = d.organization_id AND o.deleted_at IS NULL
+         LEFT JOIN users u ON u.department_id = d.id
         ${whereClause}
-        ORDER BY name ASC
+        GROUP BY d.id, o.name
+        ORDER BY d.name ASC
         LIMIT $${itemsParams.length - 1} OFFSET $${itemsParams.length}`,
       itemsParams,
     );
 
     const countRows: { count: string }[] = await this.dataSource.query(
-      `SELECT COUNT(*) AS count FROM departments ${whereClause}`,
+      `SELECT COUNT(*) AS count FROM departments ${whereClause.replace(/\bd\./g, '')}`,
       params,
     );
 

@@ -1,16 +1,17 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { OrganizationsRepository } from '../organizations/organizations.repository';
 import {
   CreateDepartmentInput,
   DepartmentRow,
   DepartmentsRepository,
+  EnrichedDepartmentRow,
   ListDepartmentsFilters,
   UpdateDepartmentPatch,
 } from './departments.repository';
 
 export interface ListResult {
-  items: DepartmentRow[];
+  items: EnrichedDepartmentRow[];
   total: number;
 }
 
@@ -51,7 +52,7 @@ export class DepartmentsService {
 
     const collision = await this.deptRepo.existsByOrgAndName(input.organizationId, input.name);
     if (collision) {
-      throw new BadRequestException(
+      throw new ConflictException(
         `Department name '${input.name}' already exists in this organization (UNIQUE constraint)`,
       );
     }
@@ -94,7 +95,7 @@ export class DepartmentsService {
    * hide the dept from `findVisibleToUser` while the incident FK still
    * resolved. Orphaning first eliminates that inconsistency.
    */
-  async delete(id: string): Promise<void> {
+  async delete(id: string): Promise<{ id: string; deleted_at: Date }> {
     // Existence check first so we can return 404 without touching incidents.
     // softDelete's `WHERE deleted_at IS NULL` already filters out deleted rows,
     // so a no-op return means the dept doesn't exist (or was already deleted).
@@ -103,7 +104,16 @@ export class DepartmentsService {
       throw new NotFoundException(`Department ${id} not found or already deleted`);
     }
     await this.deptRepo.orphanIncidents(id);
-    await this.deptRepo.softDelete(id);
+
+    const deleted = await this.deptRepo.softDelete(id);
+    // Race: between findByIdActive above and softDelete here, another
+    // request could have soft-deleted the same row. softDelete returns
+    // null in that case; treat it as "already gone" → 404. Identical
+    // error wording to findByIdActive so the client can't distinguish.
+    if (!deleted) {
+      throw new NotFoundException(`Department ${id} not found or already deleted`);
+    }
+    return deleted;
   }
 
   async findByUser(userId: string): Promise<DepartmentRow | null> {

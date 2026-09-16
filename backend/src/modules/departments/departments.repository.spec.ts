@@ -38,22 +38,24 @@ describe('DepartmentsRepository', () => {
   });
 
   describe('softDelete', () => {
-    it('UPDATE stamps deleted_at and only hits non-deleted rows', async () => {
-      dataSource.query.mockResolvedValue([[{ id: 'dept-1' }], 1]);
+    it('UPDATE stamps deleted_at and only hits non-deleted rows; returns id + timestamp', async () => {
+      const deletedAt = new Date('2026-09-15T20:00:00Z');
+      dataSource.query.mockResolvedValue([{ id: 'dept-1', deleted_at: deletedAt }]);
 
-      const changed = await repository.softDelete('dept-1');
+      const result = await repository.softDelete('dept-1');
 
       const [sql, params] = dataSource.query.mock.calls[0];
       expect(sql).toContain('SET deleted_at = now()');
       expect(sql).toContain('deleted_at IS NULL');
+      expect(sql).toContain('RETURNING id, deleted_at');
       expect(params).toEqual(['dept-1']);
-      expect(changed).toBe(true);
+      expect(result).toEqual({ id: 'dept-1', deleted_at: deletedAt });
     });
 
-    it('returns false when no non-deleted row matched', async () => {
-      dataSource.query.mockResolvedValue([[], 0]);
-      const changed = await repository.softDelete('missing');
-      expect(changed).toBe(false);
+    it('returns null when no non-deleted row matched', async () => {
+      dataSource.query.mockResolvedValue([]);
+      const result = await repository.softDelete('missing');
+      expect(result).toBeNull();
     });
   });
 
@@ -134,8 +136,8 @@ describe('DepartmentsRepository', () => {
       });
 
       const itemsSql = dataSource.query.mock.calls[0][0];
-      expect(itemsSql).toContain('name ILIKE $2');
-      expect(itemsSql).toContain('ORDER BY name ASC');
+      expect(itemsSql).toMatch(/d\.name ILIKE \$2/);
+      expect(itemsSql).toContain('ORDER BY d.name ASC');
       expect(dataSource.query.mock.calls[0][1]).toEqual(['org-1', '%traffic%', 50, 0]);
     });
 
@@ -150,7 +152,7 @@ describe('DepartmentsRepository', () => {
       expect(itemsSql).not.toContain('ILIKE');
     });
 
-    it('always filters soft-deleted rows (deleted_at IS NULL)', async () => {
+    it('always filters soft-deleted rows on departments (d.deleted_at IS NULL)', async () => {
       dataSource.query
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ count: '0' }]);
@@ -158,7 +160,27 @@ describe('DepartmentsRepository', () => {
       await repository.list({ organizationId: 'org-1' });
 
       const itemsSql = dataSource.query.mock.calls[0][0];
-      expect(itemsSql).toContain('deleted_at IS NULL');
+      expect(itemsSql).toMatch(/d\.deleted_at IS NULL/);
+    });
+
+    // front/2026-09-15-departments-menu D2 + 1.7: enriched list joins
+    // organizations + users so each row carries organization_name and
+    // user_count without a second round-trip per dept.
+    it('SELECTs organization_name (LEFT JOIN organizations) and user_count (LEFT JOIN users + FILTER aggregate)', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([{ id: 'dept-1', organization_name: 'Org', user_count: 3 }])
+        .mockResolvedValueOnce([{ count: '1' }]);
+
+      const { items } = await repository.list({ organizationId: 'org-1' });
+
+      const itemsSql = dataSource.query.mock.calls[0][0];
+      expect(itemsSql).toMatch(/LEFT JOIN organizations/i);
+      expect(itemsSql).toMatch(/LEFT JOIN users/i);
+      expect(itemsSql).toContain('COUNT(u.id) FILTER (WHERE u.deleted_at IS NULL)');
+      expect(itemsSql).toContain('organization_name');
+      expect(itemsSql).toContain('user_count');
+      expect(itemsSql).toContain('GROUP BY'); // aggregate needs grouping
+      expect(items[0]).toMatchObject({ organization_name: 'Org', user_count: 3 });
     });
 
     it('returns parsed total as number', async () => {
@@ -181,7 +203,7 @@ describe('DepartmentsRepository', () => {
 
       const itemsSql = dataSource.query.mock.calls[0][0];
       expect(itemsSql).not.toContain('organization_id =');
-      expect(itemsSql).toContain('WHERE deleted_at IS NULL');
+      expect(itemsSql).toMatch(/WHERE d\.deleted_at IS NULL/);
     });
 
     it('treats nullish organizationId the same as empty string', async () => {

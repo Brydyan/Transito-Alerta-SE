@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 
 import {
   CreateDepartmentInput,
@@ -117,13 +117,13 @@ describe('DepartmentsService', () => {
       ).resolves.toBe(activeDept);
     });
 
-    it('throws BadRequestException on UNIQUE(org, name) collision', async () => {
+    it('throws ConflictException on UNIQUE(org, name) collision (front/2026-09-15-departments-menu D7)', async () => {
       orgRepo.findById.mockResolvedValue({ id: 'org-1', deleted_at: null });
       deptRepo.existsByOrgAndName.mockResolvedValue(true);
 
       await expect(
         service.create({ name: 'Traffic', description: null, organizationId: 'org-1' }),
-      ).rejects.toMatchObject({ message: expect.stringContaining('UNIQUE') });
+      ).rejects.toBeInstanceOf(ConflictException);
       expect(deptRepo.create).not.toHaveBeenCalled();
     });
   });
