@@ -213,13 +213,35 @@ export class RolesService {
       this.assertSeededNameNotRenamed(role.name, dto.name);
     }
 
+    const nextPermissions = dto.permissions;
+    const permissionsChanged = nextPermissions !== undefined;
     if (dto.name !== undefined) {
       role.name = dto.name;
     }
-    if (dto.permissions !== undefined) {
-      role.permissions = dto.permissions;
+    if (permissionsChanged) {
+      role.permissions = nextPermissions;
     }
-    return this.roleRepo.save(role);
+    const saved = await this.roleRepo.save(role);
+
+    // Denormalización (same fan-out as delete/recalculate): the guard
+    // reads `users.permissions` (a snapshot), never `roles.permissions`
+    // live, so a permission edit that does not propagate leaves every
+    // assigned user running the OLD set until reassigned — the "toast
+    // says ok but nothing changed" bug. Bump version + invalidate so the
+    // very next request rebuilds `perm:*` from the DB.
+    if (permissionsChanged) {
+      const affectedUsers = await this.userRepo.find({ where: { roleId: id } });
+      await Promise.all(
+        affectedUsers.map(async (user) => {
+          user.permissions = saved.permissions;
+          user.permissionVersion = (user.permissionVersion ?? 1) + 1;
+          await this.userRepo.save(user);
+          await this.authService.invalidatePermissionCache(user.id, user.deviceUuid);
+        }),
+      );
+    }
+
+    return saved;
   }
 
   /**
@@ -316,11 +338,26 @@ export class RolesService {
   async syncPermissions(id: string, permissions: string[]): Promise<RoleEntity> {
     const role = await this.findOne(id);
     this.assertRevealOnlyForMaster(role.name, permissions);
-    return this.dataSource.transaction(async (manager) => {
+    const saved = await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(RoleEntity);
       role.permissions = permissions;
       return repo.save(role);
     });
+
+    // Denormalización (same fan-out as delete/recalculate/update): keep
+    // `users.permissions` snapshots and caches in sync with the role's
+    // new set so assigned users see the change immediately.
+    const affectedUsers = await this.userRepo.find({ where: { roleId: id } });
+    await Promise.all(
+      affectedUsers.map(async (user) => {
+        user.permissions = saved.permissions;
+        user.permissionVersion = (user.permissionVersion ?? 1) + 1;
+        await this.userRepo.save(user);
+        await this.authService.invalidatePermissionCache(user.id, user.deviceUuid);
+      }),
+    );
+
+    return saved;
   }
 
   /**
