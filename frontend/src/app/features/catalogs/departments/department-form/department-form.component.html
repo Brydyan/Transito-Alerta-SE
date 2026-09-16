@@ -1,0 +1,86 @@
+<ui-page-header
+  [kicker]="isEditing() ? 'Editar' : 'Nuevo'"
+  [title]="isEditing() ? 'Editar departamento' : 'Nuevo departamento'"
+  [subtitle]="isEditing() ? 'Modifica los datos básicos del departamento. La organización es inmutable.' : 'Crea un nuevo departamento dentro de tu organización. La geometría se carga por separado.'"
+>
+  <button
+    page-header-actions
+    type="button"
+    class="btn btn-outline-secondary font-medium px-4 py-2"
+    (click)="onCancel()"
+  >
+    <ui-icon name="arrow-left" [size]="16" [strokeWidth]="2" />
+    Volver
+  </button>
+</ui-page-header>
+
+<div class="card border-none shadow-sm rounded-lg overflow-hidden">
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="card-body p-6 max-w-2xl">
+    <!-- Sticky banner for cross-field errors (e.g. user without organizationId) -->
+    <div *ngIf="bannerError()" class="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-700" role="alert">
+      {{ bannerError() }}
+    </div>
+
+    <!-- Name (required, max 255) -->
+    <div class="mb-4">
+      <label for="dept-name" class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
+        Nombre <span class="text-status-critical">*</span>
+      </label>
+      <input
+        id="dept-name"
+        type="text"
+        class="form-control"
+        formControlName="name"
+        [class.border-status-critical]="fieldInvalid('name')"
+        placeholder="Ej: Movilidad"
+        maxlength="255"
+        aria-label="Nombre"
+        [attr.aria-invalid]="fieldInvalid('name') ? 'true' : 'false'"
+        [attr.aria-describedby]="fieldError('name') ? 'name-error' : null"
+      />
+      <small *ngIf="fieldError('name')" id="name-error" class="text-status-critical text-xs mt-1 block" role="alert">
+        {{ fieldError('name') }}
+      </small>
+    </div>
+
+    <!-- Description (optional, max 500) -->
+    <div class="mb-4">
+      <label for="dept-description" class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
+        Descripción
+      </label>
+      <textarea
+        id="dept-description"
+        class="form-control"
+        rows="3"
+        formControlName="description"
+        [class.border-status-critical]="fieldInvalid('description')"
+        placeholder="Descripción opcional del departamento"
+        maxlength="500"
+        aria-label="Descripción"
+      ></textarea>
+      <small *ngIf="fieldError('description')" class="text-status-critical text-xs mt-1 block" role="alert">
+        {{ fieldError('description') }}
+      </small>
+    </div>
+
+    <!-- Footer -->
+    <div class="flex justify-end items-center gap-3 mt-6">
+      <button
+        type="button"
+        class="btn btn-outline-secondary font-medium px-5 py-2"
+        (click)="onCancel()"
+        [disabled]="isSaving()"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        class="btn btn-primary flex items-center gap-2 font-medium px-6 py-2"
+        [disabled]="isSaving() || form.invalid"
+      >
+        <ui-icon *ngIf="isSaving()" name="loader" [size]="16" [strokeWidth]="2" />
+        {{ isEditing() ? 'Guardar cambios' : 'Crear departamento' }}
+      </button>
+    </div>
+  </form>
+</div>

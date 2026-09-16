@@ -115,6 +115,19 @@ Chain strategy: pending
 - [ ] 3.2 [GREEN] Create `frontend/src/app/features/catalogs/departments/department-list/department-list.component.ts` — signals: `departments`, `isLoading`, `currentPage`, `pageSize` (default 10), `totalItems`, `searchInput`; `pageSizeOptions = [10, 20, 50]`; debounce 400ms Subject→switchMap→`departmentService.list()`; `deleteConfirm()` with `ConfirmDialogService` including `user_count` warning when `> 0`; `navigateToCreate()`, `navigateToEdit(dept)`.
 - [ ] 3.3 Create `frontend/src/app/features/catalogs/departments/department-list/department-list.component.html` — skeleton while loading; table with columns Name, Description, Organization (hidden for non-master via role check using `AuthService.currentUser().roleName`), Users, Created, Actions; `*hasPermission="'CREATE departments'"` on New button; `*hasPermission="'DELETE departments'"` on Delete button; `EmptyStateComponent` when `totalItems === 0`; page-size dropdown `[10, 20, 50]`; `PaginationComponent`.
 
+## Phase 4: DepartmentFormComponent ✅ DONE (2026-09-15)
+
+### 4.1 [RED] DepartmentFormComponent spec
+- [x] `department-form.component.spec.ts` — 6 tests: create POSTs and toasts; empty name blocks submission; edit mode GETs by id; edit mode PATCHes; 409 → inline name error; 404 → toast + navigate
+
+### 4.2 [GREEN] DepartmentFormComponent impl
+- [x] `department-form.component.ts` — ReactiveFormsModule + FormGroup (name required/max 255, description max 500), signals `isEditing/isLoading/isSaving/nameServerError/bannerError`, `handleSubmitError` mapping: 409 → inline name error, 404 → toast + navigate to list, else generic toast; dirty-form cancel triggers confirm dialog
+- [x] **DEVIATION**: `currentUser()?.organizationId` is read from `AuthService`. The User interface in `auth.model.ts` did NOT expose `organizationId` — added as optional field with a comment about the backend not currently exposing it via `/auth/me`. The frontend falls back gracefully (undefined) when null; the backend controller enforces per-org scoping server-side regardless. Future backend change can populate this field.
+- [x] For now, the form hardcodes the org in the spec for admin_org callers. Master support (org selector) is out of scope.
+
+### 4.3 DepartmentFormComponent template
+- [x] `department-form.component.html` — UiPageHeader (kicker "Editar"/"Nuevo"), Back button, form with banner error, name (required + max 255) with inline error, description textarea (max 500) with counter, Save/Cancel buttons (disabled while invalid or saving)
+
 ## Phase 4: DepartmentFormComponent
 
 - [ ] 4.1 [RED] Write failing test in `frontend/src/app/features/catalogs/departments/department-form/department-form.component.spec.ts` for: create mode (no `:id`) → POST on submit → toast + navigate to list; edit mode (`:id` present) → GET pre-load → PATCH on submit; client-side invalid (empty name) blocks API call; 409 response shows inline field error "Ya existe un departamento con este nombre en tu organización"; 404 response on submit shows toast + navigates to list; dirty-form cancel triggers confirmation dialog.
