@@ -290,4 +290,20 @@ describe('AuthService', () => {
     } as unknown as Record<string, unknown>);
     expect(service.user()?.permissions).toEqual(['READ incidents']);
   });
+
+  it('F5.3: fetchUser NO usa permission_names vacío ([] es truthy — el ?? no alcanza)', () => {
+    // Regresión F6: el backend llegó a devolver `permission_names: []`
+    // (doble traducción rota en auth.controller). `me.permission_names ?? me.permissions`
+    // tomaba el array vacío y el guard quedaba sin permisos para todos
+    // los roles. Con `.length` se cae a `permissions`.
+    service.login({ device_uuid: 'dev-uuid-1' }).subscribe();
+    http.expectOne(`${apiUrl}/login`).flush(tokens);
+    http.expectOne(`${apiUrl}/me`).flush({
+      user_id: 'user-1',
+      device_uuid: 'dev-uuid-1',
+      permissions: ['READ menu-options', 'READ incidents'],
+      permission_names: [],
+    });
+    expect(service.user()?.permissions).toEqual(['READ menu-options', 'READ incidents']);
+  });
 });

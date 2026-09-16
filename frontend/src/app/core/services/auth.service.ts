@@ -194,7 +194,15 @@ export class AuthService {
             // `permission_names` con el mismo contenido pero en
             // strings; usarlo con fallback para no romper contra
             // backend viejo sin el campo.
-            permissions: me.permission_names ?? me.permissions,
+            //
+            // F6 (permission_names: []) — un array VACÍO es truthy,
+            // así que `??` NO hace fallback: backend que devuelva
+            // `permission_names: []` dejaría el guard con cero
+            // permisos y mandaría al dashboard a todos los roles.
+            // Comprobar `.length` cubre ese caso: si viene vacío,
+            // se cae a `permissions` (que trae los strings).
+            permissions:
+              me.permission_names?.length ? me.permission_names : me.permissions,
             device_uuid: me.device_uuid,
             // REG (sc-325) C.1 — el booleano llega por la misma
             // llamada a `/me`. El frontend usa esto en C.4 para
