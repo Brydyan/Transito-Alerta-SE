@@ -266,6 +266,8 @@ describe('MenusService', () => {
     const result = await service.getMenuForUser(USER_MASTER);
 
     expect(result.map((e) => e.route).sort()).toEqual(['/dashboard', '/incidencias', '/inicio', '/mapa'].sort());
+  });
+
   // Permisos equivalentes al seed de `master@tase.local` (35 permisos).
   // Sólo los que el mapa D4 requiere para que la entrada quede visible.
   const ALL_MENU_PERMISSIONS = [
