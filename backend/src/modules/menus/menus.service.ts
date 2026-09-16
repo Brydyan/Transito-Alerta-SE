@@ -148,6 +148,26 @@ export class MenusService {
       const keys = await this.redis.keys('menu:v1:*');
       if (keys.length > 0) {
         await this.redis.del(...keys);
+    // 1. Resolver (action, resource) → uuid por cada entrada del mapa.
+    // 2. Filtrar si el uuid está en los permisos del usuario.
+    // 3. Filtrar "Reportar" si el usuario es staff (master/admin_org/operador).
+    // 4. Propagar group, order, icon.
+    // 5. Ordenar por `order` ascendente.
+    const ADMIN_ROLES = ['master', 'admin_org', 'operador_sistema', 'operador_org'];
+    const resolved: Array<{ label: string; definition: (typeof MENU_MAP)[string] }> = [];
+    for (const [label, definition] of Object.entries(MENU_MAP)) {
+      // Ocultar "Reportar" para roles administrativos (ciudadanos y reporters solo)
+      if (label === 'Reportar' && roleName && ADMIN_ROLES.includes(roleName)) {
+        continue;
+      }
+
+      const uuid = await this.permissionLookup.getUuid(
+        // MENU_MAP.requires es "ACTION resource"; descomponemos para el
+        // resolver. Todos los requires actuales siguen este formato.
+        ...(definition.requires.split(' ', 2) as [string, string]),
+      );
+      if (uuid !== null && permissions.includes(uuid)) {
+        resolved.push({ label, definition });
       }
     } catch (err) {
       this.logger.warn(`Cache invalidation failed: ${(err as Error).message}`);

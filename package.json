@@ -1,4 +1,5 @@
 {
+  "packageManager": "pnpm@11.22.0",
   "dependencies": {
     "dotenv": "^17.4.2",
     "lucide-angular": "^1.0.0",
