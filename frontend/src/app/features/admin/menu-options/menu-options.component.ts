@@ -16,6 +16,7 @@ import { EndpointPickerComponent } from './components/endpoint-picker/endpoint-p
 import { ToastService } from '../../../shared/components/toast/toast.service';
 import { UiPageHeaderComponent } from '../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
+import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.component';
 
 /**
  * MenuOptionsComponent (F5.6.2) — admin screen for dynamic menu management.
@@ -30,12 +31,14 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
     CommonModule,
     UiPageHeaderComponent,
     UiIconComponent,
+    UiCardComponent,
     MenuTreeComponent,
     RoleMatrixComponent,
     EndpointPickerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './menu-options.component.html',
+  styleUrl: './menu-options.component.css',
 })
 export class MenuOptionsComponent implements OnInit {
   private readonly menuOptionService = inject(MenuOptionService);
@@ -94,11 +97,24 @@ export class MenuOptionsComponent implements OnInit {
     this.isCreating.set(true);
     this.selectedOptionId.set(null);
     this.formParentId.set(parentId);
-    this.editingName.set('');
-    this.editingRoute.set('');
-    this.editingIcon.set('');
-    this.editingOrder.set(0);
     this.editingParentId.set(parentId);
+    
+    // Find parent to prefill route prefix
+    const parent = parentId ? this.allOptions().find(o => o.id === parentId) : null;
+    let prefilledRoute = '';
+    if (parent && parent.route) {
+      prefilledRoute = parent.route.endsWith('/') ? parent.route : parent.route + '/';
+    }
+    
+    // Calculate next order for children of this parent
+    const children = this.allOptions().filter(o => o.parent_id === parentId);
+    const maxOrder = children.reduce((max, child) => Math.max(max, child.display_order), -1);
+
+    this.editingName.set('');
+    this.editingRoute.set(prefilledRoute);
+    this.editingIcon.set('');
+    this.editingOrder.set(maxOrder + 1);
+    
     this.roleMatrix.set(null);
     this.assignedEndpoints.set([]);
     // Parent options exclude the current option (none yet in create mode)
@@ -225,6 +241,7 @@ export class MenuOptionsComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (option) => {
+          if (this.selectedOptionId() !== id || this.isCreating()) return;
           this.editingName.set(option.name);
           this.editingRoute.set(option.route);
           this.editingIcon.set(option.icon ?? '');
@@ -243,7 +260,10 @@ export class MenuOptionsComponent implements OnInit {
     this.menuOptionService.getRoleMatrix(optionId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (matrix) => this.roleMatrix.set(matrix),
+        next: (matrix) => {
+          if (this.selectedOptionId() !== optionId || this.isCreating()) return;
+          this.roleMatrix.set(matrix);
+        },
         error: () => this.toast.error('Error al cargar la matriz de roles.', 'Error'),
       });
   }

@@ -29,73 +29,7 @@ export interface EndpointItem {
   standalone: true,
   imports: [CommonModule, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="endpoint-picker grid grid-cols-2 gap-4">
-      <!-- Available panel -->
-      <div class="panel border border-border-subtle rounded-lg p-3">
-        <div class="flex items-center justify-between mb-2">
-          <h4 class="text-sm font-semibold text-slate-600">Disponibles</h4>
-          <span class="text-xs text-slate-400">{{ filteredAvailable().length }}</span>
-        </div>
-        <input
-          type="text"
-          placeholder="Buscar..."
-          [ngModel]="availableSearch()"
-          (ngModelChange)="availableSearch.set($event)"
-          class="w-full text-sm border border-border-subtle rounded px-2 py-1 mb-2"
-        />
-        <ul class="space-y-1 max-h-60 overflow-y-auto">
-          @for (ep of filteredAvailable(); track ep.id) {
-            <li
-              class="flex items-center gap-2 text-sm p-1 rounded hover:bg-slate-50 cursor-pointer"
-              (click)="moveToAssigned(ep.id)"
-            >
-              <span class="text-xs font-mono px-1 rounded"
-                [class.bg-emerald-100]="ep.method === 'GET'"
-                [class.bg-sky-100]="ep.method === 'POST'"
-                [class.bg-amber-100]="ep.method === 'PUT' || ep.method === 'PATCH'"
-                [class.bg-rose-100]="ep.method === 'DELETE'"
-              >{{ ep.method }}</span>
-              <span class="truncate flex-1">{{ ep.path }}</span>
-              <span class="text-xs text-slate-400">→</span>
-            </li>
-          }
-        </ul>
-      </div>
-
-      <!-- Assigned panel -->
-      <div class="panel border border-border-subtle rounded-lg p-3">
-        <div class="flex items-center justify-between mb-2">
-          <h4 class="text-sm font-semibold text-slate-600">Asignados</h4>
-          <span class="text-xs text-slate-400">{{ assignedCount() }}</span>
-        </div>
-        <input
-          type="text"
-          placeholder="Buscar..."
-          [ngModel]="assignedSearch()"
-          (ngModelChange)="assignedSearch.set($event)"
-          class="w-full text-sm border border-border-subtle rounded px-2 py-1 mb-2"
-        />
-        <ul class="space-y-1 max-h-60 overflow-y-auto">
-          @for (ep of filteredAssigned(); track ep.id) {
-            <li
-              class="flex items-center gap-2 text-sm p-1 rounded hover:bg-slate-50 cursor-pointer"
-              (click)="moveToAvailable(ep.id)"
-            >
-              <span class="text-xs text-slate-400">←</span>
-              <span class="text-xs font-mono px-1 rounded"
-                [class.bg-emerald-100]="ep.method === 'GET'"
-                [class.bg-sky-100]="ep.method === 'POST'"
-                [class.bg-amber-100]="ep.method === 'PUT' || ep.method === 'PATCH'"
-                [class.bg-rose-100]="ep.method === 'DELETE'"
-              >{{ ep.method }}</span>
-              <span class="truncate flex-1">{{ ep.path }}</span>
-            </li>
-          }
-        </ul>
-      </div>
-    </div>
-  `,
+  templateUrl: './endpoint-picker.component.html',
 })
 export class EndpointPickerComponent {
   /** All endpoints from the catalog. */

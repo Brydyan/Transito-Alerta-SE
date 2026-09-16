@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MenuOption } from '../../../../../core/services/menu-option.service';
+import { UiIconComponent } from '../../../../../shared/components/ui-icon/ui-icon.component';
 
 /**
  * MenuTreeComponent (F5.6.3) — hierarchical tree with expand/collapse
@@ -19,85 +20,10 @@ import { MenuOption } from '../../../../../core/services/menu-option.service';
 @Component({
   selector: 'app-menu-tree',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, UiIconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="menu-tree">
-      <div class="tree-header flex items-center justify-between mb-2">
-        <span class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Menús</span>
-        <button
-          class="text-sm text-brand-primary hover:text-brand-primary-hover font-medium"
-          (click)="requestCreate(null)"
-        >
-          + Agregar menú
-        </button>
-      </div>
-      <ul class="tree-list mt-2">
-        @for (item of rootItems(); track item.id) {
-          <ng-container *ngTemplateOutlet="treeNode; context: { $implicit: item, depth: 0 }"></ng-container>
-        }
-      </ul>
-    </div>
-
-    <ng-template #treeNode let-item let-depth="depth">
-      <li>
-        <div
-          class="tree-node group flex items-center gap-1 py-1 px-2 rounded cursor-pointer hover:bg-brand-primary-soft transition-colors"
-          [style.padding-left.rem]="depth * 1.25"
-          [class.bg-brand-primary-soft]="isSelected(item.id)"
-          (click)="selectNode(item.id)"
-        >
-          @if (hasChildren(item.id)) {
-            <button
-              class="expand-btn w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-600 text-xs"
-              (click)="toggleExpand(item.id); $event.stopPropagation()"
-            >
-              {{ isExpanded(item.id) ? '▼' : '▶' }}
-            </button>
-          } @else {
-            <span class="w-4 h-4"></span>
-          }
-          @if (item.icon) {
-            <span class="text-slate-400 text-sm">[#]</span>
-          }
-          <span class="text-sm truncate" [class.font-medium]="isSelected(item.id)">
-            {{ item.name }}
-          </span>
-          @if (!item.route) {
-            <span class="text-xs text-slate-400 ml-1">(sección)</span>
-          }
-          <button
-            class="ml-auto text-xs text-slate-400 hover:text-brand-primary opacity-0 group-hover:opacity-100"
-            (click)="requestCreate(item.id); $event.stopPropagation()"
-          >
-            +
-          </button>
-        </div>
-        @if (hasChildren(item.id) && isExpanded(item.id)) {
-          <ul>
-            @for (child of childrenOf(item.id); track child.id) {
-              <ng-container *ngTemplateOutlet="treeNode; context: { $implicit: child, depth: depth + 1 }"></ng-container>
-            }
-          </ul>
-        }
-      </li>
-    </ng-template>
-  `,
-  styles: [`
-    .tree-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    .tree-list ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    .tree-node {
-      user-select: none;
-    }
-  `],
+  templateUrl: './menu-tree.component.html',
+  styleUrl: './menu-tree.component.css',
 })
 export class MenuTreeComponent {
   /** Flat list of all menu options from the API. */

@@ -1,0 +1,65 @@
+<div class="endpoint-picker grid grid-cols-2 gap-4">
+  <!-- Available panel -->
+  <div class="panel border border-border-subtle rounded-lg p-3 bg-bg-secondary">
+    <div class="flex items-center justify-between mb-3">
+      <h4 class="text-sm font-semibold text-slate-600">Disponibles</h4>
+      <span class="text-xs text-slate-400 font-medium bg-white px-2 py-0.5 rounded-full border border-border-subtle">{{ filteredAvailable().length }}</span>
+    </div>
+    <input
+      type="text"
+      placeholder="Buscar..."
+      [ngModel]="availableSearch()"
+      (ngModelChange)="availableSearch.set($event)"
+      class="form-control mb-3"
+    />
+    <ul class="space-y-1 max-h-60 overflow-y-auto pr-1">
+      @for (ep of filteredAvailable(); track ep.id) {
+        <li
+          class="flex items-center gap-2 text-sm p-2 rounded-md hover:bg-white hover:shadow-sm cursor-pointer border border-transparent hover:border-border-subtle transition-all"
+          (click)="moveToAssigned(ep.id)"
+        >
+          <span class="text-xs font-mono px-1.5 py-0.5 rounded font-medium"
+            [class.bg-emerald-100]="ep.method === 'GET'" [class.text-emerald-700]="ep.method === 'GET'"
+            [class.bg-sky-100]="ep.method === 'POST'" [class.text-sky-700]="ep.method === 'POST'"
+            [class.bg-amber-100]="ep.method === 'PUT' || ep.method === 'PATCH'" [class.text-amber-700]="ep.method === 'PUT' || ep.method === 'PATCH'"
+            [class.bg-rose-100]="ep.method === 'DELETE'" [class.text-rose-700]="ep.method === 'DELETE'"
+          >{{ ep.method }}</span>
+          <span class="truncate flex-1 text-slate-700">{{ ep.path }}</span>
+          <span class="text-xs text-slate-400 opacity-50">→</span>
+        </li>
+      }
+    </ul>
+  </div>
+
+  <!-- Assigned panel -->
+  <div class="panel border border-border-subtle rounded-lg p-3 bg-bg-secondary">
+    <div class="flex items-center justify-between mb-3">
+      <h4 class="text-sm font-semibold text-slate-600">Asignados</h4>
+      <span class="text-xs text-slate-400 font-medium bg-white px-2 py-0.5 rounded-full border border-border-subtle">{{ assignedCount() }}</span>
+    </div>
+    <input
+      type="text"
+      placeholder="Buscar..."
+      [ngModel]="assignedSearch()"
+      (ngModelChange)="assignedSearch.set($event)"
+      class="form-control mb-3"
+    />
+    <ul class="space-y-1 max-h-60 overflow-y-auto pr-1">
+      @for (ep of filteredAssigned(); track ep.id) {
+        <li
+          class="flex items-center gap-2 text-sm p-2 rounded-md hover:bg-white hover:shadow-sm cursor-pointer border border-transparent hover:border-border-subtle transition-all"
+          (click)="moveToAvailable(ep.id)"
+        >
+          <span class="text-xs text-slate-400 opacity-50">←</span>
+          <span class="text-xs font-mono px-1.5 py-0.5 rounded font-medium"
+            [class.bg-emerald-100]="ep.method === 'GET'" [class.text-emerald-700]="ep.method === 'GET'"
+            [class.bg-sky-100]="ep.method === 'POST'" [class.text-sky-700]="ep.method === 'POST'"
+            [class.bg-amber-100]="ep.method === 'PUT' || ep.method === 'PATCH'" [class.text-amber-700]="ep.method === 'PUT' || ep.method === 'PATCH'"
+            [class.bg-rose-100]="ep.method === 'DELETE'" [class.text-rose-700]="ep.method === 'DELETE'"
+          >{{ ep.method }}</span>
+          <span class="truncate flex-1 text-slate-700">{{ ep.path }}</span>
+        </li>
+      }
+    </ul>
+  </div>
+</div>

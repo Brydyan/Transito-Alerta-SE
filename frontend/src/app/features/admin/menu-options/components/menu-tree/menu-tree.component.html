@@ -1,0 +1,66 @@
+<div class="menu-tree">
+  <div class="tree-header flex items-center justify-between mb-3">
+    <span class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Menús</span>
+
+  </div>
+  <ul class="tree-list mt-2">
+    @for (item of rootItems(); track item.id) {
+      <ng-container *ngTemplateOutlet="treeNode; context: { $implicit: item, depth: 0 }"></ng-container>
+    }
+  </ul>
+</div>
+
+<ng-template #treeNode let-item let-depth="depth">
+  <li>
+    <div
+      class="tree-node group flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer hover:bg-bg-primary transition-colors border border-transparent"
+      [style.padding-left.rem]="depth * 1.5 + 0.5"
+      [class.!bg-brand-primary-soft]="isSelected(item.id)"
+      [class.!border-brand-primary-soft]="isSelected(item.id)"
+      (click)="selectNode(item.id)"
+    >
+      @if (hasChildren(item.id)) {
+        <button
+          type="button"
+          class="expand-btn w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-700 text-xs rounded hover:bg-slate-200 transition-colors bg-transparent border-none p-0 cursor-pointer"
+          (click)="toggleExpand(item.id); $event.stopPropagation()"
+        >
+          <ui-icon [name]="isExpanded(item.id) ? 'chevron-down' : 'chevron-right'" [size]="14" [strokeWidth]="2.5" />
+        </button>
+      } @else {
+        <span class="w-5 h-5"></span>
+      }
+
+      @if (item.icon) {
+        <ui-icon [name]="item.icon" [size]="16" class="text-slate-400" />
+      } @else {
+        <span class="w-4"></span>
+      }
+
+      <span class="text-sm truncate text-slate-700" [class.font-medium]="isSelected(item.id)">
+        {{ item.name }}
+      </span>
+
+      @if (!item.route) {
+        <span class="text-xs text-slate-400 ml-1 opacity-70">(sección)</span>
+      }
+
+      <button
+        type="button"
+        class="ml-auto text-slate-400 hover:text-brand-primary hover:bg-brand-primary-soft p-1 rounded opacity-0 group-hover:opacity-100 transition-all bg-transparent border-none cursor-pointer"
+        title="Agregar submenú"
+        (click)="requestCreate(item.id); $event.stopPropagation()"
+      >
+        <ui-icon name="plus" [size]="14" [strokeWidth]="2.5" />
+      </button>
+    </div>
+
+    @if (hasChildren(item.id) && isExpanded(item.id)) {
+      <ul class="mt-0.5 space-y-0.5">
+        @for (child of childrenOf(item.id); track child.id) {
+          <ng-container *ngTemplateOutlet="treeNode; context: { $implicit: child, depth: depth + 1 }"></ng-container>
+        }
+      </ul>
+    }
+  </li>
+</ng-template>

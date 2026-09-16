@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RoleMatrix, RoleMatrixEntry } from '../../../../../core/services/menu-option.service';
+import { UiTableComponent } from '../../../../../shared/components/ui-table/ui-table.component';
 
 export interface ScopeBlock {
   key: keyof RoleMatrix;
@@ -24,49 +25,50 @@ export interface ScopeBlock {
 @Component({
   selector: 'app-role-matrix',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, UiTableComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="role-matrix space-y-4">
+    <div class="role-matrix space-y-6">
       @for (block of scopeBlocks(); track block.key) {
         <div class="scope-block">
-          <h4 class="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2">
-            {{ block.label }}
-          </h4>
-          <table class="w-full text-sm border-collapse">
+          <ui-table [caption]="block.label">
             <thead>
-              <tr class="border-b border-border-subtle">
-                <th class="text-left py-2 pr-4 text-slate-500 font-medium">Rol</th>
-                <th class="text-center py-2 px-3 text-slate-500 font-medium w-20">Lectura</th>
-                <th class="text-center py-2 px-3 text-slate-500 font-medium w-20">Escritura</th>
+              <tr>
+                <th class="text-left">Rol</th>
+                <th class="text-center w-24">Lectura</th>
+                <th class="text-center w-24">Escritura</th>
               </tr>
             </thead>
             <tbody>
               @for (entry of block.entries; track entry.roleId) {
-                <tr class="border-b border-slate-100 hover:bg-slate-50">
-                  <td class="py-2 pr-4 text-slate-700">{{ entry.roleName }}</td>
-                  <td class="text-center py-2 px-3">
+                <tr>
+                  <td><div class="ui-table-title">{{ entry.roleName }}</div></td>
+                  <td class="text-center">
                     <input
                       type="checkbox"
                       [checked]="entry.canRead"
                       [disabled]="isDisabled()"
                       (change)="toggleAccess(entry.roleId, 'canRead', $any($event.target).checked)"
-                      class="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
+                      class="table-checkbox w-4 h-4 text-brand-primary rounded border-slate-300 focus:ring-brand-primary/40 cursor-pointer"
                     />
                   </td>
-                  <td class="text-center py-2 px-3">
+                  <td class="text-center">
                     <input
                       type="checkbox"
                       [checked]="entry.canWrite"
                       [disabled]="isDisabled() || !entry.canRead"
                       (change)="toggleAccess(entry.roleId, 'canWrite', $any($event.target).checked)"
-                      class="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
+                      class="table-checkbox w-4 h-4 text-brand-primary rounded border-slate-300 focus:ring-brand-primary/40 cursor-pointer disabled:opacity-50"
                     />
                   </td>
                 </tr>
+              } @empty {
+                <tr>
+                  <td colspan="3" class="text-center text-slate-500 py-4">No hay roles en este nivel.</td>
+                </tr>
               }
             </tbody>
-          </table>
+          </ui-table>
         </div>
       }
     </div>
