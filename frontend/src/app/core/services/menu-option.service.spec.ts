@@ -183,4 +183,50 @@ describe('MenuOptionService', () => {
       limit: 20,
     });
   });
+
+  // ── sc-334 admin-controles-enhancements Phase 2 ────────────────────
+
+  it('GET /menu-options/:id/endpoints returns the assigned endpoints (D1/R1)', (done) => {
+    service.getAssignedEndpoints('a1').subscribe((endpoints) => {
+      expect(endpoints.length).toBe(2);
+      expect(endpoints[0].id).toBe('e1');
+      expect(endpoints[0].path).toBe('/api/incidents');
+      expect(endpoints[1].id).toBe('e2');
+      done();
+    });
+
+    const req = http.expectOne(`${baseUrl}/a1/endpoints`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.withCredentials).toBe(true);
+    req.flush([
+      { id: 'e1', method: 'GET', path: '/api/incidents', description: 'List incidents' },
+      { id: 'e2', method: 'POST', path: '/api/incidents', description: 'Create incident' },
+    ]);
+  });
+
+  it('GET /menu-options/:id/endpoints returns empty array when nothing is assigned', (done) => {
+    service.getAssignedEndpoints('a2').subscribe((endpoints) => {
+      expect(endpoints).toEqual([]);
+      done();
+    });
+
+    const req = http.expectOne(`${baseUrl}/a2/endpoints`);
+    req.flush([]);
+  });
+
+  it('GET /menu-options/endpoints forwards module filter as query param (D6/R6)', (done) => {
+    service.getEndpointCatalog({ page: 1, limit: 20, module: 'incidents' }).subscribe(() => done());
+
+    const req = http.expectOne(`${baseUrl}/endpoints?page=1&limit=20&module=incidents`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ data: [], total: 0, page: 1, limit: 20 });
+  });
+
+  it('GET /menu-options/endpoints omits module param when empty/whitespace', (done) => {
+    service.getEndpointCatalog({ module: '   ' }).subscribe(() => done());
+
+    const req = http.expectOne(`${baseUrl}/endpoints`);
+    expect(req.request.params.has('module')).toBe(false);
+    req.flush({ data: [], total: 0, page: 1, limit: 20 });
+  });
 });

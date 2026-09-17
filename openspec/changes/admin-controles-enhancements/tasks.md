@@ -33,10 +33,10 @@
 
 > Prerequisites: Phase 1 backend merged.
 
-- [ ] 2.1 Add method `getAssignedEndpoints(id)` to `frontend/src/app/core/services/menu-option.service.ts`: GET `/api/menu-options/{id}/endpoints`, returns `Observable<ApiEndpointEntity[]>`
-- [ ] 2.2 Extend `getEndpointCatalog()` to accept optional query params: `{ module?: string, page?: number, limit?: number }`; pass to `HttpParams`
-- [ ] 2.3 **RED** — Write failing unit test for both methods in `menu-option.service.spec.ts` (mock HttpClient)
-- [ ] 2.4 **GREEN** — Service tests should pass
+- [x] 2.1 Add method `getAssignedEndpoints(id)` to `frontend/src/app/core/services/menu-option.service.ts`: GET `/api/menu-options/{id}/endpoints`, returns `Observable<ApiEndpointEntity[]>`
+- [x] 2.2 Extend `getEndpointCatalog()` to accept optional query params: `{ module?: string, page?: number, limit?: number }`; pass to `HttpParams`
+- [x] 2.3 **RED** — Write failing unit test for both methods in `menu-option.service.spec.ts` (mock HttpClient)
+- [x] 2.4 **GREEN** — Service tests should pass
 
 ---
 

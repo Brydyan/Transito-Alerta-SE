@@ -87,6 +87,22 @@ export interface EndpointCatalogQuery {
   route?: string;
   method?: string;
   description?: string;
+  /**
+   * sc-334 admin-controles-enhancements Phase 2 (D6/R6) — substring filter
+   * on the endpoint path. Empty/undefined means no filter.
+   */
+  module?: string;
+}
+
+/**
+ * sc-334 admin-controles-enhancements Phase 2 (D1/R1) — single endpoint
+ * row shape returned by the catalog + assigned-endpoints endpoints.
+ */
+export interface ApiEndpointEntity {
+  id: string;
+  method: string;
+  path: string;
+  description: string;
 }
 
 /**
@@ -150,6 +166,20 @@ export class MenuOptionService {
 
   // ── Endpoint assignment (F5.5.6) ──────────────────────────────────────
 
+  /**
+   * sc-334 admin-controles-enhancements Phase 2 (D1/R1) — list the endpoints
+   * currently assigned to a menu option. Used by EndpointPickerComponent to
+   * hydrate its "Asignados" panel when the user selects an option.
+   *
+   * Backend: GET /menu-options/:id/endpoints (added in Phase 1).
+   */
+  getAssignedEndpoints(optionId: string): Observable<ApiEndpointEntity[]> {
+    return this.http.get<ApiEndpointEntity[]>(
+      `${this.baseUrl}/${optionId}/endpoints`,
+      { withCredentials: true },
+    );
+  }
+
   /** PUT /menu-options/:id/endpoints — idempotent endpoint assignment. */
   assignEndpoints(
     optionId: string,
@@ -163,15 +193,18 @@ export class MenuOptionService {
   }
 
   /** GET /menu-options/endpoints — paginated, filterable endpoint catalog. */
-  getEndpointCatalog(query: EndpointCatalogQuery = {}): Observable<PaginatedResult<{ id: string; method: string; path: string; description: string }>> {
+  getEndpointCatalog(query: EndpointCatalogQuery = {}): Observable<PaginatedResult<ApiEndpointEntity>> {
     let params = new HttpParams();
     if (query.page != null) params = params.set('page', String(query.page));
     if (query.limit != null) params = params.set('limit', String(query.limit));
     if (query.route) params = params.set('route', query.route);
     if (query.method) params = params.set('method', query.method);
     if (query.description) params = params.set('description', query.description);
+    if (query.module && query.module.trim().length > 0) {
+      params = params.set('module', query.module.trim());
+    }
 
-    return this.http.get<PaginatedResult<{ id: string; method: string; path: string; description: string }>>(
+    return this.http.get<PaginatedResult<ApiEndpointEntity>>(
       `${this.baseUrl}/endpoints`,
       { params, withCredentials: true },
     );
