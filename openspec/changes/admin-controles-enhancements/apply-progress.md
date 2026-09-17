@@ -116,3 +116,42 @@ frontend/src/app/features/admin/menu-options/menu-options.component.html        
 openspec/changes/admin-controles-enhancements/tasks.md                                          — Phase 4 [x]
 ```
 
+
+---
+
+## Phase 5 — MenuOptionsComponent (Load Endpoints + Delete Confirmation)
+
+### Implemented (8/8)
+
+| Task | Status |
+|------|--------|
+| 5.1 Inject ConfirmDialogService | Done |
+| 5.2 `loadAssignedEndpoints` calls `getAssignedEndpoints(optionId)` and stores the result | Done — replaces the previous no-op stub |
+| 5.3 `deleteOption` opens ConfirmDialogService before executing delete | Done — danger: true, "Eliminar" confirmText, "Cancelar" cancelText |
+| 5.4 `loadOptionDetail` already calls `loadAssignedEndpoints` at the end | Done — verified in tests |
+| 5.5 `getRoleMatrix` already returns the new `RoleMatrix` shape | Done — backend Phase 1 already returned `{platform, organization, public}` blocks |
+| 5.6 RED tests | Done — 4 new tests (dialog opens with config, cancel does not call delete, confirm calls delete, no-op when nothing selected + loadAssignedEndpoints is called from onTreeSelect) |
+| 5.7 GREEN | Done — 43/43 menu-options tests pass |
+| 5.8 Run tests | Done — full 760/760 + lint clean + typecheck clean |
+
+### Deviations
+
+- **D6** — Task 5.3 spec says `confirmDialog.open({...})` but the existing `ConfirmDialogService` exposes `.confirm(...)`, not `.open(...)`. Used the actual API; same shape.
+
+### Test Results
+
+| Gate | Command | Result |
+|------|---------|--------|
+| menu-options unit | `pnpm exec jest --testPathPatterns='menu-options.component'` | **43/43 PASS** (39 original + 4 new Phase 5) |
+| Full frontend | `pnpm exec jest` | **760/760 PASS** (97 suites, +4 vs 756) |
+| Typecheck | `pnpm exec tsc --noEmit` | No errors |
+| Lint | `pnpm run lint` | 0 errors |
+
+### Files Modified
+
+```
+frontend/src/app/features/admin/menu-options/menu-options.component.ts       — loadAssignedEndpoints real + deleteOption confirm
+frontend/src/app/features/admin/menu-options/menu-options.component.spec.ts  — 4 new tests + mock setup for MenuOptionService + ConfirmDialogService
+openspec/changes/admin-controles-enhancements/tasks.md                       — Phase 5 [x]
+```
+

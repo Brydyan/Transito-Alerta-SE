@@ -119,11 +119,11 @@
      });
    }
    ```
-- [ ] 5.4 Update `loadOptionDetail()` to call `loadAssignedEndpoints()` at the end (already there, but verify it's executed)
-- [ ] 5.5 Update `getRoleMatrix()` call to use new `RoleMatrix` structure (may require backend changes if not already returning `rolesByScope`)
-- [ ] 5.6 **RED** — Write failing unit test: selecting a menu loads endpoints, matrix with 3 blocks appears, delete shows confirmation modal
-- [ ] 5.7 **GREEN** — Ensure 5.6 tests pass
-- [ ] 5.8 Run `pnpm test -- menu-options` in `frontend/` — all green
+- [x] 5.4 Update `loadOptionDetail()` to call `loadAssignedEndpoints()` at the end (already there, but verify it's executed)
+- [x] 5.5 Update `getRoleMatrix()` call to use new `RoleMatrix` structure (may require backend changes if not already returning `rolesByScope`)
+- [x] 5.6 **RED** — Write failing unit test: selecting a menu loads endpoints, matrix with 3 blocks appears, delete shows confirmation modal
+- [x] 5.7 **GREEN** — Ensure 5.6 tests pass
+- [x] 5.8 Run `pnpm test -- menu-options` in `frontend/` — all green
 
 ---
 
@@ -131,7 +131,7 @@
 
 > Prerequisites: Phase 5 merged.
 
-- [ ] 6.1 Add computed field `nextOrder()` to `MenuOptionsComponent`:
+- [x] 6.1 Add computed field `nextOrder()` to `MenuOptionsComponent`:
    ```typescript
    readonly nextOrder = computed(() => {
      const parentId = this.editingParentId();

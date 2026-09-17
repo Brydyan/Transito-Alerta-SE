@@ -9,11 +9,12 @@ import {
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { MenuOptionService, MenuOption, RoleMatrix } from '../../../core/services/menu-option.service';
+import { MenuOptionService, MenuOption, RoleMatrix, ApiEndpointEntity } from '../../../core/services/menu-option.service';
 import { MenuTreeComponent } from './components/menu-tree/menu-tree.component';
 import { RoleMatrixComponent } from './components/role-matrix/role-matrix.component';
 import { EndpointPickerComponent } from './components/endpoint-picker/endpoint-picker.component';
 import { ToastService } from '../../../shared/components/toast/toast.service';
+import { ConfirmDialogService } from '../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { UiPageHeaderComponent } from '../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.component';
@@ -43,6 +44,7 @@ import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.comp
 export class MenuOptionsComponent implements OnInit {
   private readonly menuOptionService = inject(MenuOptionService);
   private readonly toast = inject(ToastService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly allOptions = signal<MenuOption[]>([]);
@@ -50,8 +52,8 @@ export class MenuOptionsComponent implements OnInit {
   readonly isCreating = signal(false);
   readonly saving = signal(false);
   readonly roleMatrix = signal<RoleMatrix | null>(null);
-  readonly allEndpoints = signal<{ id: string; method: string; path: string; description: string }[]>([]);
-  readonly assignedEndpoints = signal<{ id: string; method: string; path: string; description: string }[]>([]);
+  readonly allEndpoints = signal<ApiEndpointEntity[]>([]);
+  readonly assignedEndpoints = signal<ApiEndpointEntity[]>([]);
 
   // Form state
   readonly editingName = signal('');
@@ -180,26 +182,44 @@ export class MenuOptionsComponent implements OnInit {
 
   deleteOption(): void {
     const id = this.selectedOptionId();
-    if (!id) return;
+    const option = id ? this.allOptions().find((o) => o.id === id) : null;
+    if (!id || !option) return;
 
-    this.saving.set(true);
-    this.menuOptionService.delete(id)
+    // sc-334 admin-controles-enhancements Phase 5 (D5/R5) — confirm before
+    // destructive delete. Same ConfirmDialogService pattern as
+    // LocationListComponent and RolesService.
+    this.confirmDialog
+      .confirm({
+        title: 'Eliminar opción de menú',
+        message: `¿Eliminar "${option.name}"? Esta acción no se puede deshacer.`,
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        isDanger: true,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.toast.success('Opción eliminada.', 'Éxito');
-          this.saving.set(false);
-          this.loadOptions();
-          this.onBackToList();
-        },
-        error: (err: { status?: number }) => {
-          this.saving.set(false);
-          if (err?.status === 409) {
-            this.toast.error('No se puede eliminar: tiene submenús. Elimínalos primero.', 'Conflicto');
-          } else {
-            this.toast.error('Error al eliminar. Inténtalo de nuevo.', 'Error');
-          }
-        },
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+
+        this.saving.set(true);
+        this.menuOptionService
+          .delete(id)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => {
+              this.toast.success('Opción eliminada.', 'Éxito');
+              this.saving.set(false);
+              this.loadOptions();
+              this.onBackToList();
+            },
+            error: (err: { status?: number }) => {
+              this.saving.set(false);
+              if (err?.status === 409) {
+                this.toast.error('No se puede eliminar: tiene submenús. Elimínalos primero.', 'Conflicto');
+              } else {
+                this.toast.error('Error al eliminar. Inténtalo de nuevo.', 'Error');
+              }
+            },
+          });
       });
   }
 
@@ -268,13 +288,19 @@ export class MenuOptionsComponent implements OnInit {
       });
   }
 
-  private loadAssignedEndpoints(_optionId: string): void {
-    // The backend doesn't have a separate endpoint for assigned endpoints.
-    // The MenuOption entity has endpoints via the menu_option_endpoints junction.
-    // We'll get them from the findOne response (if populated) or from the assign response.
-    // For now, we rely on the catalog filter: endpoints in the catalog that are
-    // assigned will be in the assignedEndpoints signal.
-    // TODO: backend needs GET /menu-options/:id/endpoints — for now clear on re-select
-    this.assignedEndpoints.set([]);
+  private loadAssignedEndpoints(optionId: string): void {
+    // sc-334 admin-controles-enhancements Phase 5 (D7/R1) — backend
+    // Phase 1 added GET /menu-options/:id/endpoints. Frontend Phase 2
+    // wired the service method. Now we actually call it.
+    this.menuOptionService
+      .getAssignedEndpoints(optionId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (endpoints) => {
+          if (this.selectedOptionId() !== optionId || this.isCreating()) return;
+          this.assignedEndpoints.set(endpoints);
+        },
+        error: () => this.toast.error('Error al cargar endpoints asignados.', 'Error'),
+      });
   }
 }
