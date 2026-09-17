@@ -332,3 +332,134 @@ frontend/src/app/core/services/menu.service.ts          — depth param + depth 
 frontend/src/app/core/services/menu.service.spec.ts     — 1 new regression test
 openspec/changes/admin-controles-enhancements/apply-progress.md  — Phase 8 + Phase 9 sections (this)
 ```
+
+
+---
+
+## Phase 10 — Endpoints Asociados: Auto-Asociación por Ruta/Módulo (Debug-Driven)
+
+### Context
+
+En `/app/admin/controles`, al seleccionar un sub-menu o sub-sub-menu, el panel "Endpoints Asociados" se mostraba vacío. Causa: la tabla `menu_option_endpoints` está vacía por defecto (nadie ha asignado endpoints manualmente). El endpoint `GET /api/menu-options/:id/endpoints` existía (Phase 1) pero solo consultaba la junction table — sin filas, retornaba [].
+
+User pidió que los endpoints aparezcan automáticamente al seleccionar cualquier sub-menu o sub-sub-menu, **independientemente de los roles** (la asociación es menú↔endpoint, no rol↔endpoint).
+
+### Decisión
+
+Auto-asociación por nombre → módulo API. Hardcoded `NAME_TO_API_MODULE` en el service, cubre los 12 sub-menus principales. Sub-sub-menus (Crear X / Editar X) heredan el módulo del padre.
+
+### Algoritmo
+
+```
+getAssignedEndpoints(optionId):
+  option = findOne(optionId)              // 404 si no existe
+
+  // (1) Manual junction — admin override gana si está populada.
+  direct = queryAssignedFromJunction(optionId)
+  if direct.length > 0: return direct
+
+  // (2) Auto-association: level inference.
+  inferred = inferApiModule(option)        // {apiModule, isLevel3} o null
+  if !inferred: return []
+
+  return queryEndpointsInModule(inferred.apiModule, option, inferred.isLevel3)
+
+inferApiModule(option):
+  if !option.parentId: return null         // level 1 (section header)
+  parent = findOne(option.parentId)
+  if !parent: return null
+
+  if parent.parentId:                       // level 3 (parent es level 2)
+    apiModule = NAME_TO_API_MODULE[parent.name]
+    return apiModule ? {apiModule, isLevel3: true} : null
+
+  // level 2 (parent es level 1, sin grandparent)
+  apiModule = NAME_TO_API_MODULE[option.name]
+  return apiModule ? {apiModule, isLevel3: false} : null
+
+queryEndpointsInModule(module, option, isLevel3):
+  pathPrefix = /api/{module}
+  qb = endpointRepo.createQueryBuilder('ep')
+        .orderBy('ep.method', 'ASC')
+        .addOrderBy('ep.path', 'ASC')
+
+  if isLevel3:
+    lowerName = option.name.toLowerCase()
+    if lowerName.startsWith('crear '):
+      qb.where('ep.method = POST AND ep.path = :pathPrefix')
+    elif lowerName.startsWith('editar '):
+      qb.where('ep.method = PATCH AND ep.path LIKE :pathPrefix/%')
+    else:
+      qb.where('ep.path LIKE :pathPrefix%')
+  else:
+    qb.where('ep.path LIKE :pathPrefix%')
+
+  return qb.getMany()
+```
+
+### Mapping (`NAME_TO_API_MODULE`)
+
+| Sub-menu name | API module | Endpoints existentes |
+|---------------|-----------|----------------------|
+| Usuarios | users | 5 (GET, POST, GET/:id, PATCH/:id, DELETE/:id) |
+| Roles | roles | 5 |
+| Organizaciones | organizations | 4 |
+| Departamentos | departments | 0 (no hay /api/departments/*) |
+| Ubicaciones | geo-zones | 5 (route /ubicaciones → API /api/geo-zones) |
+| Categorías | incident-categories | 5 (route /categorias → API /api/incident-categories) |
+| Lista de Incidencias | incidents | 10 |
+| Mapa | geo-zones | 5 |
+| Reportar | incidents | (matches parent Lista de Incidencias) |
+| Inicio | incidents | (matches parent Lista de Incidencias) |
+| Auditoría de Acceso | audit-logs | (menu no existe actualmente) |
+| Controles | menu-options | 9 |
+
+Sub-sub-menus (Crear X / Editar X) heredan el módulo del padre automáticamente — no requieren entrada propia.
+
+### Verificación curl
+
+```
+GET /api/menu-options/{usuarios-id}/endpoints
+→ 5 endpoints (todos los /api/users*)
+
+GET /api/menu-options/{crear-usuario-id}/endpoints
+→ 1 endpoint (POST /api/users)
+
+GET /api/menu-options/{editar-rol-id}/endpoints
+→ 1 endpoint (PATCH /api/roles/:id)
+
+GET /api/menu-options/{gestion-id}/endpoints  // section header
+→ []
+
+GET /api/menu-options/{departamentos-id}/endpoints  // no /api/departments* in catalog
+→ []  (correcto — no hay endpoints para este módulo)
+```
+
+### Implemented (3/3)
+
+| Task | Status |
+|------|--------|
+| 10.1 RED test: 5 nuevos casos para auto-association | Done — Usuarios→5 endpoints, Crear usuario→POST, Editar rol→PATCH, manual junction wins, name sin mapping→[] |
+| 10.2 GREEN: NAME_TO_API_MODULE + inferApiModule (level-aware) + queryEndpointsInModule (level-aware) | Done |
+| 10.3 Run backend suite + curl smoke | Done — 31/31 menu-options.service.spec pass; 11 pre-existing F5 failures unrelated; curl confirma Usuarios/Crear/Editar/Gestión retornan lo esperado |
+
+### Deviations
+
+- **D10** — Initial impl used parent name for ALL options with parentId, including sub-menus like Usuarios (whose parent is GESTIÓN — not in the map). Fixed: distinguish level-2 vs level-3 by checking parent.parentId. Level-2 → use OWN name. Level-3 → use PARENT's name.
+
+### Test Results
+
+| Gate | Command | Result |
+|------|---------|--------|
+| menu-options.service unit | `pnpm exec jest --testPathPatterns='menu-options.service'` | **31/31 PASS** (26 original + 5 new Phase 10) |
+| Backend typecheck | `npm run typecheck` | No errors |
+| Backend build | `nest build` | OK |
+| Curl smoke (live API) | `curl /api/menu-options/{id}/endpoints` | Verified: sub-menus→all module endpoints, sub-sub-menus→filtered, section headers→[] |
+
+### Files Modified
+
+```
+backend/src/modules/menus/menu-options.service.ts        — NAME_TO_API_MODULE + inferApiModule + queryEndpointsInModule + refactor getAssignedEndpoints
+backend/src/modules/menus/menu-options.service.spec.ts   — 5 new auto-association tests
+openspec/changes/admin-controles-enhancements/apply-progress.md  — Phase 10 section (this)
+```

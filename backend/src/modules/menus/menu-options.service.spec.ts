@@ -534,5 +534,218 @@ describe('MenuOptionsService (F5.5, strict TDD)', () => {
         NotFoundException,
       );
     });
+
+    // sc-334 admin-controles-enhancements Phase 10 — auto-association
+    // fallback. When the menu_option_endpoints junction has no rows for
+    // the selected option, getAssignedEndpoints must infer endpoints
+    // from the option's name (or its parent's name) and the api_endpoints
+    // catalog, so the admin UI shows endpoints out-of-the-box without
+    // requiring manual assignment.
+
+    it('auto-associates sub-menu "Usuarios" with all endpoints under /api/users', async () => {
+      // Hierarchy: GESTIÓN → Usuarios. Usuarios is level-2 (has
+      // parentId set to the GESTIÓN section header).
+      optionRepo.findOne
+        // 1st call: findOne(optionId) → Usuarios itself
+        .mockResolvedValueOnce(
+          makeOption({
+            id: 'opt-users',
+            name: 'Usuarios',
+            parentId: 'opt-gestion',
+          }),
+        )
+        // 2nd call: inferApiModule loads parent → GESTIÓN (level-1, no
+        // parent). The parent.parentId check sees null and routes us
+        // through the level-2 branch (uses option.name).
+        .mockResolvedValueOnce(
+          makeOption({
+            id: 'opt-gestion',
+            name: 'GESTIÓN',
+            parentId: null,
+          }),
+        );
+
+      // 1st createQueryBuilder call (junction query) returns []. 2nd
+      // call (inference query) returns the 3 /api/users endpoints.
+      const inferenceResult = [
+        Object.assign(new ApiEndpointEntity(), { id: 'ep-get', method: 'GET', path: '/api/users' }),
+        Object.assign(new ApiEndpointEntity(), { id: 'ep-post', method: 'POST', path: '/api/users' }),
+        Object.assign(new ApiEndpointEntity(), { id: 'ep-patch', path: '/api/users/:id', method: 'PATCH' }),
+      ];
+      const inferenceQb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(inferenceResult),
+      };
+      endpointRepo.createQueryBuilder
+        .mockReturnValueOnce({
+          innerJoin: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          addOrderBy: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([]),
+        })
+        .mockReturnValueOnce(inferenceQb);
+
+      const result = await service.getAssignedEndpoints('opt-users');
+
+      expect(result).toHaveLength(3);
+      expect(result.map((e) => e.path).sort()).toEqual([
+        '/api/users',
+        '/api/users',
+        '/api/users/:id',
+      ]);
+    });
+
+    it('auto-associates sub-sub-menu "Crear usuario" with POST /api/users (inherits module from parent)', async () => {
+      // Hierarchy: GESTIÓN → Usuarios → Crear usuario.
+      // Roles has parentId set (to GESTIÓN) so it counts as level-2.
+      optionRepo.findOne
+        // 1st call: findOne(optionId) → the sub-sub-menu option
+        .mockResolvedValueOnce(
+          makeOption({
+            id: 'opt-crear-usuario',
+            name: 'Crear usuario',
+            parentId: 'opt-users',
+          }),
+        )
+        // 2nd call: inferApiModule loads parent → "Usuarios" (level-2)
+        .mockResolvedValueOnce(
+          makeOption({
+            id: 'opt-users',
+            name: 'Usuarios',
+            parentId: 'opt-gestion',
+          }),
+        );
+
+      const inferenceResult = [
+        Object.assign(new ApiEndpointEntity(), {
+          id: 'ep-post-users',
+          method: 'POST',
+          path: '/api/users',
+        }),
+      ];
+      const inferenceQb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(inferenceResult),
+      };
+      endpointRepo.createQueryBuilder
+        .mockReturnValueOnce({
+          innerJoin: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          addOrderBy: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([]),
+        })
+        .mockReturnValueOnce(inferenceQb);
+
+      const result = await service.getAssignedEndpoints('opt-crear-usuario');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe('/api/users');
+      expect(result[0].method).toBe('POST');
+    });
+
+    it('auto-associates sub-sub-menu "Editar rol" with PATCH /api/roles/:id (inherits module from parent "Roles")', async () => {
+      // Hierarchy: GESTIÓN → Roles → Editar rol. Roles is level-2 (has
+      // parentId set to GESTIÓN).
+      optionRepo.findOne
+        .mockResolvedValueOnce(
+          makeOption({
+            id: 'opt-editar-rol',
+            name: 'Editar rol',
+            parentId: 'opt-roles',
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeOption({
+            id: 'opt-roles',
+            name: 'Roles',
+            parentId: 'opt-gestion',
+          }),
+        );
+
+      const inferenceResult = [
+        Object.assign(new ApiEndpointEntity(), {
+          id: 'ep-patch-roles',
+          method: 'PATCH',
+          path: '/api/roles/:id',
+        }),
+      ];
+      const inferenceQb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(inferenceResult),
+      };
+      endpointRepo.createQueryBuilder
+        .mockReturnValueOnce({
+          innerJoin: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          addOrderBy: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([]),
+        })
+        .mockReturnValueOnce(inferenceQb);
+
+      const result = await service.getAssignedEndpoints('opt-editar-rol');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe('/api/roles/:id');
+      expect(result[0].method).toBe('PATCH');
+    });
+
+    it('manual junction assignment wins over auto-association when present', async () => {
+      // Both the selected option and its parent exist; manual assignment
+      // has 1 endpoint in the junction. The inference path must NOT be
+      // taken — the manual assignment is the source of truth.
+      optionRepo.findOne.mockResolvedValue(
+        makeOption({ id: 'opt-custom', name: 'Usuarios', parentId: null }),
+      );
+
+      const manualResult = [
+        Object.assign(new ApiEndpointEntity(), {
+          id: 'ep-manual',
+          method: 'GET',
+          path: '/api/some/other/path',
+        }),
+      ];
+      endpointRepo.createQueryBuilder.mockReturnValueOnce({
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(manualResult),
+      });
+
+      const result = await service.getAssignedEndpoints('opt-custom');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('ep-manual');
+      expect(endpointRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns empty array when name has no API module mapping (e.g., "Controles" with custom path)', async () => {
+      optionRepo.findOne.mockResolvedValue(
+        makeOption({ id: 'opt-orphan', name: 'No mapping for this name', parentId: null }),
+      );
+
+      endpointRepo.createQueryBuilder.mockReturnValueOnce({
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      });
+
+      const result = await service.getAssignedEndpoints('opt-orphan');
+
+      expect(result).toEqual([]);
+      // Only the junction query was issued — no inference query.
+      expect(endpointRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+    });
   });
 });

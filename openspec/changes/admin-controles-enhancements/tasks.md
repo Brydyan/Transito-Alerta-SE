@@ -201,3 +201,14 @@
 - [x] 9.1 RED test: `hides 3rd-level items from the sidebar (only /app/admin/controles shows them)` in `menu.service.spec.ts` (fixture: GESTIÓN → Usuarios → [Crear/Editar usuario]; asserts Usuarios.children === [] + Crear/Editar not in tree)
 - [x] 9.2 GREEN: gate `depth < 1` in `MenuService.transformBackendMenu` (level-2 items keep children: []; level-3 items never enter the sidebar tree)
 - [x] 9.3 Run `menu.service` + related suites — 96/96 PASS (11 suites)
+
+
+---
+
+## Phase 10: Auto-Asociación de Endpoints (Debug-Driven)
+
+> Trigger: User reporta que al seleccionar sub-menu en `/app/admin/controles` el panel "Endpoints Asociados" se muestra vacío. Causa: junction `menu_option_endpoints` vacía. Decisión: auto-association por nombre → módulo API (sin tocar la tabla, sin seed).
+
+- [x] 10.1 RED test: 5 nuevos casos (Usuarios→5 endpoints, Crear usuario→POST, Editar rol→PATCH, manual junction wins, name sin mapping→[]) — `menu-options.service.spec.ts`
+- [x] 10.2 GREEN: NAME_TO_API_MODULE + inferApiModule (level-aware: level-2 use OWN name, level-3 use PARENT name) + queryEndpointsInModule (level-aware action prefix filter)
+- [x] 10.3 Run backend suite + curl smoke — 31/31 pass; curl confirma comportamiento
