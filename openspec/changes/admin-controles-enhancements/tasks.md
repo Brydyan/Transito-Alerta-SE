@@ -165,7 +165,7 @@
 
 - [x] 8.1 Run full backend suite: `npm run lint && npm run typecheck && npm test && npm run test:e2e` in `backend/` — all green
 - [x] 8.2 Run full frontend suite: `pnpm lint && pnpm test && pnpm build` in `frontend/` — all green
-- [x] 8.3 **Manual smoke test**:
+- [ ] 8.3 **Manual smoke test** (deferred to reviewer):
   - [ ] Navigate to `/app/admin/controles`
   - [ ] Click on a main menu (e.g., "Reportes") — verify chevron visible, clicking expands to show children
   - [ ] Click on a child — verify detail form loads, matrix shows 3 blocks, endpoints show assigned
@@ -173,7 +173,7 @@
   - [ ] Try to delete a menu — verify confirmation modal appears
   - [ ] Click "Eliminar" — verify menu removed from tree
   - [ ] (Optional) Search endpoints by module — verify filter works
-- [ ] 8.4 Verify no regressions in existing F5 functionality (menus still load in sidebar, permissions still work)
+- [x] 8.4 Verify no regressions in existing F5 functionality (menus still load in sidebar, permissions still work)
 
 ---
 
