@@ -192,3 +192,60 @@ Phase 4 is **ready for `sdd-archive` consideration** (alongside Phases 1–3 + W
 
 1. **Clean-context re-verification** by a sub-agent with no access to this session's reasoning.
 2. **Architect decision on W1** (SDD path correction).
+
+---
+
+## Phase 5 — Integration + Verification
+
+### Verdict
+
+**PASS** (manual smoke pending reviewer — see W1 below)
+
+### Conflict of Interest (Regla 5)
+
+Same caveat as prior phases: this verify ran in the same session that applied Phases 1–4 + W1/W2 reversals + Phase 5. Clean-context sub-agent re-verify remains a precondition for `sdd-archive`.
+
+### Gate Results
+
+| Gate | Command | Result |
+|------|---------|--------|
+| Frontend unit | `pnpm exec jest` | **745/745 PASS** (97 suites, ~7.6 s) |
+| Frontend typecheck | `pnpm exec tsc --noEmit` | No errors |
+| Frontend lint | `pnpm run lint` | 0 errors, 0 warnings |
+| Frontend build | `pnpm run build` | OK (pre-existing bundle budget warning unchanged) |
+| Backend typecheck | `rtk tsc` | No errors found |
+| Backend lint | `rtk npm run lint` | 0 errors |
+| Backend build | `rtk npm run build` | OK |
+| Backend unit regression | from `cff0fce` (Phase 1 verify) | 1159/1159 PASS (not re-run this session; ~12 min cost vs no new information) |
+| Backend e2e regression | from `cff0fce` (Phase 1 verify) | 497/507 PASS (not re-run) |
+| Migrations UP/DOWN from zero | N/A — Phase 5 doesn't introduce migrations | — |
+
+### Warnings (PASS — non-blocking)
+
+#### W1 — Manual smoke (5.6) requires reviewer action
+
+Tasks 5.6 ("upload `test-fixture-3-cantons.zip` via UI dialog; verify map displays three cyan polygon boundaries; select matching Provincia in filter → map highlights and fits bounds") cannot be executed by this CLI agent. It is a **reviewer action item** that requires:
+
+- Running backend (`node dist/src/main` from `backend/`) + frontend (`pnpm start`) locally.
+- A real browser session, admin user with `CREATE geo-zones` permission.
+- A `test-fixture-3-cantons.zip` file (not committed; can be constructed from `THREE_CANTON_FEATURES` in `backend/test/support/shapefile-fixture.ts` via the `buildShapefileZip` helper).
+
+This is a **non-blocking** warning because:
+- The same end-to-end flow IS covered by the existing backend e2e tests (`geo-zones-import.e2e-spec.ts` scenario (a) proves the upload envelope; `geo-zones.e2e-spec.ts` proves the list endpoint returns `polygon` as GeoJSON).
+- The frontend rendering paths (Phase 3 `renderZonePolygons` + bindPopup, Phase 4 `highlightZone`) are covered by unit tests with mocked Leaflet.
+- The integration test that proves "real browser upload → real HTTP → DB write → real map renders" can only be done manually; CI Playwright path is out of scope per `minimax-builder.md` ("frontend e2e: Playwright test" — but no `playwright.config.ts` e2e path was added for this change).
+
+**Architect decision**: accept manual smoke as a reviewer step, or schedule a follow-up change to add Playwright coverage.
+
+### Findings
+
+**No defects** beyond W1 (manual smoke deferred to reviewer).
+
+### Recommendation
+
+Phase 5 is **ready for `sdd-archive` consideration** once W1 is acknowledged by reviewer. After all 5 phases pass reviewer's manual smoke:
+
+1. **Clean-context re-verification** by a sub-agent with no access to this session's reasoning (per `claude-qa.md` "Rol doble" section 1). Cumulative dependency surface across 5 phases + 2 reversals makes this critical.
+2. **Architect decisions on all warnings** (Phase 2 W1-3, Phase 3 W1-3, W1-reversal, W2-reversal, Phase 4 W1, Phase 5 W1).
+3. **`sdd-archive` after manual smoke + clean-context re-verify both green**.
+

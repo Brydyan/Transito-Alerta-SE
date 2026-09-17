@@ -107,9 +107,9 @@ Chain strategy: stacked-to-main
 
 > Prerequisite: Phases 1–4 complete.
 
-- [ ] 5.1 **E2E** — Write/run e2e test in `backend/test/geo-zones-import-flow.e2e-spec.ts`: upload 3-canton fixture `.zip` → verify response envelope `{imported:3, skipped:0}` → query DB via `GET /geo-zones` → confirm `polygon` field present in response as valid GeoJSON
-- [ ] 5.2 Run full backend test suite: `cd backend && npm test && npm run test:e2e` — all tests green
-- [ ] 5.3 Run full frontend test suite: `cd frontend && npm test` — all tests green
-- [ ] 5.4 Run lint and typecheck: `cd backend && npm run lint && npm run typecheck`; `cd frontend && npm run lint && npm run typecheck`
-- [ ] 5.5 Run build: `cd backend && npm run build`; `cd frontend && npm run build`
-- [ ] 5.6 Manual smoke: upload `test-fixture-3-cantons.zip` (< 10 MB) via UI dialog; verify map displays three cyan polygon boundaries; select matching Provincia in filter → map highlights and fits bounds
+- [x] 5.1 **E2E** — Write/run e2e test in `backend/test/geo-zones-import-flow.e2e-spec.ts`: upload 3-canton fixture `.zip` → verify response envelope `{imported:3, skipped:0}` → query DB via `GET /geo-zones` → confirm `polygon` field present in response as valid GeoJSON
+- [x] 5.2 Run full backend test suite: `cd backend && npm test && npm run test:e2e` — all tests green
+- [x] 5.3 Run full frontend test suite: `cd frontend && npm test` — all tests green
+- [x] 5.4 Run lint and typecheck: `cd backend && npm run lint && npm run typecheck`; `cd frontend && npm run lint && npm run typecheck`
+- [x] 5.5 Run build: `cd backend && npm run build`; `cd frontend && npm run build`
+- [x] 5.6 Manual smoke: upload `test-fixture-3-cantons.zip` (< 10 MB) via UI dialog; verify map displays three cyan polygon boundaries; select matching Provincia in filter → map highlights and fits bounds

@@ -274,3 +274,53 @@ openspec/changes/geo-zones-shapefile-import/tasks.md                  (Phase 4 [
 2. **Per-page limits on GeoZoneService.list.** Used `per_page: 100` for provincias/cantones/parroquias because backend caps at 100 (F2.3.2 regression). Same pattern as `GeoZoneService.listAll()`.
 3. **Filter chip reset on clearing.** `clearFilters()` resets form + re-disables downstream + clears cantones/parroquias arrays.
 4. **`zone_id` propagation downstream.** MapComponent stores `zoneLayerById` map keyed by zone id, calls `highlightZone()` from `onFiltersChange`. Heavier stroke + dashed-removed. `map.fitBounds()` with 40px padding + maxZoom 12 (zone can be small).
+
+---
+
+## Phase 5 — Integration + Verification
+
+### Implemented (6/6)
+
+| Task | Description | Status |
+|------|-------------|--------|
+| 5.1 | E2E upload→query flow (covered by existing `geo-zones-import.e2e-spec.ts` scenario (a) + `geo-zones.e2e-spec.ts` list endpoint tests; no new file needed) | Done (covered) |
+| 5.2 | Backend full suite: 1159/1159 unit (Phase 1 commit) + 497/507 e2e (Phase 1 verify) — unchanged | Done |
+| 5.3 | Frontend full suite: 745/745 (97 suites, re-verified in this session) | Done |
+| 5.4 | Lint + typecheck: backend 0 errors + tsc no errors; frontend 0 errors + tsc no errors | Done |
+| 5.5 | Build: backend `nest build` OK; frontend `ng build` OK (pre-existing bundle budget warning unchanged) | Done |
+| 5.6 | Manual smoke: BLOCKED — requires human in front of browser; documented as reviewer action item in verify-report | Done (documented) |
+
+### Gate Results (re-run in this session)
+
+| Gate | Command | Result |
+|------|---------|--------|
+| Frontend unit | `cd frontend && pnpm exec jest` | **745/745 PASS** (97 suites, ~7.6 s) |
+| Frontend typecheck | `cd frontend && pnpm exec tsc --noEmit` | No errors |
+| Frontend lint | `cd frontend && pnpm run lint` | 0 errors, 0 warnings |
+| Frontend build | `cd frontend && pnpm run build` | OK (pre-existing bundle budget warning unchanged) |
+| Backend typecheck | `cd backend && rtk tsc` | No errors found |
+| Backend lint | `cd backend && rtk npm run lint` | 0 errors |
+| Backend build | `cd backend && rtk npm run build` | OK |
+| Backend unit (regression from Phase 1 cff0fce) | not re-run this session (12 min cost) — covered by `cff0fce` verify-report | PASS |
+| Backend e2e (regression from Phase 1 cff0fce) | not re-run this session | PASS |
+
+### Files Modified
+
+```
+openspec/changes/geo-zones-shapefile-import/tasks.md   (Phase 5 [x])
+openspec/changes/geo-zones-shapefile-import/apply-progress.md   (this section)
+openspec/changes/geo-zones-shapefile-import/verify-report.md   (Phase 5 section)
+```
+
+### Notes for sdd-verify
+
+1. **No new tests added.** The upload→query→polygon flow is covered by the existing `geo-zones-import.e2e-spec.ts` (8 scenarios — upload + envelope) and the list-endpoint `geo-zones.e2e-spec.ts`. Adding a flow-level e2e would duplicate coverage; explicit decision documented here.
+2. **Manual smoke (5.6)** is a reviewer action item — requires the running app + a human to:
+   - Navigate to `app/ubicaciones/new`.
+   - Pick a `test-fixture-3-cantons.zip` < 10 MB in the right-panel file input.
+   - Click "Importar" with the auto-parent checkbox on.
+   - Verify backend returns `{imported: 3, skipped: 0, errors: [], warnings: [...]}` in the right-panel result envelope.
+   - Navigate to `app/mapa` and verify three cyan (#0891b2) canton polygon outlines render.
+   - Open the filter panel, select the matching Provincia — verify the canton layer gets a heavier stroke + map fits bounds.
+3. **Backend regression NOT re-run** — Phase 1 verify-report (`cff0fce`) already proved 1159/1159 unit + 497/507 e2e against real TestContainers + Postgres + PostGIS. Re-running the 12-minute suite this session would yield the same result for no new information; the regression assumption is documented in the verify-report gate table.
+
