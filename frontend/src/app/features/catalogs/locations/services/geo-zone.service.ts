@@ -1,5 +1,7 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpEvent, HttpParams } from '@angular/common/http';
 import { EMPTY, Observable, expand, reduce } from 'rxjs';
+import { environment } from '../../../../../environments/environment';
 import { HttpService } from '../../../../core/services/http.service';
 import {
   IGeoZone,
@@ -7,6 +9,8 @@ import {
   IGeoZoneListResult,
   ICreateGeoZoneDto,
   IUpdateGeoZoneDto,
+  IImportGeoZoneResponse,
+  IGeoZoneFormData,
 } from '../interfaces/igeo-zone.interface';
 
 const ENDPOINT = '/geo-zones';
@@ -28,6 +32,7 @@ const MAX_PAGE_SIZE = 100;
 @Injectable({ providedIn: 'root' })
 export class GeoZoneService {
   private readonly http = inject(HttpService);
+  private readonly httpClient = inject(HttpClient);
 
   list(params: IGeoZoneListParams = {}): Observable<IGeoZoneListResult> {
     return this.http.get<IGeoZoneListResult>(ENDPOINT, params);
@@ -79,5 +84,61 @@ export class GeoZoneService {
 
   remove(id: string): Observable<void> {
     return this.http.delete<void>(`${ENDPOINT}/${id}`);
+  }
+
+  /**
+   * sc-334 R7/D2 — bulk shapefile import.
+   *
+   * POST `multipart/form-data` with the `.zip` under field name `file`.
+   * `reportProgress: true` + `observe: 'events'` so the dialog can render
+   * an upload progress bar (`HttpEventType.UploadProgress`) and consume
+   * the final envelope (`HttpEventType.Response`).
+   *
+   * Query params carry `level` (required), `auto_parent` (default true),
+   * `name_column` (default `NAME`), `code_column` (default `CODE`) —
+   * the backend DTO `ImportGeoZoneQueryDto` validates them. We bypass
+   * `HttpService.post` because that helper does not support multipart
+   * bodies or progress events; the import endpoint is the only call in
+   * the catalog that needs them.
+   */
+  importShapefile(
+    file: File,
+    params: {
+      level: 'provincia' | 'canton' | 'parroquia' | 'zona';
+      auto_parent: boolean;
+      name_column: string;
+      code_column: string;
+    },
+  ): Observable<HttpEvent<IImportGeoZoneResponse>> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    let httpParams = new HttpParams();
+    httpParams = httpParams.set('level', params.level);
+    httpParams = httpParams.set('auto_parent', String(params.auto_parent));
+    httpParams = httpParams.set('name_column', params.name_column);
+    httpParams = httpParams.set('code_column', params.code_column);
+
+    return this.httpClient.post<IImportGeoZoneResponse>(
+      `${environment.apiUrl}${ENDPOINT}/import`,
+      formData,
+      {
+        reportProgress: true,
+        observe: 'events',
+        params: httpParams,
+      },
+    );
+  }
+
+  /**
+   * sc-334 R9 — form-data lookup.
+   *
+   * Returns the static 4-level array + the active parent zone list. Used
+   * by the import dialog to populate the level dropdown and (later) the
+   * parent selector. Wraps `HttpService.get` so the URL is centralized
+   * like every other read.
+   */
+  getFormData(): Observable<IGeoZoneFormData> {
+    return this.http.get<IGeoZoneFormData>(`${ENDPOINT}/form-data`);
   }
 }

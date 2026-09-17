@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/angular';
+import { render, screen, fireEvent } from '@testing-library/angular';
 import { of } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 import { LocationListComponent } from './location-list.component';
@@ -19,7 +19,7 @@ import { IGeoZone } from '../interfaces/igeo-zone.interface';
  * which is really on the wire.
  */
 describe('LocationListComponent', () => {
-  let mockGeoZoneService: { listAll: jest.Mock; remove: jest.Mock };
+  let mockGeoZoneService: { listAll: jest.Mock; remove: jest.Mock; importShapefile: jest.Mock };
   let mockToastService: { success: jest.Mock; error: jest.Mock };
   let mockDialogService: { confirm: jest.Mock };
   let mockActivatedRoute: unknown;
@@ -52,6 +52,7 @@ describe('LocationListComponent', () => {
     mockGeoZoneService = {
       listAll: jest.fn().mockReturnValue(of([])),
       remove: jest.fn().mockReturnValue(of(undefined)),
+      importShapefile: jest.fn(),
     };
     mockToastService = { success: jest.fn(), error: jest.fn() };
     mockDialogService = { confirm: jest.fn().mockReturnValue(of(true)) };
@@ -145,6 +146,51 @@ describe('LocationListComponent', () => {
       expect(distribution.get('provincia')).toBe(1);
       expect(distribution.get('canton')).toBe(2);
       expect(distribution.get('parroquia')).toBe(0);
+    });
+  });
+
+  // ── sc-334 Phase 2 — Importar Shapefile button (tasks 2.10–2.12) ──────
+
+  describe('Importar Shapefile button', () => {
+    it('renders the button when the user has CREATE geo-zones permission', async () => {
+      await setup([]);
+
+      const button = screen.queryByRole('button', { name: /importar shapefile/i });
+      expect(button).not.toBeNull();
+    });
+
+    it('hides the button when the user lacks CREATE geo-zones permission', async () => {
+      mockAuthService.currentUser = () => ({
+        permissions: ['READ geo-zones', 'UPDATE geo-zones', 'DELETE geo-zones'],
+      });
+
+      await setup([]);
+
+      const button = screen.queryByRole('button', { name: /importar shapefile/i });
+      expect(button).toBeNull();
+    });
+
+    it('opens the shapefile-import dialog when the button is clicked', async () => {
+      const { fixture } = await setup([]);
+
+      // Before click — dialog not in the DOM
+      expect(fixture.componentInstance.showImportDialog()).toBe(false);
+
+      const button = screen.getByRole('button', { name: /importar shapefile/i });
+      fireEvent.click(button);
+
+      expect(fixture.componentInstance.showImportDialog()).toBe(true);
+    });
+
+    it('closes the dialog when the ShapefileImportDialog emits closed', async () => {
+      const { fixture } = await setup([]);
+      const component = fixture.componentInstance;
+
+      component.openImportDialog();
+      expect(component.showImportDialog()).toBe(true);
+
+      component.closeImportDialog();
+      expect(component.showImportDialog()).toBe(false);
     });
   });
 });

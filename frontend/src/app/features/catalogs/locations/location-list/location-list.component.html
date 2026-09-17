@@ -15,7 +15,22 @@
       <ui-icon uiButtonIcon name="plus" [size]="16" />
       Nueva ubicación
     </button>
+    <button
+      page-header-actions
+      uiButton
+      variant="secondary"
+      *hasPermission="'CREATE geo-zones'"
+      (click)="openImportDialog()"
+      aria-label="Importar shapefile"
+    >
+      <ui-icon uiButtonIcon name="upload-cloud" [size]="16" />
+      Importar shapefile
+    </button>
   </ui-page-header>
+
+  @if (showImportDialog()) {
+    <app-shapefile-import-dialog (closed)="closeImportDialog()" />
+  }
 
   <div class="border-none shadow-sm rounded-lg overflow-hidden">
     <!-- Card Header (Search + Level filter) -->
