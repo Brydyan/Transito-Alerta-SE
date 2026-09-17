@@ -447,3 +447,342 @@ describe('GeoZonesService', () => {
     });
   });
 });
+
+// ── importShapefile / getFormData tests (sc-334 Phase 1) ─────────────────────
+
+jest.mock('shpjs');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const shpjs = require('shpjs') as jest.MockedFunction<(b: ArrayBuffer) => Promise<GeoFeatureCollection>>;
+
+interface GeoFeature {
+  type: 'Feature';
+  geometry: { type: string; coordinates: unknown };
+  properties: Record<string, unknown> | null;
+}
+
+interface GeoFeatureCollection {
+  type: 'FeatureCollection';
+  features: GeoFeature[];
+}
+
+/** Build a minimal GeoJSON feature as shpjs would return it. */
+function makeFeature(
+  overrides: {
+    name?: string;
+    code?: string;
+    geometry?: object;
+  } = {},
+): GeoFeature {
+  return {
+    type: 'Feature',
+    geometry: (overrides.geometry ?? { type: 'Polygon', coordinates: [] }) as GeoFeature['geometry'],
+    properties: {
+      NAME: overrides.name ?? 'Test Zone',
+      CODE: overrides.code ?? null,
+    },
+  };
+}
+
+function makeFeatureCollection(features: GeoFeature[]): GeoFeatureCollection {
+  return { type: 'FeatureCollection', features };
+}
+
+/** Minimal buffer that shpjs would parse — in tests the parse is mocked. */
+const DUMMY_BUFFER = Buffer.from('PK');
+
+describe('GeoZonesService.importShapefile (sc-334)', () => {
+  let repo: {
+    validateGeometry: jest.Mock;
+    create: jest.Mock;
+    createInTransaction: jest.Mock;
+    findByCode: jest.Mock;
+    findParentBySpatialContainment: jest.Mock;
+    getFormData: jest.Mock;
+    update: jest.Mock;
+    deactivate: jest.Mock;
+    findById: jest.Mock;
+    findAll: jest.Mock;
+    getSubtree: jest.Mock;
+    findParentLevel: jest.Mock;
+    validateNoCycles: jest.Mock;
+  };
+  let geofencing: {
+    purgeZoneCache: jest.Mock;
+    purgePointCache: jest.Mock;
+  };
+  let service: GeoZonesService;
+
+  let queryRunner: {
+    connect: jest.Mock;
+    startTransaction: jest.Mock;
+    commitTransaction: jest.Mock;
+    rollbackTransaction: jest.Mock;
+    release: jest.Mock;
+    manager: { query: jest.Mock };
+  };
+
+  let dataSourceMock: { createQueryRunner: jest.Mock };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    queryRunner = {
+      connect: jest.fn().mockResolvedValue(undefined),
+      startTransaction: jest.fn().mockResolvedValue(undefined),
+      commitTransaction: jest.fn().mockResolvedValue(undefined),
+      rollbackTransaction: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn().mockResolvedValue(undefined),
+      manager: { query: jest.fn() },
+    };
+
+    dataSourceMock = {
+      createQueryRunner: jest.fn().mockReturnValue(queryRunner),
+    };
+
+    repo = {
+      validateGeometry: jest.fn().mockResolvedValue(VALID_GEOMETRY),
+      create: jest.fn(),
+      createInTransaction: jest.fn(),
+      findByCode: jest.fn().mockResolvedValue(null),
+      findParentBySpatialContainment: jest.fn().mockResolvedValue(null),
+      getFormData: jest.fn(),
+      update: jest.fn(),
+      deactivate: jest.fn(),
+      findById: jest.fn(),
+      findAll: jest.fn(),
+      getSubtree: jest.fn(),
+      findParentLevel: jest.fn(),
+      validateNoCycles: jest.fn().mockResolvedValue(true),
+    };
+
+    geofencing = {
+      purgeZoneCache: jest.fn().mockResolvedValue(undefined),
+      purgePointCache: jest.fn().mockResolvedValue(undefined),
+    };
+
+    service = new GeoZonesService(
+      repo as unknown as GeoZonesRepository,
+      geofencing as unknown as import('../geofencing/geofencing.service').GeofencingService,
+      dataSourceMock as unknown as import('typeorm').DataSource,
+    );
+  });
+
+  describe('valid batch import', () => {
+    it('returns imported=3, skipped=0, errors=[], warnings=[] for 3 valid features', async () => {
+      const features = [
+        makeFeature({ name: 'Daule', code: 'EC-09-01' }),
+        makeFeature({ name: 'Guayaquil', code: 'EC-09-02' }),
+        makeFeature({ name: 'Samborondón', code: 'EC-09-03' }),
+      ];
+      shpjs.mockResolvedValue(makeFeatureCollection(features));
+      repo.createInTransaction.mockResolvedValue({ id: 'z1', name: 'Daule' });
+
+      const result = await service.importShapefile(DUMMY_BUFFER, {
+        level: 'canton',
+        auto_parent: false,
+        name_column: 'NAME',
+        code_column: 'CODE',
+      });
+
+      expect(result.imported).toBe(3);
+      expect(result.skipped).toBe(0);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(0);
+      expect(repo.createInTransaction).toHaveBeenCalledTimes(3);
+      expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('per-feature invalid geometry', () => {
+    it('rejects feature with invalid geometry and still inserts valid ones', async () => {
+      const features = [
+        makeFeature({ name: 'Valid Zone', code: 'EC-01' }),
+        makeFeature({ name: 'Bowtie', code: 'EC-02' }),
+      ];
+      shpjs.mockResolvedValue(makeFeatureCollection(features));
+
+      repo.validateGeometry
+        .mockResolvedValueOnce(VALID_GEOMETRY) // feature 0: ok
+        .mockResolvedValueOnce({ // feature 1: invalid topology
+          valid: false,
+          reason: 'Self-intersection',
+          empty: false,
+          geom_type: 'ST_MultiPolygon',
+          inBounds: true,
+        });
+      repo.createInTransaction.mockResolvedValue({ id: 'z1' });
+
+      const result = await service.importShapefile(DUMMY_BUFFER, {
+        level: 'canton',
+        auto_parent: false,
+        name_column: 'NAME',
+        code_column: 'CODE',
+      });
+
+      expect(result.imported).toBe(1);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].index).toBe(1);
+      expect(result.errors[0].name).toBe('Bowtie');
+      expect(result.errors[0].reason).toContain('Invalid geometry');
+    });
+
+    it('rejects feature with geometry outside Ecuador bounds', async () => {
+      shpjs.mockResolvedValue(makeFeatureCollection([
+        makeFeature({ name: 'Lima', code: 'PE-01' }),
+      ]));
+      repo.validateGeometry.mockResolvedValue({
+        valid: true,
+        reason: null,
+        empty: false,
+        geom_type: 'ST_MultiPolygon',
+        inBounds: false,
+      });
+
+      const result = await service.importShapefile(DUMMY_BUFFER, {
+        level: 'canton',
+        auto_parent: false,
+        name_column: 'NAME',
+        code_column: 'CODE',
+      });
+
+      expect(result.imported).toBe(0);
+      expect(result.errors[0].reason).toContain('outside Ecuador');
+    });
+
+    it('rejects feature with empty name', async () => {
+      shpjs.mockResolvedValue(makeFeatureCollection([
+        makeFeature({ name: '', code: 'EC-01' }),
+      ]));
+
+      const result = await service.importShapefile(DUMMY_BUFFER, {
+        level: 'canton',
+        auto_parent: false,
+        name_column: 'NAME',
+        code_column: 'CODE',
+      });
+
+      expect(result.imported).toBe(0);
+      expect(result.errors[0].reason).toMatch(/name/i);
+      expect(repo.validateGeometry).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('duplicate code skip', () => {
+    it('counts existing-code features in skipped, not errors', async () => {
+      shpjs.mockResolvedValue(makeFeatureCollection([
+        makeFeature({ name: 'Guayas', code: 'EC-09' }),
+      ]));
+      repo.findByCode.mockResolvedValue({ id: 'existing', name: 'Guayas', code: 'EC-09' });
+
+      const result = await service.importShapefile(DUMMY_BUFFER, {
+        level: 'provincia',
+        auto_parent: false,
+        name_column: 'NAME',
+        code_column: 'CODE',
+      });
+
+      expect(result.imported).toBe(0);
+      expect(result.skipped).toBe(1);
+      expect(result.errors).toHaveLength(0);
+      expect(repo.createInTransaction).not.toHaveBeenCalled();
+    });
+
+    it('also skips within-batch duplicate codes (second occurrence of same code)', async () => {
+      shpjs.mockResolvedValue(makeFeatureCollection([
+        makeFeature({ name: 'First', code: 'EC-DUPE' }),
+        makeFeature({ name: 'Second', code: 'EC-DUPE' }),
+      ]));
+      repo.findByCode.mockResolvedValue(null); // not in DB
+      repo.createInTransaction.mockResolvedValue({ id: 'z1' });
+
+      const result = await service.importShapefile(DUMMY_BUFFER, {
+        level: 'canton',
+        auto_parent: false,
+        name_column: 'NAME',
+        code_column: 'CODE',
+      });
+
+      expect(result.imported).toBe(1);
+      expect(result.skipped).toBe(1);
+    });
+  });
+
+  describe('DB error full rollback', () => {
+    it('rolls back and throws when a DB error occurs mid-batch', async () => {
+      const features = [
+        makeFeature({ name: 'A', code: 'EC-01' }),
+        makeFeature({ name: 'B', code: 'EC-02' }),
+      ];
+      shpjs.mockResolvedValue(makeFeatureCollection(features));
+      repo.createInTransaction
+        .mockResolvedValueOnce({ id: 'z1' })
+        .mockRejectedValueOnce(new Error('constraint violation'));
+
+      await expect(
+        service.importShapefile(DUMMY_BUFFER, {
+          level: 'canton',
+          auto_parent: false,
+          name_column: 'NAME',
+          code_column: 'CODE',
+        }),
+      ).rejects.toThrow();
+
+      expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(queryRunner.commitTransaction).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('GeoZonesService.getFormData (sc-334)', () => {
+  let repo: { getFormData: jest.Mock } & Record<string, jest.Mock>;
+  let geofencing: { purgeZoneCache: jest.Mock; purgePointCache: jest.Mock };
+  let service: GeoZonesService;
+
+  beforeEach(() => {
+    repo = {
+      validateGeometry: jest.fn(),
+      create: jest.fn(),
+      createInTransaction: jest.fn(),
+      findByCode: jest.fn(),
+      findParentBySpatialContainment: jest.fn(),
+      getFormData: jest.fn(),
+      update: jest.fn(),
+      deactivate: jest.fn(),
+      findById: jest.fn(),
+      findAll: jest.fn(),
+      getSubtree: jest.fn(),
+      findParentLevel: jest.fn(),
+      validateNoCycles: jest.fn(),
+    };
+    geofencing = {
+      purgeZoneCache: jest.fn(),
+      purgePointCache: jest.fn(),
+    };
+    service = new GeoZonesService(
+      repo as unknown as GeoZonesRepository,
+      geofencing as unknown as import('../geofencing/geofencing.service').GeofencingService,
+    );
+  });
+
+  it('delegates to repo.getFormData and returns levels + parents', async () => {
+    repo.getFormData.mockResolvedValue([
+      { id: 'z1', name: 'Azuay', code: 'EC-01', level: 'canton' },
+    ]);
+
+    const result = await service.getFormData();
+
+    expect(repo.getFormData).toHaveBeenCalledTimes(1);
+    expect(result.levels).toEqual(expect.arrayContaining(['cantón', 'parroquia', 'provincia', 'sector']));
+    expect(result.parents).toHaveLength(1);
+    expect(result.parents[0].name).toBe('Azuay');
+  });
+
+  it('returns empty parents array when no active zones exist', async () => {
+    repo.getFormData.mockResolvedValue([]);
+
+    const result = await service.getFormData();
+
+    expect(result.parents).toHaveLength(0);
+    expect(result.levels).toHaveLength(4);
+  });
+});

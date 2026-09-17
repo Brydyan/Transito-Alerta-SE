@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,16 +11,21 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { GeoZoneLevel } from '../../entities/geo-zone.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateGeoZoneDto } from './dto/create-geo-zone.dto';
+import { ImportGeoZoneQueryDto } from './dto/import-geo-zone-query.dto';
+import { ImportGeoZoneResponse } from './dto/import-geo-zone-response.dto';
 import { UpdateGeoZoneDto } from './dto/update-geo-zone.dto';
-import { GeoZoneDetailRow, GeoZoneNode } from './geo-zones.repository';
+import { FormDataRow, GeoZoneDetailRow, GeoZoneNode } from './geo-zones.repository';
 import { GeoZonesService, ListResult } from './geo-zones.service';
 
 /**
@@ -30,6 +36,9 @@ import { GeoZonesService, ListResult } from './geo-zones.service';
  * segment (design, controller section). No `{data}` envelope (global
  * SnakeCaseResponseInterceptor) — entities/arrays returned directly;
  * `list()` returns `{items, total}`.
+ *
+ * sc-334: `POST /import` and `GET /form-data` are declared before `GET /:id`
+ * for the same ordering reason.
  */
 @Controller('geo-zones')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -40,6 +49,36 @@ export class GeoZonesController {
   @RequirePermission('READ')
   getTree(): Promise<GeoZoneNode[]> {
     return this.geoZonesService.getTree();
+  }
+
+  /**
+   * POST /geo-zones/import — multipart, `file` field, 10 MB limit.
+   * Requires CREATE geo-zones permission (design D5 / spec R7).
+   * Returns HTTP 200 with the import envelope even on partial success.
+   */
+  @Post('import')
+  @RequirePermission('CREATE')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10_485_760 } }))
+  @HttpCode(HttpStatus.OK)
+  async importShapefile(
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Query() query: ImportGeoZoneQueryDto,
+  ): Promise<ImportGeoZoneResponse> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    return this.geoZonesService.importShapefile(file.buffer, query);
+  }
+
+  /**
+   * GET /geo-zones/form-data — returns levels + active parent zones for
+   * the import dialog (design D10 / spec R9). Requires authentication
+   * only (READ permission covers authenticated users).
+   */
+  @Get('form-data')
+  @RequirePermission('READ')
+  getFormData(): Promise<{ levels: readonly string[]; parents: FormDataRow[] }> {
+    return this.geoZonesService.getFormData();
   }
 
   @Get()
