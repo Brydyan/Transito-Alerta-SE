@@ -440,5 +440,99 @@ describe('MenuOptionsService (F5.5, strict TDD)', () => {
       expect(result.data).toHaveLength(1);
       expect(result.total).toBe(1);
     });
+
+    // sc-334 admin-controles-enhancements Phase 1 (1.5/1.6) — module filter
+    it('filters by module (case-insensitive substring on path)', async () => {
+      const qb = endpointRepo.createQueryBuilder();
+      qb.addOrderBy = jest.fn().mockReturnThis();
+      qb.getManyAndCount.mockResolvedValue([[], 0]);
+
+      await service.getEndpointCatalog({ module: 'incidents' });
+
+      // Build a regex of expected ILIKE arguments — we just verify the
+      // module substring made it into a query builder call.
+      const andWhereCalls = qb.andWhere.mock.calls.map((c: unknown[]) => c[0]);
+      const moduleUsed = andWhereCalls.some(
+        (sql: unknown) => typeof sql === 'string' && sql.includes('ILIKE') && sql.includes(':module'),
+      );
+      expect(moduleUsed).toBe(true);
+    });
+
+    it('omits module filter when module is empty/undefined', async () => {
+      const qb = endpointRepo.createQueryBuilder();
+      qb.addOrderBy = jest.fn().mockReturnThis();
+      qb.getManyAndCount.mockResolvedValue([[], 0]);
+
+      await service.getEndpointCatalog({ module: '' });
+
+      const andWhereCalls = qb.andWhere.mock.calls.map((c: unknown[]) => c[0]);
+      const moduleUsed = andWhereCalls.some(
+        (sql: unknown) => typeof sql === 'string' && sql.includes(':module'),
+      );
+      expect(moduleUsed).toBe(false);
+    });
+  });
+
+  // sc-334 admin-controles-enhancements Phase 1 (1.1/1.2) — getAssignedEndpoints
+  describe('getAssignedEndpoints', () => {
+    it('returns endpoints assigned to the menu (via menu_option_endpoints join)', async () => {
+      const ep1 = Object.assign(new ApiEndpointEntity(), {
+        id: 'ep-1',
+        method: 'GET',
+        path: '/api/incidents',
+        description: 'List incidents',
+        createdAt: new Date(),
+      });
+      const ep2 = Object.assign(new ApiEndpointEntity(), {
+        id: 'ep-2',
+        method: 'POST',
+        path: '/api/incidents',
+        description: 'Create incident',
+        createdAt: new Date(),
+      });
+      // The repo must support a query builder with .innerJoin + .getMany().
+      const joinQb = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([ep1, ep2]),
+      };
+      endpointRepo.createQueryBuilder.mockReturnValue(joinQb);
+      optionRepo.findOne.mockResolvedValue(
+        Object.assign(new MenuOptionEntity(), { id: 'opt-1', name: 'Test' }),
+      );
+
+      const result = await service.getAssignedEndpoints('opt-1');
+
+      expect(result).toHaveLength(2);
+      expect(result.map((e: ApiEndpointEntity) => e.id)).toEqual(['ep-1', 'ep-2']);
+    });
+
+    it('returns empty array when the menu has no assigned endpoints', async () => {
+      const joinQb = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      endpointRepo.createQueryBuilder.mockReturnValue(joinQb);
+      optionRepo.findOne.mockResolvedValue(
+        Object.assign(new MenuOptionEntity(), { id: 'opt-2', name: 'Empty' }),
+      );
+
+      const result = await service.getAssignedEndpoints('opt-2');
+
+      expect(result).toEqual([]);
+    });
+
+    it('throws NotFoundException when the menu does not exist', async () => {
+      optionRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.getAssignedEndpoints('missing')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
   });
 });

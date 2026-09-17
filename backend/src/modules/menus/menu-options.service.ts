@@ -289,10 +289,18 @@ export class MenuOptionsService {
   }
 
   /**
-   * Paginated endpoint catalog, filterable by route, method, or description.
+   * Paginated endpoint catalog, filterable by route, method, description,
+   * or module (case-insensitive substring on path — design D6).
    */
   async getEndpointCatalog(
-    query: { page?: number; limit?: number; route?: string; method?: string; description?: string } = {},
+    query: {
+      page?: number;
+      limit?: number;
+      route?: string;
+      method?: string;
+      description?: string;
+      module?: string;
+    } = {},
   ): Promise<PaginatedResult<ApiEndpointEntity>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
@@ -308,6 +316,11 @@ export class MenuOptionsService {
     if (query.description) {
       qb.andWhere('ep.description ILIKE :desc', { description: `%${query.description}%` });
     }
+    if (query.module && query.module.trim().length > 0) {
+      // design D6: module is a substring of the route. e.g. module=incidents
+      // matches any path that contains "incidents" (case-insensitive).
+      qb.andWhere('ep.path ILIKE :module', { module: `%${query.module.trim()}%` });
+    }
 
     qb.orderBy('ep.method', 'ASC')
       .addOrderBy('ep.path', 'ASC')
@@ -317,6 +330,38 @@ export class MenuOptionsService {
     const [data, total] = await qb.getManyAndCount();
 
     return { data, total, page, limit };
+  }
+
+  // ── Phase 1 (1.1/1.2) — getAssignedEndpoints (design D1) ───────────────
+
+  /**
+   * Returns the API endpoints currently assigned to a menu option.
+   *
+   * Used by the menu-options frontend to hydrate the "Asignados" panel
+   * of the endpoint picker when the user selects an option. Returns an
+   * empty array when no endpoints are assigned. Throws 404 if the option
+   * itself does not exist.
+   *
+   * Design D1 / spec R1: implemented as a separate endpoint, not as part
+   * of `findOne()`, to keep each GET focused (single-responsibility).
+   */
+  async getAssignedEndpoints(optionId: string): Promise<ApiEndpointEntity[]> {
+    // 404 first (consistent with findOne behavior).
+    await this.findOne(optionId);
+
+    const rows = await this.endpointRepo
+      .createQueryBuilder('ep')
+      .innerJoin(
+        'menu_option_endpoints',
+        'moe',
+        'moe.endpoint_id = ep.id AND moe.menu_option_id = :optionId',
+        { optionId },
+      )
+      .orderBy('ep.method', 'ASC')
+      .addOrderBy('ep.path', 'ASC')
+      .getMany();
+
+    return rows;
   }
 
   // ── Private validation helpers ─────────────────────────────────────────
