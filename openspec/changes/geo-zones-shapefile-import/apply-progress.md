@@ -141,3 +141,38 @@ openspec/changes/geo-zones-shapefile-import/apply-progress.md
 2. **HTML escape (Deviation 3)** is defensive. If architect prefers no escape (treating admin content as trusted), remove the helper. Tests do not cover the escape — they assert `popupHtml.toContain('Daule')` which works either way for plain ASCII names.
 3. **Conflict-of-interest continues.** Same session applied + will verify. Re-verification in clean-context sub-agent remains a precondition for `sdd-archive`.
 4. **Architect territory left unstaged** — same set as previous phases.
+
+---
+
+## W1-reversal — 2026-09-16 — "Importar Shapefile" moved from `LocationList` to `LocationForm`
+
+**Andy direction** (after reviewing the running app): the bulk-import button should live on `app/ubicaciones/new` (the `LocationForm` create/edit page), not on the list page. This is a user-direction reversal of Phase 2 placement, committed in `2fab67f03`.
+
+**What changed**:
+- "Importar Shapefile" button + `<app-shapefile-import-dialog>` mount moved from `LocationListComponent` to `LocationFormComponent`.
+- `LocationList` now only hosts "Nueva ubicación" / Edit / Delete per row.
+- `LocationForm` now has a button in its footer (next to "Cancelar" / "Crear ubicación") that opens the same `ShapefileImportDialogComponent` with `*hasPermission="'CREATE geo-zones'"` guard.
+- Tests moved: 4 button-visibility tests relocated from `location-list.component.spec.ts` to `location-form.component.spec.ts` (plus one negative test left in `location-list` asserting the button does NOT render there anymore).
+- `ShapefileImportDialogComponent` itself is unchanged — only its mount point moved.
+
+**Why this is a reversal of design.md D1 + tasks.md 2.10**:
+- design.md D1 explicitly chose "Standalone dialog launched from LocationList" over "2-col grid in LocationForm". The new placement is closer to the rejected D1 option: button lives inside the form view. The dialog itself remains a modal launched from a button — so it's not literally the rejected 2-col grid; it's "button inside form → modal dialog", which is a third option D1 did not enumerate.
+- tasks.md 2.10 explicitly said "button to `location-list.component.ts`" — so the original spec was the LocationList placement, not LocationForm. The new placement is a deviation from `tasks.md` 2.10 too.
+
+**Architect action items** (reissued alongside existing W1–W3 from Phase 2):
+- Update `design.md` D1 to enumerate this third option and mark it chosen (or revert to LocationList).
+- Update `tasks.md` 2.10 to say `location-form.component.ts` instead of `location-list.component.ts`.
+- Update `spec.md` R7/R9 wording if any "button on list" semantics appear there.
+
+**Test impact**:
+- `location-list.component.spec.ts`: 4 button tests removed, 1 negative test added ("does not render on list").
+- `location-form.component.spec.ts`: 4 button tests added (granted / absent / opens / closes).
+- Dialog component spec: unchanged.
+- Service spec: unchanged.
+
+**Verification (post-move)**:
+- `pnpm exec jest`: 740/740 PASS (98 suites)
+- `pnpm exec tsc --noEmit`: no errors
+- `pnpm run lint`: 0 errors, 0 warnings
+- `pnpm run build`: OK (pre-existing bundle budget warning unchanged)
+- Backend regression: unchanged (no backend touched)
