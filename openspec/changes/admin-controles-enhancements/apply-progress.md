@@ -71,3 +71,48 @@ frontend/src/app/features/admin/menu-options/components/menu-tree/menu-tree.comp
 openspec/changes/admin-controles-enhancements/tasks.md (Phase 3 [x])
 ```
 
+
+---
+
+## Phase 4 — RoleMatrixComponent (Major Rewrite)
+
+### Implemented (9/9)
+
+| Task | Status |
+|------|--------|
+| 4.1 TS rewrite for `RoleMatrix` + 3 scope blocks | Done |
+| 4.2 `matrix: RoleMatrix \| null = null` + `accessChanged` output rename | Done — `accessChange` → `accessChanged` (caller updated too) |
+| 4.3 `roleGroups()` computed returning `{scope, label, roles}[]` | Done — matches task 4.3 spec exactly |
+| 4.4 RED test: 5 roles render 3 blocks with correct counts | Done — 3 tests (blocks, labels, counts) |
+| 4.5 HTML rewrite: 3 stacked sections with role rows + Read/Write checkboxes | Done — moved to external `.html` file |
+| 4.6 Read→Write invariant (write requires read) | Done — preserved + tightened (was `!newCanRead → newCanWrite=false` AND `field === canWrite && value && !newCanRead → return`) |
+| 4.7 CSS: group headers + role layout | Done — `.role-group`, `.group-header`, `.role-list`, `.role-row`, `.role-checkbox` |
+| 4.8 GREEN | Done — 10/10 role-matrix tests pass |
+| 4.9 Run `pnpm test -- role-matrix` | Done — all green |
+
+### Deviations
+
+- **D4** — The original component (pre-Phase 4) used `scopeBlocks` computed with field names `{key, label, entries}`. Task 4.3 wants `{scope, label, roles}`. Renamed both the computed name (`scopeBlocks` → `roleGroups`) and the field names. Updated template accordingly.
+
+- **D5** — Task 4.2 spec says `(accessChanged)` but the original component used `(accessChange)`. Renamed output to match the task. Caller in `menu-options.component.html` line 141 updated to `(accessChanged)` to keep the binding alive.
+
+### Test Results
+
+| Gate | Command | Result |
+|------|---------|--------|
+| role-matrix unit | `pnpm exec jest --testPathPatterns='role-matrix'` | **10/10 PASS** (3 original — mostly rewritten + 7 new covering 4.4, 4.2, 4.6) |
+| Full frontend | `pnpm exec jest` | **756/756 PASS** (97 suites, +3 vs 753) |
+| Typecheck | `pnpm exec tsc --noEmit` | No errors |
+| Lint | `pnpm run lint` | 0 errors |
+
+### Files Modified
+
+```
+frontend/src/app/features/admin/menu-options/components/role-matrix/role-matrix.component.ts      — full rewrite (computed, outputs, toggleAccess)
+frontend/src/app/features/admin/menu-options/components/role-matrix/role-matrix.component.html     — new (external template, 3 stacked sections)
+frontend/src/app/features/admin/menu-options/components/role-matrix/role-matrix.component.css      — new
+frontend/src/app/features/admin/menu-options/components/role-matrix/role-matrix.component.spec.ts  — rewritten (10 tests)
+frontend/src/app/features/admin/menu-options/menu-options.component.html                         — (accessChange) → (accessChanged) caller
+openspec/changes/admin-controles-enhancements/tasks.md                                          — Phase 4 [x]
+```
+
