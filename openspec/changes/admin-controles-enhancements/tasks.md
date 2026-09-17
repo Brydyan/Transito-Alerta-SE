@@ -140,10 +140,10 @@
      return maxOrder + 1;
    });
    ```
-- [ ] 6.2 Update template to display suggestion next to order field: `Orden: [{{ editingOrder }}] (siguiente: {{ nextOrder() }})`
-- [ ] 6.3 **RED** — Write failing test: order suggestion for main menu shows increments of 10, for submenu shows increments of 1
-- [ ] 6.4 **GREEN** — Ensure 6.3 passes
-- [ ] 6.5 Run `pnpm test` in `frontend/` — all green
+- [x] 6.2 Update template to display suggestion next to order field: `Orden: [{{ editingOrder }}] (siguiente: {{ nextOrder() }})`
+- [x] 6.3 **RED** — Write failing test: order suggestion for main menu shows increments of 10, for submenu shows increments of 1
+- [x] 6.4 **GREEN** — Ensure 6.3 passes
+- [x] 6.5 Run `pnpm test` in `frontend/` — all green
 
 ---
 
@@ -151,8 +151,8 @@
 
 > Prerequisites: Phases 5, 6 merged; Optional phase (can defer).
 
-- [ ] 7.1 Add optional search field to `EndpointPickerComponent`: text input filters catalog by `path` or `description` (matches D6)
-- [ ] 7.2 Add "module" dropdown: auto-detect modules from endpoint paths (first segment after /api), allow filtering
+- [x] 7.1 Add optional search field to `EndpointPickerComponent`: text input filters catalog by `path` or `description` (matches D6)
+- [x] 7.2 Add "module" dropdown: auto-detect modules from endpoint paths (first segment after /api), allow filtering
 - [ ] 7.3 **RED** — Write failing test: search "incidents" returns only incident endpoints; dropdown "roles" returns only roles endpoints
 - [ ] 7.4 **GREEN** — Ensure 7.3 passes
 - [ ] 7.5 Run `pnpm test -- endpoint-picker` — all green

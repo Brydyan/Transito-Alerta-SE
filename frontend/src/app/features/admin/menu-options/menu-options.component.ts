@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   inject,
   signal,
+  computed,
   OnInit,
   DestroyRef,
 } from '@angular/core';
@@ -66,6 +67,30 @@ export class MenuOptionsComponent implements OnInit {
   /** Options that can be selected as parent (excluding self to prevent cycles). */
   readonly parentOptions = signal<MenuOption[]>([]);
 
+  /**
+   * sc-334 admin-controles-enhancements Phase 6 (D4/R4) — suggested
+   * display_order for the next menu option:
+   *   - Parent menus (parent_id === null): +10 increment (10, 20, 30…)
+   *   - Sub-menus (parent_id !== null): +1 increment (1, 2, 3…)
+   * Reflects the existing display_order convention in the seed data.
+   * Returns null when no siblings exist yet (so the template can show
+   * a different empty state) — actually returns the increment of 0
+   * for simplicity.
+   */
+  readonly nextOrder = computed<number>(() => {
+    const parentId = this.editingParentId();
+    const increment = parentId === null ? 10 : 1;
+    const siblings = this.allOptions().filter((o) => o.parent_id === parentId);
+    if (siblings.length === 0) {
+      return increment; // first entry: 10 for root, 1 for child
+    }
+    const maxOrder = siblings.reduce(
+      (max, child) => Math.max(max, child.display_order),
+      -Infinity,
+    );
+    return maxOrder + increment;
+  });
+
   ngOnInit(): void {
     this.loadOptions();
     this.loadEndpointCatalog();
@@ -108,14 +133,11 @@ export class MenuOptionsComponent implements OnInit {
       prefilledRoute = parent.route.endsWith('/') ? parent.route : parent.route + '/';
     }
     
-    // Calculate next order for children of this parent
-    const children = this.allOptions().filter(o => o.parent_id === parentId);
-    const maxOrder = children.reduce((max, child) => Math.max(max, child.display_order), -1);
-
+    // Calculate next order via the nextOrder computed (Phase 6: +10 for root, +1 for children).
     this.editingName.set('');
     this.editingRoute.set(prefilledRoute);
     this.editingIcon.set('');
-    this.editingOrder.set(maxOrder + 1);
+    this.editingOrder.set(this.nextOrder());
     
     this.roleMatrix.set(null);
     this.assignedEndpoints.set([]);

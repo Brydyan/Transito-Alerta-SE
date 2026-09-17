@@ -165,4 +165,52 @@ describe('MenuOptionsComponent', () => {
       expect(mockService.getAssignedEndpoints).toHaveBeenCalledWith(sampleOption.id);
     });
   });
+
+  // ── sc-334 admin-controles-enhancements Phase 6 (D4/R4) ──────────────
+
+  describe('nextOrder suggestion (D4/R4)', () => {
+    function setOptions(opts: typeof sampleOption[]): void {
+      (
+        component as unknown as { allOptions: { set: (v: unknown[]) => void } }
+      ).allOptions.set(opts);
+    }
+
+    function setEditingParentId(id: string | null): void {
+      (
+        component as unknown as { editingParentId: { set: (v: string | null) => void } }
+      ).editingParentId.set(id);
+    }
+
+    it('suggests 10 for the first root-level menu (parent_id=null, empty)', () => {
+      setOptions([]);
+      setEditingParentId(null);
+      expect(component.nextOrder()).toBe(10);
+    });
+
+    it('suggests max+10 for root-level when siblings exist (10, 20, 30 → 40)', () => {
+      setOptions([
+        { ...sampleOption, id: 'r1', parent_id: null, display_order: 10 },
+        { ...sampleOption, id: 'r2', parent_id: null, display_order: 20 },
+        { ...sampleOption, id: 'r3', parent_id: null, display_order: 30 },
+      ]);
+      setEditingParentId(null);
+      expect(component.nextOrder()).toBe(40);
+    });
+
+    it('suggests max+1 for sub-menu under parent (1, 2 → 3)', () => {
+      setOptions([
+        { ...sampleOption, id: 'p1', parent_id: null, display_order: 10 },
+        { ...sampleOption, id: 'c1', parent_id: 'p1', display_order: 1 },
+        { ...sampleOption, id: 'c2', parent_id: 'p1', display_order: 2 },
+      ]);
+      setEditingParentId('p1');
+      expect(component.nextOrder()).toBe(3);
+    });
+
+    it('suggests 1 for the first child of a parent (no siblings yet)', () => {
+      setOptions([{ ...sampleOption, id: 'p1', parent_id: null, display_order: 10 }]);
+      setEditingParentId('p1');
+      expect(component.nextOrder()).toBe(1);
+    });
+  });
 });

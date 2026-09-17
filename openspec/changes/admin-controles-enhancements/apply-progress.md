@@ -155,3 +155,40 @@ frontend/src/app/features/admin/menu-options/menu-options.component.spec.ts  —
 openspec/changes/admin-controles-enhancements/tasks.md                       — Phase 5 [x]
 ```
 
+
+---
+
+## Phase 6 — Order Suggestion
+
+### Implemented (5/5)
+
+| Task | Status |
+|------|--------|
+| 6.1 `nextOrder()` computed | Done — returns max sibling order + increment (10 for root, 1 for child); first child of empty parent returns the increment itself |
+| 6.2 Template: suggestion next to order field | Done — `<span data-testid="order-suggestion">{{ nextOrder() }}</span>` in the label |
+| 6.3 RED tests | Done — 4 tests covering empty root, populated root, sub-menu with siblings, sub-menu no siblings |
+| 6.4 GREEN | Done — 48/48 menu-options tests pass |
+| 6.5 Run tests | Done — full 765/765 + lint clean + typecheck clean |
+
+### Deviations
+
+- **D7** — The original `onTreeCreate` had a `const maxOrder = ...` computation that's now superseded by the `nextOrder()` computed. Cleaned up the dead variable to satisfy lint.
+
+### Test Results
+
+| Gate | Command | Result |
+|------|---------|--------|
+| menu-options unit | `pnpm exec jest --testPathPatterns='menu-options.component'` | **48/48 PASS** (44 original + 4 new Phase 6) |
+| Full frontend | `pnpm exec jest` | **765/765 PASS** (97 suites, +5 vs 760) |
+| Typecheck | `pnpm exec tsc --noEmit` | No errors |
+| Lint | `pnpm run lint` | 0 errors |
+
+### Files Modified
+
+```
+frontend/src/app/features/admin/menu-options/menu-options.component.ts       — added computed import + nextOrder() + simplified onTreeCreate
+frontend/src/app/features/admin/menu-options/menu-options.component.html   — suggestion next to order field label
+frontend/src/app/features/admin/menu-options/menu-options.component.spec.ts — 4 new tests for nextOrder (root/sub-menu/empty/non-empty)
+openspec/changes/admin-controles-enhancements/tasks.md                       — Phase 6 [x]
+```
+
