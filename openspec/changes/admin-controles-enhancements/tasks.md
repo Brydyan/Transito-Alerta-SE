@@ -153,9 +153,9 @@
 
 - [x] 7.1 Add optional search field to `EndpointPickerComponent`: text input filters catalog by `path` or `description` (matches D6)
 - [x] 7.2 Add "module" dropdown: auto-detect modules from endpoint paths (first segment after /api), allow filtering
-- [ ] 7.3 **RED** — Write failing test: search "incidents" returns only incident endpoints; dropdown "roles" returns only roles endpoints
-- [ ] 7.4 **GREEN** — Ensure 7.3 passes
-- [ ] 7.5 Run `pnpm test -- endpoint-picker` — all green
+- [x] 7.3 **RED** — Write failing test: search "incidents" returns only incident endpoints; dropdown "roles" returns only roles endpoints
+- [x] 7.4 **GREEN** — Ensure 7.3 passes
+- [x] 7.5 Run `pnpm test -- endpoint-picker` — all green
 
 ---
 
