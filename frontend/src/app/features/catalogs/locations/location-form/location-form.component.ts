@@ -16,18 +16,19 @@ import {
   Validators,
 } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
+import { HttpEvent, HttpEventType } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { GeoZoneService } from '../services/geo-zone.service';
 import {
   IGeoZone,
   GeoZoneLevel,
   IGeoZoneNode,
+  IGeoJsonPolygon,
+  IImportGeoZoneResponse,
   GEO_ZONE_LEVELS,
   GEO_ZONE_LEVEL_LABELS,
-  IGeoJsonPolygon,
 } from '../interfaces/igeo-zone.interface';
 import { buildTree, getLevelParentLevel } from '../tree.util';
-import { ShapefileImportDialogComponent } from '../components/shapefile-import-dialog/shapefile-import-dialog.component';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { HasPermissionDirective } from '../../../../shared/directives/has-permission.directive';
@@ -54,6 +55,9 @@ const PLACEHOLDER_POLYGON: IGeoJsonPolygon = {
   ],
 };
 
+/** Maximum shapefile payload — matches backend `FileInterceptor` 10 MB cap. */
+const MAX_IMPORT_FILE_SIZE = 10 * 1024 * 1024;
+
 @Component({
   selector: 'app-location-form',
   standalone: true,
@@ -64,7 +68,6 @@ const PLACEHOLDER_POLYGON: IGeoJsonPolygon = {
     UiPageHeaderComponent,
     UiButtonComponent,
     UiIconComponent,
-    ShapefileImportDialogComponent,
   ],
   templateUrl: './location-form.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -87,8 +90,22 @@ export class LocationFormComponent implements OnInit, OnDestroy {
   readonly serverErrors = signal<Record<string, string>>({});
   readonly integrityError = signal(false);
 
-  /** sc-334 Phase 2 — toggles the bulk shapefile import dialog. */
-  readonly showImportDialog = signal(false);
+  // ── sc-334 inline shapefile import (right panel) ──────────────────────
+
+  /** Currently selected zip file in the right-panel file input. */
+  readonly importFile = signal<File | null>(null);
+  /** Upload progress 0-100. */
+  readonly importProgress = signal<number>(0);
+  /** Final import envelope (success or partial). */
+  readonly importResult = signal<IImportGeoZoneResponse | null>(null);
+  /** Inline error message; cleared on next file pick. */
+  readonly importError = signal<string | null>(null);
+  /** Auto-parent toggle (default true — matches backend ImportGeoZoneQueryDto). */
+  readonly importAutoParent = signal<boolean>(true);
+  /** True while an upload is in flight. */
+  readonly isImporting = signal<boolean>(false);
+
+  readonly maxImportFileSize = MAX_IMPORT_FILE_SIZE;
 
   /** All zones used to populate the parent selector. */
   readonly allZones = signal<IGeoZone[]>([]);
@@ -281,14 +298,95 @@ export class LocationFormComponent implements OnInit, OnDestroy {
     this.router.navigate(['../../'], { relativeTo: this.route });
   }
 
-  /** sc-334 Phase 2 — open the bulk shapefile import dialog. */
-  openImportDialog(): void {
-    this.showImportDialog.set(true);
+  /** sc-334 — inline import (right panel). */
+
+  onImportFileChange(event: Event): void {
+    this.importError.set(null);
+    this.importResult.set(null);
+    this.importProgress.set(0);
+
+    const input = event.target as HTMLInputElement;
+    const picked = input.files?.[0];
+    if (!picked) {
+      this.importFile.set(null);
+      return;
+    }
+
+    const looksLikeZip =
+      picked.name.toLowerCase().endsWith('.zip') ||
+      picked.type === 'application/zip' ||
+      picked.type === 'application/x-zip-compressed';
+
+    if (!looksLikeZip) {
+      this.importError.set('Solo se admiten archivos .zip con shapefiles.');
+      this.importFile.set(null);
+      return;
+    }
+
+    if (picked.size > MAX_IMPORT_FILE_SIZE) {
+      this.importError.set(
+        `El archivo pesa ${(picked.size / 1024 / 1024).toFixed(1)} MB y excede el límite de 10 MB.`,
+      );
+      this.importFile.set(null);
+      return;
+    }
+
+    this.importFile.set(picked);
   }
 
-  /** sc-334 Phase 2 — close the bulk shapefile import dialog. */
-  closeImportDialog(): void {
-    this.showImportDialog.set(false);
+  onImportAutoParentChange(event: Event): void {
+    this.importAutoParent.set((event.target as HTMLInputElement).checked);
+  }
+
+  submitImport(): void {
+    const picked = this.importFile();
+    if (!picked || this.isImporting()) {
+      return;
+    }
+
+    this.isImporting.set(true);
+    this.importError.set(null);
+    this.importResult.set(null);
+    this.importProgress.set(0);
+
+    this.geoZoneService
+      .importShapefile(picked, {
+        level: (this.form.value.level as GeoZoneLevel) || 'zona',
+        auto_parent: this.importAutoParent(),
+        name_column: 'NAME',
+        code_column: 'CODE',
+      })
+      .subscribe({
+        next: (event: HttpEvent<IImportGeoZoneResponse>) => {
+          if (event.type === HttpEventType.UploadProgress) {
+            const loaded = event.loaded ?? 0;
+            const total = event.total ?? 0;
+            const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
+            this.importProgress.set(pct);
+          } else if (event.type === HttpEventType.Response && event.body) {
+            this.importResult.set(event.body);
+            this.importProgress.set(0);
+            this.isImporting.set(false);
+            const summary =
+              `${event.body.imported} importadas, ` +
+              `${event.body.skipped} omitidas, ` +
+              `${event.body.errors.length} con error.`;
+            if (event.body.errors.length === 0) {
+              this.toastService.success(summary);
+            } else {
+              this.toastService.error(summary);
+            }
+          }
+        },
+        error: (err: { error?: { message?: string } }) => {
+          this.isImporting.set(false);
+          this.importProgress.set(0);
+          const msg =
+            err.error?.message ?? 'No se pudo importar el shapefile.';
+          this.importError.set(msg);
+          this.toastService.error(msg);
+        },
+      });
   }
 
   private refreshParentValidation(): void {

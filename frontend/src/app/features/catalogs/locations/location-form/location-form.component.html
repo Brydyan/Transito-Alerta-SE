@@ -26,98 +26,213 @@
     }
 
     <form [formGroup]="form" (ngSubmit)="onSubmit()">
-      <div class="border-none shadow-sm rounded-lg mb-6">
-        <div class="p-6">
-          <h6 class="font-semibold text-slate-500 mb-4 text-sm uppercase tracking-wider">
-            Detalles de la ubicación
-          </h6>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- LEFT: single-zone CRUD fields -->
+        <div class="border-none shadow-sm rounded-lg">
+          <div class="p-6">
+            <h6 class="font-semibold text-slate-500 mb-4 text-sm uppercase tracking-wider">
+              Detalles de la ubicación
+            </h6>
 
-          <div class="grid grid-cols-1 gap-4">
-            <!-- Name -->
-            <div>
-              <label for="form-name" class="block text-sm font-medium text-slate-700 mb-1">
-                Nombre <span class="text-red-500">*</span>
-              </label>
-              <input
-                id="form-name"
-                type="text"
-                class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
-                [class.border-red-500]="fieldInvalid('name')"
-                [class.focus:ring-red-500/40]="fieldInvalid('name')"
-                placeholder="p. ej. Pichincha"
-                formControlName="name"
-              />
-              @if (fieldError('name'); as msg) {
-                <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
-              }
-            </div>
-
-            <!-- Code -->
-            <div>
-              <label for="form-code" class="block text-sm font-medium text-slate-700 mb-1">
-                Código
-              </label>
-              <input
-                id="form-code"
-                type="text"
-                class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
-                [class.border-red-500]="fieldInvalid('code')"
-                [class.focus:ring-red-500/40]="fieldInvalid('code')"
-                placeholder="p. ej. 17"
-                formControlName="code"
-              />
-              @if (fieldError('code'); as msg) {
-                <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
-              }
-            </div>
-
-            <!-- Level -->
-            <div>
-              <label for="form-level" class="block text-sm font-medium text-slate-700 mb-1">
-                Nivel <span class="text-red-500">*</span>
-              </label>
-              <select
-                id="form-level"
-                class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
-                [class.border-red-500]="fieldInvalid('level')"
-                formControlName="level"
-              >
-                @for (level of levelOptions; track level) {
-                  <option [value]="level">{{ levelLabels[level] }}</option>
-                }
-              </select>
-              @if (fieldError('level'); as msg) {
-                <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
-              }
-            </div>
-
-            <!-- Parent (only when the selected level allows a parent) -->
-            @if (parentOptions().length > 0) {
+            <div class="grid grid-cols-1 gap-4">
+              <!-- Name -->
               <div>
-                <label for="form-parent" class="block text-sm font-medium text-slate-700 mb-1">
-                  Padre
-                  @if (parentRequired()) {
-                    <span class="text-red-500">*</span>
-                  }
+                <label for="form-name" class="block text-sm font-medium text-slate-700 mb-1">
+                  Nombre <span class="text-red-500">*</span>
                 </label>
-                <select
-                  id="form-parent"
-                  class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
-                  [class.border-red-500]="fieldInvalid('parent_id')"
-                  formControlName="parent_id"
-                >
-                  <option value="">Sin padre</option>
-                  @for (parent of parentOptions(); track parent.id) {
-                    <option [value]="parent.id">
-                      {{ parent.name }} ({{ levelLabels[parent.level] }})
-                    </option>
-                  }
-                </select>
-                @if (fieldError('parent_id'); as msg) {
+                <input
+                  id="form-name"
+                  type="text"
+                  class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
+                  [class.border-red-500]="fieldInvalid('name')"
+                  [class.focus:ring-red-500/40]="fieldInvalid('name')"
+                  placeholder="p. ej. Pichincha"
+                  formControlName="name"
+                />
+                @if (fieldError('name'); as msg) {
                   <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
                 }
               </div>
-            }
+
+              <!-- Code -->
+              <div>
+                <label for="form-code" class="block text-sm font-medium text-slate-700 mb-1">
+                  Código
+                </label>
+                <input
+                  id="form-code"
+                  type="text"
+                  class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
+                  [class.border-red-500]="fieldInvalid('code')"
+                  [class.focus:ring-red-500/40]="fieldInvalid('code')"
+                  placeholder="p. ej. 17"
+                  formControlName="code"
+                />
+                @if (fieldError('code'); as msg) {
+                  <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
+                }
+              </div>
+
+              <!-- Level -->
+              <div>
+                <label for="form-level" class="block text-sm font-medium text-slate-700 mb-1">
+                  Nivel <span class="text-red-500">*</span>
+                </label>
+                <select
+                  id="form-level"
+                  class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
+                  [class.border-red-500]="fieldInvalid('level')"
+                  formControlName="level"
+                >
+                  @for (level of levelOptions; track level) {
+                    <option [value]="level">{{ levelLabels[level] }}</option>
+                  }
+                </select>
+                @if (fieldError('level'); as msg) {
+                  <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
+                }
+              </div>
+
+              <!-- Parent (only when the selected level allows a parent) -->
+              @if (parentOptions().length > 0) {
+                <div>
+                  <label for="form-parent" class="block text-sm font-medium text-slate-700 mb-1">
+                    Padre
+                    @if (parentRequired()) {
+                      <span class="text-red-500">*</span>
+                    }
+                  </label>
+                  <select
+                    id="form-parent"
+                    class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
+                    [class.border-red-500]="fieldInvalid('parent_id')"
+                    formControlName="parent_id"
+                  >
+                    <option value="">Sin padre</option>
+                    @for (parent of parentOptions(); track parent.id) {
+                      <option [value]="parent.id">
+                        {{ parent.name }} ({{ levelLabels[parent.level] }})
+                      </option>
+                    }
+                  </select>
+                  @if (fieldError('parent_id'); as msg) {
+                    <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: inline shapefile importer -->
+        <div
+          class="border-none shadow-sm rounded-lg"
+          *hasPermission="'CREATE geo-zones'"
+        >
+          <div class="p-6">
+            <h6 class="font-semibold text-slate-500 mb-4 text-sm uppercase tracking-wider">
+              Importar shapefile
+            </h6>
+            <p class="text-xs text-slate-500 mb-4">
+              Sube un .zip con shapefiles. El nivel de las zonas se toma del campo
+              <strong>Nivel</strong> de la izquierda; las columnas nombre/código se
+              infieren automáticamente.
+            </p>
+
+            <div class="space-y-4">
+              <div>
+                <label for="form-import-file" class="block text-sm font-medium text-slate-700 mb-1">
+                  Archivo ZIP
+                </label>
+                <input
+                  id="form-import-file"
+                  type="file"
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  class="block w-full text-sm text-slate-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-primary/10 file:text-brand-primary hover:file:bg-brand-primary/20"
+                  (change)="onImportFileChange($event)"
+                />
+                @if (importFile(); as f) {
+                  <p class="mt-2 text-xs text-slate-500">
+                    {{ f.name }} — {{ (f.size / 1024).toFixed(1) }} KB
+                  </p>
+                }
+              </div>
+
+              <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  class="rounded border-border-subtle text-brand-primary focus:ring-brand-primary"
+                  [checked]="importAutoParent()"
+                  (change)="onImportAutoParentChange($event)"
+                />
+                Auto-detectar zona padre (parent_code o ST_Contains)
+              </label>
+
+              @if (importError(); as msg) {
+                <div class="rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700" role="alert">
+                  {{ msg }}
+                </div>
+              }
+
+              @if (isImporting()) {
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-medium text-slate-700">Subiendo…</span>
+                    <span class="text-sm text-slate-500">{{ importProgress() }}%</span>
+                  </div>
+                  <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      class="h-2 bg-brand-primary transition-all"
+                      [style.width.%]="importProgress()"
+                      role="progressbar"
+                      [attr.aria-valuenow]="importProgress()"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                    ></div>
+                  </div>
+                </div>
+              }
+
+              @if (importResult(); as r) {
+                <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800" role="status">
+                  <p class="font-semibold">Importación finalizada</p>
+                  <p class="mt-1">
+                    <strong>{{ r.imported }}</strong> importadas,
+                    <strong>{{ r.skipped }}</strong> omitidas,
+                    <strong>{{ r.errors.length }}</strong> con error.
+                  </p>
+                  @if (r.warnings.length > 0) {
+                    <ul class="mt-2 list-disc list-inside text-xs">
+                      @for (w of r.warnings; track w) {
+                        <li>{{ w }}</li>
+                      }
+                    </ul>
+                  }
+                  @if (r.errors.length > 0) {
+                    <details class="mt-2">
+                      <summary class="cursor-pointer text-xs font-medium">Ver errores ({{ r.errors.length }})</summary>
+                      <ul class="mt-1 list-disc list-inside text-xs">
+                        @for (e of r.errors; track e.index) {
+                          <li>[{{ e.index }}] {{ e.name }} — {{ e.reason }}</li>
+                        }
+                      </ul>
+                    </details>
+                  }
+                </div>
+              }
+
+              <button
+                type="button"
+                uiButton
+                variant="secondary"
+                [disabled]="!importFile() || isImporting()"
+                (click)="submitImport()"
+                aria-label="Importar shapefile"
+              >
+                <ui-icon uiButtonIcon name="upload-cloud" [size]="16" />
+                Importar
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -125,18 +240,6 @@
       <!-- Footer -->
       <div class="flex justify-end items-center">
         <div class="flex gap-3">
-          <button
-            type="button"
-            uiButton
-            variant="secondary"
-            *hasPermission="'CREATE geo-zones'"
-            [disabled]="isSaving()"
-            (click)="openImportDialog()"
-            aria-label="Importar shapefile"
-          >
-            <ui-icon uiButtonIcon name="upload-cloud" [size]="16" />
-            Importar shapefile
-          </button>
           <button
             type="button"
             uiButton
@@ -158,9 +261,5 @@
         </div>
       </div>
     </form>
-  }
-
-  @if (showImportDialog()) {
-    <app-shapefile-import-dialog (closed)="closeImportDialog()" />
   }
 </div>

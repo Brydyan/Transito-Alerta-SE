@@ -176,3 +176,52 @@ openspec/changes/geo-zones-shapefile-import/apply-progress.md
 - `pnpm run lint`: 0 errors, 0 warnings
 - `pnpm run build`: OK (pre-existing bundle budget warning unchanged)
 - Backend regression: unchanged (no backend touched)
+
+---
+
+## W2-reversal — 2026-09-16 — modal dialog replaced by inline panel in `LocationForm`
+
+**Andy direction** (third UX iteration): the bulk-import UX should be a **2-column grid inside `LocationForm`**, not a button-launched modal. Specifically:
+- LEFT panel: existing single-zone CRUD fields (Nombre / Código / Nivel / Padre).
+- RIGHT panel: file input (.zip) + auto-parent checkbox + inline progress + inline result envelope.
+
+This replaces the entire `ShapefileImportDialogComponent` with the inline implementation.
+
+**What changed**:
+- `LocationFormComponent` template: form fields wrapped in a `grid-cols-1 lg:grid-cols-2` layout; right panel added with file input, auto-parent checkbox, "Importar" button, progress bar, result envelope.
+- `LocationFormComponent` class: replaced `showImportDialog` signal + `openImportDialog`/`closeImportDialog` methods with `importFile`, `importProgress`, `importResult`, `importError`, `importAutoParent`, `isImporting` signals + `onImportFileChange`, `onImportAutoParentChange`, `submitImport` methods.
+- Removed imports of `ShapefileImportDialogComponent` and `HasPermissionDirective` from the location-list component (no longer relevant).
+- Added imports of `HttpEvent`, `HttpEventType` from `@angular/common/http` and `IImportGeoZoneResponse` from the interface module.
+- **DELETED** `frontend/src/app/features/catalogs/locations/components/shapefile-import-dialog/` (3 files: `*.component.ts`, `*.component.html`, `*.component.spec.ts`).
+- The level for the import is now read from the form's `level` dropdown (no separate import-level dropdown).
+- Column mapping defaults to `NAME` / `CODE` (no separate column-mapping inputs — feature flag for future).
+
+**What did NOT change**:
+- `GeoZoneService.importShapefile` and `getFormData` methods — unchanged.
+- `IGeoZone` interface (`IImportGeoZoneResponse`, `parent_name`, etc.) — unchanged.
+- `package.json` (`shpjs` still in deps — kept for future preview-map work that Andy might request later).
+- Backend (Phase 1) — unchanged.
+
+**Test impact**:
+- `location-form.component.spec.ts`: 4 button tests removed; 9 inline-panel tests added (renders with/without permission; non-zip rejection; >10MB rejection; submit uses form.level + auto_parent + NAME/CODE; UploadProgress advances signal; Response resets progress + stores envelope; submit disabled during upload; auto-parent toggle off).
+- `location-list.component.spec.ts`: 1 negative test still asserts the list page doesn't render an "Importar shapefile" button.
+- `shapefile-import-dialog.component.spec.ts`: deleted with the dialog.
+- `geo-zone.service.spec.ts`: unchanged (still tests `importShapefile` multipart + `getFormData` envelope).
+
+**Why this is a reversal of design.md D1 + tasks.md 2.5-2.12**:
+- design.md D1 explicit chose "Standalone dialog launched from LocationList" and rejected "2-col grid in LocationForm". The current placement is closer to (but not exactly) the rejected option — modal is gone, both flows share the form view.
+- tasks.md 2.5-2.12 specified `ShapefileImportDialogComponent` (level dropdown + column mapping + progress + result + client-side validation). All of those are now gone or simplified.
+- The third option that emerged — inline panel inside the form — was not enumerated in either design.md or tasks.md.
+
+**Architect action items** (cumulative with prior W1-reversal):
+- Update `design.md` D1 to enumerate the inline option and mark it chosen.
+- Update `tasks.md` 2.5-2.12 to either delete the dialog-task block or rewrite it for the inline UX.
+- Decide whether the level should still come from the form (current choice) or from a separate dropdown in the right panel.
+- Decide whether column mapping (NAME/CODE) should stay hardcoded or become configurable.
+
+**Verification (post-W2)**:
+- `pnpm exec jest`: 738/738 PASS (97 suites; -2 vs 740 because 7 dialog-suite tests are deleted)
+- `pnpm exec tsc --noEmit`: no errors
+- `pnpm run lint`: 0 errors, 0 warnings
+- `pnpm run build`: OK (pre-existing bundle budget warning unchanged)
+- Backend regression: unchanged (no backend touched)
