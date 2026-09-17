@@ -7,10 +7,10 @@ import { of } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 
 describe('CategoryListComponent', () => {
-  let mockCategoryService: any;
-  let mockToastService: any;
-  let mockDialogService: any;
-  let mockActivatedRoute: any;
+  let mockCategoryService: { list: jest.Mock; remove: jest.Mock };
+  let mockToastService: { success: jest.Mock; error: jest.Mock };
+  let mockDialogService: { confirm: jest.Mock };
+  let mockActivatedRoute: { snapshot: { params: Record<string, unknown> } };
 
   beforeEach(() => {
     mockCategoryService = {

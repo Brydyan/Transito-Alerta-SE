@@ -195,6 +195,7 @@ describe('AuthController', () => {
         user_id: 'user-1',
         device_uuid: 'device-abc',
         permissions: ['READ incidents', 'CREATE incidents'],
+        permission_names: ['READ incidents', 'CREATE incidents'],
         email_verified: false,
         role_name: 'reporter',
       });
@@ -217,7 +218,7 @@ describe('AuthController', () => {
       const result = await controller.me(req);
 
       expect(result).toEqual(
-        expect.objectContaining({ email_verified: true }),
+        expect.objectContaining({ email_verified: true, permission_names: ['READ incidents'] }),
       );
     });
 
@@ -235,6 +236,7 @@ describe('AuthController', () => {
       const result = await controller.me(req);
 
       expect(result.device_uuid).toBeNull();
+      expect(result.permission_names).toEqual(['READ incidents']);
     });
 
     it('Fix A: incluye `role_name` en la respuesta (C.4 lo necesita)', async () => {
@@ -257,6 +259,7 @@ describe('AuthController', () => {
       const result = await controller.me(req);
 
       expect(result.role_name).toBe('operador_org');
+      expect(result.permission_names).toEqual(['CREATE incidents']);
     });
 
     it('Fix A: `role_name` es `null` para el dispositivo anónimo', async () => {
@@ -278,6 +281,29 @@ describe('AuthController', () => {
       const result = await controller.me(req);
 
       expect(result.role_name).toBeNull();
+      expect(result.permission_names).toEqual(['READ incidents', 'CREATE incidents']);
+    });
+
+    it('F5 fix: `permission_names` replica `permissions` (getMe ya traduce UUIDs → strings)', async () => {
+      // getMe ya devuelve `permissions` como strings "ACTION resource"
+      // (traducción F6 vive en AuthService.getMe). El controller NO debe
+      // re-traducir: pasar strings a getPermissionNames() (que espera
+      // UUIDs) dejaba `permission_names: []` y rompía el guard del
+      // frontend para todos los roles.
+      authService.getMe.mockResolvedValue({
+        deviceUuid: 'device-abc',
+        permissions: ['READ menu-options', 'READ incidents'],
+        email_verified: false,
+        role_name: 'master',
+      });
+      const req = {
+        user: { userId: 'user-1', permissions: [], sessionId: 'sid-1', isAnonymous: false },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.me(req);
+
+      expect(result.permissions).toEqual(['READ menu-options', 'READ incidents']);
+      expect(result.permission_names).toEqual(result.permissions);
     });
   });
 

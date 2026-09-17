@@ -23,6 +23,8 @@ interface BackendMenuItem {
   icon?: string;
   group?: string;
   order?: number;
+  /** F5 (D1): sub-ítems anidados bajo un encabezado de sección. */
+  children?: BackendMenuItem[];
 }
 
 @Injectable({
@@ -71,11 +73,21 @@ export class MenuService {
    * orden de pintado. El orden visible real lo garantiza el
    * backend (D3); el índice es un fallback mientras coexistan
    * versiones.
+   *
+   * F5.6: propaga `children` recursivamente (contrato D1 anidado del
+   * backend F5). Cada nodo recibe un `id` único por árbol y los hijos
+   * apuntan a su padre vía `parent_menu_id`, para que el sidebar pueda
+   * trackear sub-ítems y expandir/colapsar grupos. Antes de F5.6 los
+   * children se pisaban con `[]` y el sidebar perdía todos los
+   * sub-ítems (regresión 2026-09-14).
    */
   private transformBackendMenu(items: BackendMenuItem[]): MenuItem[] {
-    return items.map((item, index) => {
+    let nextId = 1;
+
+    const transformNode = (item: BackendMenuItem, index: number, parentId?: number): MenuItem => {
+      const id = nextId++;
       const out: MenuItem = {
-        id: index + 1,
+        id,
         name: item.label,
         route: item.route,
         icon: item.icon,
@@ -83,11 +95,21 @@ export class MenuService {
         is_active: true,
         children: [],
       };
+      if (parentId !== undefined) {
+        out.parent_menu_id = parentId;
+      }
       if (item.group) {
         out.group = item.group;
       }
+      if (item.children && item.children.length > 0) {
+        out.children = item.children.map((child, childIndex) =>
+          transformNode(child, childIndex, id),
+        );
+      }
       return out;
-    });
+    };
+
+    return items.map((item, index) => transformNode(item, index));
   }
 
   /**

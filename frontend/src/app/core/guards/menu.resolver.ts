@@ -17,7 +17,6 @@ export const menuResolver: ResolveFn<MenuItem[]> = () => {
 
   return menuService.getMenuFromBackend().pipe(
     tap((menu) => {
-      // eslint-disable-next-line no-console
       console.log(
         '[menuResolver] getMenuFromBackend() completed:',
         menu.length,
@@ -25,7 +24,6 @@ export const menuResolver: ResolveFn<MenuItem[]> = () => {
       );
     }),
     catchError((error) => {
-      // eslint-disable-next-line no-console
       console.error(
         '[menuResolver] getMenuFromBackend() FAILED:',
         error?.status ?? 'no status',

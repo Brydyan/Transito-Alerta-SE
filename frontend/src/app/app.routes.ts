@@ -155,6 +155,21 @@ export const routes: Routes = [
                 (m) => m.RoleEditorComponent,
               ),
           },
+          // F5.6.7 — Menú dinámico administrable (mock 05-01).
+          // Ruta `/app/controles` (name from the menu-options seed).
+          // Gateada con `permissionGuard` + `READ menu-options`.
+          {
+            path: 'controles',
+            data: {
+              breadcrumb: 'Controles',
+              permission: 'READ menu-options',
+            },
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/admin/menu-options/menu-options.component').then(
+                (m) => m.MenuOptionsComponent,
+              ),
+          },
           {
             path: 'config',
             data: { breadcrumb: 'Configuración' },

@@ -4,6 +4,8 @@ import { NotificationsService } from './notifications.service';
 import { IncidentApprovalService } from './incident-approval.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../../common/guards/permission.guard';
+import type { Response } from 'express';
+import type { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 
 const mockNotificationsService = {
   findByUser: jest.fn(),
@@ -47,7 +49,7 @@ describe('NotificationsController', () => {
   describe('GET /notifications/unread', () => {
     it('returns { unread_count: N } (T6.1.A — key changed from unread to unread_count)', async () => {
       mockNotificationsService.countUnread.mockResolvedValue(5);
-      const req = { user: mockUser } as any;
+      const req = { user: mockUser } as unknown as AuthenticatedRequest;
       const result = await controller.countUnread(req);
       expect(result).toEqual({ unread_count: 5 });
     });
@@ -56,7 +58,7 @@ describe('NotificationsController', () => {
   describe('GET /notifications/unread-count', () => {
     it('same method as /unread — returns { unread_count: N }', async () => {
       mockNotificationsService.countUnread.mockResolvedValue(2);
-      const req = { user: mockUser } as any;
+      const req = { user: mockUser } as unknown as AuthenticatedRequest;
       const result = await controller.countUnread(req);
       expect(result).toEqual({ unread_count: 2 });
     });
@@ -67,7 +69,7 @@ describe('NotificationsController', () => {
       const res = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
-      } as any;
+      } as unknown as Response;
       controller.sseDeprecated(res);
       expect(res.status).toHaveBeenCalledWith(410);
       expect(res.json).toHaveBeenCalledWith(

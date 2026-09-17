@@ -71,7 +71,7 @@ describe('MailOutboxConsumer', () => {
     it('does not log an error when the group already exists (BUSYGROUP)', async () => {
       // Mock xgroup to reject with a BUSYGROUP error (simulating group already exists).
       // The error code is verified by checking that logger.error is not called.
-      redis.xgroup.mockImplementation(async (...args: any[]) => {
+      redis.xgroup.mockImplementation(async (...args: unknown[]) => {
         if (args[0] === 'CREATE') {
           // Simulate BUSYGROUP error by rejecting with a message that includes "BUSYGROUP"
           const err = Object.create(Error.prototype);

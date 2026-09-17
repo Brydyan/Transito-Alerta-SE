@@ -72,20 +72,37 @@ export class Sidebar {
    * Agrupa los items filtrados por su campo `group`, preservando el orden
    * de llegada del backend. Los items sin `group` van al principio bajo
    * un encabezado `null` (sin etiqueta en el render).
+   *
+   * Aplano F5: un nodo sin ruta que sí tiene hijos (encabezado de sección)
+   * NO se renderiza como desplegable: sus hijos pasan a ser links planos
+   * bajo la sección, preservando el look original del sidebar. Los nodos
+   * con ruta (con o sin hijos) siguen siendo items normales.
    */
   readonly groupedMenuItems = computed<MenuGroup[]>(() => {
     const items = this.filteredMenuItems();
     const groups: MenuGroup[] = [];
     const seen = new Map<string, MenuGroup>();
 
-    for (const item of items) {
-      const key = item.group ?? '';
+    const pushItem = (groupKey: string, item: MenuItem) => {
+      const key = groupKey ?? '';
       if (!seen.has(key)) {
         const group: MenuGroup = { label: key || null, items: [] };
         seen.set(key, group);
         groups.push(group);
       }
       seen.get(key)!.items.push(item);
+    };
+
+    for (const item of items) {
+      const isSectionHeader =
+        item.children && item.children.length > 0 && !item.route?.trim();
+      if (isSectionHeader) {
+        for (const child of item.children!) {
+          pushItem(item.name, child);
+        }
+      } else {
+        pushItem(item.group ?? '', item);
+      }
     }
 
     return groups;

@@ -1,6 +1,8 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
+import { Client } from 'pg';
+
 import { MigrationHarness } from '../support/migration-harness';
 
 /**
@@ -45,10 +47,31 @@ describe('T8 — database/seeds/users.js siembra e2e@tase.local (E2E_PASSWORD)',
     await db.stop();
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function loadSeed(): { run: (client: any, opts?: any) => Promise<{ inserted: number; skipped: number; users: any[] }> } {
+  interface SeedUser {
+    email: string;
+    role: string;
+    inserted: boolean;
+    skipped: boolean;
+  }
+
+  interface SeedRunOptions {
+    force?: boolean;
+    seed?: { password?: string };
+  }
+
+  interface SeedRunResult {
+    inserted: number;
+    skipped: number;
+    users: SeedUser[];
+  }
+
+  interface SeedModule {
+    run: (client: Client, opts?: SeedRunOptions) => Promise<SeedRunResult>;
+  }
+
+  function loadSeed(): SeedModule {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    delete (require as any).cache[USERS_SEED_PATH];
+    delete (require as NodeJS.Require).cache[USERS_SEED_PATH];
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require(USERS_SEED_PATH);
   }
@@ -94,8 +117,7 @@ describe('T8 — database/seeds/users.js siembra e2e@tase.local (E2E_PASSWORD)',
     process.env.E2E_PASSWORD = E2E_PASSWORD;
 
     const mod = loadSeed();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await mod.run((db as any).client, {
+    const result = await mod.run(db.client, {
       force: true,
       seed: { password: SEED_PASSWORD },
     });
@@ -122,8 +144,7 @@ describe('T8 — database/seeds/users.js siembra e2e@tase.local (E2E_PASSWORD)',
     delete process.env.E2E_PASSWORD;
 
     const mod = loadSeed();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await mod.run((db as any).client, {
+    const result = await mod.run(db.client, {
       force: true,
       seed: { password: SEED_PASSWORD },
     });
@@ -148,10 +169,8 @@ describe('T8 — database/seeds/users.js siembra e2e@tase.local (E2E_PASSWORD)',
     process.env.E2E_PASSWORD = E2E_PASSWORD;
 
     const mod = loadSeed();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await mod.run((db as any).client, { force: true, seed: { password: SEED_PASSWORD } });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const second = await mod.run((db as any).client, { force: true, seed: { password: SEED_PASSWORD } });
+    await mod.run(db.client, { force: true, seed: { password: SEED_PASSWORD } });
+    const second = await mod.run(db.client, { force: true, seed: { password: SEED_PASSWORD } });
 
     const e2eEntry = second.users.find((u) => u.email === 'e2e@tase.local');
     expect(e2eEntry?.inserted).toBe(false);
@@ -189,8 +208,7 @@ describe('T8 — database/seeds/users.js siembra e2e@tase.local (E2E_PASSWORD)',
     expect(before.length).toBe(6);
 
     const mod = loadSeed();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await mod.run((db as any).client, { force: true, seed: { password: SEED_PASSWORD } });
+    await mod.run(db.client, { force: true, seed: { password: SEED_PASSWORD } });
 
     const after = await db.rows<{
       email: string;

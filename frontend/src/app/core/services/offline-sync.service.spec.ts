@@ -7,23 +7,23 @@ import { of } from 'rxjs';
 
 describe('OfflineSyncService', () => {
   let service: OfflineSyncService;
-  let mockIndexedDb: any;
-  let mockIncidentService: any;
-  let mockConnectionService: any;
+  let mockIndexedDb: Pick<IndexedDbService, 'addPendingIncident' | 'getPendingByStatus'>;
+  let mockIncidentService: Pick<IncidentService, 'createIncident'>;
+  let mockConnectionService: Pick<ConnectionService, 'getConnectionStatus$'>;
 
   beforeEach(async () => {
     mockIndexedDb = {
       addPendingIncident: jest.fn().mockResolvedValue('123'),
       getPendingByStatus: jest.fn().mockResolvedValue([]),
-    };
+    } as unknown as Pick<IndexedDbService, 'addPendingIncident' | 'getPendingByStatus'>;
 
     mockIncidentService = {
       createIncident: jest.fn().mockReturnValue(of({})),
-    };
+    } as unknown as Pick<IncidentService, 'createIncident'>;
 
     mockConnectionService = {
       getConnectionStatus$: jest.fn().mockReturnValue(of(true)),
-    };
+    } as unknown as Pick<ConnectionService, 'getConnectionStatus$'>;
 
     await TestBed.configureTestingModule({
       providers: [

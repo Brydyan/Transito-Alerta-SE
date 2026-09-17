@@ -19,7 +19,7 @@ describe('F4 - Migration 0054 (Citizen Social Features)', () => {
 
   it('A.1.8 - on a base with pre-existing users, their users.permissions contains the new permissions (as UUIDs)', async () => {
     // 1. Insert a role if needed, or get one.
-    const roles = await db.rows<{ id: string; name: string; permissions: any }>('SELECT * FROM roles WHERE name = $1', ['operador_sistema']);
+    const roles = await db.rows<{ id: string; name: string; permissions: string[] }>('SELECT * FROM roles WHERE name = $1', ['operador_sistema']);
     expect(roles.length).toBeGreaterThan(0);
     const roleId = roles[0].id;
 
