@@ -16,6 +16,11 @@ export interface MenuEntry {
    * para dejar espacio a inserciones sin reasignar todo el mapa.
    */
   order: number;
+  /**
+   * F5 (D3): child menu options nested under this parent. Empty array
+   * for leaf nodes. The sidebar component renders these as sub-items.
+   */
+  children: MenuEntry[];
 }
 
 interface MenuDefinition {

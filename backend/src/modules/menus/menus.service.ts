@@ -1,93 +1,236 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Repository } from 'typeorm';
+import Redis from 'ioredis';
 
+import { REDIS_CLIENT } from '../../core/core.module';
+import { UserEntity } from '../../entities/user.entity';
 import { AuthService } from '../auth/auth.service';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
-import { MENU_MAP, MenuEntry } from './menu-map';
+import { MenuOptionEntity } from './entities/menu-option.entity';
+import { MenuOptionRoleEntity } from './entities/menu-option-role.entity';
+import { MenuEntry, MENU_MAP } from './menu-map';
 
 /**
- * MenusService (R16) — sirve la navegación dinámica filtrada por el
- * conjunto de permisos del llamante. Stateless: sin BD, filtra el
- * `MENU_MAP` estático.
+ * MenusService — resolves the user's navigation menu from the database.
  *
- * F1 (D3): propaga `group` y `order` desde la definición al `MenuEntry`
- * resultante, y ordena por `order` ascendente antes de devolver.
+ * F5 rewrite (D1/D3/D4):
+ *   - Reads `menu_options` + `menu_option_roles` instead of MENU_MAP.
+ *   - Builds the tree in memory by `parent_id` (D3).
+ *   - Caches per user: `menu:v1:user:{userId}` with TTL 1 hour (D4).
+ *   - Filters by effective permissions (AuthService.getPermissionsByUserId)
+ *     so the menu matches what the guard actually allows.
+ *   - Response contract is UNCHANGED from F1 (D1): { label, route,
+ *     icon?, group?, order } plus `children` array.
  *
- * F6 fix (post-0051): los permisos se almacenan como UUIDs en
- * `users.permissions` (migration 0051) y en la cache Redis. El
- * `MENU_MAP.requires` sigue siendo strings formateados
- * ("READ users") — la única fuente de verdad para la traducción
- * `(action, resource) → uuid` es `PermissionLookupService`, el
- * mismo resolver que usa `PermissionGuard.hasPermission`. Sin
- * este cambio, `permissions.includes('READ users')` siempre
- * retornaba `false` y la sidebar quedaba vacía para master.
+ * D7: `menu-map.ts` stays in the repo as the rollback path. If this
+ * service fails in production, the revert is to restore the old
+ * MENU_MAP-based resolver — not to reconstruct the map from scratch.
  *
- * Resuelve permisos vía `AuthService.getPermissionsByUserId` — el mismo
- * path de caché Redis keyed por uid (`perm:uid:{userId}`) que
- * `JwtStrategy` calienta en cada request autenticado, por lo que esta
- * llamada es un cache hit en el caso común, no un segundo lookup en frío.
+ * D4 note: `menu:v1:*` is a SEPARATE key space from `perm:v3:uid:*`.
+ * Confusing them already cost a debugging session in this project.
+ * `perm:v3:uid:*` caches permission sets; `menu:v1:*` caches resolved
+ * menu trees. Flushing one does NOT affect the other.
  */
 @Injectable()
 export class MenusService {
+  private static readonly CACHE_PREFIX = 'menu:v1:user:';
+  private static readonly CACHE_TTL_SECONDS = 3600; // 1 hour
+
   private readonly logger = new Logger(MenusService.name);
 
+  /** Route → required permission derived from MENU_MAP (single source of truth). */
+  private static readonly ROUTE_TO_PERMISSION = new Map<string, string>(
+    Object.values(MENU_MAP).map((d) => [d.route, d.requires]),
+  );
+
   constructor(
+    @InjectRepository(MenuOptionEntity)
+    private readonly optionRepo: Repository<MenuOptionEntity>,
+    @InjectRepository(MenuOptionRoleEntity)
+    private readonly roleAccessRepo: Repository<MenuOptionRoleEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepo: Repository<UserEntity>,
+    @Inject(REDIS_CLIENT)
+    private readonly redis: Redis,
     private readonly authService: AuthService,
     private readonly permissionLookup: PermissionLookupService,
   ) {}
 
-  async getMenuForUser(userId: string, roleName: string | null): Promise<MenuEntry[]> {
-    const permissions = await this.authService.getPermissionsByUserId(userId);
-
-    // F6 defensive: si la cache tiene un valor con formato viejo (pre-0051
-    // guardó `string[]` de strings formateados, o un objeto con
-    // `permissions` undefined), evitamos el 500 que producía
-    // `undefined.includes(...)` y degradamos a menú vacío. El log
-    // permite detectar caches corruptas en staging.
-    if (!Array.isArray(permissions)) {
-      this.logger.warn(
-        `getMenuForUser(${userId}): permissions not array (got ${typeof permissions}); degrading to []`,
-      );
+  /**
+   * Resolve the menu for a given user.
+   *
+   * Flow (design Data Flow):
+   *   userId → roleId (from users.role_id) → cache lookup (per-user) → DB query
+   *   → effective-permission filter → tree build → cache store → response.
+   *
+   * The effective-permission filter uses the same channel as the guard
+   * (AuthService.getPermissionsByUserId) so the menu never shows entries
+   * the API would reject.
+   */
+  async getMenuForUser(userId: string): Promise<MenuEntry[]> {
+    // 1. Resolve the user's role
+    const user = await this.userRepo.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+      select: ['id', 'roleId'],
+    });
+    if (!user || !user.roleId) {
       return [];
     }
 
-    // 1. Resolver (action, resource) → uuid por cada entrada del mapa.
-    // 2. Filtrar si el uuid está en los permisos del usuario.
-    // 3. Filtrar "Reportar" si el usuario es staff (master/admin_org/operador).
-    // 4. Propagar group, order, icon.
-    // 5. Ordenar por `order` ascendente.
-    const ADMIN_ROLES = ['master', 'admin_org', 'operador_sistema', 'operador_org'];
-    const resolved: Array<{ label: string; definition: (typeof MENU_MAP)[string] }> = [];
-    for (const [label, definition] of Object.entries(MENU_MAP)) {
-      // Ocultar "Reportar" para roles administrativos (ciudadanos y reporters solo)
-      if (label === 'Reportar' && roleName && ADMIN_ROLES.includes(roleName)) {
+    // 2. Check cache (D4: menu:v1:user:{userId} — per-user because two users
+    // of the same role can have different effective permissions via users.permissions deviation)
+    const cacheKey = `${MenusService.CACHE_PREFIX}${userId}`;
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached) as MenuEntry[];
+      }
+    } catch (err) {
+      // Cache miss on error — proceed to DB query
+      this.logger.warn(`Cache read failed for ${cacheKey}: ${(err as Error).message}`);
+    }
+
+    // 3. Query accessible options from DB (matrix can_read=true)
+    const accessibleOptions = await this.getAccessibleOptions(user.roleId);
+
+    // 4. Filter by effective permissions (single source of truth: AuthService)
+    // F6 fix (post-0051): MENU_MAP.requires is "ACTION resource" (e.g. "READ incidents")
+    // but AuthService.getPermissionsByUserId returns UUIDs. The naive
+    // permissionSet.has(required) NEVER matched. Translate via PermissionLookupService
+    // — same canonical fix as PermissionGuard (see permission.guard.ts / permission-lookup.service.ts).
+    const permissions = await this.authService.getPermissionsByUserId(userId);
+    const permissionSet = new Set(permissions);
+    const filtered: MenuOptionEntity[] = [];
+    for (const opt of accessibleOptions) {
+      const required = MenusService.ROUTE_TO_PERMISSION.get(opt.route);
+      // Custom/admin-created routes not in MENU_MAP → matrix governs
+      if (!required) {
+        filtered.push(opt);
         continue;
       }
-
-      const uuid = await this.permissionLookup.getUuid(
-        // MENU_MAP.requires es "ACTION resource"; descomponemos para el
-        // resolver. Todos los requires actuales siguen este formato.
-        ...(definition.requires.split(' ', 2) as [string, string]),
-      );
-      if (uuid !== null && permissions.includes(uuid)) {
-        resolved.push({ label, definition });
+      const spaceIdx = required.indexOf(' ');
+      if (spaceIdx === -1) {
+        // Malformed entry — fail closed (do not leak)
+        continue;
+      }
+      const action = required.slice(0, spaceIdx);
+      const resource = required.slice(spaceIdx + 1);
+      const uuid = await this.permissionLookup.getUuid(action, resource);
+      if (uuid !== null && permissionSet.has(uuid)) {
+        filtered.push(opt);
       }
     }
 
-    return resolved
-      .map(({ label, definition }) => {
-        const entry: MenuEntry = {
-          label,
-          route: definition.route,
-          order: definition.order,
-        };
-        if (definition.icon) {
-          entry.icon = definition.icon;
+    // 5. Build tree (D3) and sort by display_order — filter BEFORE build so
+    // hidden parents drop their children (orphans excluded)
+    const tree = this.buildTree(filtered);
+
+    // 6. Store in cache (D4: TTL 1 hour)
+    try {
+      await this.redis.setex(cacheKey, MenusService.CACHE_TTL_SECONDS, JSON.stringify(tree));
+    } catch (err) {
+      this.logger.warn(`Cache write failed for ${cacheKey}: ${(err as Error).message}`);
+    }
+
+    return tree;
+  }
+
+  /**
+   * Invalidate all menu caches. Called on any menu write
+   * (D4: invalidation of `menu:v1:*` on write).
+   *
+   * NOTE: `menu:v1:*` is a SEPARATE key space from `perm:v3:uid:*`.
+   * Flushing one does NOT affect the other.
+   */
+  async invalidateCache(): Promise<void> {
+    try {
+      const keys = await this.redis.keys('menu:v1:*');
+      if (keys.length > 0) {
+        await this.redis.del(...keys);
+      }
+    } catch (err) {
+      this.logger.warn(`Cache invalidation failed: ${(err as Error).message}`);
+    }
+  }
+
+  // ── Private helpers ───────────────────────────────────────────────
+
+  /**
+   * Query menu_options accessible to a given role.
+   *
+   * Filters: can_read = true, is_active = true, deleted_at IS NULL.
+   * Joins menu_option_roles to determine access.
+   */
+  private async getAccessibleOptions(
+    roleId: string,
+  ): Promise<MenuOptionEntity[]> {
+    const options = await this.optionRepo
+      .createQueryBuilder('opt')
+      .innerJoin('menu_option_roles', 'mor', 'mor.menu_option_id = opt.id')
+      .where('mor.role_id = :roleId', { roleId })
+      .andWhere('mor.can_read = true')
+      .andWhere('opt.is_active = true')
+      .andWhere('opt.deleted_at IS NULL')
+      .orderBy('opt.display_order', 'ASC')
+      .getMany();
+
+    return options;
+  }
+
+  /**
+   * Build a tree of MenuEntry from a flat list of options (D3).
+   *
+   * Strategy (same as F2 tree.util.ts):
+   *   1. Convert each option to a clean MenuEntry (contract D1: no
+   *      relational fields leak into the public DTO).
+   *   2. Index by id for O(1) parent lookup, keeping the parent linkage
+   *      in an internal wrapper — NEVER on the MenuEntry itself.
+   *   3. Attach children to their parent. Orphan children (parent
+   *      not in the accessible set) are excluded — per spec, a child
+   *      is hidden when its parent is not accessible.
+   *   4. Return only root nodes (parentId = null), sorted by display_order.
+   */
+  private buildTree(options: MenuOptionEntity[]): MenuEntry[] {
+    // 1–2. Convert to MenuEntry and index by id; track parent linkage
+    // in the wrapper so the DTO never carries relational state.
+    const entryMap = new Map<string, { entry: MenuEntry; parentId: string | null }>();
+    for (const opt of options) {
+      const entry: MenuEntry = {
+        label: opt.name,
+        route: opt.route,
+        order: opt.displayOrder,
+        children: [],
+      };
+      if (opt.icon) {
+        entry.icon = opt.icon;
+      }
+      entryMap.set(opt.id, { entry, parentId: opt.parentId });
+    }
+
+    // 3. Build parent-child relationships using the wrapper
+    const roots: MenuEntry[] = [];
+    for (const { entry, parentId } of entryMap.values()) {
+      if (parentId && entryMap.has(parentId)) {
+        entryMap.get(parentId)!.entry.children.push(entry);
+      } else if (!parentId) {
+        roots.push(entry);
+      }
+      // else: orphan (parent not accessible) — excluded per spec
+    }
+
+    // 4. Sort roots by display_order, and recursively sort children
+    const sortByOrder = (a: MenuEntry, b: MenuEntry) => a.order - b.order;
+    const sortTree = (entries: MenuEntry[]): MenuEntry[] => {
+      entries.sort(sortByOrder);
+      for (const entry of entries) {
+        if (entry.children.length > 0) {
+          sortTree(entry.children);
         }
-        if (definition.group) {
-          entry.group = definition.group;
-        }
-        return entry;
-      })
-      .sort((a, b) => a.order - b.order);
+      }
+      return entries;
+    };
+
+    return sortTree(roots);
   }
 }

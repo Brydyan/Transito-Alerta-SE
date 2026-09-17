@@ -26,6 +26,7 @@ module.exports = [
         Blob: 'readonly',
         FormData: 'readonly',
         FileReader: 'readonly',
+        ProgressEvent: 'readonly',
         Image: 'readonly',
         queueMicrotask: 'readonly',
         HTMLElement: 'readonly',

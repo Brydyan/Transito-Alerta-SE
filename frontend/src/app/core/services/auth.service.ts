@@ -259,7 +259,20 @@ export class AuthService {
             // === false`) nunca disparaba. Es el bug que el
             // verify de la ronda 9 cazó como CRITICAL 1.
             roleName: me.role_name,
-            permissions: me.permissions,
+            // F5 fix — el wire `permissions` son UUIDs, el guard
+            // compara strings "ACTION resource". El backend expone
+            // `permission_names` con el mismo contenido pero en
+            // strings; usarlo con fallback para no romper contra
+            // backend viejo sin el campo.
+            //
+            // F6 (permission_names: []) — un array VACÍO es truthy,
+            // así que `??` NO hace fallback: backend que devuelva
+            // `permission_names: []` dejaría el guard con cero
+            // permisos y mandaría al dashboard a todos los roles.
+            // Comprobar `.length` cubre ese caso: si viene vacío,
+            // se cae a `permissions` (que trae los strings).
+            permissions:
+              me.permission_names?.length ? me.permission_names : me.permissions,
             device_uuid: me.device_uuid,
             // REG (sc-325) C.1 — el booleano llega por la misma
             // llamada a `/me`. El frontend usa esto en C.4 para

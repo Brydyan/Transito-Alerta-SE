@@ -26,6 +26,14 @@ export class RoleEntity {
   permissions!: string[];
 
   /**
+   * F5 (0054) — scope groups roles into three blocks for the menu
+   * admin matrix: 'platform', 'organization', 'public'.
+   * CHECK constraint in 0054_dynamic_menus_schema.sql enforces valid values.
+   */
+  @Column({ type: 'varchar', default: 'organization' })
+  scope!: string;
+
+  /**
    * T7.2 (0031) — soft delete. Design D5: soft-deleting a role does NOT
    * invalidate anything by itself — `RolesService.delete` bumps
    * `permission_version` and invalidates the Redis cache for every

@@ -1,0 +1,166 @@
+<ui-page-header
+  kicker="ADMINISTRACIÓN"
+  title="Controles"
+  subtitle="Administra las opciones del menú dinámico, los roles con acceso y los endpoints asociados a cada opción."
+>
+  <button
+    page-header-actions
+    type="button"
+    class="btn btn-primary"
+    (click)="onTreeCreate(null)"
+  >
+    <ui-icon name="plus" [size]="16" [strokeWidth]="2" />
+    Nueva opción
+  </button>
+</ui-page-header>
+
+<div class="menu-options mt-4 flex">
+  <!-- Tree panel (left) -->
+  <div class="w-72 border-r border-border-subtle p-4 overflow-y-auto flex-shrink-0">
+    <app-menu-tree
+      [options]="allOptions()"
+      [selectedId]="selectedOptionId()"
+      (selected)="onTreeSelect($event)"
+      (createRequested)="onTreeCreate($event)"
+    />
+  </div>
+
+  <!-- Detail panel (right) -->
+  <div class="flex-1 p-6 overflow-y-auto">
+    @if (!selectedOptionId() && !isCreating()) {
+      <div class="flex items-center justify-center h-full text-slate-400 text-sm">
+        <p>Selecciona una opción de menú o crea una nueva</p>
+      </div>
+    } @else {
+      <div class="max-w-2xl">
+        <div class="flex items-center gap-3 mb-6">
+          <button
+            type="button"
+            class="btn btn-link"
+            (click)="onBackToList()"
+          >
+            ← Volver
+          </button>
+          <h2 class="text-lg font-semibold text-slate-800">
+            {{ isCreating() ? 'Nueva opción de menú' : 'Editar opción de menú' }}
+          </h2>
+        </div>
+
+        <!-- Detail form (F5.6.4) -->
+        <ui-card>
+          <div class="flex flex-col gap-4">
+            <div>
+              <label class="form-label">Nombre</label>
+              <input
+                type="text"
+                class="form-control"
+                [value]="editingName()"
+                (input)="editingName.set($any($event.target).value)"
+                placeholder="Nombre del menú"
+              />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Orden</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  [value]="editingOrder()"
+                  (input)="editingOrder.set($any($event.target).valueAsNumber)"
+                  min="0"
+                />
+              </div>
+              <div>
+                <label class="form-label">Icono</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [value]="editingIcon()"
+                  (input)="editingIcon.set($any($event.target).value)"
+                  placeholder="nombre-icono"
+                />
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Ruta</label>
+              <input
+                type="text"
+                class="form-control"
+                [value]="editingRoute()"
+                (input)="editingRoute.set($any($event.target).value)"
+                placeholder="/ruta/del/menu"
+              />
+            </div>
+            <div>
+              <label class="form-label">Opción padre</label>
+              <select
+                class="form-select"
+                [value]="editingParentId() ?? ''"
+                (change)="onParentChange($event)"
+              >
+                <option value="">(Ninguna — nivel raíz)</option>
+                @for (opt of parentOptions(); track opt.id) {
+                  <option [value]="opt.id">{{ opt.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="flex justify-between items-center mt-2 border-t border-border-subtle pt-4">
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  [disabled]="saving()"
+                  (click)="saveOption()"
+                >
+                  {{ isCreating() ? 'Crear menú' : 'Guardar cambios' }}
+                </button>
+                @if (!isCreating()) {
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger"
+                    [disabled]="saving()"
+                    (click)="deleteOption()"
+                  >
+                    Eliminar
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+        </ui-card>
+
+        <!-- Role matrix (F5.6.5) — only when editing existing -->
+        @if (!isCreating() && roleMatrix()) {
+          <div class="mt-6">
+            <ui-card>
+              <div class="flex flex-col gap-4">
+                <h3 class="text-md font-semibold text-slate-800">Matriz de Roles</h3>
+                <app-role-matrix
+                  [matrix]="roleMatrix()!"
+                  [saving]="saving()"
+                  (accessChange)="onRoleAccessChange($event)"
+                />
+              </div>
+            </ui-card>
+          </div>
+        }
+
+        <!-- Endpoint picker (F5.6.6) — only when editing existing -->
+        @if (!isCreating()) {
+          <div class="mt-6">
+            <ui-card>
+              <div class="flex flex-col gap-4">
+                <h3 class="text-md font-semibold text-slate-800">Endpoints Asociados</h3>
+                <app-endpoint-picker
+                  [availableEndpoints]="allEndpoints()"
+                  [assignedEndpoints]="assignedEndpoints()"
+                  (assignedChange)="onEndpointsChange($event)"
+                />
+              </div>
+            </ui-card>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

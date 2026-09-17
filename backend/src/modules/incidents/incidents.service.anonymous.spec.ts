@@ -1,5 +1,10 @@
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { Cache } from '@nestjs/cache-manager';
+import type Redis from 'ioredis';
+import { GeofencingService } from '../geofencing/geofencing.service';
+import { OrganizationsService } from '../organizations/organizations.service';
 
 import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService } from './incidents.service';
@@ -99,11 +104,11 @@ describe('IncidentsService (AUD sc-327 — B.5/B.6 anonymous sealing)', () => {
       // `resolveZone` / `findNotifiedFor` / `emit` /
       // `xadd` / cache), y la forma detallada agrega ruido
       // sin información.
-      geofencing as any,
-      organizations as any,
-      eventEmitter as any,
-      redis as any,
-      cache as any,
+      geofencing as unknown as GeofencingService,
+      organizations as unknown as OrganizationsService,
+      eventEmitter as unknown as EventEmitter2,
+      redis as unknown as Redis,
+      cache as unknown as Cache,
       dataSource as unknown as DataSource,
       configService as unknown as ConfigService,
     );

@@ -46,7 +46,7 @@ describe('EventsGateway', () => {
       revocationCache as unknown as RevocationCache,
     );
     server = { to: jest.fn().mockReturnThis(), emit: jest.fn() };
-    gateway.server = server as unknown as jest.Mocked<Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>;
+    gateway.server = server as unknown as jest.Mocked<Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>;
   });
 
   describe('handleConnection', () => {
@@ -61,7 +61,7 @@ describe('EventsGateway', () => {
       authService.getAuthContextByUserId.mockResolvedValue(makeAuthContext({ userId: 'user-1' }));
       const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
 
-      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
+      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>);
 
       expect(authService.validateToken).toHaveBeenCalledWith('valid.jwt');
       expect(socket.join).toHaveBeenCalledWith('user:user-1');
@@ -76,7 +76,7 @@ describe('EventsGateway', () => {
       });
       const socket = makeSocket({ handshake: { auth: { token: 'garbage' }, query: {} } });
 
-      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
+      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>);
 
       expect(socket.disconnect).toHaveBeenCalled();
       expect(socket.join).not.toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe('EventsGateway', () => {
       authService.getAuthContextByUserId.mockResolvedValue(makeAuthContext({ userId: 'user-1' }));
       const socket = makeSocket({ handshake: { auth: { token: 'legacy.jwt' }, query: {} } });
 
-      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
+      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>);
 
       expect(socket.disconnect).toHaveBeenCalled();
       expect(socket.join).not.toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe('EventsGateway', () => {
       revocationCache.isRevoked.mockResolvedValue(true);
       const socket = makeSocket({ handshake: { auth: { token: 'revoked.jwt' }, query: {} } });
 
-      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
+      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>);
 
       expect(revocationCache.isRevoked).toHaveBeenCalledWith('sid-1');
       expect(socket.disconnect).toHaveBeenCalled();
@@ -119,7 +119,7 @@ describe('EventsGateway', () => {
       );
       const socket = makeSocket({ handshake: { auth: { token: 'anon.jwt' }, query: {} } });
 
-      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
+      await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>);
 
       expect(revocationCache.isRevoked).not.toHaveBeenCalled();
       expect(socket.disconnect).not.toHaveBeenCalled();
@@ -132,7 +132,7 @@ describe('EventsGateway', () => {
       roomAuthorizer.authorize.mockResolvedValue(true);
       const socket = makeSocket({ data: { userId: 'user-1', permissions: ['READ incidents'], scope: { kind: 'global' } } });
 
-      const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>, { room: 'geo:zone-1' });
+      const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>, { room: 'geo:zone-1' });
 
       expect(roomAuthorizer.authorize).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'user-1', scope: { kind: 'global' } }),
@@ -148,7 +148,7 @@ describe('EventsGateway', () => {
         data: { userId: 'user-1', permissions: [], scope: { kind: 'org', organizationId: 'org-A' } },
       });
 
-      const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>, { room: 'org:org-B' });
+      const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>, { room: 'org:org-B' });
 
       expect(socket.join).not.toHaveBeenCalled();
       expect(result).toEqual({ joined: false, room: 'org:org-B' });
@@ -157,7 +157,7 @@ describe('EventsGateway', () => {
     it('rejects a room name outside the geo:/org:/incident: namespace (no role-based rooms)', async () => {
       const socket = makeSocket({ data: { userId: 'user-1', permissions: ['READ incidents'], scope: { kind: 'global' } } });
 
-      const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>, { room: 'admins' });
+      const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>, { room: 'admins' });
 
       expect(socket.join).not.toHaveBeenCalled();
       expect(roomAuthorizer.authorize).not.toHaveBeenCalled();
@@ -200,7 +200,7 @@ describe('EventsGateway — permission identity (regression)', () => {
       roomAuthorizer as unknown as RoomAuthorizer,
       revocationCache as unknown as RevocationCache,
     );
-    gateway.server = { to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as jest.Mocked<Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>;
+    gateway.server = { to: jest.fn().mockReturnThis(), emit: jest.fn() } as unknown as jest.Mocked<Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>;
   });
 
   // The JWT `sub` claim is user.id. Resolving by device_uuid would yield []
@@ -216,7 +216,7 @@ describe('EventsGateway — permission identity (regression)', () => {
     authService.getAuthContextByUserId.mockResolvedValue(makeAuthContext({ userId: 'user-1' }));
     const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
 
-    await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
+    await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>);
 
     expect(authService.getAuthContextByUserId).toHaveBeenCalledWith('user-1');
     expect(socket.data.permissions).toEqual(['READ incidents']);
@@ -233,9 +233,9 @@ describe('EventsGateway — permission identity (regression)', () => {
     authService.getAuthContextByUserId.mockResolvedValue(makeAuthContext({ userId: 'user-1' }));
     roomAuthorizer.authorize.mockResolvedValue(true);
     const socket = makeSocket({ handshake: { auth: { token: 'valid.jwt' }, query: {} } });
-    await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>);
+    await gateway.handleConnection(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>);
 
-    const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>>, { room: 'geo:zone-1' });
+    const result = await gateway.handleJoin(socket as unknown as jest.Mocked<Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, Record<string, unknown>>>, { room: 'geo:zone-1' });
 
     expect(result).toEqual({ joined: true, room: 'geo:zone-1' });
     expect(socket.join).toHaveBeenCalledWith('geo:zone-1');

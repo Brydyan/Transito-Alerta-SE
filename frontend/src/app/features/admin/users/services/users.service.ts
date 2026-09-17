@@ -37,8 +37,19 @@ export class UsersService {
     let params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
     if (role) params = params.set('role', role);
     if (org) params = params.set('org', org);
+    interface UsersWireItem {
+      id: string;
+      email: string;
+      first_name?: string;
+      last_name?: string;
+      phone?: string;
+      role?: string;
+      role_id?: string;
+      organization_id?: string | null;
+      is_active?: boolean;
+    }
     return this.http
-      .get<{ items: any[]; total: number }>(this.usersUrl, { params, withCredentials: true })
+      .get<{ items: UsersWireItem[]; total: number }>(this.usersUrl, { params, withCredentials: true })
       .pipe(
         map((res) => ({
           data: res.items.map((item) => ({
@@ -48,7 +59,7 @@ export class UsersService {
             apellidos: item.last_name || '',
             telefono: item.phone || '',
             avatar: null,
-            rol: item.role ? { rolId: item.role_id, nombre: item.role } : null,
+            rol: item.role ? { rolId: item.role_id ?? '', nombre: item.role } : null,
             organizationId: item.organization_id,
             // SnakeCaseResponseInterceptor: el wire es `is_active` (snake).
             // Sin este mapeo, `u.isActive` queda `undefined` y todas
@@ -344,14 +355,15 @@ export class UsersService {
   }
 
   getRoles(): Observable<Role[]> {
+    interface RolesWireItem { id?: string; name?: string; }
     return this.http
-      .get<any[] | { data: any[] }>(this.rolesUrl, { withCredentials: true })
+      .get<RolesWireItem[] | { data: RolesWireItem[] }>(this.rolesUrl, { withCredentials: true })
       .pipe(
         map((res) => {
           const roles = Array.isArray(res) ? res : res?.data ?? [];
-          return roles.map((r: any) => ({
-            rolId: r.id,
-            nombre: r.name,
+          return roles.map((r: RolesWireItem) => ({
+            rolId: r.id ?? '',
+            nombre: r.name ?? '',
           }));
         })
       );

@@ -4,8 +4,8 @@ import { HasPermissionDirective } from './has-permission.directive';
 import { AuthService } from '../../core/services/auth.service';
 
 describe('HasPermissionDirective', () => {
-  let currentUserSignal: any;
-  let mockAuthService: any;
+  let currentUserSignal: import('@angular/core').WritableSignal<{ permissions: string[] } | null>;
+  let mockAuthService: { currentUser: import('@angular/core').WritableSignal<{ permissions: string[] } | null> };
 
   beforeEach(() => {
     currentUserSignal = signal<{ permissions: string[] } | null>({ permissions: ['CREATE'] });
