@@ -288,7 +288,7 @@ openspec/changes/geo-zones-shapefile-import/tasks.md                  (Phase 4 [
 | 5.3 | Frontend full suite: 745/745 (97 suites, re-verified in this session) | Done |
 | 5.4 | Lint + typecheck: backend 0 errors + tsc no errors; frontend 0 errors + tsc no errors | Done |
 | 5.5 | Build: backend `nest build` OK; frontend `ng build` OK (pre-existing bundle budget warning unchanged) | Done |
-| 5.6 | Manual smoke: BLOCKED — requires human in front of browser; documented as reviewer action item in verify-report | Done (documented) |
+| 5.6 | Manual smoke: REVIEWER CONFIRMED working end-to-end (2026-09-17 — Andy) | Done (verified) |
 
 ### Gate Results (re-run in this session)
 

@@ -199,7 +199,7 @@ Phase 4 is **ready for `sdd-archive` consideration** (alongside Phases 1–3 + W
 
 ### Verdict
 
-**PASS** (manual smoke pending reviewer — see W1 below)
+**PASS**
 
 ### Conflict of Interest (Regla 5)
 
@@ -222,30 +222,25 @@ Same caveat as prior phases: this verify ran in the same session that applied Ph
 
 ### Warnings (PASS — non-blocking)
 
-#### W1 — Manual smoke (5.6) requires reviewer action
+#### W1 — Manual smoke (5.6) — RESOLVED 2026-09-17
 
-Tasks 5.6 ("upload `test-fixture-3-cantons.zip` via UI dialog; verify map displays three cyan polygon boundaries; select matching Provincia in filter → map highlights and fits bounds") cannot be executed by this CLI agent. It is a **reviewer action item** that requires:
+Tasks 5.6 ("upload `test-fixture-3-cantons.zip` via UI dialog; verify map displays three cyan polygon boundaries; select matching Provincia in filter → map highlights and fits bounds") was deferred to the reviewer. Andy confirmed the manual smoke worked end-to-end:
 
-- Running backend (`node dist/src/main` from `backend/`) + frontend (`pnpm start`) locally.
-- A real browser session, admin user with `CREATE geo-zones` permission.
-- A `test-fixture-3-cantons.zip` file (not committed; can be constructed from `THREE_CANTON_FEATURES` in `backend/test/support/shapefile-fixture.ts` via the `buildShapefileZip` helper).
+- Upload via the inline right-panel file input on `app/ubicaciones/new` returned `{imported: 3, skipped: 0, errors: [], warnings: [...]}` (per `IImportGeoZoneResponse` envelope).
+- Three cyan canton polygon outlines render on `app/mapa`.
+- Selecting the matching Provincia in the cascading filter highlights the canton layer and `map.fitBounds()` pans/zooms to it.
 
-This is a **non-blocking** warning because:
-- The same end-to-end flow IS covered by the existing backend e2e tests (`geo-zones-import.e2e-spec.ts` scenario (a) proves the upload envelope; `geo-zones.e2e-spec.ts` proves the list endpoint returns `polygon` as GeoJSON).
-- The frontend rendering paths (Phase 3 `renderZonePolygons` + bindPopup, Phase 4 `highlightZone`) are covered by unit tests with mocked Leaflet.
-- The integration test that proves "real browser upload → real HTTP → DB write → real map renders" can only be done manually; CI Playwright path is out of scope per `minimax-builder.md` ("frontend e2e: Playwright test" — but no `playwright.config.ts` e2e path was added for this change).
-
-**Architect decision**: accept manual smoke as a reviewer step, or schedule a follow-up change to add Playwright coverage.
+W1 is closed. No remaining warnings on Phase 5.
 
 ### Findings
 
-**No defects** beyond W1 (manual smoke deferred to reviewer).
+**No defects.**
 
 ### Recommendation
 
-Phase 5 is **ready for `sdd-archive` consideration** once W1 is acknowledged by reviewer. After all 5 phases pass reviewer's manual smoke:
+Phase 5 is **ready for `sdd-archive` consideration** after both remaining gates close:
 
 1. **Clean-context re-verification** by a sub-agent with no access to this session's reasoning (per `claude-qa.md` "Rol doble" section 1). Cumulative dependency surface across 5 phases + 2 reversals makes this critical.
-2. **Architect decisions on all warnings** (Phase 2 W1-3, Phase 3 W1-3, W1-reversal, W2-reversal, Phase 4 W1, Phase 5 W1).
-3. **`sdd-archive` after manual smoke + clean-context re-verify both green**.
+2. **Architect decisions on all warnings** (Phase 2 W1-3, Phase 3 W1-3, W1-reversal, W2-reversal, Phase 4 W1).
+3. **`sdd-archive` after clean-context re-verify green**.
 
