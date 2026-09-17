@@ -189,4 +189,48 @@ describe('MenuService (F1.4.3)', () => {
       },
     ]);
   });
+
+  // sc-334 admin-controles-enhancements Phase 9 — sidebar depth cap.
+  // After migration 0060 added CRUD sub-sub-menus (3rd level under each
+  // sub-menu), the backend started including them in /api/menus/my. The
+  // sidebar was not designed for 3-level expand/collapse — this test
+  // asserts that the 3rd level is flattened to a regular link (no
+  // children) and the 2nd-level item keeps its children visible.
+
+  it('caps sidebar depth at 2 (3rd-level items flatten to regular links)', (done) => {
+    service.getMenuFromBackend().subscribe((items) => {
+      const gestion = items.find((i) => i.name === 'GESTIÓN')!;
+      const usuarios = gestion.children!.find((c) => c.name === 'Usuarios')!;
+      expect(usuarios.children).toBeDefined();
+      expect(usuarios.children!.length).toBe(2);
+      // The CRUD sub-sub-menus appear as regular links (no nested children).
+      expect(usuarios.children!.every((c) => c.children?.length === 0)).toBe(true);
+      expect(usuarios.children!.map((c) => c.name).sort()).toEqual([
+        'Crear usuario',
+        'Editar usuario',
+      ]);
+      done();
+    });
+
+    http.expectOne(apiUrl).flush([
+      {
+        label: 'GESTIÓN',
+        route: '',
+        order: 60,
+        children: [
+          {
+            label: 'Usuarios',
+            route: '/admin/users',
+            icon: 'users',
+            order: 60,
+            children: [
+              { label: 'Crear usuario', route: '/admin/users/new', icon: 'user-plus', order: 61 },
+              { label: 'Editar usuario', route: '/admin/users', icon: 'user-edit', order: 62 },
+            ],
+          },
+          { label: 'Roles', route: '/admin/roles', icon: 'shield', order: 70 },
+        ],
+      },
+    ]);
+  });
 });

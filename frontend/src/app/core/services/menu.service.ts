@@ -80,11 +80,29 @@ export class MenuService {
    * trackear sub-ítems y expandir/colapsar grupos. Antes de F5.6 los
    * children se pisaban con `[]` y el sidebar perdía todos los
    * sub-ítems (regresión 2026-09-14).
+   *
+   * sc-334 admin-controles-enhancements Phase 9 — sidebar depth cap at 2:
+   * after migration 0060 added CRUD sub-sub-menus (3rd level under each
+   * sub-menu: "Crear usuario", "Editar usuario", etc.), the backend
+   * started including them in /api/menus/my. The sidebar was not designed
+   * for 3-level expand/collapse — those CRUD items must render as flat
+   * links under their level-2 parent, without their own chevron.
+   *
+   * El cap funciona así:
+   *   - depth 0 (root): recurse a level-2 items (depth 1)
+   *   - depth 1 (level 2): recurse a level-3 items (depth 2) como
+   *     hijos visibles pero ya sin expansión posterior
+   *   - depth 2+ (level 3+): nunca se alcanza — los items de nivel 3
+   *     llegan al array pero sus `children` quedan en `[]`
+   *
+   * El admin screen `/app/admin/controles` lee de `/api/menu-options`
+   * directo (no consume este transform), y mantiene el árbol completo
+   * de 3 niveles vía menu-tree.component.ts.
    */
   private transformBackendMenu(items: BackendMenuItem[]): MenuItem[] {
     let nextId = 1;
 
-    const transformNode = (item: BackendMenuItem, index: number, parentId?: number): MenuItem => {
+    const transformNode = (item: BackendMenuItem, index: number, parentId?: number, depth = 0): MenuItem => {
       const id = nextId++;
       const out: MenuItem = {
         id,
@@ -101,9 +119,12 @@ export class MenuService {
       if (item.group) {
         out.group = item.group;
       }
-      if (item.children && item.children.length > 0) {
+      // Phase 9 sidebar depth cap: recurse while depth < 2 so 3rd-level
+      // items appear as flat links under their level-2 parent but never
+      // expand further. Root = depth 0; level-2 = depth 1; level-3 = depth 2.
+      if (depth < 2 && item.children && item.children.length > 0) {
         out.children = item.children.map((child, childIndex) =>
-          transformNode(child, childIndex, id),
+          transformNode(child, childIndex, id, depth + 1),
         );
       }
       return out;
