@@ -24,22 +24,22 @@
         </header>
 
         <ul class="role-list divide-y divide-border-subtle">
-          @for (role of group.roles; track role.roleId) {
+          @for (role of group.roles; track role.role_id) {
             <li
               class="role-row flex items-center gap-4 px-4 py-2"
-              [attr.data-role-id]="role.roleId"
+              [attr.data-role-id]="role.role_id"
             >
               <span class="flex-1 text-sm text-slate-800 truncate">
-                {{ role.roleName }}
+                {{ role.role_name }}
               </span>
 
               <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
                 <input
                   type="checkbox"
-                  [checked]="role.canRead"
+                  [checked]="role.can_read"
                   [disabled]="isDisabled()"
-                  (change)="toggleAccess(role.roleId, 'canRead', $any($event.target).checked)"
-                  [attr.aria-label]="'Permiso de lectura para ' + role.roleName"
+                  (change)="toggleAccess(role.role_id, 'can_read', $any($event.target).checked)"
+                  [attr.aria-label]="'Permiso de lectura para ' + role.role_name"
                   class="role-checkbox"
                 />
                 <span>Lectura</span>
@@ -47,15 +47,15 @@
 
               <label
                 class="flex items-center gap-2 text-xs cursor-pointer"
-                [class.text-slate-400]="!role.canRead"
-                [class.cursor-not-allowed]="!role.canRead"
+                [class.text-slate-400]="!role.can_read"
+                [class.cursor-not-allowed]="!role.can_read"
               >
                 <input
                   type="checkbox"
-                  [checked]="role.canWrite"
-                  [disabled]="isDisabled() || !role.canRead"
-                  (change)="toggleAccess(role.roleId, 'canWrite', $any($event.target).checked)"
-                  [attr.aria-label]="'Permiso de escritura para ' + role.roleName"
+                  [checked]="role.can_write"
+                  [disabled]="isDisabled() || !role.can_read"
+                  (change)="toggleAccess(role.role_id, 'can_write', $any($event.target).checked)"
+                  [attr.aria-label]="'Permiso de escritura para ' + role.role_name"
                   class="role-checkbox"
                 />
                 <span>Escritura</span>

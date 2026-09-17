@@ -49,8 +49,8 @@ export class RoleMatrixComponent {
   /** True while a save is in progress — disables all checkboxes. */
   readonly saving = input<boolean>(false);
 
-  /** Emits when a role's access is toggled. */
-  readonly accessChanged = output<{ roleId: string; canRead: boolean; canWrite: boolean }>();
+  /** Emits when a role's access is toggled. snake_case to match wire. */
+  readonly accessChanged = output<{ role_id: string; can_read: boolean; can_write: boolean }>();
 
   /** Aggregate disabled state. */
   readonly isDisabled = computed(() => this.saving());
@@ -75,20 +75,22 @@ export class RoleMatrixComponent {
    * Toggle a role's access. Client-side guard: canWrite cannot be
    * set to true if canRead is false; turning canRead off forces
    * canWrite off (you can't write what you can't see).
+   *
+   * Field names match the snake_case wire shape (see RoleMatrixEntry).
    */
-  toggleAccess(roleId: string, field: 'canRead' | 'canWrite', value: boolean): void {
+  toggleAccess(roleId: string, field: 'can_read' | 'can_write', value: boolean): void {
     const m = this.matrix();
     if (!m) {
       return;
     }
     const allEntries = [...m.platform, ...m.organization, ...m.public];
-    const entry = allEntries.find((e) => e.roleId === roleId);
+    const entry = allEntries.find((e) => e.role_id === roleId);
     if (!entry) {
       return;
     }
 
-    const newCanRead = field === 'canRead' ? value : entry.canRead;
-    let newCanWrite = field === 'canWrite' ? value : entry.canWrite;
+    const newCanRead = field === 'can_read' ? value : entry.can_read;
+    let newCanWrite = field === 'can_write' ? value : entry.can_write;
 
     // R7 invariant: turning Read off forces Write off.
     if (!newCanRead) {
@@ -96,14 +98,14 @@ export class RoleMatrixComponent {
     }
 
     // R7 invariant: cannot explicitly set Write=true when Read is false.
-    if (field === 'canWrite' && value && !newCanRead) {
+    if (field === 'can_write' && value && !newCanRead) {
       return;
     }
 
     this.accessChanged.emit({
-      roleId,
-      canRead: newCanRead,
-      canWrite: newCanWrite,
+      role_id: roleId,
+      can_read: newCanRead,
+      can_write: newCanWrite,
     });
   }
 }

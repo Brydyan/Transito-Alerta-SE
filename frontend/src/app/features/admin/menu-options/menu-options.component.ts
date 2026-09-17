@@ -245,13 +245,13 @@ export class MenuOptionsComponent implements OnInit {
       });
   }
 
-  onRoleAccessChange(event: { roleId: string; canRead: boolean; canWrite: boolean }): void {
+  onRoleAccessChange(event: { role_id: string; can_read: boolean; can_write: boolean }): void {
     const optionId = this.selectedOptionId();
     if (!optionId) return;
 
-    this.menuOptionService.setRoleAccess(optionId, event.roleId, {
-      canRead: event.canRead,
-      canWrite: event.canWrite,
+    this.menuOptionService.setRoleAccess(optionId, event.role_id, {
+      canRead: event.can_read,
+      canWrite: event.can_write,
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

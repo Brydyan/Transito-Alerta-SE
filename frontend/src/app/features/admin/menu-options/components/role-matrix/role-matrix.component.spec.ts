@@ -8,15 +8,15 @@ describe('RoleMatrixComponent', () => {
 
   const mockMatrix: RoleMatrix = {
     platform: [
-      { roleId: 'r1', roleName: 'master', canRead: true, canWrite: true },
-      { roleId: 'r2', roleName: 'operador_sistema', canRead: true, canWrite: false },
+      { role_id: 'r1', role_name: 'master', can_read: true, can_write: true },
+      { role_id: 'r2', role_name: 'operador_sistema', can_read: true, can_write: false },
     ],
     organization: [
-      { roleId: 'r3', roleName: 'admin_org', canRead: false, canWrite: false },
-      { roleId: 'r4', roleName: 'operador_org', canRead: true, canWrite: false },
+      { role_id: 'r3', role_name: 'admin_org', can_read: false, can_write: false },
+      { role_id: 'r4', role_name: 'operador_org', can_read: true, can_write: false },
     ],
     public: [
-      { roleId: 'r5', roleName: 'reporter', canRead: false, canWrite: false },
+      { role_id: 'r5', role_name: 'reporter', can_read: false, can_write: false },
     ],
   };
 
@@ -78,39 +78,38 @@ describe('RoleMatrixComponent', () => {
     });
 
     it('emits accessChange with canWrite=false when canRead is turned off', () => {
-      let emitted: { roleId: string; canRead: boolean; canWrite: boolean } | null = null;
+      let emitted: { role_id: string; can_read: boolean; can_write: boolean } | null = null;
       component.accessChanged.subscribe((e) => (emitted = e));
 
-      // r1: canRead=true, canWrite=true. Toggling canRead to false must
-      // force canWrite to false too.
-      component.toggleAccess('r1', 'canRead', false);
-      expect(emitted).toEqual({ roleId: 'r1', canRead: false, canWrite: false });
+      // r1: can_read=true, can_write=true. Toggling can_read to false must
+      // force can_write to false too.
+      component.toggleAccess('r1', 'can_read', false);
+      expect(emitted).toEqual({ role_id: 'r1', can_read: false, can_write: false });
     });
 
     it('blocks setting canWrite=true when canRead=false (R7)', () => {
-      let emitted: { roleId: string; canRead: boolean; canWrite: boolean } | null = null;
+      let emitted: { role_id: string; can_read: boolean; can_write: boolean } | null = null;
       component.accessChanged.subscribe((e) => (emitted = e));
 
-      // admin_org (r3): canRead=false, canWrite=false. Trying to set
-      // canWrite=true without canRead must be blocked.
-      component.toggleAccess('r3', 'canWrite', true);
+      // admin_org (r3): can_read=false, can_write=false. Trying to set
+      // can_write=true without can_read must be blocked.
+      component.toggleAccess('r3', 'can_write', true);
       expect(emitted).toBeNull();
     });
 
     it('allows setting canWrite=true when canRead=true', () => {
-      let emitted: { roleId: string; canRead: boolean; canWrite: boolean } | null = null;
+      let emitted: { role_id: string; can_read: boolean; can_write: boolean } | null = null;
       component.accessChanged.subscribe((e) => (emitted = e));
 
-      // operador_org (r4): canRead=true, canWrite=false → can set canWrite=true.
-      component.toggleAccess('r4', 'canWrite', true);
-      expect(emitted).toEqual({ roleId: 'r4', canRead: true, canWrite: true });
+      // operador_org (r4): can_read=true, can_write=false → can set can_write=true.
+      component.toggleAccess('r4', 'can_write', true);
+      expect(emitted).toEqual({ role_id: 'r4', can_read: true, can_write: true });
     });
 
-    it('emits accessChanged as the renamed output (task 4.2)', () => {
-      // Output is now `accessChanged` (was `accessChange`).
+    it('emits accessChanged with snake_case wire (fix for NG0955)', () => {
       let fired = false;
       component.accessChanged.subscribe(() => (fired = true));
-      component.toggleAccess('r1', 'canRead', false);
+      component.toggleAccess('r1', 'can_read', false);
       expect(fired).toBe(true);
     });
   });

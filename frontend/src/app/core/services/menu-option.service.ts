@@ -21,12 +21,15 @@ export interface MenuOption {
 
 /**
  * Role matrix entry for a single role within a scope block.
+ *
+ * snake_case wire shape per the global `SnakeCaseResponseInterceptor`
+ * (consistent with the rest of this file's MenuOption interface).
  */
 export interface RoleMatrixEntry {
-  roleId: string;
-  roleName: string;
-  canRead: boolean;
-  canWrite: boolean;
+  role_id: string;
+  role_name: string;
+  can_read: boolean;
+  can_write: boolean;
 }
 
 /**
