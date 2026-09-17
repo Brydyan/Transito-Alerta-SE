@@ -139,3 +139,56 @@ Phase 3 is **ready for `sdd-archive` consideration** (alongside Phase 1 and Phas
 - `pnpm run build`: OK (pre-existing bundle budget warning unchanged)
 
 **Cumulative deviation chain** (all W-reversals): W1 (move button LocationList → LocationForm) → W1-reversal addendum → W2-reversal (replace dialog with inline). All documented in `apply-progress.md` §W1-reversal and §W2-reversal.
+
+---
+
+## Phase 4 — Cascading Zone Filters
+
+### Verdict
+
+**PASS**
+
+### Conflict of Interest (Regla 5)
+
+This verify was run in the **same session** that applied Phase 4 (`44d1cbb`), Phase 3 (`0f4e87e`), Phase 2 (`c09cbbfc6`), Phase 1 (`3f81060`), W1-reversal (`2fab67f03`), and W2-reversal (`b2fd107`). Same caveat as prior phases: clean-context sub-agent re-verify remains a precondition for `sdd-archive`.
+
+### Gate Results
+
+| Job | Command | Result | Evidence |
+|-----|---------|--------|----------|
+| `lint` | `pnpm run lint` | **PASS** | 0 errors, 0 warnings |
+| `typecheck` | `pnpm exec tsc --noEmit` | **PASS** | No errors |
+| `build` | `pnpm run build` | **PASS** | OK; pre-existing bundle-budget warning unchanged |
+| `test` (map-filters scope) | `pnpm exec jest --testPathPatterns='features/citizen/map/components/map-filters'` | **PASS** | 11/11 tests, 1 suite |
+| `test` (full frontend) | `pnpm exec jest` | **PASS** | 745/745 tests, 97 suites, ~7 s |
+| backend regression | (unchanged from prior phases) | **PASS** | 1159/1159 unit + 497/507 e2e |
+
+### Specification Cross-Reference (tasks 4.1–4.11)
+
+| Task | Implementation | Test |
+|------|---------------|------|
+| 4.1–4.2 signals + form controls | `map-filters.component.ts` declares `provincias/cantones/parroquias` signals + 3 controls (canton/parroquia disabled by default) | covered indirectly via cascade tests below |
+| 4.3 RED test | spec "selecting a provincia enables canton + calls GeoZoneService.list(level=canton, parent_id=provinciaId)" | passes |
+| 4.4 valueChanges on provincia_id | `onProvinciaChange()` resets downstream + enables canton + loads cantones | 4.3 + reset test |
+| 4.5 valueChanges on canton_id | `onCantonChange()` resets parroquia + enables parroquia + loads parroquias | 4.5 test |
+| 4.6 clearFilters() | resets all 3 controls + re-disables downstream + clears arrays | 4.6 test |
+| 4.7 GREEN — canton→parroquia chain + reset | companion tests in same spec | pass |
+| 4.8 select elements | `map-filters.component.html` adds 3 `<select>` bound to the new controls | rendered via `render()` |
+| 4.9 zone_id emission | `filtersChange.emit()` includes `zone_id = parroquia_id ?? canton_id ?? provincia_id` | 4.9 test |
+| 4.10 MapComponent highlight + fitBounds | `highlightZone(zoneId)` in `MapComponent` looks up `zoneLayerById.get(zoneId)`, calls `setStyle({weight:4, dashArray:''})` + `map.fitBounds()` | manual smoke (e2e e2e Playwright path optional, not added here) |
+| 4.11 GREEN — 4.9 passes | covered by 4.9 test | pass |
+
+### Findings
+
+**No defects.**
+
+### Warnings (PASS — non-blocking)
+
+- **W1 (path)** — `tasks.md` says `features/map/components/map-filters/...`, actual is `features/citizen/map/components/map-filters/...`. Same SDD-path-correction pattern as Phase 2 W2 + Phase 3 W1 + Phase 4 (this section).
+
+### Recommendation
+
+Phase 4 is **ready for `sdd-archive` consideration** (alongside Phases 1–3 + W1/W2 reversals already verified), conditional on:
+
+1. **Clean-context re-verification** by a sub-agent with no access to this session's reasoning.
+2. **Architect decision on W1** (SDD path correction).
