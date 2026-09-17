@@ -89,17 +89,17 @@ Chain strategy: stacked-to-main
 
 > Prerequisite: Phase 3 tasks 3.1 complete.
 
-- [ ] 4.1 Add `provincias`, `cantones`, `parroquias` signals to `frontend/src/app/features/map/components/map-filters/map-filters.component.ts`
-- [ ] 4.2 Extend `FormGroup` in `MapFiltersComponent` with three new controls: `provincia_id: ['']`, `canton_id: [{ value: '', disabled: true }]`, `parroquia_id: [{ value: '', disabled: true }]`
-- [ ] 4.3 **RED** — Write failing test: selecting a provincia value enables canton dropdown and calls `GeoZoneService.list({ level:'canton', parent_id })` (mock service)
-- [ ] 4.4 Implement `valueChanges` subscription on `provincia_id` in `MapFiltersComponent`: reset canton + parroquia, enable/disable canton, call `loadZonesByParent('canton', provinciaId)`
-- [ ] 4.5 Implement `valueChanges` subscription on `canton_id`: reset parroquia, enable/disable parroquia, call `loadZonesByParent('parroquia', cantonId)`
-- [ ] 4.6 Implement `clearFilters()` reset: all six controls to `''`, canton/parroquia re-disabled
-- [ ] 4.7 **GREEN** — Ensure 4.3 cascade test passes; add companion test for canton→parroquia chain and reset
-- [ ] 4.8 Add `provincia_id`/`canton_id`/`parroquia_id` `<select>` elements to `frontend/src/app/features/map/components/map-filters/map-filters.component.html`; canton/parroquia disabled binding from `FormGroup`
-- [ ] 4.9 **RED** — Write failing test: emitted `filtersChange` carries `zone_id` equal to most-specific selected id (`parroquia_id || canton_id || provincia_id`)
-- [ ] 4.10 Wire `filtersChange` emit in `MapFiltersComponent` to include `zone_id`; update `MapComponent` filter handler to highlight selected zone layer and call `map.fitBounds()`
-- [ ] 4.11 **GREEN** — Ensure 4.9 zone_id emission test passes
+- [x] 4.1 Add `provincias`, `cantones`, `parroquias` signals to `frontend/src/app/features/map/components/map-filters/map-filters.component.ts`
+- [x] 4.2 Extend `FormGroup` in `MapFiltersComponent` with three new controls: `provincia_id: ['']`, `canton_id: [{ value: '', disabled: true }]`, `parroquia_id: [{ value: '', disabled: true }]`
+- [x] 4.3 **RED** — Write failing test: selecting a provincia value enables canton dropdown and calls `GeoZoneService.list({ level:'canton', parent_id })` (mock service)
+- [x] 4.4 Implement `valueChanges` subscription on `provincia_id` in `MapFiltersComponent`: reset canton + parroquia, enable/disable canton, call `loadZonesByParent('canton', provinciaId)`
+- [x] 4.5 Implement `valueChanges` subscription on `canton_id`: reset parroquia, enable/disable parroquia, call `loadZonesByParent('parroquia', cantonId)`
+- [x] 4.6 Implement `clearFilters()` reset: all six controls to `''`, canton/parroquia re-disabled
+- [x] 4.7 **GREEN** — Ensure 4.3 cascade test passes; add companion test for canton→parroquia chain and reset
+- [x] 4.8 Add `provincia_id`/`canton_id`/`parroquia_id` `<select>` elements to `frontend/src/app/features/map/components/map-filters/map-filters.component.html`; canton/parroquia disabled binding from `FormGroup`
+- [x] 4.9 **RED** — Write failing test: emitted `filtersChange` carries `zone_id` equal to most-specific selected id (`parroquia_id || canton_id || provincia_id`)
+- [x] 4.10 Wire `filtersChange` emit in `MapFiltersComponent` to include `zone_id`; update `MapComponent` filter handler to highlight selected zone layer and call `map.fitBounds()`
+- [x] 4.11 **GREEN** — Ensure 4.9 zone_id emission test passes
 
 ---
 

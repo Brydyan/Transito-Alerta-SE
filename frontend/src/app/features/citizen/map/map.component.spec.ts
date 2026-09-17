@@ -18,7 +18,8 @@ describe('MapComponent', () => {
   };
   
   const mockGeoZoneService = {
-    listAll: jest.fn().mockReturnValue(of([]).pipe(delay(0)))
+    listAll: jest.fn().mockReturnValue(of([]).pipe(delay(0))),
+    list: jest.fn().mockReturnValue(of({ items: [], total: 0 })),
   };
 
   const mockActivatedRoute = {

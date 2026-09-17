@@ -225,3 +225,52 @@ This replaces the entire `ShapefileImportDialogComponent` with the inline implem
 - `pnpm run lint`: 0 errors, 0 warnings
 - `pnpm run build`: OK (pre-existing bundle budget warning unchanged)
 - Backend regression: unchanged (no backend touched)
+
+---
+
+## Phase 4 — Frontend Cascading Zone Filters
+
+### Implemented (11/11)
+
+| Task | Description | Status |
+|------|-------------|--------|
+| 4.1 | `provincias` / `cantones` / `parroquias` signals + 3 loading flags | Done |
+| 4.2 | 3 new form controls: `provincia_id`, `canton_id` (disabled), `parroquia_id` (disabled) | Done |
+| 4.3 | RED test: provincia selection enables canton + calls `list(level=canton, parent_id=provinciaId)` | Done |
+| 4.4 | `valueChanges` on `provincia_id`: reset downstream + enable canton + load cantones | Done |
+| 4.5 | `valueChanges` on `canton_id`: reset parroquia + enable parroquia + load parroquias | Done |
+| 4.6 | `clearFilters()` resets all 3 zone controls + re-disables downstream | Done |
+| 4.7 | GREEN: cascade + canton→parroquia + reset tests all pass | Done |
+| 4.8 | 3 `<select>` elements in template with `formControlName` + disabled binding | Done |
+| 4.9 | RED test: `filtersChange` emits `zone_id = parroquia_id ?? canton_id ?? provincia_id` | Done |
+| 4.10 | `MapComponent` filter handler: highlight selected zone layer (heavier stroke) + `map.fitBounds()` | Done |
+| 4.11 | GREEN: zone_id emission test passes | Done |
+
+### Test Results
+
+| Gate | Command | Result |
+|------|---------|--------|
+| Unit (map-filters scope) | `pnpm exec jest --testPathPatterns='features/citizen/map/components/map-filters'` | **11/11 PASS** (5 original + 6 Phase 4) |
+| Unit (map scope) | `pnpm exec jest --testPathPatterns='features/citizen/map'` | **21/21 PASS** (10 map.component + 11 map-filters) |
+| Unit (full frontend) | `pnpm exec jest` | **745/745 PASS** (97 suites, ~7 s) |
+| Typecheck | `pnpm exec tsc --noEmit` | No errors |
+| Lint | `pnpm run lint` | 0 errors, 0 warnings |
+| Build | `pnpm run build` | OK (pre-existing bundle budget warning unchanged) |
+
+### Files Modified
+
+```
+frontend/src/app/features/citizen/map/components/map-filters/map-filters.component.ts
+frontend/src/app/features/citizen/map/components/map-filters/map-filters.component.html
+frontend/src/app/features/citizen/map/components/map-filters/map-filters.component.spec.ts
+frontend/src/app/features/citizen/map/map.component.ts                (highlight + fitBounds)
+frontend/src/app/features/citizen/map/map.component.spec.ts           (mockGeoZoneService.list mock)
+openspec/changes/geo-zones-shapefile-import/tasks.md                  (Phase 4 [x])
+```
+
+### Notes for sdd-verify
+
+1. **Path correction (W2-style).** Tasks.md references `features/map/components/map-filters/...` — actual is `features/citizen/map/components/map-filters/...`. Same pattern as Phase 2 W2 + Phase 3 W1. Architect should fix SDD paths.
+2. **Per-page limits on GeoZoneService.list.** Used `per_page: 100` for provincias/cantones/parroquias because backend caps at 100 (F2.3.2 regression). Same pattern as `GeoZoneService.listAll()`.
+3. **Filter chip reset on clearing.** `clearFilters()` resets form + re-disables downstream + clears cantones/parroquias arrays.
+4. **`zone_id` propagation downstream.** MapComponent stores `zoneLayerById` map keyed by zone id, calls `highlightZone()` from `onFiltersChange`. Heavier stroke + dashed-removed. `map.fitBounds()` with 40px padding + maxZoom 12 (zone can be small).

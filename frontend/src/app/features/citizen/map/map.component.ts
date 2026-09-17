@@ -64,6 +64,8 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
   private map!: L.Map;
   private markerClusterGroup!: L.MarkerClusterGroup;
   private zoneLayerGroup!: L.LayerGroup;
+  /** sc-334 Phase 4 — zone_id → layer for highlight + fitBounds. */
+  private zoneLayerById = new Map<string, L.Layer>();
 
   incidents = signal<Incident[]>([]);
   displayedCount = signal(0);
@@ -135,8 +137,15 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
       this.geoZoneService.listAll().subscribe({
         next: (zones) => {
           this.zoneLayerGroup.clearLayers();
+          this.zoneLayerById.clear();
           const layers = this.renderZonePolygons(zones);
-          layers.forEach(l => this.zoneLayerGroup.addLayer(l));
+          layers.forEach((l, idx) => {
+            this.zoneLayerGroup.addLayer(l);
+            const zone = zones.filter(z => z.active && z.polygon != null)[idx];
+            if (zone) {
+              this.zoneLayerById.set(zone.id, l);
+            }
+          });
         },
         error: (err) => console.error('Error loading zones:', err?.message ?? 'unknown')
       })
@@ -319,5 +328,29 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
   onFiltersChange(filters: MapActiveFilters) {
     this.activeFilters = filters;
     this.loadIncidents();
+    // sc-334 Phase 4 R4: highlight selected zone + fitBounds.
+    this.highlightZone(filters.zone_id);
+  }
+
+  /**
+   * Restyle the selected zone layer with a heavier stroke + bump fill,
+   * and call `map.fitBounds()` on it. No-op when `zoneId` is empty or
+   * the layer was not rendered (e.g., zone has no polygon, or list
+   * pagination truncated the matching row).
+   */
+  private highlightZone(zoneId: string | undefined): void {
+    if (!zoneId) {
+      return;
+    }
+    const layer = this.zoneLayerById.get(zoneId);
+    if (!layer || !this.map) {
+      return;
+    }
+    const geo = layer as L.GeoJSON;
+    geo.setStyle({ weight: 4, dashArray: '' });
+    const bounds = geo.getBounds();
+    if (bounds.isValid()) {
+      this.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+    }
   }
 }
