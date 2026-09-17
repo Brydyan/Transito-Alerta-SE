@@ -118,3 +118,24 @@ Phase 3 is **ready for `sdd-archive` consideration** (alongside Phase 1 and Phas
 - `pnpm run build`: OK (pre-existing bundle budget warning unchanged)
 
 **Conflict-of-interest continues to apply** — same session applied + verified.
+
+---
+
+## Addendum — 2026-09-16 — W2-reversal (inline panel replaces dialog)
+
+**Note**: the W2-reversal commit (`b2fd107`) landed AFTER both the W1-reversal addendum (029a369) and the Phase 3 verify-report (36eb64e). The W2-reversal is therefore **not covered** by the gates above. Summary so the next sub-agent re-verify doesn't miss it:
+
+- The `ShapefileImportDialogComponent` (component + html + spec, 3 files) has been **deleted**.
+- The import UX is now an inline right panel inside `LocationForm` (route `app/ubicaciones/new`).
+- Layout: `grid-cols-1 lg:grid-cols-2`. LEFT = existing form fields (Nombre / Código / Nivel / Padre). RIGHT = file input + auto-parent checkbox + progress bar + result envelope + submit button.
+- Level for the import is read from the LEFT panel's Nivel dropdown; column mapping hardcoded to NAME/CODE.
+- `LocationFormComponent` gained: `importFile` / `importProgress` / `importResult` / `importError` / `importAutoParent` / `isImporting` signals + `onImportFileChange` / `onImportAutoParentChange` / `submitImport` methods. Removed: `showImportDialog` signal + `openImportDialog` / `closeImportDialog` methods + `ShapefileImportDialogComponent` import.
+- 4 button tests removed from `location-form.component.spec.ts`; 9 inline-panel tests added.
+
+**Post-W2 gates (run for the addendum)**:
+- `pnpm exec jest`: 738/738 PASS (97 suites; -2 vs prior 740 because 7 dialog-suite tests are deleted)
+- `pnpm exec tsc --noEmit`: no errors
+- `pnpm run lint`: 0 errors, 0 warnings
+- `pnpm run build`: OK (pre-existing bundle budget warning unchanged)
+
+**Cumulative deviation chain** (all W-reversals): W1 (move button LocationList → LocationForm) → W1-reversal addendum → W2-reversal (replace dialog with inline). All documented in `apply-progress.md` §W1-reversal and §W2-reversal.
