@@ -56,11 +56,11 @@
 
 > Prerequisites: Phase 2 frontend service merged.
 
-- [ ] 4.1 Rewrite `frontend/src/app/features/admin/menu-options/components/role-matrix/role-matrix.component.ts` to accept and display `RoleMatrix` with `rolesByScope` (platform, organization, public)
-- [ ] 4.2 Change input to: `@Input() matrix: RoleMatrix | null = null;` + `@Output() accessChanged = new EventEmitter<{ roleId: string; canRead: boolean; canWrite: boolean }>()`
-- [ ] 4.3 Add computed field `roleGroups()` that returns array of `{ scope: string; roles: RoleAccess[] }` from `matrix.rolesByScope`
-- [ ] 4.4 **RED** — Write failing unit test: matrix with 5 roles renders 3 blocks (Plataforma, Organización, Público), each with correct role count
-- [ ] 4.5 Rewrite `frontend/src/app/features/admin/menu-options/components/role-matrix/role-matrix.component.html` (new structure):
+- [x] 4.1 Rewrite `frontend/src/app/features/admin/menu-options/components/role-matrix/role-matrix.component.ts` to accept and display `RoleMatrix` with `rolesByScope` (platform, organization, public)
+- [x] 4.2 Change input to: `@Input() matrix: RoleMatrix | null = null;` + `@Output() accessChanged = new EventEmitter<{ roleId: string; canRead: boolean; canWrite: boolean }>()`
+- [x] 4.3 Add computed field `roleGroups()` that returns array of `{ scope: string; roles: RoleAccess[] }` from `matrix.rolesByScope`
+- [x] 4.4 **RED** — Write failing unit test: matrix with 5 roles renders 3 blocks (Plataforma, Organización, Público), each with correct role count
+- [x] 4.5 Rewrite `frontend/src/app/features/admin/menu-options/components/role-matrix/role-matrix.component.html` (new structure):
    ```html
    <div class="role-groups">
      <div *ngFor="let group of roleGroups()" class="role-group">
@@ -75,10 +75,10 @@
      </div>
    </div>
    ```
-- [ ] 4.6 Implement invariant: if Write is checked, Read must be checked. If Read is unchecked, Write is automatically unchecked.
-- [ ] 4.7 Add CSS for group headers and role layout (3 blocks stacked, each with role rows)
-- [ ] 4.8 **GREEN** — Ensure 4.4 tests pass
-- [ ] 4.9 Run `pnpm test -- role-matrix` in `frontend/` — all green
+- [x] 4.6 Implement invariant: if Write is checked, Read must be checked. If Read is unchecked, Write is automatically unchecked.
+- [x] 4.7 Add CSS for group headers and role layout (3 blocks stacked, each with role rows)
+- [x] 4.8 **GREEN** — Ensure 4.4 tests pass
+- [x] 4.9 Run `pnpm test -- role-matrix` in `frontend/` — all green
 
 ---
 
