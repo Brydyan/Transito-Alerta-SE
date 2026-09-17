@@ -8,6 +8,7 @@
 export interface IIncidentCategory {
   id: string;
   name: string;
+  description: string | null;
   parent_id: string | null;
   created_at: string;
   updated_at: string;
@@ -15,11 +16,13 @@ export interface IIncidentCategory {
 
 export interface ICreateIncidentCategoryDto {
   name: string;
+  description?: string | null;
   parent_id?: string | null;
 }
 
 export interface IUpdateIncidentCategoryDto {
   name?: string;
+  description?: string | null;
   parent_id?: string | null;
 }
 
