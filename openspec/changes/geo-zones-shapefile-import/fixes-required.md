@@ -90,9 +90,27 @@ expect(component.form.get('parroquia_id')!.disabled).toBe(true);
 
 **Orden de ejecución**: Máxima prioridad (funcional). Hacé ésta primero para que el usuario no se encuentre un campo enabled cuando no debería.
 
----
+#### W6 — RESOLUTION (Minimax 2026-09-17): FALSE POSITIVE — no fix needed
 
-### DOCUMENTACIÓN (necesita actualizar, no es código)
+Empirical test written to verify the claim (executed in this session, then deleted):
+
+```typescript
+// /tmp/w6-disabled.spec.ts (temporary verification spec)
+component.form.get('canton_id')!.enable();
+expect(component.form.get('canton_id')!.disabled).toBe(false);
+component.clearFilters();
+expect(component.form.get('canton_id')!.disabled).toBe(true); // PASS
+```
+
+Result: **both canton_id and parroquia_id are correctly disabled** after `clearFilters()` when previously enabled via `.enable()`.
+
+Angular's `FormGroup.reset({ controlKey: { value, disabled } })` **DOES** re-apply the disabled state on this Angular version (21.2). The doc's claim that "Solo reestablece el value" is incorrect for this Angular version — Angular's `FormControl.reset({value, disabled})` does apply `disabled` via `_setDisabled(disabled)` in `_applyFormState`.
+
+The existing Phase 4 test at lines 187–202 of `map-filters.component.spec.ts` ("(4.6) clearFilters resets all zone controls + re-disables downstream") already covers this assertion and was passing pre-fix-cycle.
+
+**Decision**: NO code change. NO test addition needed. This finding is closed as a false positive.
+
+---### DOCUMENTACIÓN (necesita actualizar, no es código)
 
 #### W1 — design.md D1 está desincronizado
 

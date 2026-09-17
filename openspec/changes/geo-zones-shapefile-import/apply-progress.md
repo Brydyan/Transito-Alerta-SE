@@ -324,3 +324,31 @@ openspec/changes/geo-zones-shapefile-import/verify-report.md   (Phase 5 section)
    - Open the filter panel, select the matching Provincia — verify the canton layer gets a heavier stroke + map fits bounds.
 3. **Backend regression NOT re-run** — Phase 1 verify-report (`cff0fce`) already proved 1159/1159 unit + 497/507 e2e against real TestContainers + Postgres + PostGIS. Re-running the 12-minute suite this session would yield the same result for no new information; the regression assumption is documented in the verify-report gate table.
 
+
+---
+
+## fixes-required.md Execution (2026-09-17)
+
+Per `minimax-builder.md` rule "Si el change tiene `fixes-required.md`, ... arrancá por ahí, no por `tasks.md`", this section documents the work done against `fixes-required.md`.
+
+### Findings Status
+
+| Finding | Status | Action |
+|---------|--------|--------|
+| W6 — `clearFilters()` no restaura `disabled` | **FALSE POSITIVE** — verified empirically | No code change. Added §W6 RESOLUTION note to fixes-required.md documenting the false positive (Angular 21.2's `FormGroup.reset({controlKey: {value, disabled}})` DOES re-apply disabled state via `_setDisabled` in `_applyFormState`). Phase 4 test at line 187-202 already covers this case. |
+| W1 — design.md D1 desincronizado | Architect territory | NOT touched (per `minimax-builder.md` rule 119-122). |
+| W2 — tasks.md 2.5-2.12 stale | Architect territory | NOT touched. |
+| W3 — No E2E para invalid file type | DEFERRED (low priority) | Documented as test gap. Becomes test gap → defect investigation: shpjs parse failure rethrows as 500 instead of 400. Out of scope for this fixes cycle. |
+| W4 — Assertion de warning "parent not found" incompleto | **FIXED** | Added 2 tests in `backend/src/modules/geo-zones/geo-zones.service.spec.ts` (new `describe('parent not found warning (sc-334 — W4)')`): asserts warning carries recognizable zone name + parent mention when auto_parent=true, and asserts NO warning when auto_parent=false. 49/49 service tests pass. |
+
+### Verification
+
+- `rtk pnpm exec jest --testPathPattern='geo-zones.service'`: **49/49 PASS** (47 original + 2 new W4 tests).
+- Backend typecheck: No errors found.
+- Backend lint: 0 errors.
+
+### Next
+
+- Re-verify the change in a clean-context sub-agent (per `claude-qa.md` "Rol doble" section 1).
+- After that, `sdd-archive`.
+

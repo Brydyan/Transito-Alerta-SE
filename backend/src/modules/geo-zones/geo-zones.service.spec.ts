@@ -707,6 +707,46 @@ describe('GeoZonesService.importShapefile (sc-334)', () => {
     });
   });
 
+  // sc-334 — fixes-required.md W4: assertion that the "parent not found"
+  // warning carries a recognizable message so the frontend can render it.
+  describe('parent not found warning (sc-334 — W4)', () => {
+    beforeEach(() => {
+      shpjs.mockResolvedValue(makeFeatureCollection([
+        makeFeature({ name: 'Orphan', code: 'EC-ORPHAN' }),
+      ]));
+      // Both DB lookup (by code) AND spatial containment find nothing.
+      repo.findByCode.mockResolvedValue(null);
+      repo.findParentBySpatialContainment.mockResolvedValue(null);
+      repo.createInTransaction.mockResolvedValue({ id: 'z1' });
+    });
+
+    it('pushes a recognizable warning when auto_parent cannot resolve a parent', async () => {
+      const result = await service.importShapefile(DUMMY_BUFFER, {
+        level: 'canton',
+        auto_parent: true,
+        name_column: 'NAME',
+        code_column: 'CODE',
+      });
+
+      expect(result.imported).toBe(1);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]).toMatch(/Orphan/);
+      expect(result.warnings[0]).toMatch(/parent/i);
+    });
+
+    it('does NOT push the parent-not-found warning when auto_parent=false', async () => {
+      const result = await service.importShapefile(DUMMY_BUFFER, {
+        level: 'canton',
+        auto_parent: false,
+        name_column: 'NAME',
+        code_column: 'CODE',
+      });
+
+      expect(result.imported).toBe(1);
+      expect(result.warnings).toHaveLength(0);
+    });
+  });
+
   describe('DB error full rollback', () => {
     it('rolls back and throws when a DB error occurs mid-batch', async () => {
       const features = [
