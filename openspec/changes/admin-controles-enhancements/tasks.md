@@ -44,11 +44,11 @@
 
 > Prerequisites: Phase 2 frontend service merged.
 
-- [ ] 3.1 Update `frontend/src/app/features/admin/menu-options/components/menu-tree/menu-tree.component.html` to add chevron icon (▶/▼) before each node that has children: `<span *ngIf="hasChildren(item.id)" class="chevron" [class.expanded]="isExpanded(item.id)">▶</span>`
-- [ ] 3.2 Add CSS to `frontend/src/app/features/admin/menu-options/components/menu-tree/menu-tree.component.css`: chevron styling (size, color, rotation on expand)
-- [ ] 3.3 **RED** — Write failing unit test: node with children shows chevron, node without children does not
-- [ ] 3.4 **GREEN** — Ensure 3.3 passes
-- [ ] 3.5 Run `pnpm test -- menu-tree` in `frontend/` — all green
+- [x] 3.1 Update `frontend/src/app/features/admin/menu-options/components/menu-tree/menu-tree.component.html` to add chevron icon (▶/▼) before each node that has children: `<span *ngIf="hasChildren(item.id)" class="chevron" [class.expanded]="isExpanded(item.id)">▶</span>`
+- [x] 3.2 Add CSS to `frontend/src/app/features/admin/menu-options/components/menu-tree/menu-tree.component.css`: chevron styling (size, color, rotation on expand)
+- [x] 3.3 **RED** — Write failing unit test: node with children shows chevron, node without children does not
+- [x] 3.4 **GREEN** — Ensure 3.3 passes
+- [x] 3.5 Run `pnpm test -- menu-tree` in `frontend/` — all green
 
 ---
 

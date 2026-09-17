@@ -22,13 +22,15 @@
       @if (hasChildren(item.id)) {
         <button
           type="button"
-          class="expand-btn w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-700 text-xs rounded hover:bg-slate-200 transition-colors bg-transparent border-none p-0 cursor-pointer"
+          class="expand-btn chevron-btn w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-700 rounded hover:bg-slate-200 bg-transparent border-none p-0 cursor-pointer"
+          [class.chevron-expanded]="isExpanded(item.id)"
+          [attr.aria-label]="(isExpanded(item.id) ? 'Contraer' : 'Expandir') + ' ' + item.name"
           (click)="toggleExpand(item.id); $event.stopPropagation()"
         >
-          <ui-icon [name]="isExpanded(item.id) ? 'chevron-down' : 'chevron-right'" [size]="14" [strokeWidth]="2.5" />
+          <ui-icon name="chevron-right" [size]="14" [strokeWidth]="2.5" />
         </button>
       } @else {
-        <span class="w-5 h-5"></span>
+        <span class="w-5 h-5 inline-block" data-testid="leaf-spacer" aria-hidden="true"></span>
       }
 
       @if (item.icon) {

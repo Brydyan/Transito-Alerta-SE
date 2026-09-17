@@ -94,4 +94,55 @@ describe('MenuTreeComponent', () => {
     component.toggleExpand('a2');
     expect(component.isExpanded('a2')).toBe(false);
   });
+
+  // ── sc-334 admin-controles-enhancements Phase 3 (D3/R3) — chevron ──
+
+  describe('chevron indicator', () => {
+    function findNodeRow(name: string): HTMLElement | undefined {
+      return (
+        Array.from(
+          fixture.nativeElement.querySelectorAll('div.tree-node'),
+        ) as HTMLElement[]
+      ).find((node) => node.querySelector('span.text-sm')?.textContent?.trim() === name);
+    }
+
+    it('renders a chevron button on nodes that have children', () => {
+      // "Incidencias" (a2) has children
+      const row = findNodeRow('Incidencias');
+      expect(row).toBeTruthy();
+      const chevron = row!.querySelector('button.expand-btn.chevron-btn');
+      expect(chevron).not.toBeNull();
+    });
+
+    it('does NOT render a chevron button on leaf nodes (only a spacer)', () => {
+      // Dashboard (a1) is a leaf — no children
+      const row = findNodeRow('Dashboard');
+      expect(row).toBeTruthy();
+      expect(row!.querySelector('button.expand-btn.chevron-btn')).toBeNull();
+      // Spacer is present so column alignment is preserved
+      expect(row!.querySelector('[data-testid="leaf-spacer"]')).not.toBeNull();
+    });
+
+    it('marks the chevron as expanded (rotated 90°) when its parent is expanded', () => {
+      component.toggleExpand('a2');
+      fixture.detectChanges();
+
+      const row = findNodeRow('Incidencias');
+      const chevron = row!.querySelector('button.expand-btn.chevron-btn');
+      expect(chevron!.classList.contains('chevron-expanded')).toBe(true);
+    });
+
+    it('emits a click on the chevron WITHOUT selecting the node (stopPropagation)', () => {
+      const selectedSpy = jest.fn();
+      component.selected.subscribe(selectedSpy);
+
+      const row = findNodeRow('Incidencias')!;
+      const chevron = row.querySelector('button.expand-btn.chevron-btn') as HTMLButtonElement;
+      chevron.click();
+
+      // Click on chevron should toggle expand but NOT emit select.
+      expect(component.isExpanded('a2')).toBe(true);
+      expect(selectedSpy).not.toHaveBeenCalled();
+    });
+  });
 });
