@@ -98,3 +98,23 @@ Phase 3 is **ready for `sdd-archive` consideration** (alongside Phase 1 and Phas
 1. **Clean-context re-verification** by a sub-agent with no access to this session's reasoning (per `claude-qa.md` "Rol doble" section 1). The cumulative apply+audit across Phases 1, 2, and 3 makes this precondition even more important than for any single phase.
 2. **Architect decisions on W1, W2, W3** (path, query param, HTML escape).
 3. Phases 4–5 still pending. Apply each phase separately and re-run `sdd-verify` against the full change before `sdd-archive`.
+
+---
+
+## Addendum — 2026-09-16 — W1-reversal (button mount moved after this report was written)
+
+**Note**: the W1-reversal commit (`2fab67f03`) landed AFTER this verify-report was filed. The reversal is therefore **not covered** by the gates above. Summary so the next sub-agent re-verify doesn't miss it:
+
+- The "Importar Shapefile" button + dialog mount moved from `LocationListComponent` to `LocationFormComponent` (route `app/ubicaciones/new`).
+- `LocationList` tests lost 4 button tests (gained 1 negative test).
+- `LocationForm` tests gained 4 button tests.
+- `ShapefileImportDialogComponent` itself: unchanged.
+- Phase 2 verify-report (commit `9419ae0`) is now stale: it claimed the button lived on `LocationList`; it doesn't anymore. The new placement lives on `LocationForm` per `commit 2fab67f03` and the §W1-reversal section in `apply-progress.md`.
+
+**Post-move gates (run for the addendum)**:
+- `pnpm exec jest`: 740/740 PASS
+- `pnpm exec tsc --noEmit`: no errors
+- `pnpm run lint`: 0 errors
+- `pnpm run build`: OK (pre-existing bundle budget warning unchanged)
+
+**Conflict-of-interest continues to apply** — same session applied + verified.
