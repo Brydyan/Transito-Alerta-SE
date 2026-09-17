@@ -53,10 +53,9 @@
               <div class="flex flex-col sm:flex-row gap-3" data-testid="category-type-group">
                 <label
                   class="flex items-start gap-3 border rounded-lg px-4 py-3 cursor-pointer flex-1 transition-colors"
-                  [class.border-brand-primary]="isRoot()"
-                  [class.bg-brand-primary]="isRoot()"
-                  [class.bg-opacity-5]="isRoot()"
-                  [class.border-slate-300]="!isRoot()"
+                  [ngClass]="isRoot()
+                    ? 'border-brand-primary bg-brand-primary text-white shadow-sm'
+                    : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400'"
                 >
                   <input
                     type="radio"
@@ -64,22 +63,23 @@
                     value="root"
                     [checked]="isRoot()"
                     (change)="setMode('root')"
-                    class="mt-1 accent-brand-primary"
+                    class="mt-1 accent-white"
                     data-testid="category-type-root"
                   />
                   <div>
-                    <div class="text-sm font-semibold text-slate-800">Categoría principal</div>
-                    <p class="text-xs text-slate-500 mt-0.5">
+                    <div [ngClass]="isRoot() ? 'text-white font-semibold' : 'text-slate-800 font-semibold'">
+                      Categoría principal
+                    </div>
+                    <p [ngClass]="isRoot() ? 'text-white/85 mt-0.5 text-xs' : 'text-slate-500 mt-0.5 text-xs'">
                       Categoría de nivel superior. Visible en la lista y se puede usar como padre de sub-categorías.
                     </p>
                   </div>
                 </label>
                 <label
                   class="flex items-start gap-3 border rounded-lg px-4 py-3 cursor-pointer flex-1 transition-colors"
-                  [class.border-brand-primary]="isSub()"
-                  [class.bg-brand-primary]="isSub()"
-                  [class.bg-opacity-5]="isSub()"
-                  [class.border-slate-300]="!isSub()"
+                  [ngClass]="isSub()
+                    ? 'border-brand-primary bg-brand-primary text-white shadow-sm'
+                    : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400'"
                 >
                   <input
                     type="radio"
@@ -87,12 +87,14 @@
                     value="sub"
                     [checked]="isSub()"
                     (change)="setMode('sub')"
-                    class="mt-1 accent-brand-primary"
+                    class="mt-1 accent-white"
                     data-testid="category-type-sub"
                   />
                   <div>
-                    <div class="text-sm font-semibold text-slate-800">Sub-categoría</div>
-                    <p class="text-xs text-slate-500 mt-0.5">
+                    <div [ngClass]="isSub() ? 'text-white font-semibold' : 'text-slate-800 font-semibold'">
+                      Sub-categoría
+                    </div>
+                    <p [ngClass]="isSub() ? 'text-white/85 mt-0.5 text-xs' : 'text-slate-500 mt-0.5 text-xs'">
                       Depende de una categoría principal existente. Aparecerá agrupada bajo ella.
                     </p>
                   </div>
