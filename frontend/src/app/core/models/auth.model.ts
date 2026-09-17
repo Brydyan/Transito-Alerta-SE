@@ -33,6 +33,7 @@ export interface MeResponse {
   user_id: string;
   device_uuid: string | null;
   permissions: string[];
+  permission_names?: string[];
   /**
    * REG (sc-325) C.1 — booleano derivado de `email_verified_at` en la
    * fila del usuario. `true` cuando el `reporter` (o cualquier

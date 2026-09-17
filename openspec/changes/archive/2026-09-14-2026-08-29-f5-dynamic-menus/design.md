@@ -265,3 +265,55 @@ lectura/escritura coherentes) → transacción → invalidación de `menu:v1:*` 
 - **Q3** — El mock muestra el campo `RUTA` con el valor `/management/...`, un prefijo
   que no existe en el enrutado actual. ¿Es maqueta o una convención esperada? Se
   implementan rutas sin ese prefijo, coherentes con `app.routes.ts`.
+
+## Implementation notes
+
+### F5.2.3 — Group handling decision
+
+**Decision**: The `group` field (`INCIDENCIAS`, `GESTIÓN`, `CATÁLOGOS`) is NOT stored
+as a column in `menu_options`. Instead, groups are derived from the parent/child hierarchy:
+
+- Group parent rows are inserted with an empty `route` (they are not navigable).
+- Child menu options reference the group parent via `parent_id`.
+- The sidebar component uses the parent's `name` as the section header.
+
+**Rationale**: Storing `group` as a denormalized column would introduce a second
+hierarchy concept (parent_id + group) that must be kept in sync. The parent/child
+relationship already captures grouping. Group parents with empty routes serve as
+section headers — a clean separation of structure from navigation.
+
+**Impact on resolution**: The service builds the tree from `parent_id` (D3). Group
+parents appear as top-level entries with `children`. The frontend renders the parent
+name as a section header and its children as sub-items.
+
+### F5.6 — Sidebar presentation decision (product, 2026-09-14)
+
+**Decision**: The citizen sidebar keeps the **original flat look** (pre-F5). A group
+parent (no route) is NOT rendered as a collapsible: `groupedMenuItems()` in
+`sidebar.component.ts` flattens its children into visible links under the section
+header. Nodes with their own route remain normal items (with or without children).
+`MenuItem.children` stays populated (F5.6.8) — the admin CRUD tree (F5.6.3) consumes
+the same hierarchy from `menu-option.service.ts`, independently of the sidebar.
+
+**Rationale**: User requirement — "los menús deberían quedar como estaban en su forma
+original": all links visible, grouped by section, nothing hidden behind expand/collapse.
+The nested wire contract (D1) is unchanged; only presentation flattens in the sidebar.
+
+**Impact on resolution**: `menu.service.ts` propagates `children` recursively (tests in
+`menu.service.spec.ts`); `sidebar.component.ts` flattens section headers (tests in
+`sidebar.spec.ts`).
+
+### F5.4 — Service rewrite approach
+
+**Decision**: The `MenusService` constructor signature changed from
+`(AuthService, PermissionLookupService)` to
+`(Repository<MenuOptionEntity>, Repository<MenuOptionRoleEntity>, Repository<UserEntity>, Redis)`.
+
+The old MENU_MAP-based resolution is fully replaced by DB resolution. The
+`menus.module.ts` is updated to import `TypeOrmModule.forFeature(...)` with the
+new entities.
+
+**Impact on existing tests**: The old `menus.service.spec.ts` (MENU_MAP-based tests)
+was rewritten to test the new DB-based behavior. The `menu-map.spec.ts` coherence
+tests (D8) are preserved unchanged — they still validate MENU_MAP routes against
+`app.routes.ts` as the regression defense against F1.

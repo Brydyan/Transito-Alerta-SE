@@ -128,7 +128,6 @@ export class RolesComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError((err: unknown) => {
-          // eslint-disable-next-line no-console
           console.error('[Roles] stats failed:', err);
           return of<RoleStats>({
             totalPermissions: 0,
@@ -153,7 +152,6 @@ export class RolesComponent implements OnInit {
             'No se pudieron cargar los roles. Intenta nuevamente.',
             'Error',
           );
-          // eslint-disable-next-line no-console
           console.error('[Roles] load failed:', err);
           this.isLoading.set(false);
           return of<RoleListItem[] | null>(null);

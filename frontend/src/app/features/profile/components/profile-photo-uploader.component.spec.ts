@@ -93,7 +93,7 @@ describe('ProfilePhotoUploaderComponent (F6 rediseño — fix C.3)', () => {
 
   it('triggerPicker clickea el input file oculto', () => {
     const clickSpy = jest.fn();
-    (component as any)['fileInput'] = () => ({
+    (component as unknown as { fileInput: () => { nativeElement: { click: jest.Mock } } })['fileInput'] = () => ({
       nativeElement: { click: clickSpy },
     });
     component.triggerPicker();

@@ -24,17 +24,17 @@ describe('SearchBarComponent (F6 rediseño)', () => {
     // dispara distinctUntilChanged con un valor nuevo en la próxima
     // entrada. Para este test, basta con que el control arranque
     // con 'admin'.
-    expect((component as any).control.value).toBe('admin');
+    expect((component as unknown as { control: import('@angular/forms').FormControl<string> }).control.value).toBe('admin');
   });
 
   it('emite string vacío al limpiar (botón X)', () => {
     fixture = TestBed.createComponent(SearchBarComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
-    (component as any).control.setValue('algo');
+    (component as unknown as { control: import('@angular/forms').FormControl<string> }).control.setValue('algo');
     fixture.detectChanges();
     component.clear();
-    expect((component as any).control.value).toBe('');
+    expect((component as unknown as { control: import('@angular/forms').FormControl<string> }).control.value).toBe('');
   });
 
   it('acepta un placeholder via input', () => {

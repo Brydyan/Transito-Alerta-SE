@@ -9,6 +9,7 @@ import { IncidentWorkflowService } from './incident-workflow.service';
 // AUD (sc-327) D4 — la revelación de autoría usa su propio
 // servicio. Lo importamos para tipar el mock del constructor.
 import { RevealService } from './reveal.service';
+import { IncidentRow } from './incidents.repository';
 import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 
@@ -91,7 +92,7 @@ describe('IncidentsController', () => {
   });
 
   it('GET /:id delegates to service.findOne with the caller scope', async () => {
-    service.findOne.mockResolvedValue({ id: 'inc-1' } as any);
+    service.findOne.mockResolvedValue({ id: 'inc-1' } as Partial<IncidentRow>);
     const req = {
       user: { userId: 'user-1', permissions: [], scope: GLOBAL_SCOPE },
     } as unknown as AuthenticatedRequest;

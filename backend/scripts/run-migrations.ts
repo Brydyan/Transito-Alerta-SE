@@ -119,7 +119,7 @@ async function validateMigrations(client: Client): Promise<void> {
     const storedChecksum = result.rows[0].checksum;
 
     // Backfill usa checksum literal 'backfill', saltar validación
-    if (storedChecksum === 'backfill') {
+    if (storedChecksum.trim() === 'backfill') {
       continue;
     }
 

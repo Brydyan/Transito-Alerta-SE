@@ -8,11 +8,11 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ReactiveFormsModule } from '@angular/forms';
 
 describe('CategoryFormComponent', () => {
-  let mockCategoryService: any;
-  let mockToastService: any;
-  let mockDialogService: any;
-  let mockActivatedRoute: any;
-  let mockRouter: any;
+  let mockCategoryService: { create: jest.Mock; getById: jest.Mock; update: jest.Mock };
+  let mockToastService: { success: jest.Mock; error: jest.Mock };
+  let mockDialogService: { confirm: jest.Mock };
+  let mockActivatedRoute: { snapshot: { paramMap: { get: () => string | null } } };
+  let mockRouter: { navigate: jest.Mock };
 
   beforeEach(() => {
     mockCategoryService = {

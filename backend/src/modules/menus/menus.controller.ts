@@ -22,6 +22,6 @@ export class MenusController {
 
   @Get(['', 'my'])
   getMenu(@Req() request: AuthenticatedRequest): Promise<MenuEntry[]> {
-    return this.menusService.getMenuForUser(request.user.userId, request.user.roleName);
+    return this.menusService.getMenuForUser(request.user.userId);
   }
 }

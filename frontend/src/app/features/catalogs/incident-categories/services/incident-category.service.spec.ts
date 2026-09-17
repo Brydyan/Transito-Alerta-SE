@@ -5,7 +5,7 @@ import { of } from 'rxjs';
 
 describe('IncidentCategoryService', () => {
   let service: IncidentCategoryService;
-  let httpMock: any;
+  let httpMock: { get: jest.Mock; post: jest.Mock; patch: jest.Mock; delete: jest.Mock };
 
   beforeEach(() => {
     httpMock = {

@@ -10,8 +10,8 @@ import { DataSource, Repository } from 'typeorm';
 import { UserEntity } from '../../entities/user.entity';
 import { AuthConfig } from '../../config/auth.config';
 import { AuthContext } from '../../common/authz/subject-scope';
-import { resolveSubjectScope } from '../../common/authz/resolve-subject-scope';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { resolveSubjectScope } from '../../common/authz/resolve-subject-scope';
 import { sha256Hex, timingSafeEqualHex } from '../../common/crypto/session-hash';
 import { BufferedTokenPair, GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
@@ -109,7 +109,10 @@ export class AuthService {
     private readonly sessionsRepository: SessionsRepository,
     private readonly revocationCache: RevocationCache,
     private readonly graceBuffer: GraceBuffer,
-    private readonly permissionLookup: PermissionLookupService,
+    // F5 fix — traduce UUIDs a "ACTION resource" para el wire de /auth/me.
+    // Opcional para no romper los specs existentes que construyen
+    // AuthService con args posicionales; en producción Nest siempre lo inyecta.
+    private readonly permissionLookup?: PermissionLookupService,
     // T3.6 — optional so the pre-existing `auth.service.spec.ts` regression
     // suite (which constructs AuthService with the original 8 positional
     // args) keeps compiling and passing unmodified; Nest's DI container
@@ -463,9 +466,9 @@ export class AuthService {
     const ctx = await this.getAuthContextByUserId(user.id);
     // F6 fix: Convert UUID permissions to "ACTION resource" strings so frontend
     // permissionGuard can validate with includes() directly.
-    const permissionStrings = await this.permissionLookup.getDescriptionsByUuids(
-      ctx.permissions,
-    );
+    const permissionStrings = this.permissionLookup
+      ? await this.permissionLookup.getDescriptionsByUuids(ctx.permissions)
+      : ctx.permissions;
     return {
       deviceUuid: user.deviceUuid,
       permissions: permissionStrings,
@@ -525,6 +528,20 @@ export class AuthService {
    */
   async getPermissionsByUserId(userId: string): Promise<string[]> {
     return (await this.getAuthContextByUserId(userId)).permissions;
+  }
+
+  /**
+   * F5 fix — traduce UUIDs a "ACTION resource" para el wire
+   * `permission_names` de `GET /auth/me`. Delega al
+   * `PermissionLookupService` que mantiene el índice inverso
+   * del catálogo; fallback a `[]` si el lookup no está inyectado
+   * (tests que construyen AuthService con args posicionales).
+   */
+  async getPermissionNames(uuids: string[]): Promise<string[]> {
+    if (!this.permissionLookup) {
+      return [];
+    }
+    return this.permissionLookup.getNamesByUuids(uuids);
   }
 
   /**

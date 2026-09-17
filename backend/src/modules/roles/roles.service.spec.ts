@@ -662,6 +662,29 @@ describe('RolesService', () => {
         'UPDATE incidents',
       ]);
     });
+
+    it('denormaliza el set nuevo a users asignados + bump version + invalida cache (AUD FIX-7)', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('operador_org'));
+      const saved: RoleEntity = { id: 'role-1', name: 'operador_org', permissions: ['READ incidents'] } as RoleEntity;
+      roleRepo.save.mockImplementation(async (x: RoleEntity) => x);
+      dataSource.transaction.mockImplementation(async (cb) => cb({ getRepository: () => ({ save: async () => saved }) }));
+      userRepo.find.mockResolvedValue([
+        { id: 'user-1', permissions: [], permissionVersion: 1, deviceUuid: 'device-1' },
+      ]);
+
+      const result = await service.syncPermissions('role-1', ['READ incidents']);
+
+      expect(result.permissions).toEqual(['READ incidents']);
+      expect(userRepo.find).toHaveBeenCalledWith({ where: { roleId: 'role-1' } });
+      expect(userRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'user-1',
+          permissions: ['READ incidents'],
+          permissionVersion: 2,
+        }),
+      );
+      expect(authService.invalidatePermissionCache).toHaveBeenCalledWith('user-1', 'device-1');
+    });
   });
 
   // AUD FIX-5 (ronda 12) — `create()` también debe rechazar
@@ -752,6 +775,42 @@ describe('RolesService', () => {
       const result = await service.update('role-1', { permissions: ['REVEAL incidents'] } as never);
 
       expect(result.permissions).toEqual(['REVEAL incidents']);
+    });
+
+    it('denormaliza el set nuevo a users asignados + bump version + invalida cache (AUD FIX-7)', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('admin_org'));
+      roleRepo.save.mockImplementation(async (x) => x as never);
+      userRepo.find.mockResolvedValue([
+        { id: 'user-1', permissions: ['perm-vieja'], permissionVersion: 2, deviceUuid: 'device-1' },
+        { id: 'user-2', permissions: ['perm-vieja'], permissionVersion: 1, deviceUuid: null },
+      ]);
+
+      const result = await service.update('role-1', { permissions: ['READ incidents'] } as never);
+
+      expect(result.permissions).toEqual(['READ incidents']);
+      expect(userRepo.find).toHaveBeenCalledWith({ where: { roleId: 'role-1' } });
+      expect(userRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'user-1', permissions: ['READ incidents'], permissionVersion: 3 }),
+      );
+      expect(userRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'user-2', permissions: ['READ incidents'], permissionVersion: 2 }),
+      );
+      expect(authService.invalidatePermissionCache).toHaveBeenCalledWith('user-1', 'device-1');
+      expect(authService.invalidatePermissionCache).toHaveBeenCalledWith('user-2', null);
+    });
+
+    it('NO denormaliza si solo cambia el nombre (permissions intactas)', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-1',
+        name: 'custom-role',
+        permissions: ['READ incidents'],
+      } as unknown as RoleEntity);
+
+      await service.update('role-1', { name: 'renamed' } as never);
+
+      expect(userRepo.find).not.toHaveBeenCalled();
+      expect(userRepo.save).not.toHaveBeenCalled();
+      expect(authService.invalidatePermissionCache).not.toHaveBeenCalled();
     });
   });
 

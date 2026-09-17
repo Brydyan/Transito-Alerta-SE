@@ -94,7 +94,6 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
   it('POST /auth/register con body correcto y navega al verify-email al éxito', () => {
     const router = (fixture.componentRef as unknown as { injector: { get: (t: unknown) => unknown } }).injector.get(
       // Lazy import to keep this spec independent of router internals
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       Object.getPrototypeOf(component).constructor,
     ) as never;
     void router; // el router real se obtiene vía TestBed.inject(Router) — fuera del alcance de este aserto
@@ -102,7 +101,7 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
     component.registerForm.patchValue({ ...validPayload });
     component.onSubmit();
 
-    const req = http.expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'));
+    const req = http.expectOne((r) => r.method === 'POST' && r.url.endsWith('/auth/register'));
     expect(req.request.method).toBe('POST');
     // F3.1.4 — el body coincide con la firma del backend.
     // No se manda `role`, `roleName`, `permissions`, `organization_id`:
@@ -130,7 +129,7 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
     // verifica que la navegación no depende del cuerpo, sólo
     // del éxito HTTP.
     http
-      .expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'))
+      .expectOne((r) => r.method === 'POST' && r.url.endsWith('/auth/register'))
       .flush({ message: 'cualquier mensaje' });
   });
 
@@ -154,7 +153,7 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
       });
       component.onSubmit();
 
-      const req = http.expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'));
+      const req = http.expectOne((r) => r.method === 'POST' && r.url.endsWith('/auth/register'));
       // La defensa: el body tiene EXACTAMENTE esas cuatro
       // claves, en ese orden. `email_confirm` queda en el
       // cliente. Si `onSubmit` se cambiara a
@@ -189,7 +188,7 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
       });
       expect(component.registerForm.valid).toBe(true);
       component.onSubmit();
-      const req = http.expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'));
+      const req = http.expectOne((r) => r.method === 'POST' && r.url.endsWith('/auth/register'));
       req.flush({ message: 'ok' });
     });
 
@@ -231,7 +230,7 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
       component.registerForm.patchValue({ ...validPayload });
       component.onSubmit();
       http
-        .expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'))
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/auth/register'))
         .flush({ message: backendMessage });
 
       expect(navigateSpy).toHaveBeenCalledWith(
@@ -250,7 +249,7 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
     component.registerForm.patchValue({ ...validPayload });
     component.onSubmit();
     http
-      .expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'))
+      .expectOne((r) => r.method === 'POST' && r.url.endsWith('/auth/register'))
       .flush(
         { code: 'REGISTRATION_RATE_LIMITED', message: 'Demasiados intentos' },
         { status: 429, statusText: 'Too Many Requests' },
@@ -262,7 +261,7 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
     component.registerForm.patchValue({ ...validPayload });
     component.onSubmit();
     http
-      .expectOne((r: any) => r.method === 'POST' && r.url.endsWith('/auth/register'))
+      .expectOne((r) => r.method === 'POST' && r.url.endsWith('/auth/register'))
       .flush(
         { message: 'Internal server error' },
         { status: 500, statusText: 'Server Error' },
