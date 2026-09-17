@@ -19,7 +19,6 @@ import {
   GEO_ZONE_LEVEL_LABELS,
 } from '../interfaces/igeo-zone.interface';
 import { buildTree, filterTreePreservingAncestors } from '../tree.util';
-import { ShapefileImportDialogComponent } from '../components/shapefile-import-dialog/shapefile-import-dialog.component';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
@@ -53,7 +52,6 @@ type LevelFilter = 'all' | GeoZoneLevel;
     UiButtonComponent,
     UiTableComponent,
     UiIconComponent,
-    ShapefileImportDialogComponent,
   ],
   templateUrl: './location-list.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -76,9 +74,6 @@ export class LocationListComponent implements OnInit, OnDestroy {
   readonly levelFilter = signal<LevelFilter>('all');
   readonly searchTerm = signal('');
   readonly isLoading = signal(true);
-
-  /** sc-334 Phase 2 — toggles the bulk-import dialog. */
-  readonly showImportDialog = signal(false);
 
   readonly levelOptions = LEVEL_OPTIONS;
   readonly levelLabels = GEO_ZONE_LEVEL_LABELS;
@@ -251,16 +246,6 @@ export class LocationListComponent implements OnInit, OnDestroy {
 
   navigateToCreate(): void {
     this.router.navigate(['new'], { relativeTo: this.route });
-  }
-
-  /** sc-334 Phase 2 — open the bulk shapefile import dialog. */
-  openImportDialog(): void {
-    this.showImportDialog.set(true);
-  }
-
-  /** sc-334 Phase 2 — close the bulk shapefile import dialog. */
-  closeImportDialog(): void {
-    this.showImportDialog.set(false);
   }
 
   navigateToEdit(location: IGeoZone): void {

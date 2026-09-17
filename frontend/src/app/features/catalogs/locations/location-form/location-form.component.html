@@ -129,6 +129,18 @@
             type="button"
             uiButton
             variant="secondary"
+            *hasPermission="'CREATE geo-zones'"
+            [disabled]="isSaving()"
+            (click)="openImportDialog()"
+            aria-label="Importar shapefile"
+          >
+            <ui-icon uiButtonIcon name="upload-cloud" [size]="16" />
+            Importar shapefile
+          </button>
+          <button
+            type="button"
+            uiButton
+            variant="ghost"
             [disabled]="isSaving()"
             (click)="onCancel()"
           >
@@ -146,5 +158,9 @@
         </div>
       </div>
     </form>
+  }
+
+  @if (showImportDialog()) {
+    <app-shapefile-import-dialog (closed)="closeImportDialog()" />
   }
 </div>

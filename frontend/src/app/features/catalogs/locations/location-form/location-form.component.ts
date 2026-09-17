@@ -27,8 +27,10 @@ import {
   IGeoJsonPolygon,
 } from '../interfaces/igeo-zone.interface';
 import { buildTree, getLevelParentLevel } from '../tree.util';
+import { ShapefileImportDialogComponent } from '../components/shapefile-import-dialog/shapefile-import-dialog.component';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
+import { HasPermissionDirective } from '../../../../shared/directives/has-permission.directive';
 import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
@@ -58,9 +60,11 @@ const PLACEHOLDER_POLYGON: IGeoJsonPolygon = {
   imports: [
     CommonModule,
     ReactiveFormsModule,
+    HasPermissionDirective,
     UiPageHeaderComponent,
     UiButtonComponent,
     UiIconComponent,
+    ShapefileImportDialogComponent,
   ],
   templateUrl: './location-form.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -82,6 +86,9 @@ export class LocationFormComponent implements OnInit, OnDestroy {
   readonly isSaving = signal(false);
   readonly serverErrors = signal<Record<string, string>>({});
   readonly integrityError = signal(false);
+
+  /** sc-334 Phase 2 — toggles the bulk shapefile import dialog. */
+  readonly showImportDialog = signal(false);
 
   /** All zones used to populate the parent selector. */
   readonly allZones = signal<IGeoZone[]>([]);
@@ -272,6 +279,16 @@ export class LocationFormComponent implements OnInit, OnDestroy {
 
   goBack(): void {
     this.router.navigate(['../../'], { relativeTo: this.route });
+  }
+
+  /** sc-334 Phase 2 — open the bulk shapefile import dialog. */
+  openImportDialog(): void {
+    this.showImportDialog.set(true);
+  }
+
+  /** sc-334 Phase 2 — close the bulk shapefile import dialog. */
+  closeImportDialog(): void {
+    this.showImportDialog.set(false);
   }
 
   private refreshParentValidation(): void {
