@@ -193,22 +193,29 @@ describe('MenuService (F1.4.3)', () => {
   // sc-334 admin-controles-enhancements Phase 9 — sidebar depth cap.
   // After migration 0060 added CRUD sub-sub-menus (3rd level under each
   // sub-menu), the backend started including them in /api/menus/my. The
-  // sidebar was not designed for 3-level expand/collapse — this test
-  // asserts that the 3rd level is flattened to a regular link (no
-  // children) and the 2nd-level item keeps its children visible.
+  // sidebar is a 2-level tree — sub-sub-menus (Crear/Editar X) belong
+  // exclusively to /app/admin/controles (which reads /api/menu-options
+  // directly and renders the full tree via MenuTreeComponent). Clicking
+  // "Usuarios" in the sidebar navigates to /admin/users; the Crear/Editar
+  // actions live inside that page, not as nested sidebar entries.
 
-  it('caps sidebar depth at 2 (3rd-level items flatten to regular links)', (done) => {
+  it('hides 3rd-level items from the sidebar (only /app/admin/controles shows them)', (done) => {
     service.getMenuFromBackend().subscribe((items) => {
       const gestion = items.find((i) => i.name === 'GESTIÓN')!;
       const usuarios = gestion.children!.find((c) => c.name === 'Usuarios')!;
-      expect(usuarios.children).toBeDefined();
-      expect(usuarios.children!.length).toBe(2);
-      // The CRUD sub-sub-menus appear as regular links (no nested children).
-      expect(usuarios.children!.every((c) => c.children?.length === 0)).toBe(true);
-      expect(usuarios.children!.map((c) => c.name).sort()).toEqual([
-        'Crear usuario',
-        'Editar usuario',
-      ]);
+      // 3rd-level items are not exposed in the sidebar at all. Usuarios
+      // stays as a flat link (children = []) — no chevron, no nested entries.
+      expect(usuarios.children).toEqual([]);
+      // The CRUD sub-sub-menus must NOT appear anywhere in the sidebar tree.
+      const flatNames = JSON.stringify(items).includes('Crear usuario');
+      const flatNames2 = JSON.stringify(items).includes('Editar usuario');
+      expect(flatNames).toBe(false);
+      expect(flatNames2).toBe(false);
+      // Total items in the sidebar: 1 GESTIÓN + 2 children (Usuarios, Roles) = 3.
+      // The 2 CRUD items from the fixture are intentionally excluded.
+      expect(items.length).toBe(1);
+      expect(gestion.children!.length).toBe(2);
+      expect(service.countAllItems(items)).toBe(3);
       done();
     });
 

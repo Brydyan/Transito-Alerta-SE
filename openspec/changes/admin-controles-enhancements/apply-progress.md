@@ -287,8 +287,8 @@ Scope: `MenuService.transformBackendMenu` only. The `/app/admin/controles` admin
 
 | Task | Status |
 |------|--------|
-| 9.1 RED test: `caps sidebar depth at 2 (3rd-level items flatten to regular links)` | Done — fixture GESTIÓN → Usuarios → [Crear usuario, Editar usuario]; asserts Usuarios.children.length === 2 + every grandchild has empty children |
-| 9.2 GREEN: change gate `depth < 1` → `depth < 2` in `transformBackendMenu` | Done — allows recursion from depth 0 → 1 → 2; level-3 items at depth 2 stop recursion and stay as flat links with empty children |
+| 9.1 RED test: `hides 3rd-level items from the sidebar (only /app/admin/controles shows them)` | Done — fixture GESTIÓN → Usuarios → [Crear usuario, Editar usuario]; asserts Usuarios.children === [] + Crear/Editar not in tree + countAllItems === 3 |
+| 9.2 GREEN: gate `depth < 1` (never recurse past depth 0) in `transformBackendMenu` | Done — level-2 items keep `children: []`; level-3 items never enter the sidebar tree |
 | 9.3 Run `menu.service` + related suites | Done — 96/96 PASS (11 suites) |
 
 ### Algorithm
@@ -297,24 +297,25 @@ Scope: `MenuService.transformBackendMenu` only. The `/app/admin/controles` admin
 transformBackendMenu(items):
   transformNode(item, parentId?, depth=0):
     out = { ...item, children: [], id, parent_menu_id, group }
-    if depth < 2 AND item.children.length > 0:
+    if depth < 1 AND item.children.length > 0:
       out.children = item.children.map(transformNode(_, _, depth+1))
     return out
 ```
 
 Tree shape:
 - depth 0 (root): recurse to depth 1 (level 2 items)
-- depth 1 (level 2): recurse to depth 2 (level 3 items appear as flat links)
-- depth 2+ (level 3+): never reached — depth gate stops
+- depth 1+ (level 2+): never recurse — `children` queda en `[]` y los nietos nunca entran al árbol
 
 Sidebar rendering consequence:
 - Roots render as expandable sections (chevron + child list)
-- Level-2 items render as expandable items (chevron + child list, since their children array is non-empty)
-- Level-3 items render as flat links inside their level-2 parent's expanded view, no chevron
+- Level-2 items render as flat links (children = [], no chevron)
+- Level-3 items are NEVER rendered in the sidebar
+
+Admin screen `/app/admin/controles` (via `MenuTreeComponent`, reads `/api/menu-options` directly): unaffected — keeps full 3-level tree.
 
 ### Deviations
 
-- **D9** — Original implementation tried `depth < 1` which made level-2 items have empty children (3rd-level items dropped entirely). Test expectation was `usuarios.children.length === 2`, which means 3rd-level items should appear as flat links under their parent (visible + clickable, just not expandable). Adjusted to `depth < 2` to match test. This is the correct UX — users can still reach "Crear usuario" / "Editar usuario" from the sidebar even though the admin screen is the canonical place.
+- **D9** — Originally wrote `depth < 2` so 3rd-level items appeared as flat links under their level-2 parent. User clarified the desired UX: sub-sub-menus belong ONLY to /app/admin/controles (the admin tree), and the sidebar must show only 2 levels (root + children) — clicking "Usuarios" navigates to /admin/users, where the Crear/Editar actions live inside the page. Reverted gate to `depth < 1` and updated test to assert 3rd-level items are absent from the sidebar tree (not visible as flat links).
 
 ### Test Results
 

@@ -198,6 +198,6 @@
 
 > Trigger: After migration 0060 added CRUD sub-sub-menus (3rd level), the sidebar rendered 3rd-level items as their own expandables. User asked: "ahora salen opciones expandible en el sidebar y no queria que se apliquen". This phase scopes the fix to the sidebar only — `/app/admin/controles` keeps its full 3-level tree via `MenuTreeComponent`.
 
-- [x] 9.1 RED test: `caps sidebar depth at 2 (3rd-level items flatten to regular links)` in `menu.service.spec.ts` (fixture: GESTIÓN → Usuarios → [Crear/Editar usuario])
-- [x] 9.2 GREEN: gate `depth < 1` → `depth < 2` in `MenuService.transformBackendMenu` (allows recursion through depth 0 → 1 → 2; stops at depth 2 so level-3 items appear as flat links with empty children)
+- [x] 9.1 RED test: `hides 3rd-level items from the sidebar (only /app/admin/controles shows them)` in `menu.service.spec.ts` (fixture: GESTIÓN → Usuarios → [Crear/Editar usuario]; asserts Usuarios.children === [] + Crear/Editar not in tree)
+- [x] 9.2 GREEN: gate `depth < 1` in `MenuService.transformBackendMenu` (level-2 items keep children: []; level-3 items never enter the sidebar tree)
 - [x] 9.3 Run `menu.service` + related suites — 96/96 PASS (11 suites)
