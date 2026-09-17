@@ -47,3 +47,15 @@ export interface IncidentCategoryTreeNode {
   name: string;
   children?: IncidentCategoryTreeNode[];
 }
+
+/**
+ * Internal node shape used by the admin `/app/categorias` list
+ * (T7.4). Extends the wire DTO with the client-computed `children`
+ * (built from `buildCategoryTree`) and `depth` (used by the template
+ * for chevron indent). Not returned by the backend — the wire shape
+ * is `IIncidentCategory[]` and the tree is assembled client-side.
+ */
+export interface IncidentCategoryNode extends IIncidentCategory {
+  children: IncidentCategoryNode[];
+  depth: number;
+}
