@@ -138,6 +138,17 @@ export class MenuService {
   }
 
   /**
+   * Cuenta todos los items del menú recursivamente, incluyendo children.
+   * Útil para logs que necesitan mostrar el total de items, no solo root nodes.
+   */
+  countAllItems(items: MenuItem[]): number {
+    return items.reduce((sum, item) => {
+      const childCount = item.children?.length ?? 0;
+      return sum + 1 + childCount;
+    }, 0);
+  }
+
+  /**
    * Limpia el menú almacenado (útil en logout)
    */
   clearMenu(): void {
