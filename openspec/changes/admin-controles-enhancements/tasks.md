@@ -212,3 +212,14 @@
 - [x] 10.1 RED test: 5 nuevos casos (Usuarios→5 endpoints, Crear usuario→POST, Editar rol→PATCH, manual junction wins, name sin mapping→[]) — `menu-options.service.spec.ts`
 - [x] 10.2 GREEN: NAME_TO_API_MODULE + inferApiModule (level-aware: level-2 use OWN name, level-3 use PARENT name) + queryEndpointsInModule (level-aware action prefix filter)
 - [x] 10.3 Run backend suite + curl smoke — 31/31 pass; curl confirma comportamiento
+
+
+---
+
+## Phase 11: Auto-Discovery de Endpoints
+
+> Trigger: User pidió que el sistema identifique y cargue los endpoints automáticamente (sin seed manual) porque si cambia la ruta en un menú, el sistema debe actualizarlo. Phase 10 mostraba [] para Departamentos porque la tabla `api_endpoints` no tenía sus endpoints seeded.
+
+- [x] 11.1 EndpointDiscoveryService con discover() + syncToDatabase() (INSERT-only, preserva junction refs) + OnApplicationBootstrap hook — `backend/src/modules/menus/services/endpoint-discovery.service.ts`
+- [x] 11.2 Registrar en MenusModule (importa DiscoveryModule, provee + exporta)
+- [x] 11.3 Tests unit (DiscoveryService/MetadataScanner stubs) + live curl smoke — 11/11 pass; Departamentos ahora muestra 6 endpoints

@@ -463,3 +463,86 @@ backend/src/modules/menus/menu-options.service.ts        — NAME_TO_API_MODULE 
 backend/src/modules/menus/menu-options.service.spec.ts   — 5 new auto-association tests
 openspec/changes/admin-controles-enhancements/apply-progress.md  — Phase 10 section (this)
 ```
+
+
+---
+
+## Phase 11 — Auto-Discovery de Endpoints desde Controllers (Debug-Driven)
+
+### Context
+
+Phase 10 hace que `/app/admin/controles` muestre los endpoints asociados a cada sub-menu. Pero Departamentos mostraba [] porque la tabla `api_endpoints` no tenía los endpoints de `DepartmentsController` seeded (migración 0054 fue antes de que se agregara el módulo departments en 0056). Cualquier módulo futuro tiene el mismo problema.
+
+User pidió: "que el sistema mismo identifique y que carguen porque si yo cambiara la ruta en este menu entonces deberia el sistema actualizarlo" — el sistema debe auto-detectar endpoints desde los controllers y actualizar el catálogo automáticamente.
+
+### Decisión
+
+NestJS expone `DiscoveryService` + `MetadataScanner` para introspeccionar todos los controllers registrados. Cada handler tiene metadata `METHOD_METADATA` (HTTP verb enum) y `PATH_METADATA` (sub-path). Combinando con el prefijo del `@Controller(prefix)`, podemos construir el path completo.
+
+**Estrategia de sync (INSERT-only):**
+1. Discover todos los endpoints de los controllers activos
+2. INSERT los nuevos en `api_endpoints` con descripción `ControllerName.methodName` (default)
+3. NO actualizar descripciones existentes (preservar las escritas a mano como "List users")
+4. NO borrar filas existentes — la junction `menu_option_endpoints` tiene FK con `ON DELETE CASCADE`, así que borrar un endpoint wipe cualquier asignación manual del admin
+
+### Implementación
+
+- `EndpointDiscoveryService` (`backend/src/modules/menus/services/endpoint-discovery.service.ts`):
+  - Inyecta `DiscoveryService` + `MetadataScanner` + `Repository<ApiEndpointEntity>`
+  - `discover()`: retorna `Array<{method, path, source}>`. Filtra ALL/OPTIONS/HEAD/SEARCH.
+  - `syncToDatabase()`: INSERT-only. Retorna `{discovered, inserted, preserved, skipped}`.
+  - `OnApplicationBootstrap`: hook que corre el sync al startup del backend. Errores se loggean (no bloquean el server).
+- `MenusModule`: importa `DiscoveryModule`, registra `EndpointDiscoveryService` como provider/export.
+- `buildFullPath` quirk: NestJS almacena `'/'` para `@Get()` sin argumento (no `''`). Strip leading/trailing slashes para evitar `/api/departments//` (double slash bug).
+
+### Verificación (live backend)
+
+Después de reiniciar el backend con el nuevo código:
+
+```
+[Nest] EndpointDiscoveryService — Endpoint discovery: 130 discovered, 0 inserted, 130 preserved
+```
+
+Tabla `api_endpoints` después del sync:
+- 6 endpoints para `/api/departments/*` (DepartmentsController) — antes 0
+- 4 endpoints para `/api/incident-categories/*` (incident-categories) — antes 5
+- 130 endpoints totales descubiertos (todos los controllers)
+
+Curl verify:
+- `GET /api/menu-options/{departamentos-id}/endpoints` → 6 endpoints (antes [])
+- `GET /api/menu-options/{crear-departamento-id}/endpoints` → 1 endpoint POST /api/departments
+- `GET /api/menu-options/{editar-departamento-id}/endpoints` → 1 endpoint PATCH /api/departments/:id
+
+### Implemented (3/3)
+
+| Task | Status |
+|------|--------|
+| 11.1 EndpointDiscoveryService con discover() + syncToDatabase() + OnApplicationBootstrap hook | Done |
+| 11.2 Registrar en MenusModule (importa DiscoveryModule, provee + exporta el service) | Done |
+| 11.3 Tests unit (DiscoveryService/MetadataScanner stubs) + run suite + curl smoke | Done — 11/11 unit pass; live backend sincroniza 130 endpoints |
+
+### Deviations
+
+- **D11** — Initial impl concatenaba methodPath sin strip de slashes, produciendo `/api/departments//` (double slash) para `@Get()` sin argumento. NestJS almacena `'/'` para estos casos, no `''`. Fix: `methodPath.replace(/^\/+|\/+$/g, '')` antes de join.
+
+- **D12** — Inicialmente usé `?? ''` para methodPath pero el error fue `methodPath.replace is not a function` — refleja metadata puede ser `null` en runtime. Fix: `typeof rawMethodPath === 'string' ? rawMethodPath : ''` (defensivo).
+
+### Test Results
+
+| Gate | Command | Result |
+|------|---------|--------|
+| endpoint-discovery.service unit | `pnpm exec jest --testPathPatterns='endpoint-discovery'` | **11/11 PASS** |
+| menu-options.service unit | (regression) | **31/31 PASS** (no collateral) |
+| Backend typecheck | `npm run typecheck` | No errors |
+| Backend build | `nest build` | OK |
+| Live curl smoke | `curl /api/menu-options/{id}/endpoints` | Departamentos → 6 endpoints (antes []); Crear departamento → POST; Editar departamento → PATCH |
+
+### Files Modified
+
+```
+backend/src/modules/menus/menus.module.ts                                          — +DiscoveryModule, +EndpointDiscoveryService
+backend/src/modules/menus/services/endpoint-discovery.service.ts                   — NEW (discover + sync + bootstrap hook)
+backend/src/modules/menus/services/endpoint-discovery.service.spec.ts              — NEW (11 tests)
+openspec/changes/admin-controles-enhancements/tasks.md                              — Phase 11 [x]
+openspec/changes/admin-controles-enhancements/apply-progress.md                     — Phase 11 section (this)
+```

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { DiscoveryModule } from '@nestjs/core';
 
 import { AuthModule } from '../auth/auth.module';
 import { MenuOptionEntity } from './entities/menu-option.entity';
@@ -12,6 +13,7 @@ import { MenusController } from './menus.controller';
 import { MenusService } from './menus.service';
 import { MenuOptionsController } from './menu-options.controller';
 import { MenuOptionsService } from './menu-options.service';
+import { EndpointDiscoveryService } from './services/endpoint-discovery.service';
 
 /**
  * MenusModule (F5 — dynamic menus).
@@ -26,6 +28,7 @@ import { MenuOptionsService } from './menu-options.service';
 @Module({
   imports: [
     AuthModule,
+    DiscoveryModule,
     TypeOrmModule.forFeature([
       MenuOptionEntity,
       MenuOptionRoleEntity,
@@ -36,7 +39,7 @@ import { MenuOptionsService } from './menu-options.service';
     ]),
   ],
   controllers: [MenusController, MenuOptionsController],
-  providers: [MenusService, MenuOptionsService],
-  exports: [MenusService, MenuOptionsService],
+  providers: [MenusService, MenuOptionsService, EndpointDiscoveryService],
+  exports: [MenusService, MenuOptionsService, EndpointDiscoveryService],
 })
 export class MenusModule {}
