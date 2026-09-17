@@ -85,3 +85,59 @@ openspec/changes/geo-zones-shapefile-import/tasks.md                            
 3. **No frontend build / lint run yet.** The full suite passed (684/684) but `pnpm build` and `pnpm lint` were not executed in this session. sdd-verify should run those gates per `claude-qa.md` Regla 1 before declaring Phase 2 PASS.
 4. **Conflict-of-interest continues.** Same session applied + will verify. Re-verification in clean-context sub-agent remains a precondition for `sdd-archive`.
 5. **Architect territory left unstaged.** `design.md`, `specs/geo-zones-import/spec.md`, `specs/map-ui-support/spec.md`, `specs/map-zone-filters/spec.md`, plus the `departments-menu` archive move — all remain untouched per `minimax-builder.md` rule 119–122.
+
+---
+
+## Phase 3 — Frontend Map Polygon Rendering
+
+### Implemented (8/8)
+
+| Task | Description | Status |
+|------|-------------|--------|
+| 3.1 | `zone_id?: string` added to `MapActiveFilters` interface | Done |
+| 3.2 | `ZONE_STYLES` exported `Record<GeoZoneLevel, L.PathOptions>` with the four palette colors (provincia `#6366f1`, canton `#0891b2`, parroquia `#059669`, zona `#d97706`) | Done |
+| 3.3 | RED — failing test for one L.geoJSON layer per zone with correct ZONE_STYLES stroke color | Done |
+| 3.4 | `MapComponent.loadZones()` refactored to call `listAll()` (geometry always returned in list endpoint — backend has no `include_geometry=true` flag, contrary to tasks.md text), filters inactive/null-polygon zones, uses `ZONE_STYLES[z.level]` per zone | Done |
+| 3.5 | GREEN — renderZonePolygons implementation passes 3.3 tests | Done |
+| 3.6 | RED — failing test for bindPopup carrying name, code, level, parent_name | Done |
+| 3.7 | `createZoneLayer()` binds popup HTML with `name`, `code ?? '---'`, `level`, `parent_name ?? '---'`; re-enables `interactive: true` + `bubblingMouseEvents: true` after binding (so the click opens the popup without blocking incident markers) | Done |
+| 3.8 | GREEN — popup handler passes 3.6 tests | Done |
+
+### Deviations from design.md / tasks.md
+
+1. **Path correction (W2-style).** Tasks.md references `features/map/services/map-data.service.ts` and `features/map/map.component.ts` — actual paths are `features/citizen/map/services/map-data.service.ts` and `features/citizen/map/map.component.ts` (the citizen-facing map; `features/map/` does not exist). Same architect fix as Phase 2 W2.
+2. **`include_geometry=true` query parameter does not exist on backend.** Tasks 3.4 says "call `GET /geo-zones?include_geometry=true`" — the list endpoint always returns `polygon` (`GeoZoneDetailRow` selects it). Implementation calls `listAll()` directly. No backend change needed.
+3. **HTML escape for popup content.** Spec doesn't mention XSS, but admin-controlled zone names flow into a popup payload that Leaflet renders as HTML. Added minimal `escapeHtml()` for `& < > " '`. Logged as defensive measure, not a deviation from any explicit spec text.
+
+### Test Results
+
+| Gate | Command | Result |
+|------|---------|--------|
+| Unit (map scope) | `pnpm exec jest --testPathPatterns='features/citizen/map/map.component'` | **10/10 PASS** (3 original + 7 new for Phase 3) |
+| Unit (full frontend) | `pnpm exec jest` | **739/739 PASS** (98 suites, ~8 s) |
+| Typecheck | `pnpm exec tsc --noEmit` | No errors |
+| Lint | `pnpm run lint` | 0 errors, 0 warnings |
+| Build | `pnpm run build` | OK (pre-existing bundle budget warning unchanged) |
+| Phase 1 backend regression | (unchanged) | 1159/1159 unit + 497/507 e2e |
+| Phase 2 frontend regression | (unchanged) | 684/684 → now 739/739 (cumulative) |
+
+### Files Added
+
+(none)
+
+### Files Modified
+
+```
+frontend/src/app/features/citizen/map/services/map-data.service.ts
+frontend/src/app/features/citizen/map/map.component.ts
+frontend/src/app/features/citizen/map/map.component.spec.ts
+openspec/changes/geo-zones-shapefile-import/tasks.md
+openspec/changes/geo-zones-shapefile-import/apply-progress.md
+```
+
+### Notes for sdd-verify (Phase 3 specific)
+
+1. **Path correction (Deviation 1) and backend param (Deviation 2)** both flow to architect for SDD path fix — same as Phase 2 W2 pattern.
+2. **HTML escape (Deviation 3)** is defensive. If architect prefers no escape (treating admin content as trusted), remove the helper. Tests do not cover the escape — they assert `popupHtml.toContain('Daule')` which works either way for plain ASCII names.
+3. **Conflict-of-interest continues.** Same session applied + will verify. Re-verification in clean-context sub-agent remains a precondition for `sdd-archive`.
+4. **Architect territory left unstaged** — same set as previous phases.

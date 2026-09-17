@@ -7,10 +7,34 @@ import { GeoZoneService } from '../../catalogs/locations/services/geo-zone.servi
 import { Incident, IncidentStatus } from '../../../core/models/incident.model';
 import { MapFiltersComponent } from './components/map-filters/map-filters.component';
 import { MapDataService, MapActiveFilters } from './services/map-data.service';
-import { IGeoJsonPolygon, IGeoJsonMultiPolygon } from '../../catalogs/locations/interfaces/igeo-zone.interface';
+import {
+  IGeoZone,
+  IGeoJsonPolygon,
+  IGeoJsonMultiPolygon,
+  GeoZoneLevel,
+} from '../../catalogs/locations/interfaces/igeo-zone.interface';
 import { Subscription } from 'rxjs';
 
 type GeoZonePolygon = IGeoJsonPolygon | IGeoJsonMultiPolygon;
+
+/**
+ * sc-334 D3 — color palette for the four zone levels.
+ *
+ * Chosen for colorblind accessibility and contrast on OSM tiles. Stroke +
+ * fill are the same hue; opacity + dashArray differentiate the levels
+ * visually so a canton never looks identical to a parroquia stacked
+ * underneath it.
+ *
+ * Exported for unit tests in `map.component.spec.ts` — the test asserts
+ * the stroke color per level, not the values, so an architect redesign
+ * of the palette breaks the test loudly rather than silently.
+ */
+export const ZONE_STYLES: Record<GeoZoneLevel, L.PathOptions> = {
+  provincia: { color: '#6366f1', weight: 2, opacity: 0.8, fillColor: '#6366f1', fillOpacity: 0.08, dashArray: '6 4' },
+  canton:    { color: '#0891b2', weight: 2, opacity: 0.9, fillColor: '#0891b2', fillOpacity: 0.12 },
+  parroquia: { color: '#059669', weight: 1.5, opacity: 0.9, fillColor: '#059669', fillOpacity: 0.15 },
+  zona:      { color: '#d97706', weight: 1, opacity: 0.9, fillColor: '#d97706', fillOpacity: 0.10, dashArray: '2 3' },
+};
 
 // Canonical Leaflet icon fix for Webpack/Angular
 const iconRetinaUrl = '/assets/marker-icon-2x.png';
@@ -111,42 +135,68 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
       this.geoZoneService.listAll().subscribe({
         next: (zones) => {
           this.zoneLayerGroup.clearLayers();
-
-          const activeZones = zones.filter(z => z.active && z.polygon);
-          activeZones.forEach(z => {
-            const layer = L.geoJSON(z.polygon as GeoZonePolygon as unknown as Parameters<typeof L.geoJSON>[0], {
-              style: () => ({
-                color: '#3b82f6',
-                weight: 2,
-                opacity: 0.8,
-                fillColor: '#3b82f6',
-                fillOpacity: 0.1,
-                dashArray: '3'
-              }),
-              onEachFeature: (feature, layer) => {
-                layer.on({
-                  mouseover: (e) => {
-                    const l = e.target as L.Path;
-                    l.setStyle({ fillOpacity: 0.3, weight: 3 });
-                  },
-                  mouseout: (e) => {
-                    const l = e.target as L.Path;
-                    const geoJsonLayer = layer as unknown as L.GeoJSON;
-                    if (geoJsonLayer.resetStyle) {
-                      geoJsonLayer.resetStyle(e.target);
-                    } else {
-                      l.setStyle({ fillOpacity: 0.1, weight: 2 });
-                    }
-                  }
-                });
-              }
-            });
-            this.zoneLayerGroup.addLayer(layer);
-          });
+          const layers = this.renderZonePolygons(zones);
+          layers.forEach(l => this.zoneLayerGroup.addLayer(l));
         },
         error: (err) => console.error('Error loading zones:', err?.message ?? 'unknown')
       })
     );
+  }
+
+  /**
+   * sc-334 D3 — public for testability. Returns one Leaflet layer per
+   * active zone with a polygon, using the per-level palette and a
+   * `bindPopup` payload that surfaces name + code + level + parent_name.
+   *
+   * Default `interactive: false` (spec R-): clicks must not block
+   * incident markers. The popup binding re-enables interaction for the
+   * bound layer so the popup can be opened.
+   */
+  renderZonePolygons(zones: IGeoZone[]): L.Layer[] {
+    return zones
+      .filter(z => z.active && z.polygon != null)
+      .map(z => this.createZoneLayer(z));
+  }
+
+  private createZoneLayer(zone: IGeoZone): L.Layer {
+    const layer = L.geoJSON(zone.polygon as GeoZonePolygon as unknown as Parameters<typeof L.geoJSON>[0], {
+      style: () => ZONE_STYLES[zone.level],
+      interactive: false,
+      bubblingMouseEvents: false,
+    });
+
+    const popupHtml = `
+      <div class="zone-popup">
+        <div class="font-semibold text-slate-900">${this.escapeHtml(zone.name)}</div>
+        <div class="text-xs text-slate-500 mt-1">
+          <span>Código: <strong>${this.escapeHtml(zone.code ?? '---')}</strong></span><br>
+          <span>Nivel: <strong>${zone.level}</strong></span><br>
+          <span>Padre: <strong>${this.escapeHtml(zone.parent_name ?? '---')}</strong></span>
+        </div>
+      </div>
+    `;
+    layer.bindPopup(popupHtml);
+
+    // Re-enable interaction now that the popup is bound — `interactive: false`
+    // would block the click that opens the popup. `bubblingMouseEvents: true`
+    // keeps incident markers underneath clickable.
+    const opts = (layer as unknown as { options: L.PathOptions & { bubblingMouseEvents?: boolean } }).options;
+    opts.interactive = true;
+    opts.bubblingMouseEvents = true;
+
+    return layer;
+  }
+
+  /** Minimal HTML escape for popup payloads — GeoJSON properties are
+   *  admin-controlled but a malicious admin should still not get XSS
+   *  via a zone name. */
+  private escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   private loadIncidents() {

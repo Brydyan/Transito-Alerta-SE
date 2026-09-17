@@ -13,6 +13,12 @@ export interface MapActiveFilters {
   status?: string;
   priority?: string;
   incident_category_id?: string;
+  /**
+   * sc-334 Phase 4 — selected geographic zone. Maps to `GET /incidents/feed?zone_id=…`
+   * once the cascading filter dropdowns (Phase 4) emit it. For Phase 3 the
+   * field exists but no UI populates it yet — the map just renders zones.
+   */
+  zone_id?: string;
 }
 
 // FIX-07: single source of truth for the feed envelope lives in

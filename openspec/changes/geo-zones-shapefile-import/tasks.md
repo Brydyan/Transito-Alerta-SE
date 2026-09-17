@@ -74,14 +74,14 @@ Chain strategy: stacked-to-main
 
 > Prerequisite: Phase 1 (PR 1) complete; Phase 2 (PR 2) may run in parallel.
 
-- [ ] 3.1 Add `zone_id?: string` to `MapActiveFilters` interface in `frontend/src/app/features/map/services/map-data.service.ts`
-- [ ] 3.2 Add `ZONE_STYLES` constant to `frontend/src/app/features/map/map.component.ts`: `Record<GeoZoneLevel, L.PathOptions>` with colors per design (provincia `#6366f1`, canton `#0891b2`, parroquia `#059669`, zona `#d97706`)
-- [ ] 3.3 **RED** — Write failing map component test: given zones array with one feature per level, `renderZonePolygons()` creates four `L.geoJSON` layers each using the correct stroke color from `ZONE_STYLES`
-- [ ] 3.4 Extend `MapComponent.loadZones()` in `frontend/src/app/features/map/map.component.ts` to call `GET /geo-zones?include_geometry=true`; store result; render each zone with `L.geoJSON` using `ZONE_STYLES[z.level]`; set `interactive: false`; skip zones with `polygon: null`
-- [ ] 3.5 **GREEN** — Implement `loadZones()` and `renderZonePolygons()` so 3.3 passes
-- [ ] 3.6 **RED** — Write failing map component test: clicking a canton polygon layer triggers `bindPopup` with name, code, level, parent_name
-- [ ] 3.7 Add `onEachFeature` popup handler to zone `L.geoJSON` calls: `bindPopup` with name, `code ?? '---'`, level, `parent_name ?? '---'`; `interactive: true`; `bubblingMouseEvents: true`
-- [ ] 3.8 **GREEN** — Implement popup handler so 3.6 passes
+- [x] 3.1 Add `zone_id?: string` to `MapActiveFilters` interface in `frontend/src/app/features/map/services/map-data.service.ts`
+- [x] 3.2 Add `ZONE_STYLES` constant to `frontend/src/app/features/map/map.component.ts`: `Record<GeoZoneLevel, L.PathOptions>` with colors per design (provincia `#6366f1`, canton `#0891b2`, parroquia `#059669`, zona `#d97706`)
+- [x] 3.3 **RED** — Write failing map component test: given zones array with one feature per level, `renderZonePolygons()` creates four `L.geoJSON` layers each using the correct stroke color from `ZONE_STYLES`
+- [x] 3.4 Extend `MapComponent.loadZones()` in `frontend/src/app/features/map/map.component.ts` to call `GET /geo-zones?include_geometry=true`; store result; render each zone with `L.geoJSON` using `ZONE_STYLES[z.level]`; set `interactive: false`; skip zones with `polygon: null`
+- [x] 3.5 **GREEN** — Implement `loadZones()` and `renderZonePolygons()` so 3.3 passes
+- [x] 3.6 **RED** — Write failing map component test: clicking a canton polygon layer triggers `bindPopup` with name, code, level, parent_name
+- [x] 3.7 Add `onEachFeature` popup handler to zone `L.geoJSON` calls: `bindPopup` with name, `code ?? '---'`, level, `parent_name ?? '---'`; `interactive: true`; `bubblingMouseEvents: true`
+- [x] 3.8 **GREEN** — Implement popup handler so 3.6 passes
 
 ---
 
