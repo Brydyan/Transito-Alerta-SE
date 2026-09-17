@@ -98,7 +98,7 @@
        });
    }
    ```
-- [ ] 5.3 Rewrite `deleteOption()` to use `ConfirmDialogService.open()` before executing delete:
+- [x] 5.3 Rewrite `deleteOption()` to use `ConfirmDialogService.open()` before executing delete:
    ```typescript
    deleteOption(): void {
      const id = this.selectedOptionId();
