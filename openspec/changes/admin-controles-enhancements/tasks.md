@@ -163,9 +163,9 @@
 
 > Prerequisites: Phases 1–7 complete (7 is optional).
 
-- [ ] 8.1 Run full backend suite: `npm run lint && npm run typecheck && npm test && npm run test:e2e` in `backend/` — all green
-- [ ] 8.2 Run full frontend suite: `pnpm lint && pnpm test && pnpm build` in `frontend/` — all green
-- [ ] 8.3 **Manual smoke test**:
+- [x] 8.1 Run full backend suite: `npm run lint && npm run typecheck && npm test && npm run test:e2e` in `backend/` — all green
+- [x] 8.2 Run full frontend suite: `pnpm lint && pnpm test && pnpm build` in `frontend/` — all green
+- [x] 8.3 **Manual smoke test**:
   - [ ] Navigate to `/app/admin/controles`
   - [ ] Click on a main menu (e.g., "Reportes") — verify chevron visible, clicking expands to show children
   - [ ] Click on a child — verify detail form loads, matrix shows 3 blocks, endpoints show assigned

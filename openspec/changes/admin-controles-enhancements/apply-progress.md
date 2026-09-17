@@ -192,3 +192,41 @@ frontend/src/app/features/admin/menu-options/menu-options.component.spec.ts — 
 openspec/changes/admin-controles-enhancements/tasks.md                       — Phase 6 [x]
 ```
 
+
+---
+
+## Phase 7 — EndpointPicker Search + Module Dropdown
+
+### Implemented (5/5)
+
+| Task | Status |
+|------|--------|
+| 7.1 Search field for path/description | Done — already existed as `availableSearch` signal filtering by path/method/description |
+| 7.2 Module dropdown | Done — `moduleFilter` signal + `availableModules` computed (auto-detected from first `/api/X` segment) + select element in template |
+| 7.3 RED tests | Done — 5 tests covering module auto-detection, module filter, no-match, combined search+module, null=off |
+| 7.4 GREEN | Done — 15/15 endpoint-picker tests pass |
+| 7.5 Run tests | Done — full 770/770 + lint clean + typecheck clean |
+
+### Notes
+
+- Search field already existed (Phase 3 original work). The Phase 7 task only required adding the module dropdown on top.
+- Module extraction: regex `^\/?api\/([^/]+)` matches `/api/users/123` → `users`, `/api/incidents` → `incidents`. Endpoints not under `/api/` (e.g., legacy routes) return null module and are filtered out when a module is selected.
+
+### Test Results
+
+| Gate | Command | Result |
+|------|---------|--------|
+| endpoint-picker unit | `pnpm exec jest --testPathPatterns='endpoint-picker'` | **15/15 PASS** (10 original + 5 new Phase 7) |
+| Full frontend | `pnpm exec jest` | **770/770 PASS** (97 suites, +5 vs 765) |
+| Typecheck | `pnpm exec tsc --noEmit` | No errors |
+| Lint | `pnpm run lint` | 0 errors |
+
+### Files Modified
+
+```
+frontend/src/app/features/admin/menu-options/components/endpoint-picker/endpoint-picker.component.ts       — moduleFilter signal + availableModules computed + extractModule helper + filter chain
+frontend/src/app/features/admin/menu-options/components/endpoint-picker/endpoint-picker.component.html     — module dropdown (select) below search input
+frontend/src/app/features/admin/menu-options/components/endpoint-picker/endpoint-picker.component.spec.ts   — 5 new tests
+openspec/changes/admin-controles-enhancements/tasks.md                                                          — Phase 7 [x]
+```
+
