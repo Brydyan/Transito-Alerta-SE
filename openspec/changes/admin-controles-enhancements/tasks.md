@@ -86,8 +86,8 @@
 
 > Prerequisites: Phases 2, 3, 4 merged.
 
-- [ ] 5.1 Inject `ConfirmDialogService` in `frontend/src/app/features/admin/menu-options/menu-options.component.ts`
-- [ ] 5.2 Rewrite `loadAssignedEndpoints()` method to actually call `menuOptionService.getAssignedEndpoints(optionId)` and set the signal:
+- [x] 5.1 Inject `ConfirmDialogService` in `frontend/src/app/features/admin/menu-options/menu-options.component.ts`
+- [x] 5.2 Rewrite `loadAssignedEndpoints()` method to actually call `menuOptionService.getAssignedEndpoints(optionId)` and set the signal:
    ```typescript
    private loadAssignedEndpoints(optionId: string): void {
      this.menuOptionService.getAssignedEndpoints(optionId)

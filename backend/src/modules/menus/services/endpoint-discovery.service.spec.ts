@@ -89,10 +89,6 @@ describe('EndpointDiscoveryService (Phase 11)', () => {
       const fn = function noop() {};
       Reflect.defineMetadata(METHOD_METADATA, h.verb, fn);
       // NestJS quirk: undefined for @Get() with no arg, string for the rest.
-      const metaValue =
-        h.subPath === undefined
-          ? Reflect.getMetadata(PATH_METADATA, FakeController) // any non-string forces typeof fallback
-          : h.subPath;
       // Use a sentinel when subPath is undefined so the typeof check fires.
       const finalValue =
         h.subPath === undefined ? undefined : h.subPath === '__SLASH__' ? '/' : h.subPath;
