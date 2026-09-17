@@ -107,3 +107,47 @@ work alongside zone filters without interference.
 - GIVEN status filter "activo" and Categoria "Baches" are active
 - WHEN the user selects Canton "La Libertad" (id = 42)
 - THEN `onFiltersChange()` emits `{ status: 'activo', category: 'Baches', zone_id: 42 }`
+
+### Requirement: Zone Polygons Rendered by Level Color
+
+The map MUST render boundary polygons for all active zones with non-null polygon.
+Each zone level MUST use a distinct stroke color: cantones, parroquias, provincias, sectores each get one fixed color.
+Fill MUST be semi-transparent (opacity ≤ 0.2). Polygon layers MUST NOT capture pointer events (so incident markers beneath remain clickable).
+
+#### Scenario: All four levels render with distinct colors on load
+
+- GIVEN active zones exist at all four levels with non-null polygon
+- WHEN the map initializes
+- THEN four distinct stroke colors are visible on the map, one per level
+- AND incident markers below zone polygons are still clickable
+
+#### Scenario: Zone without polygon is silently skipped
+
+- GIVEN a zone has `polygon = NULL`
+- WHEN the map renders zone layers
+- THEN no layer is added for that zone and no error is thrown
+
+### Requirement: Polygon Click Shows Zone Details
+
+Clicking on a zone polygon boundary MUST show a details panel or tooltip with:
+zone name, code, level (type), and parent name (or "—" if none).
+The detail data MUST be embedded in the polygon layer metadata — no additional API request is required.
+
+#### Scenario: Click on polygon displays name, code, level, and parent
+
+- GIVEN polygon layers are rendered with embedded metadata
+- WHEN the user clicks a cantón polygon
+- THEN a tooltip/panel displays the zone's name, code, type ("cantón"), and parent name
+- AND no HTTP request is fired
+
+#### Scenario: Click on polygon for zone with no parent
+
+- GIVEN a provincia polygon has no parent
+- WHEN the user clicks it
+- THEN the detail shows name, code, type="provincia" and parent field is "—"
+
+#### Scenario: Click on zone with no code
+
+- GIVEN a zone has `code = NULL` and a valid polygon
+- WHEN the user clicks its polygon
+- THEN the detail shows name and type; code field displays "—" without error

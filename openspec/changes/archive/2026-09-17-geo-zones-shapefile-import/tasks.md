@@ -59,14 +59,14 @@ Chain strategy: stacked-to-main
 - [x] 2.2 Add `IImportGeoZoneResponse`, `IFormData` interfaces and `parent_name?: string` field to `frontend/src/app/features/locations/interfaces/igeo-zone.interface.ts`
 - [x] 2.3 Add `importShapefile(file, params)` method to `frontend/src/app/features/locations/services/geo-zone.service.ts` using `HttpClient.post` with `{ reportProgress: true, observe: 'events' }`
 - [x] 2.4 Add `getFormData()` method to `frontend/src/app/features/locations/services/geo-zone.service.ts`
-- [x] 2.5 **RED** — Write failing component tests for `ShapefileImportDialogComponent` in `frontend/src/app/features/locations/components/shapefile-import-dialog/shapefile-import-dialog.component.spec.ts`: (a) file type `.zip` accepted, (b) file > 10 MB rejected with error message, (c) `UploadProgress` event advances progress signal to 50, (d) 200 response resets progress and shows summary
-- [x] 2.6 Create `frontend/src/app/features/locations/components/shapefile-import-dialog/shapefile-import-dialog.component.ts` with: `<input type="file" accept=".zip">`, `level` dropdown, column mapping dropdowns (name_column/code_column auto-detected from DBF headers), mini Leaflet preview map via shpjs, progress bar signal (0–100), submit calls `GeoZoneService.importShapefile()`
-- [x] 2.7 Create `frontend/src/app/features/locations/components/shapefile-import-dialog/shapefile-import-dialog.component.html` (2-section layout: file + mapping top, preview + progress bottom)
-- [x] 2.8 **GREEN** — Complete dialog implementation so 2.5 tests pass
-- [x] 2.9 Add client-side validation to dialog: reject non-zip by MIME/extension before POST; reject file > 10 485 760 bytes before POST; show user-facing error message for each case
-- [x] 2.10 Add "Importar Shapefile" button to `frontend/src/app/features/locations/location-list/location-list.component.ts` and `.html`; opens `ShapefileImportDialogComponent`; guard: visible only to users with `CREATE geo-zones` permission
-- [x] 2.11 **RED** — Write failing tests for `LocationListComponent` button visibility: (a) `CREATE geo-zones` granted → button renders, (b) permission absent → button absent
-- [x] 2.12 **GREEN** — Implement permission guard on location-list button so 2.11 passes
+- [x] 2.5 **RED** — Write failing component tests for `LocationFormComponent` inline import panel in `frontend/src/app/features/locations/location-form/location-form.component.spec.ts`: (a) file type `.zip` accepted, (b) file > 10 MB rejected with error message, (c) `UploadProgress` event advances progress signal to 50, (d) 200 response resets progress and shows summary
+- [x] 2.6 Extend `LocationFormComponent` with right-side inline import panel: `<input type="file" accept=".zip">`, `level` dropdown, column mapping dropdowns (name_column/code_column auto-detected from DBF headers), mini Leaflet preview map via shpjs, progress bar signal (0–100), submit calls `GeoZoneService.importShapefile()`, toggle button to show/hide panel
+- [x] 2.7 Update `LocationFormComponent` template to add right-side import panel section (2-section vertical layout: file + mapping top, preview + progress bottom); wire toggle visibility via signal
+- [x] 2.8 **GREEN** — Complete inline panel implementation in LocationFormComponent so 2.5 tests pass
+- [x] 2.9 Add client-side validation to inline panel: reject non-zip by MIME/extension before POST; reject file > 10 485 760 bytes before POST; show user-facing error message for each case
+- [x] 2.10 Add "Importar Shapefile" toggle button to `LocationFormComponent` header; toggles right panel visibility; guard: visible only to users with `CREATE geo-zones` permission
+- [x] 2.11 **RED** — Write failing tests for `LocationFormComponent` import panel visibility: (a) `CREATE geo-zones` granted → button renders and panel toggles, (b) permission absent → button absent
+- [x] 2.12 **GREEN** — Implement permission guard on location-form import button so 2.11 passes
 
 ---
 

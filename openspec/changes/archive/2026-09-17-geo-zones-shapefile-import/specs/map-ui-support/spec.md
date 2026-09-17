@@ -42,3 +42,32 @@ initialization and reset.
 - WHEN `MapActiveFilters` is instantiated
 - THEN `zone_id` is `null`
 - AND all existing filter fields retain their existing default values
+
+### Requirement: GET /geo-zones/form-data Endpoint
+
+The system MUST expose `GET /geo-zones/form-data` returning:
+- `levels`: `["cantón","parroquia","provincia","sector"]`
+- `parents`: all active zones as `{ id, name, code, level }` sorted by level then name
+
+Authentication (JWT) is required. No additional RBAC permission is required.
+This endpoint supplies dropdown data to the location-form Padre selector and Nivel dropdown.
+
+#### Scenario: Returns all levels and active parents
+
+- GIVEN 5 active zones and 1 inactive zone exist
+- WHEN `GET /geo-zones/form-data` is called by an authenticated user
+- THEN response status is 200
+- AND `levels` = `["cantón","parroquia","provincia","sector"]`
+- AND `parents` contains only the 5 active zones, sorted by level then name
+
+#### Scenario: Unauthenticated request returns 401
+
+- GIVEN no Authorization header
+- WHEN `GET /geo-zones/form-data` is called
+- THEN response status is 401
+
+#### Scenario: Empty geo_zones table returns empty parents
+
+- GIVEN no zones exist
+- WHEN `GET /geo-zones/form-data` is called
+- THEN `parents` is `[]` and `levels` still returns all four strings

@@ -74,6 +74,20 @@ GeoZones catalog must support:
 - Backend `findAll()` still caps `MAX_PAGE_SIZE = 100`
 - Tree endpoint `GET /geo-zones/tree` remains complete (no pagination)
 
+### R8: Import Reuses Repository Create
+
+**Acceptance**:
+- When the import endpoint processes features, `GeoZonesRepository.create()` MUST be called once per feature within the import transaction
+- The import flow MUST NOT bypass repository-level validation (geometry, bounds)
+- Each call receives the same DTO shape as a manual `POST /geo-zones` call
+
+#### Scenario: Repository create called per imported feature
+
+- GIVEN a valid zip with 5 features
+- WHEN `POST /geo-zones/import` processes the features
+- THEN `GeoZonesRepository.create()` is called exactly 5 times (minus skipped)
+- AND each call receives the same DTO shape as a manual `POST /geo-zones` call
+
 ---
 
 ## Scenarios

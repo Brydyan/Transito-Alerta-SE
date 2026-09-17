@@ -142,3 +142,31 @@ The 200 response MUST conform to:
 `imported` counts rows created. `skipped` counts duplicates bypassed.
 `errors` lists per-feature failures. `warnings` lists non-fatal notices
 (e.g., parent not found).
+
+### Requirement: Duplicate Within Same Batch
+
+When two features in the same import batch share the same `code`, the first
+occurrence MUST be inserted (or skipped if it already exists in DB); all
+subsequent occurrences with that code MUST be skipped and counted in `skipped`.
+No error entry is generated for intra-batch duplicates.
+
+#### Scenario: Two features with same code in one batch
+
+- GIVEN a zip with feature A (`code = 'X-01'`) and feature B (`code = 'X-01'`)
+- AND no existing row with `code = 'X-01'` in the database
+- WHEN `POST /geo-zones/import` processes the batch
+- THEN feature A is inserted
+- AND feature B is counted as `skipped: 1` with no error entry
+- AND `imported: 1`
+
+### Requirement: Zero Valid Features Import
+
+When all features in a batch fail validation or are duplicates, the endpoint
+MUST still return 200 with `imported: 0`. An empty import MUST NOT return 4xx.
+
+#### Scenario: All features invalid returns 200 with zero imported
+
+- GIVEN a zip where every feature has an invalid geometry
+- WHEN `POST /geo-zones/import?level=canton` is called
+- THEN response status is 200
+- AND body is `{ imported: 0, skipped: 0, errors: [...all features...], warnings: [] }`
