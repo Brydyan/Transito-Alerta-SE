@@ -8,7 +8,7 @@ describe('RoleMatrixComponent', () => {
 
   const mockMatrix: RoleMatrix = {
     platform: [
-      { role_id: 'r1', role_name: 'master', can_read: true, can_write: true },
+      { role_id: 'r1', role_name: 'master', can_read: true, can_write: false },
       { role_id: 'r2', role_name: 'operador_sistema', can_read: true, can_write: false },
     ],
     organization: [
@@ -125,5 +125,58 @@ describe('RoleMatrixComponent', () => {
       fixture.detectChanges();
       expect(component.isDisabled()).toBe(true);
     });
+  });
+
+  // ── Wire shape integration (snake_case → DOM checkboxes) ────────────────
+  // Regression: earlier the RoleMatrixEntry interface was camelCase while
+  // the backend's global SnakeCaseResponseInterceptor emits snake_case
+  // keys. role.can_read was undefined for every row → [checked]="false".
+  // This test renders the component with the real wire shape and asserts
+  // the first Read checkbox in the platform block reflects can_read=true.
+
+  it('reflects can_read=true in the rendered checkbox for the real wire shape', () => {
+    // mockMatrix already has master with can_read=true.
+    fixture.componentRef.setInput('matrix', mockMatrix);
+    fixture.detectChanges();
+
+    const platformRows = fixture.nativeElement.querySelectorAll(
+      '[data-scope="platform"] li',
+    );
+    expect(platformRows.length).toBe(2);
+
+    const masterRow = Array.from(platformRows).find(
+      (row) => row.querySelector('span')?.textContent?.trim() === 'master',
+    ) as HTMLElement | undefined;
+    expect(masterRow).toBeTruthy();
+    const checkboxes = masterRow!.querySelectorAll('input[type="checkbox"]');
+    expect(checkboxes[0].checked).toBe(true); // can_read=true
+    expect(checkboxes[1].checked).toBe(false); // can_write=false
+    // Write is NOT disabled when Read=true (R7 only disables Write when Read=false).
+    expect(checkboxes[1].disabled).toBe(false);
+  });
+
+  it('renders all-unchecked when no menu_option_roles rows exist (e.g. CRUD sub-sub-menus from migration 0060)', () => {
+    // Empty matrix: 0 menu_option_roles rows for a freshly-inserted option.
+    fixture.componentRef.setInput('matrix', {
+      platform: [
+        { role_id: 'r1', role_name: 'master', can_read: false, can_write: false },
+        { role_id: 'r2', role_name: 'operador_sistema', can_read: false, can_write: false },
+      ],
+      organization: [
+        { role_id: 'r3', role_name: 'admin_org', can_read: false, can_write: false },
+        { role_id: 'r4', role_name: 'operador_org', can_read: false, can_write: false },
+      ],
+      public: [
+        { role_id: 'r5', role_name: 'reporter', can_read: false, can_write: false },
+      ],
+    });
+    fixture.detectChanges();
+
+    const allRows = fixture.nativeElement.querySelectorAll('li');
+    expect(allRows.length).toBe(5);
+    const checkboxes = fixture.nativeElement.querySelectorAll('input[type="checkbox"]');
+    for (const cb of Array.from(checkboxes) as HTMLInputElement[]) {
+      expect(cb.checked).toBe(false);
+    }
   });
 });
