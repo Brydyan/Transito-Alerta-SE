@@ -2,8 +2,20 @@
   <!-- Page Header -->
   <ui-page-header
     kicker="CATÁLOGOS / CATEGORÍAS"
-    [title]="isEditing() ? 'Editar categoría' : 'Nueva categoría'"
-    [subtitle]="isEditing() ? 'Actualiza los detalles de la categoría a continuación.' : 'Completa los campos para crear una nueva categoría.'"
+    [title]="
+      isEditing()
+        ? 'Editar categoría'
+        : isSub()
+          ? 'Nueva sub-categoría'
+          : 'Nueva categoría'
+    "
+    [subtitle]="
+      isEditing()
+        ? 'Actualiza los detalles de la categoría a continuación.'
+        : isSub()
+          ? 'Crea una sub-categoría dependiente de una categoría existente.'
+          : 'Completa los campos para crear una nueva categoría.'
+    "
     [showActions]="false"
   />
 
@@ -32,7 +44,114 @@
             Detalles de la categoría
           </h6>
 
+          <!-- T7.4 / sc-334-adjacent — type selector (CREATE only) -->
+          @if (!isEditing()) {
+            <div class="mb-6">
+              <label class="block text-sm font-medium text-slate-700 mb-2">
+                Tipo de registro <span class="text-red-500">*</span>
+              </label>
+              <div class="flex flex-col sm:flex-row gap-3" data-testid="category-type-group">
+                <label
+                  class="flex items-start gap-3 border rounded-lg px-4 py-3 cursor-pointer flex-1 transition-colors"
+                  [ngClass]="isRoot()
+                    ? 'border-brand-primary bg-brand-primary text-white shadow-sm'
+                    : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400'"
+                >
+                  <input
+                    type="radio"
+                    name="category-type"
+                    value="root"
+                    [checked]="isRoot()"
+                    (change)="setMode('root')"
+                    class="mt-1 accent-white"
+                    data-testid="category-type-root"
+                  />
+                  <div>
+                    <div [ngClass]="isRoot() ? 'text-white font-semibold' : 'text-slate-800 font-semibold'">
+                      Categoría principal
+                    </div>
+                    <p [ngClass]="isRoot() ? 'text-white/85 mt-0.5 text-xs' : 'text-slate-500 mt-0.5 text-xs'">
+                      Categoría de nivel superior. Visible en la lista y se puede usar como padre de sub-categorías.
+                    </p>
+                  </div>
+                </label>
+                <label
+                  class="flex items-start gap-3 border rounded-lg px-4 py-3 cursor-pointer flex-1 transition-colors"
+                  [ngClass]="isSub()
+                    ? 'border-brand-primary bg-brand-primary text-white shadow-sm'
+                    : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400'"
+                >
+                  <input
+                    type="radio"
+                    name="category-type"
+                    value="sub"
+                    [checked]="isSub()"
+                    (change)="setMode('sub')"
+                    class="mt-1 accent-white"
+                    data-testid="category-type-sub"
+                  />
+                  <div>
+                    <div [ngClass]="isSub() ? 'text-white font-semibold' : 'text-slate-800 font-semibold'">
+                      Sub-categoría
+                    </div>
+                    <p [ngClass]="isSub() ? 'text-white/85 mt-0.5 text-xs' : 'text-slate-500 mt-0.5 text-xs'">
+                      Depende de una categoría principal existente. Aparecerá agrupada bajo ella.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          } @else {
+            <!-- EDIT — derive mode label from the loaded category's parent. -->
+            <div class="mb-6 p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <span class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Tipo</span>
+              <div class="mt-1 text-sm text-slate-700">
+                @if (isSub()) {
+                  Sub-categoría — la jerarquía no se puede cambiar desde este formulario.
+                } @else {
+                  Categoría principal — la jerarquía no se puede cambiar desde este formulario.
+                }
+              </div>
+            </div>
+          }
+
           <div class="grid grid-cols-1 gap-4">
+            <!-- Parent category (only when sub-category mode) -->
+            @if (isSub() && !isEditing()) {
+              <div>
+                <label for="form-parent-id" class="block text-sm font-medium text-slate-700 mb-1">
+                  Categoría padre <span class="text-red-500">*</span>
+                </label>
+                <select
+                  id="form-parent-id"
+                  class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
+                  [class.border-red-500]="fieldInvalid('parent_id')"
+                  formControlName="parent_id"
+                  data-testid="category-parent-select"
+                  [attr.disabled]="isLoadingParents() ? true : null"
+                >
+                  <option [ngValue]="null" disabled>
+                    @if (isLoadingParents()) {
+                      Cargando categorías…
+                    } @else {
+                      Selecciona una categoría padre
+                    }
+                  </option>
+                  @for (parent of availableParents(); track parent.id) {
+                    <option [ngValue]="parent.id">{{ parent.name }}</option>
+                  }
+                </select>
+                @if (fieldError('parent_id'); as msg) {
+                  <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
+                }
+                @if (!isLoadingParents() && availableParents().length === 0) {
+                  <small class="text-amber-600 text-xs mt-1 block">
+                    No hay categorías principales existentes. Crea una primero antes de añadir sub-categorías.
+                  </small>
+                }
+              </div>
+            }
+
             <!-- Name -->
             <div>
               <label for="form-name" class="block text-sm font-medium text-slate-700 mb-1">
@@ -46,8 +165,28 @@
                 [class.focus:ring-red-500/40]="fieldInvalid('name')"
                 placeholder="p. ej. Accidente de tránsito"
                 formControlName="name"
+                data-testid="category-name"
               />
               @if (fieldError('name'); as msg) {
+                <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
+              }
+            </div>
+
+            <!-- Description (T7.4) — optional, both modes -->
+            <div>
+              <label for="form-description" class="block text-sm font-medium text-slate-700 mb-1">
+                Descripción
+              </label>
+              <textarea
+                id="form-description"
+                rows="3"
+                class="w-full px-3 py-2 text-sm border rounded-lg bg-bg-primary text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary"
+                [class.border-red-500]="fieldInvalid('description')"
+                placeholder="Descripción opcional que ayude a identificar la categoría…"
+                formControlName="description"
+                data-testid="category-description"
+              ></textarea>
+              @if (fieldError('description'); as msg) {
                 <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
               }
             </div>
@@ -73,8 +212,15 @@
             variant="primary"
             [loading]="isSaving()"
             [disabled]="isSaving()"
+            data-testid="category-submit"
           >
-            {{ isEditing() ? 'Guardar cambios' : 'Crear categoría' }}
+            @if (isEditing()) {
+              Guardar cambios
+            } @else if (isSub()) {
+              Crear sub-categoría
+            } @else {
+              Crear categoría
+            }
           </button>
         </div>
       </div>

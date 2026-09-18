@@ -101,10 +101,20 @@ export const MENU_MAP: Record<string, MenuDefinition> = {
     group: 'GESTIÓN',
     order: 80,
   },
+  // front/2026-09-15-departments-menu: Departamentos in GESTIÓN group,
+  // order 82, between Organizaciones (80) and Auditoría de Acceso (85).
+  // Route: /departamentos (like categorias/ubicaciones, not /admin/*)
+  Departamentos: {
+    route: '/departamentos',
+    requires: 'READ departments',
+    icon: 'building-2',
+    group: 'GESTIÓN',
+    order: 82,
+  },
   // F6 (`2026-09-11-f6-audit-logs-menu`) — entrada para la pantalla
   // "Auditoría de Acceso". Gated por permiso `READ audit-logs`
   // (introducido por migración 0053). Aparece sólo si el usuario
-  // tiene el uuid correspondiente. Sigue a Organizaciones (80) y
+  // tiene el uuid correspondiente. Sigue a Departamentos (81) y
   // precede a Categorías (90) — entry ancilar, no parte del flujo
   // principal de admin.
   'Auditoría de Acceso': {

@@ -15,6 +15,19 @@ import { ConfirmDialogService } from '../../../../shared/components/confirm-dial
 import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
+import {
+  IIncidentCategory,
+  IncidentCategoryTreeNode,
+} from '../interfaces/iincident-category.interface';
+
+/**
+ * Type of record the user is creating on the form. Edit mode is
+ * always bound to a single existing category and does NOT expose the
+ * toggle (the hierarchy of an existing node shouldn't be reshuffled
+ * from this form — that would require a separate "move" flow with a
+ * cycle check).
+ */
+type CategoryMode = 'root' | 'sub';
 
 @Component({
   selector: 'app-category-form',
@@ -45,12 +58,43 @@ export class CategoryFormComponent implements OnInit {
   readonly serverErrors = signal<Record<string, string>>({});
   readonly integrityError = signal(false);
 
+  /**
+   * sc-334-adjacent (T7.4) — UI mode. Only relevant on CREATE: the user
+   * picks whether they're adding a root category or a sub-category
+   * under one of the existing roots. On EDIT the toggle is hidden and
+   * this signal is derived from the loaded category's `parent_id`.
+   */
+  readonly mode = signal<CategoryMode>('root');
+
+  /**
+   * Available parent candidates — flattened list of every existing
+   * root category (the dropdown never lets the user pick a sub-category
+   * as parent, keeping the tree at most 2 levels deep per the existing
+   * UX expectation in this admin panel).
+   */
+  readonly availableParents = signal<IIncidentCategory[]>([]);
+  readonly isLoadingParents = signal(false);
+
+  /**
+   * Convenience flags for the template: which mode is active right now.
+   */
+  readonly isRoot = computed(() => this.mode() === 'root');
+  readonly isSub = computed(() => this.mode() === 'sub');
+
   readonly form: FormGroup = this.fb.group({
-    name: ['', Validators.required],
+    name: ['', [Validators.required, Validators.maxLength(255)]],
+    description: ['', [Validators.maxLength(2000)]],
+    parent_id: [null as string | null],
   });
 
   get nameControl() {
     return this.form.get('name')!;
+  }
+  get descriptionControl() {
+    return this.form.get('description')!;
+  }
+  get parentIdControl() {
+    return this.form.get('parent_id')!;
   }
 
   fieldInvalid(field: string): boolean {
@@ -59,7 +103,6 @@ export class CategoryFormComponent implements OnInit {
   }
 
   fieldError(field: string): string | null {
-    // Server-side errors take precedence
     if (this.serverErrors()[field]) {
       return this.serverErrors()[field];
     }
@@ -70,13 +113,38 @@ export class CategoryFormComponent implements OnInit {
     if (control.errors['required']) {
       return 'Este campo es obligatorio.';
     }
+    if (control.errors['maxlength']) {
+      return `Máximo ${control.errors['maxlength'].requiredLength} caracteres.`;
+    }
     return null;
   }
 
   ngOnInit(): void {
     if (this.isEditing()) {
       this.loadCategory(this.id!);
+    } else {
+      this.loadAvailableParents();
     }
+  }
+
+  /**
+   * Toggles between root / sub modes on CREATE. Switching to 'sub'
+   * triggers a fetch of available parent candidates if we don't have
+   * them yet, and re-validates `parent_id` (it's required when 'sub').
+   */
+  setMode(mode: CategoryMode): void {
+    if (this.isEditing()) return; // guard — disabled in the template
+    this.mode.set(mode);
+    if (mode === 'sub') {
+      this.parentIdControl.setValidators([Validators.required]);
+      if (this.availableParents().length === 0) {
+        this.loadAvailableParents();
+      }
+    } else {
+      this.parentIdControl.clearValidators();
+      this.parentIdControl.setValue(null);
+    }
+    this.parentIdControl.updateValueAndValidity();
   }
 
   onSubmit(): void {
@@ -89,10 +157,23 @@ export class CategoryFormComponent implements OnInit {
     this.serverErrors.set({});
     this.integrityError.set(false);
 
-    const name = this.form.value.name as string;
+    const raw = this.form.value as {
+      name: string;
+      description: string | null;
+      parent_id: string | null;
+    };
+    const dto = {
+      name: raw.name,
+      description: raw.description?.trim() ? raw.description.trim() : null,
+      parent_id: this.isEditing()
+        ? undefined // edit path keeps parent_id untouched unless explicitly sent
+        : this.isSub()
+          ? raw.parent_id
+          : null,
+    };
 
     if (this.isEditing()) {
-      this.categoryService.update(this.id!, { name }).subscribe({
+      this.categoryService.update(this.id!, dto).subscribe({
         next: () => {
           this.toastService.success('Categoría actualizada correctamente');
           this.isSaving.set(false);
@@ -107,9 +188,13 @@ export class CategoryFormComponent implements OnInit {
         },
       });
     } else {
-      this.categoryService.create({ name }).subscribe({
+      this.categoryService.create(dto).subscribe({
         next: () => {
-          this.toastService.success('Categoría creada correctamente');
+          this.toastService.success(
+            this.isSub()
+              ? 'Sub-categoría creada correctamente'
+              : 'Categoría creada correctamente',
+          );
           this.isSaving.set(false);
           this.goBack();
         },
@@ -152,12 +237,46 @@ export class CategoryFormComponent implements OnInit {
     this.isLoading.set(true);
     this.categoryService.getById(id).subscribe({
       next: (category) => {
-        this.form.patchValue({ name: category.name });
+        this.form.patchValue({
+          name: category.name,
+          description: category.description ?? '',
+          parent_id: category.parent_id,
+        });
+        // Derive mode from existing parent. EDIT never re-exposes the
+        // toggle, so this is read-only context for the template.
+        this.mode.set(category.parent_id ? 'sub' : 'root');
         this.isLoading.set(false);
       },
       error: () => {
         this.toastService.error('No se pudieron cargar los datos de la categoría.');
         this.isLoading.set(false);
+      },
+    });
+  }
+
+  /**
+   * Pulls the tree once, then flattens to a list of root-level nodes.
+   * We restrict parents to roots because the existing list/tree UI only
+   * displays 2 levels, and creating grandchildren from this form would
+   * silently break the admin list rendering.
+   */
+  private loadAvailableParents(): void {
+    this.isLoadingParents.set(true);
+    this.categoryService.getTree().subscribe({
+      next: (tree: IncidentCategoryTreeNode[]) => {
+        const roots: IIncidentCategory[] = tree.map((node) => ({
+          id: node.id,
+          name: node.name,
+          description: null,
+          parent_id: null,
+          created_at: '',
+          updated_at: '',
+        }));
+        this.availableParents.set(roots);
+        this.isLoadingParents.set(false);
+      },
+      error: () => {
+        this.isLoadingParents.set(false);
       },
     });
   }

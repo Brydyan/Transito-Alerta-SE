@@ -47,8 +47,8 @@ export class IncidentFeedService {
       params.push(query.priority);
       conditions.push(`i.priority = $${params.length}`);
     }
-    if (query.location_id) {
-      params.push(query.location_id);
+    if (query.zone_id) {
+      params.push(query.zone_id);
       conditions.push(`i.zone_id = $${params.length}`);
     }
     if (query.incident_category_id) {
@@ -151,7 +151,7 @@ export class IncidentFeedService {
     if (cached) {
       let items = cached;
       if (query.status) items = items.filter((i) => i.status === query.status);
-      if (query.location_id) items = items.filter((i) => i.location_id === query.location_id);
+      if (query.zone_id) items = items.filter((i) => i.location_id === query.zone_id);
       const total = items.length;
       const start = (page - 1) * perPage;
       return {
@@ -164,7 +164,7 @@ export class IncidentFeedService {
     const params: unknown[] = [];
     const conditions: string[] = ['1=1'];
     if (query.status) { params.push(query.status); conditions.push(`i.status = $${params.length}`); }
-    if (query.location_id) { params.push(query.location_id); conditions.push(`i.zone_id = $${params.length}`); }
+    if (query.zone_id) { params.push(query.zone_id); conditions.push(`i.zone_id = $${params.length}`); }
 
     params.push(perPage);
     const limitIdx = params.length;

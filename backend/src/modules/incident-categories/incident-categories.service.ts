@@ -47,7 +47,11 @@ export class IncidentCategoriesService {
     const parentId = dto.parent_id ?? null;
     await this.assertValidParent(null, parentId);
 
-    const entity = this.categoryRepo.create({ name: dto.name, parentId });
+    const entity = this.categoryRepo.create({
+      name: dto.name,
+      parentId,
+      description: dto.description ?? null,
+    });
     return this.categoryRepo.save(entity);
   }
 
@@ -60,6 +64,9 @@ export class IncidentCategoriesService {
     }
     if (dto.name !== undefined) {
       existing.name = dto.name;
+    }
+    if (dto.description !== undefined) {
+      existing.description = dto.description;
     }
 
     return this.categoryRepo.save(existing);

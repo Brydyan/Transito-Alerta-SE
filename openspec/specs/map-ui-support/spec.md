@@ -25,7 +25,25 @@ No org scoping — categories are global in the NestJS schema.
 
 Results MAY be cached in Redis (optional; not required by spec but recommended for performance).
 
-### R2 — Users Form-Data
+### R2 — GET /geo-zones Supports level and parent_id Query Params
+
+The `GET /geo-zones` endpoint MUST accept optional `level` and `parent_id` query parameters. When `level` is provided, only zones matching that level MUST be returned. When `parent_id` is provided, only zones whose `parent_id` matches MUST be returned. Both filters MAY be combined. The `active` query parameter (already supported) MUST continue to work alongside these new params.
+
+Authentication (JWT) is required. No additional RBAC permission is required.
+
+### R3 — MapActiveFilters Includes zone_id
+
+The frontend `MapActiveFilters` interface MUST include a `zone_id` field (type: `number | null`). Existing fields (`status`, `priority`, `category`) MUST remain unchanged. The `zone_id` field MUST default to `null` on filter initialization and reset.
+
+### R4 — GET /geo-zones/form-data Endpoint
+
+The system MUST expose `GET /geo-zones/form-data` returning:
+- `levels`: `["cantón","parroquia","provincia","sector"]`
+- `parents`: all active zones as `{ id, name, code, level }` sorted by level then name
+
+Authentication (JWT) is required. No additional RBAC permission is required. This endpoint supplies dropdown data to the location-form Padre selector and Nivel dropdown.
+
+### R5 — Users Form-Data
 
 `READ users` permission is required.
 
@@ -40,6 +58,65 @@ For non-system-admin callers:
 Response shape: `{roles: [{id, name}], organizations: [{id, name}]}`.
 
 ## Scenarios
+
+### GET /geo-zones with level and parent_id Filters
+
+**Scenario 1: Filter by level returns matching zones only**
+```
+Given zones exist at levels province, canton, and parroquia
+When GET /geo-zones?level=canton&active=1 is called
+Then the response includes only canton-level zones
+  And province and parroquia zones are excluded
+```
+
+**Scenario 2: Filter by parent_id returns children only**
+```
+Given province P (id=10) has 3 cantons as direct children
+When GET /geo-zones?level=canton&parent_id=10&active=1 is called
+Then only the 3 canton children of P are returned
+```
+
+**Scenario 3: Missing parent_id param returns all zones at that level**
+```
+Given no parent_id is provided
+When GET /geo-zones?level=parroquia&active=1 is called
+Then all active parroquia zones are returned regardless of parent
+```
+
+### MapActiveFilters zone_id Field
+
+**Scenario 1: zone_id defaults to null on initialization**
+```
+Given the map component initializes its filter state
+When MapActiveFilters is instantiated
+Then zone_id is null
+  And all existing filter fields retain their existing default values
+```
+
+### GET /geo-zones/form-data
+
+**Scenario 1: Returns all levels and active parents**
+```
+Given 5 active zones and 1 inactive zone exist
+When GET /geo-zones/form-data is called by an authenticated user
+Then response status is 200
+  And levels = ["cantón","parroquia","provincia","sector"]
+  And parents contains only the 5 active zones, sorted by level then name
+```
+
+**Scenario 2: Unauthenticated request returns 401**
+```
+Given no Authorization header
+When GET /geo-zones/form-data is called
+Then response status is 401
+```
+
+**Scenario 3: Empty geo_zones table returns empty parents**
+```
+Given no zones exist
+When GET /geo-zones/form-data is called
+Then parents is [] and levels still returns all four strings
+```
 
 ### GET /api/map/filters
 

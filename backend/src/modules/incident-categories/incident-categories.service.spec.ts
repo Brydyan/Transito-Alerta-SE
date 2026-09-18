@@ -9,6 +9,7 @@ function makeCategory(overrides: Partial<IncidentCategoryEntity> = {}): Incident
   return {
     id: 'cat-1',
     name: 'Traffic',
+    description: null,
     parentId: null,
     createdAt: new Date(),
     updatedAt: new Date(),

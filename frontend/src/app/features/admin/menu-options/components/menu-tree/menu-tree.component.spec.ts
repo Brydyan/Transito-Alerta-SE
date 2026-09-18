@@ -94,4 +94,81 @@ describe('MenuTreeComponent', () => {
     component.toggleExpand('a2');
     expect(component.isExpanded('a2')).toBe(false);
   });
+
+  // ── Phase 3 follow-up (3-level nesting regression guard) ──────────────
+  // Verifies that the recursive ng-templateOutlet renders 3-level
+  // hierarchies correctly. The spec restricts the "+" button to
+  // root items, but the display layer must still render deeper
+  // levels when they exist in the data (e.g., imported via DB or
+  // created before the spec restriction landed).
+  it('renders 3-level nesting when both ancestors are expanded', () => {
+    const threeLevel: MenuOption[] = [
+      { id: 'r1', name: 'Root', route: '/r', icon: 'home', display_order: 10, is_active: true, parent_id: null, created_at: '2026-09-01' },
+      { id: 'm1', name: 'Mid', route: '/m', icon: 'folder', display_order: 11, is_active: true, parent_id: 'r1', created_at: '2026-09-01' },
+      { id: 'l1', name: 'Leaf', route: '/l', icon: 'file', display_order: 12, is_active: true, parent_id: 'm1', created_at: '2026-09-01' },
+    ];
+    fixture.componentRef.setInput('options', threeLevel);
+    fixture.detectChanges();
+
+    // Expand both ancestors
+    component.toggleExpand('r1');
+    component.toggleExpand('m1');
+    fixture.detectChanges();
+
+    const rendered = (fixture.nativeElement.textContent ?? '').replace(/\s+/g, ' ');
+    expect(rendered).toContain('Root');
+    expect(rendered).toContain('Mid');
+    expect(rendered).toContain('Leaf');
+  });
+
+  // ── sc-334 admin-controles-enhancements Phase 3 (D3/R3) — chevron ──
+
+  describe('chevron indicator', () => {
+    function findNodeRow(name: string): HTMLElement | undefined {
+      return (
+        Array.from(
+          fixture.nativeElement.querySelectorAll('div.tree-node'),
+        ) as HTMLElement[]
+      ).find((node) => node.querySelector('span.text-sm')?.textContent?.trim() === name);
+    }
+
+    it('renders a chevron button on nodes that have children', () => {
+      // "Incidencias" (a2) has children
+      const row = findNodeRow('Incidencias');
+      expect(row).toBeTruthy();
+      const chevron = row!.querySelector('button.expand-btn.chevron-btn');
+      expect(chevron).not.toBeNull();
+    });
+
+    it('does NOT render a chevron button on leaf nodes (only a spacer)', () => {
+      // Dashboard (a1) is a leaf — no children
+      const row = findNodeRow('Dashboard');
+      expect(row).toBeTruthy();
+      expect(row!.querySelector('button.expand-btn.chevron-btn')).toBeNull();
+      // Spacer is present so column alignment is preserved
+      expect(row!.querySelector('[data-testid="leaf-spacer"]')).not.toBeNull();
+    });
+
+    it('marks the chevron as expanded (rotated 90°) when its parent is expanded', () => {
+      component.toggleExpand('a2');
+      fixture.detectChanges();
+
+      const row = findNodeRow('Incidencias');
+      const chevron = row!.querySelector('button.expand-btn.chevron-btn');
+      expect(chevron!.classList.contains('chevron-expanded')).toBe(true);
+    });
+
+    it('emits a click on the chevron WITHOUT selecting the node (stopPropagation)', () => {
+      const selectedSpy = jest.fn();
+      component.selected.subscribe(selectedSpy);
+
+      const row = findNodeRow('Incidencias')!;
+      const chevron = row.querySelector('button.expand-btn.chevron-btn') as HTMLButtonElement;
+      chevron.click();
+
+      // Click on chevron should toggle expand but NOT emit select.
+      expect(component.isExpanded('a2')).toBe(true);
+      expect(selectedSpy).not.toHaveBeenCalled();
+    });
+  });
 });

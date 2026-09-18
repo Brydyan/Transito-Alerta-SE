@@ -56,6 +56,7 @@ export class MenuOptionsController {
     @Query('route') route?: string,
     @Query('method') method?: string,
     @Query('description') description?: string,
+    @Query('module') module?: string,
   ): Promise<PaginatedResult<ApiEndpointEntity>> {
     return this.menuOptionsService.getEndpointCatalog({
       page: page ? parseInt(page, 10) : undefined,
@@ -63,6 +64,7 @@ export class MenuOptionsController {
       route,
       method,
       description,
+      module,
     });
   }
 
@@ -113,6 +115,21 @@ export class MenuOptionsController {
   }
 
   // ── Endpoint assignment (F5.5.6) ──────────────────────────────────────
+
+  /**
+   * sc-334 admin-controles-enhancements Phase 1 (D1/R1) — list the
+   * endpoints currently assigned to a menu option. Used by the
+   * EndpointPickerComponent to hydrate its "Asignados" panel on select.
+   *
+   * 404 if the option itself does not exist (delegated to the service).
+   */
+  @Get(':id/endpoints')
+  @RequirePermission('READ', 'menu-options')
+  getAssignedEndpoints(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<ApiEndpointEntity[]> {
+    return this.menuOptionsService.getAssignedEndpoints(id);
+  }
 
   @Put(':id/endpoints')
   @RequirePermission('UPDATE', 'menu-options')

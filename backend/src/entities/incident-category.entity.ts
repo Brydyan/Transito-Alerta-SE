@@ -21,6 +21,16 @@ export class IncidentCategoryEntity {
   @Column({ type: 'varchar', length: 255 })
   name!: string;
 
+  /**
+   * sc-334-adjacent (T7.4) — optional free-text description. NOT exposed
+   * via the public `/api/menus/my` or `/api/incidents` endpoints (the
+   * menu payload and incident projection stay slim). Surfaced via the
+   * admin form (`/app/categorias/new`) and the dedicated
+   * `/api/incident-categories/{id}` GET response.
+   */
+  @Column({ type: 'text', nullable: true, default: null })
+  description!: string | null;
+
   @Column({ name: 'parent_id', type: 'uuid', nullable: true })
   parentId!: string | null;
 

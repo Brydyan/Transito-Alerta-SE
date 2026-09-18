@@ -48,6 +48,49 @@
             }
           </select>
         </div>
+
+        <!-- sc-334 Phase 4 — cascading zone filters -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Provincia</label>
+          <select
+            formControlName="provincia_id"
+            data-testid="filter-provincia"
+            class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-gray-50 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Todas las provincias</option>
+            @for (p of provincias(); track p.id) {
+              <option [value]="p.id">{{ p.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Cantón</label>
+          <select
+            formControlName="canton_id"
+            data-testid="filter-canton"
+            class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-gray-50 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+          >
+            <option value="">Todos los cantones</option>
+            @for (c of cantones(); track c.id) {
+              <option [value]="c.id">{{ c.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Parroquia</label>
+          <select
+            formControlName="parroquia_id"
+            data-testid="filter-parroquia"
+            class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-gray-50 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+          >
+            <option value="">Todas las parroquias</option>
+            @for (p of parroquias(); track p.id) {
+              <option [value]="p.id">{{ p.name }}</option>
+            }
+          </select>
+        </div>
       </form>
 
       <div class="mt-6 pt-4 border-t border-gray-100 flex justify-end">

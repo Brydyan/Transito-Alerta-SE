@@ -12,6 +12,20 @@
       (ngModelChange)="availableSearch.set($event)"
       class="form-control mb-3"
     />
+    @if (availableModules().length > 0) {
+      <select
+        data-testid="module-dropdown"
+        [ngModel]="moduleFilter()"
+        (ngModelChange)="moduleFilter.set($event)"
+        class="form-control mb-3 text-sm"
+        aria-label="Filtrar por módulo"
+      >
+        <option [ngValue]="null">Todos los módulos</option>
+        @for (m of availableModules(); track m) {
+          <option [ngValue]="m">{{ m }}</option>
+        }
+      </select>
+    }
     <ul class="space-y-1 max-h-60 overflow-y-auto pr-1">
       @for (ep of filteredAvailable(); track ep.id) {
         <li

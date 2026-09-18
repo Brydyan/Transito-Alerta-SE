@@ -1,0 +1,126 @@
+<ui-page-header
+  kicker="CATÁLOGOS"
+  title="Departamentos"
+  subtitle="Administra los departamentos que agrupan usuarios e incidencias dentro de una organización."
+>
+  <button
+    page-header-actions
+    type="button"
+    class="btn btn-primary flex items-center gap-2 font-medium px-4 py-2"
+    *hasPermission="'CREATE departments'"
+    (click)="navigateToCreate()"
+  >
+    <ui-icon name="plus" [size]="16" [strokeWidth]="2" />
+    Nuevo departamento
+  </button>
+</ui-page-header>
+
+<div class="card border-none shadow-sm rounded-lg overflow-hidden">
+  <!-- Toolbar: search + page-size -->
+  <div class="card-header bg-bg-secondary border-b border-border-subtle pt-6 pb-4 px-6 flex flex-wrap items-center gap-4">
+    <div class="relative flex-1 min-w-[200px]">
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+        <ui-icon name="search" [size]="16" />
+      </span>
+      <input
+        type="text"
+        class="form-control pl-9"
+        placeholder="Buscar por nombre..."
+        [value]="searchInput()"
+        (input)="onSearchInput($event)"
+        aria-label="Buscar departamentos"
+      />
+    </div>
+    <div class="flex items-center gap-2">
+      <label for="page-size" class="text-sm text-slate-500">Mostrar</label>
+      <select
+        id="page-size"
+        class="form-control form-control-sm"
+        [value]="pageSize()"
+        (change)="onPageSizeChange(+$any($event.target).value)"
+        aria-label="Tamaño de página"
+      >
+        <option *ngFor="let opt of pageSizeOptions" [value]="opt">{{ opt }}</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Body: loading skeleton, empty state, or table -->
+  <ng-container *ngIf="isLoading(); else loaded">
+    <div class="p-6">
+      <app-table-skeleton [rows]="5" [cols]="showOrganizationColumn() ? 6 : 5" />
+    </div>
+  </ng-container>
+
+  <ng-template #loaded>
+    <ng-container *ngIf="departments().length > 0; else empty">
+      <ui-table>
+        <thead>
+          <tr>
+            <th class="px-6 py-3 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold">Nombre</th>
+            <th class="px-6 py-3 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold">Descripción</th>
+            <th *ngIf="showOrganizationColumn()" class="px-6 py-3 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold">{{ organizationHeaderLabel }}</th>
+            <th class="px-6 py-3 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold">Usuarios</th>
+            <th class="px-6 py-3 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold">Creado</th>
+            <th class="px-6 py-3 text-right text-xs uppercase tracking-wider text-slate-500 font-semibold">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let dept of departments()" data-testid="dept-row" class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+            <td class="px-6 py-3 font-medium text-slate-800">{{ dept.name }}</td>
+            <td class="px-6 py-3 text-sm text-slate-500">{{ dept.description || '—' }}</td>
+            <td *ngIf="showOrganizationColumn()" class="px-6 py-3 text-sm text-slate-700">{{ dept.organization_name || '—' }}</td>
+            <td class="px-6 py-3 text-sm text-slate-700">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                {{ dept.user_count ?? 0 }}
+              </span>
+            </td>
+            <td class="px-6 py-3 text-sm text-slate-500">{{ dept.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
+            <td class="px-6 py-3 text-right">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-primary font-medium px-2 py-1 mr-1"
+                *hasPermission="'UPDATE departments'"
+                (click)="navigateToEdit(dept)"
+                [attr.aria-label]="'Editar ' + dept.name"
+                title="Editar"
+              >
+                <ui-icon name="pencil" [size]="14" />
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-danger font-medium px-2 py-1"
+                *hasPermission="'DELETE departments'"
+                (click)="deleteDepartment(dept)"
+                data-testid="dept-delete-btn"
+                [attr.aria-label]="'Eliminar ' + dept.name"
+                title="Eliminar"
+              >
+                <ui-icon name="trash" [size]="14" />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </ui-table>
+
+      <div class="bg-bg-secondary border-t border-border-subtle px-6 py-4">
+        <app-pagination
+          [totalItems]="totalItems()"
+          [currentPage]="currentPage()"
+          [pageSize]="pageSize()"
+          itemNameSingular="departamento"
+          itemNamePlural="departamentos"
+          (pageChange)="onPageChange($event)"
+        />
+      </div>
+    </ng-container>
+
+    <ng-template #empty>
+      <app-empty-state
+        icon="building"
+        title="No hay departamentos registrados"
+        description="Cuando crees un departamento, aparecerá aquí. Los departamentos sin geometría siguen siendo visibles en este catálogo."
+      />
+    </ng-template>
+  </ng-template>
+</div>

@@ -13,3 +13,17 @@
 .tree-node {
   user-select: none;
 }
+
+/* sc-334 admin-controles-enhancements Phase 3 (D3/R3) — chevron
+ * indicators on nodes with children. Single icon, CSS rotation on
+ * expand for a smooth visual transition.
+ */
+.chevron-btn {
+  transition: transform 150ms ease-in-out, color 150ms ease-in-out,
+    background-color 150ms ease-in-out;
+}
+
+.chevron-btn.chevron-expanded {
+  transform: rotate(90deg);
+  color: rgb(15 23 42); /* slate-900 — slightly darker when expanded */
+}

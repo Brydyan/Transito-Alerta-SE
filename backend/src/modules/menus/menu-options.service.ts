@@ -61,6 +61,42 @@ export interface PaginatedResult<T> {
  */
 @Injectable()
 export class MenuOptionsService {
+  /**
+   * sc-334 Phase 10 — sub-menu name → API module inference map.
+   *
+   * Drives the auto-association fallback in `getAssignedEndpoints` when
+   * the `menu_option_endpoints` junction has no rows for the selected
+   * option. Each key is the exact menu option name; each value is the
+   * first path segment under `/api/` (the "module") used to match
+   * `api_endpoints.path`.
+   *
+   * Sub-sub-menus (Crear X / Editar X) inherit their module from the
+   * parent's name automatically — no per-sub-sub-menu entry needed.
+   *
+   * Coverage: the 12 main sub-menus across INCIDENCIAS / GESTIÓN /
+   * CATÁLOGOS plus Auditoría de Acceso (admin audit log) and Controles
+   * (admin menu-options module). Section roots (Dashboard, INCIDENCIAS,
+   * GESTIÓN, CATÁLOGOS) intentionally have NO mapping — they have no
+   * associated endpoints.
+   */
+  private static readonly NAME_TO_API_MODULE: Record<string, string> = {
+    // GESTIÓN
+    Usuarios: 'users',
+    Roles: 'roles',
+    Organizaciones: 'organizations',
+    Departamentos: 'departments',
+    'Auditoría de Acceso': 'audit-logs',
+    Controles: 'menu-options',
+    // CATÁLOGOS (route `/ubicaciones` maps to geo-zones API)
+    Ubicaciones: 'geo-zones',
+    Categorías: 'incident-categories',
+    // INCIDENCIAS
+    'Lista de Incidencias': 'incidents',
+    Mapa: 'geo-zones',
+    Reportar: 'incidents',
+    Inicio: 'incidents',
+  };
+
   constructor(
     @InjectRepository(MenuOptionEntity)
     private readonly optionRepo: Repository<MenuOptionEntity>,
@@ -289,10 +325,18 @@ export class MenuOptionsService {
   }
 
   /**
-   * Paginated endpoint catalog, filterable by route, method, or description.
+   * Paginated endpoint catalog, filterable by route, method, description,
+   * or module (case-insensitive substring on path — design D6).
    */
   async getEndpointCatalog(
-    query: { page?: number; limit?: number; route?: string; method?: string; description?: string } = {},
+    query: {
+      page?: number;
+      limit?: number;
+      route?: string;
+      method?: string;
+      description?: string;
+      module?: string;
+    } = {},
   ): Promise<PaginatedResult<ApiEndpointEntity>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
@@ -308,6 +352,11 @@ export class MenuOptionsService {
     if (query.description) {
       qb.andWhere('ep.description ILIKE :desc', { description: `%${query.description}%` });
     }
+    if (query.module && query.module.trim().length > 0) {
+      // design D6: module is a substring of the route. e.g. module=incidents
+      // matches any path that contains "incidents" (case-insensitive).
+      qb.andWhere('ep.path ILIKE :module', { module: `%${query.module.trim()}%` });
+    }
 
     qb.orderBy('ep.method', 'ASC')
       .addOrderBy('ep.path', 'ASC')
@@ -317,6 +366,182 @@ export class MenuOptionsService {
     const [data, total] = await qb.getManyAndCount();
 
     return { data, total, page, limit };
+  }
+
+  // ── Phase 1 (1.1/1.2) — getAssignedEndpoints (design D1) ───────────────
+
+  /**
+   * Returns the API endpoints currently assigned to a menu option.
+   *
+   * Used by the menu-options frontend to hydrate the "Asignados" panel
+   * of the endpoint picker when the user selects an option. Returns an
+   * empty array when no endpoints are assigned. Throws 404 if the option
+   * itself does not exist.
+   *
+   * Design D1 / spec R1: implemented as a separate endpoint, not as part
+   * of `findOne()`, to keep each GET focused (single-responsibility).
+   *
+   * sc-334 admin-controles-enhancements Phase 10 — auto-association:
+   * the `menu_option_endpoints` junction table is empty by default
+   * (nobody has manually assigned endpoints yet). To make the admin UI
+   * useful out-of-the-box, when the junction is empty for the selected
+   * option we fall back to a name → API module inference:
+   *
+   *   - For sub-menus (no parent_id): lookup own name in
+   *     NAME_TO_API_MODULE → return all endpoints under `/api/{module}*`
+   *   - For sub-sub-menus (parent_id set): inherit module from parent
+   *     name → filter by action prefix:
+   *       "Crear X"   → POST   /api/{module}
+   *       "Editar X"  → PATCH  /api/{module}/:id
+   *       default     → all endpoints in module (list view)
+   *
+   * Manual assignment via PUT still wins: if the junction table has rows
+   * for the selected option, we return those and skip inference entirely.
+   * That way the admin can still override the inference with explicit
+   * assignments per menu option.
+   */
+  async getAssignedEndpoints(optionId: string): Promise<ApiEndpointEntity[]> {
+    // 404 first (consistent with findOne behavior).
+    const option = await this.findOne(optionId);
+
+    // (1) Manual junction — admin override wins if populated.
+    const direct = await this.queryAssignedFromJunction(optionId);
+    if (direct.length > 0) {
+      return direct;
+    }
+
+    // (2) Auto-association: derive API module + level from the option's
+    // position in the hierarchy. Section headers have no module.
+    const inferred = await this.inferApiModule(option);
+    if (!inferred) {
+      return [];
+    }
+
+    return this.queryEndpointsInModule(
+      inferred.apiModule,
+      option,
+      inferred.isLevel3,
+    );
+  }
+
+  /**
+   * Pulls endpoints directly linked via `menu_option_endpoints` (manual
+   * assignment path). Returns [] when the junction has no rows for the
+   * option — used as a signal to fall back to auto-association.
+   */
+  private async queryAssignedFromJunction(
+    optionId: string,
+  ): Promise<ApiEndpointEntity[]> {
+    return this.endpointRepo
+      .createQueryBuilder('ep')
+      .innerJoin(
+        'menu_option_endpoints',
+        'moe',
+        'moe.endpoint_id = ep.id AND moe.menu_option_id = :optionId',
+        { optionId },
+      )
+      .orderBy('ep.method', 'ASC')
+      .addOrderBy('ep.path', 'ASC')
+      .getMany();
+  }
+
+  /**
+   * Resolves the API module for a menu option via name-based lookup.
+   *
+   * Hierarchy:
+   *   Level 1 — section headers (Dashboard, INCIDENCIAS, GESTIÓN, …):
+   *     no parent → no module mapping → returns null (endpoints []).
+   *   Level 2 — sub-menus (Usuarios, Roles, Lista de Incidencias, …):
+   *     parent is a section header (no grandparent) → use OWN name.
+   *   Level 3 — sub-sub-menus (Crear usuario, Editar rol, …):
+   *     parent is a level-2 sub-menu (has grandparent) → use PARENT's
+   *     name so the module is inherited.
+   *
+   * Distinguishing level-2 vs level-3: both have parent_id, so we look
+   * up the parent and check if the parent itself has a parent_id. If
+   * the parent has no parent (it's a section header), we're looking at
+   * a level-2 option → use OWN name. If the parent has its own parent
+   * (it's a level-2 sub-menu), we're looking at a level-3 option → use
+   * PARENT's name.
+   *
+   * Returns null when no mapping exists for the resolved name.
+   */
+  private async inferApiModule(
+    option: MenuOptionEntity,
+  ): Promise<{ apiModule: string; isLevel3: boolean } | null> {
+    // Level 1 — section header, no endpoints.
+    if (!option.parentId) {
+      return null;
+    }
+
+    const parent = await this.optionRepo.findOne({
+      where: { id: option.parentId },
+    });
+    if (!parent) {
+      return null;
+    }
+
+    // Level 3 — sub-sub-menu (parent has its own parent, i.e. parent is
+    // a level-2 sub-menu). Inherit the module from the parent name.
+    if (parent.parentId) {
+      const apiModule =
+        MenuOptionsService.NAME_TO_API_MODULE[parent.name] ?? null;
+      return apiModule ? { apiModule, isLevel3: true } : null;
+    }
+
+    // Level 2 — sub-menu (parent is a section header with no grandparent).
+    // Use OWN name as the module.
+    const apiModule =
+      MenuOptionsService.NAME_TO_API_MODULE[option.name] ?? null;
+    return apiModule ? { apiModule, isLevel3: false } : null;
+  }
+
+  /**
+   * Queries `api_endpoints` for all rows whose path matches the given
+   * module prefix. For sub-sub-menus (level-3 — parent is itself a
+   * sub-menu) with a recognized action prefix in their name, the
+   * result is narrowed to the specific HTTP method + path pattern
+   * for that action. Sub-menus (level-2 — parent is a section header)
+   * get all endpoints in their module.
+   */
+  private async queryEndpointsInModule(
+    apiModule: string,
+    option: MenuOptionEntity,
+    isLevel3: boolean,
+  ): Promise<ApiEndpointEntity[]> {
+    const pathPrefix = `/api/${apiModule}`;
+    const qb = this.endpointRepo
+      .createQueryBuilder('ep')
+      .orderBy('ep.method', 'ASC')
+      .addOrderBy('ep.path', 'ASC');
+
+    if (isLevel3) {
+      // Sub-sub-menu: filter by action prefix in the option name.
+      const lowerName = option.name.toLowerCase();
+      if (lowerName.startsWith('crear ')) {
+        qb.where('ep.method = :method AND ep.path = :path', {
+          method: 'POST',
+          path: pathPrefix,
+        });
+      } else if (lowerName.startsWith('editar ')) {
+        qb.where('ep.method = :method AND ep.path LIKE :pattern', {
+          method: 'PATCH',
+          pattern: `${pathPrefix}/%`,
+        });
+      } else if (lowerName.startsWith('ver ')) {
+        qb.where('ep.method = :method AND ep.path LIKE :pattern', {
+          method: 'GET',
+          pattern: `${pathPrefix}%`,
+        });
+      } else {
+        qb.where('ep.path LIKE :pattern', { pattern: `${pathPrefix}%` });
+      }
+    } else {
+      // Level-2 sub-menu: all endpoints in module.
+      qb.where('ep.path LIKE :pattern', { pattern: `${pathPrefix}%` });
+    }
+
+    return qb.getMany();
   }
 
   // ── Private validation helpers ─────────────────────────────────────────

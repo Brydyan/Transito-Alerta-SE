@@ -17,9 +17,10 @@ export const menuResolver: ResolveFn<MenuItem[]> = () => {
 
   return menuService.getMenuFromBackend().pipe(
     tap((menu) => {
+      const totalItems = menuService.countAllItems(menu);
       console.log(
         '[menuResolver] getMenuFromBackend() completed:',
-        menu.length,
+        totalItems,
         'items',
       );
     }),

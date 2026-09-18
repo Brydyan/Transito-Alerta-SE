@@ -4,10 +4,11 @@ import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { LayoutService } from '../../core/services/layout.service';
 import { UiIconComponent } from '../../shared/components/ui-icon/ui-icon.component';
+import { HasPermissionDirective } from '../../shared/directives/has-permission.directive';
 
 @Component({
   selector: 'app-header',
-  imports: [CommonModule, RouterModule, UiIconComponent],
+  imports: [CommonModule, RouterModule, UiIconComponent, HasPermissionDirective],
   templateUrl: './header.html',
   styleUrl: './header.css',
   host: {

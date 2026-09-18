@@ -1,0 +1,176 @@
+<ui-page-header
+  [kicker]="isEditing() ? 'Editar' : 'Nuevo'"
+  [title]="isEditing() ? 'Editar departamento' : 'Nuevo departamento'"
+  [subtitle]="isEditing() ? 'Modifica los datos básicos del departamento. La organización es inmutable.' : 'Crea un nuevo departamento dentro de tu organización. La geometría se carga por separado.'"
+>
+  <button
+    page-header-actions
+    type="button"
+    class="btn btn-outline-secondary font-medium px-4 py-2"
+    (click)="onCancel()"
+  >
+    <ui-icon name="arrow-left" [size]="16" [strokeWidth]="2" />
+    Volver
+  </button>
+</ui-page-header>
+
+<form [formGroup]="form" (ngSubmit)="onSubmit()" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <!-- Sticky banner for cross-field errors (e.g. user without organizationId) -->
+  <div *ngIf="bannerError()" class="col-span-full mb-2 p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-700" role="alert">
+    {{ bannerError() }}
+  </div>
+
+  <!-- COLUMNA IZQUIERDA: Form básico -->
+  <div class="lg:col-span-1 flex flex-col gap-4">
+    <div class="card border-none shadow-sm rounded-lg overflow-hidden">
+      <div class="p-6">
+        <h5 class="font-bold mb-1 text-slate-800">Datos del departamento</h5>
+        <p class="text-slate-500 text-sm mb-4">Define el nombre y descripción</p>
+
+        <!-- Name (required, max 255) -->
+        <div class="mb-4">
+          <label for="dept-name" class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
+            Nombre <span class="text-status-critical">*</span>
+          </label>
+          <input
+            id="dept-name"
+            type="text"
+            class="form-control"
+            formControlName="name"
+            [class.border-status-critical]="fieldInvalid('name')"
+            placeholder="Ej: Movilidad"
+            maxlength="255"
+            aria-label="Nombre"
+            [attr.aria-invalid]="fieldInvalid('name') ? 'true' : 'false'"
+            [attr.aria-describedby]="fieldError('name') ? 'name-error' : null"
+          />
+          <small *ngIf="fieldError('name')" id="name-error" class="text-status-critical text-xs mt-1 block" role="alert">
+            {{ fieldError('name') }}
+          </small>
+        </div>
+
+        <!-- Description (optional, max 500) -->
+        <div class="mb-4">
+          <label for="dept-description" class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
+            Descripción
+          </label>
+          <textarea
+            id="dept-description"
+            class="form-control"
+            rows="3"
+            formControlName="description"
+            [class.border-status-critical]="fieldInvalid('description')"
+            placeholder="Descripción opcional del departamento"
+            maxlength="500"
+            aria-label="Descripción"
+          ></textarea>
+          <small *ngIf="fieldError('description')" class="text-status-critical text-xs mt-1 block" role="alert">
+            {{ fieldError('description') }}
+          </small>
+        </div>
+
+        <!-- Organization: dropdown for global roles (master, operador_sistema);
+             read-only text for admin_org (locked to their own org). The org_id
+             is still bound to the form so submit passes it through; the
+             readonly attribute prevents the user from changing it (D9-style
+             org-scope: non-global roles can't escape their own org). -->
+        <div class="mb-0">
+          <label for="dept-organization_id" class="form-label font-semibold text-slate-800 text-sm mb-1.5 block">
+            Organización <span *ngIf="showOrgSelector()" class="text-status-critical">*</span>
+          </label>
+
+          <select
+            *ngIf="showOrgSelector()"
+            id="dept-organization_id"
+            class="form-control"
+            formControlName="organization_id"
+            [class.border-status-critical]="fieldInvalid('organization_id')"
+            aria-label="Organización"
+          >
+            <option value="" disabled>Selecciona una organización…</option>
+            <option *ngFor="let org of organizations()" [value]="org.id">{{ org.name }}</option>
+          </select>
+
+          <input
+            *ngIf="!showOrgSelector()"
+            id="dept-organization_id"
+            type="text"
+            class="form-control"
+            formControlName="organization_id"
+            readonly
+            aria-label="Organización"
+          />
+
+          <small *ngIf="fieldInvalid('organization_id')" class="text-status-critical text-xs mt-1 block" role="alert">
+            Selecciona una organización.
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUMNA DERECHA: Matriz de incident types -->
+  <div class="lg:col-span-2 flex flex-col gap-4">
+    <div class="card border-none shadow-sm rounded-lg overflow-hidden">
+      <div class="p-6">
+        <h5 class="font-bold mb-1 text-slate-800">Tipos de incidencia que gestiona</h5>
+        <p class="text-slate-500 text-sm mb-4">
+          Marcá los tipos de incidencia que este departamento va a gestionar.
+          Podes dejarlo vacío y asignarlos después.
+        </p>
+
+        <fieldset
+          class="border border-slate-200 rounded-md p-3 max-h-96 overflow-y-auto"
+          data-testid="dept-category-list"
+        >
+          <legend class="sr-only">Tipos de incidencia</legend>
+
+          <ng-container *ngIf="incidentCategories().length > 0; else noCats">
+            <label
+              *ngFor="let cat of incidentCategories()"
+              class="flex items-start gap-2 py-1.5 px-2 rounded hover:bg-slate-50 cursor-pointer"
+              [class.pl-6]="cat.parent_id !== null"
+              [attr.data-testid]="'dept-cat-' + cat.id"
+            >
+              <input
+                type="checkbox"
+                class="form-check-input mt-1"
+                [checked]="selectedCategoryIds().includes(cat.id)"
+                (change)="toggleCategory(cat.id, $any($event.target).checked)"
+              />
+              <span class="text-sm text-slate-800">
+                {{ cat.name }}
+              </span>
+            </label>
+          </ng-container>
+
+          <ng-template #noCats>
+            <p class="text-sm text-slate-500 italic">
+              No hay tipos de incidencia activos en el sistema.
+            </p>
+          </ng-template>
+        </fieldset>
+      </div>
+    </div>
+
+    <!-- Footer buttons -->
+    <div class="flex justify-end items-center gap-3">
+      <button
+        type="button"
+        class="btn btn-outline-secondary font-medium px-5 py-2"
+        (click)="onCancel()"
+        [disabled]="isSaving()"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        class="btn btn-primary flex items-center gap-2 font-medium px-6 py-2"
+        [disabled]="isSaving() || form.invalid"
+      >
+        <ui-icon *ngIf="isSaving()" name="loader" [size]="16" [strokeWidth]="2" />
+        {{ isEditing() ? 'Guardar cambios' : 'Crear departamento' }}
+      </button>
+    </div>
+  </div>
+</form>

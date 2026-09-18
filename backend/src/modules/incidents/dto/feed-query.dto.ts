@@ -21,9 +21,20 @@ export class FeedQueryDto {
   @IsString()
   priority?: string;
 
+  /**
+   * Filter by geographic zone (FK `incidents.zone_id` → `geo_zones.id`).
+   *
+   * T7.4 fix — was `location_id` until 2026-09-17; renamed to `zone_id`
+   * to match the frontend `MapActiveFilters.zone_id` field (sc-334
+   * Phase 4) and the actual FK column name. The previous `location_id`
+   * name caused `forbidNonWhitelisted: true` 400s whenever the map
+   * dropdown emitted its selected zone. The response shape
+   * (`FeedItemDto.location_id`) is unchanged — it still describes the
+   * same wire relationship, just from the consumer's perspective.
+   */
   @IsOptional()
   @IsUUID()
-  location_id?: string;
+  zone_id?: string;
 
   @IsOptional()
   @IsUUID()

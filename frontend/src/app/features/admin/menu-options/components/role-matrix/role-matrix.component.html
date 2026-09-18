@@ -1,0 +1,69 @@
+<!--
+  sc-334 admin-controles-enhancements Phase 4 (D2/R2) — three scope
+  blocks stacked vertically. Each block has a header with the scope
+  label + role count, then role rows with paired checkboxes for
+  Read / Write. The Write checkbox is disabled when Read is false
+  (R7 invariant — see toggleAccess()).
+-->
+<div class="role-groups space-y-6" role="group" aria-label="Matriz de acceso por rol">
+  @if (roleGroups().length === 0) {
+    <p class="text-sm text-slate-500 italic">
+      Cargando matriz de roles…
+    </p>
+  } @else {
+    @for (group of roleGroups(); track group.scope) {
+      <section
+        class="role-group rounded-lg border border-border-subtle overflow-hidden"
+        [attr.data-scope]="group.scope"
+      >
+        <header class="group-header bg-bg-secondary px-4 py-2 border-b border-border-subtle">
+          <h3 class="text-sm font-semibold text-slate-700 uppercase tracking-wider">
+            {{ group.label }}
+            <span class="ml-2 text-xs font-normal text-slate-500">({{ group.roles.length }})</span>
+          </h3>
+        </header>
+
+        <ul class="role-list divide-y divide-border-subtle">
+          @for (role of group.roles; track role.role_id) {
+            <li
+              class="role-row flex items-center gap-4 px-4 py-2"
+              [attr.data-role-id]="role.role_id"
+            >
+              <span class="flex-1 text-sm text-slate-800 truncate">
+                {{ role.role_name }}
+              </span>
+
+              <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  [checked]="role.can_read"
+                  [disabled]="isDisabled()"
+                  (change)="toggleAccess(role.role_id, 'can_read', $any($event.target).checked)"
+                  [attr.aria-label]="'Permiso de lectura para ' + role.role_name"
+                  class="role-checkbox"
+                />
+                <span>Lectura</span>
+              </label>
+
+              <label
+                class="flex items-center gap-2 text-xs cursor-pointer"
+                [class.text-slate-400]="!role.can_read"
+                [class.cursor-not-allowed]="!role.can_read"
+              >
+                <input
+                  type="checkbox"
+                  [checked]="role.can_write"
+                  [disabled]="isDisabled() || !role.can_read"
+                  (change)="toggleAccess(role.role_id, 'can_write', $any($event.target).checked)"
+                  [attr.aria-label]="'Permiso de escritura para ' + role.role_name"
+                  class="role-checkbox"
+                />
+                <span>Escritura</span>
+              </label>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  }
+</div>

@@ -147,4 +147,16 @@ describe('LocationListComponent', () => {
       expect(distribution.get('parroquia')).toBe(0);
     });
   });
+
+  // ── sc-334 Phase 2: Importar Shapefile button moved to LocationForm (W1 reversal).
+  //    LocationList no longer hosts the button or the dialog mount; coverage
+  //    lives in location-form.component.spec.ts now.
+
+  describe('Importar Shapefile button — moved to LocationForm', () => {
+    it('does not render the button on the list page', async () => {
+      await setup([]);
+      const button = screen.queryByRole('button', { name: /importar shapefile/i });
+      expect(button).toBeNull();
+    });
+  });
 });

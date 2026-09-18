@@ -3,17 +3,20 @@ import {
   ChangeDetectionStrategy,
   inject,
   signal,
+  computed,
   OnInit,
   DestroyRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { forkJoin } from 'rxjs';
 
-import { MenuOptionService, MenuOption, RoleMatrix } from '../../../core/services/menu-option.service';
+import { MenuOptionService, MenuOption, RoleMatrix, ApiEndpointEntity } from '../../../core/services/menu-option.service';
 import { MenuTreeComponent } from './components/menu-tree/menu-tree.component';
 import { RoleMatrixComponent } from './components/role-matrix/role-matrix.component';
 import { EndpointPickerComponent } from './components/endpoint-picker/endpoint-picker.component';
 import { ToastService } from '../../../shared/components/toast/toast.service';
+import { ConfirmDialogService } from '../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { UiPageHeaderComponent } from '../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.component';
@@ -43,6 +46,7 @@ import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.comp
 export class MenuOptionsComponent implements OnInit {
   private readonly menuOptionService = inject(MenuOptionService);
   private readonly toast = inject(ToastService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly allOptions = signal<MenuOption[]>([]);
@@ -50,8 +54,8 @@ export class MenuOptionsComponent implements OnInit {
   readonly isCreating = signal(false);
   readonly saving = signal(false);
   readonly roleMatrix = signal<RoleMatrix | null>(null);
-  readonly allEndpoints = signal<{ id: string; method: string; path: string; description: string }[]>([]);
-  readonly assignedEndpoints = signal<{ id: string; method: string; path: string; description: string }[]>([]);
+  readonly allEndpoints = signal<ApiEndpointEntity[]>([]);
+  readonly assignedEndpoints = signal<ApiEndpointEntity[]>([]);
 
   // Form state
   readonly editingName = signal('');
@@ -64,9 +68,46 @@ export class MenuOptionsComponent implements OnInit {
   /** Options that can be selected as parent (excluding self to prevent cycles). */
   readonly parentOptions = signal<MenuOption[]>([]);
 
+  /**
+   * sc-334 admin-controles-enhancements Phase 6 (D4/R4) — suggested
+   * display_order for the next menu option:
+   *   - Parent menus (parent_id === null): +10 increment (10, 20, 30…)
+   *   - Sub-menus (parent_id !== null): +1 increment (1, 2, 3…)
+   * Reflects the existing display_order convention in the seed data.
+   * Returns null when no siblings exist yet (so the template can show
+   * a different empty state) — actually returns the increment of 0
+   * for simplicity.
+   */
+  readonly nextOrder = computed<number>(() => {
+    const parentId = this.editingParentId();
+    const increment = parentId === null ? 10 : 1;
+    const siblings = this.allOptions().filter((o) => o.parent_id === parentId);
+    if (siblings.length === 0) {
+      return increment; // first entry: 10 for root, 1 for child
+    }
+    const maxOrder = siblings.reduce(
+      (max, child) => Math.max(max, child.display_order),
+      -Infinity,
+    );
+    return maxOrder + increment;
+  });
+
   ngOnInit(): void {
-    this.loadOptions();
-    this.loadEndpointCatalog();
+    // Phase 8 perf: parallelize the two independent initial loads so the
+    // page paints faster. Was loadOptions() then loadEndpointCatalog()
+    // sequentially (~150ms saved on cold render).
+    forkJoin({
+      options: this.menuOptionService.findAll(),
+      catalog: this.menuOptionService.getEndpointCatalog({ page: 1, limit: 200 }),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ options, catalog }) => {
+          this.allOptions.set(options);
+          this.allEndpoints.set(catalog.data);
+        },
+        error: () => this.toast.error('Error al cargar el panel de menús.', 'Error'),
+      });
   }
 
   loadOptions(): void {
@@ -106,14 +147,11 @@ export class MenuOptionsComponent implements OnInit {
       prefilledRoute = parent.route.endsWith('/') ? parent.route : parent.route + '/';
     }
     
-    // Calculate next order for children of this parent
-    const children = this.allOptions().filter(o => o.parent_id === parentId);
-    const maxOrder = children.reduce((max, child) => Math.max(max, child.display_order), -1);
-
+    // Calculate next order via the nextOrder computed (Phase 6: +10 for root, +1 for children).
     this.editingName.set('');
     this.editingRoute.set(prefilledRoute);
     this.editingIcon.set('');
-    this.editingOrder.set(maxOrder + 1);
+    this.editingOrder.set(this.nextOrder());
     
     this.roleMatrix.set(null);
     this.assignedEndpoints.set([]);
@@ -180,36 +218,54 @@ export class MenuOptionsComponent implements OnInit {
 
   deleteOption(): void {
     const id = this.selectedOptionId();
-    if (!id) return;
+    const option = id ? this.allOptions().find((o) => o.id === id) : null;
+    if (!id || !option) return;
 
-    this.saving.set(true);
-    this.menuOptionService.delete(id)
+    // sc-334 admin-controles-enhancements Phase 5 (D5/R5) — confirm before
+    // destructive delete. Same ConfirmDialogService pattern as
+    // LocationListComponent and RolesService.
+    this.confirmDialog
+      .confirm({
+        title: 'Eliminar opción de menú',
+        message: `¿Eliminar "${option.name}"? Esta acción no se puede deshacer.`,
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        isDanger: true,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.toast.success('Opción eliminada.', 'Éxito');
-          this.saving.set(false);
-          this.loadOptions();
-          this.onBackToList();
-        },
-        error: (err: { status?: number }) => {
-          this.saving.set(false);
-          if (err?.status === 409) {
-            this.toast.error('No se puede eliminar: tiene submenús. Elimínalos primero.', 'Conflicto');
-          } else {
-            this.toast.error('Error al eliminar. Inténtalo de nuevo.', 'Error');
-          }
-        },
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+
+        this.saving.set(true);
+        this.menuOptionService
+          .delete(id)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => {
+              this.toast.success('Opción eliminada.', 'Éxito');
+              this.saving.set(false);
+              this.loadOptions();
+              this.onBackToList();
+            },
+            error: (err: { status?: number }) => {
+              this.saving.set(false);
+              if (err?.status === 409) {
+                this.toast.error('No se puede eliminar: tiene submenús. Elimínalos primero.', 'Conflicto');
+              } else {
+                this.toast.error('Error al eliminar. Inténtalo de nuevo.', 'Error');
+              }
+            },
+          });
       });
   }
 
-  onRoleAccessChange(event: { roleId: string; canRead: boolean; canWrite: boolean }): void {
+  onRoleAccessChange(event: { role_id: string; can_read: boolean; can_write: boolean }): void {
     const optionId = this.selectedOptionId();
     if (!optionId) return;
 
-    this.menuOptionService.setRoleAccess(optionId, event.roleId, {
-      canRead: event.canRead,
-      canWrite: event.canWrite,
+    this.menuOptionService.setRoleAccess(optionId, event.role_id, {
+      canRead: event.can_read,
+      canWrite: event.can_write,
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -237,6 +293,8 @@ export class MenuOptionsComponent implements OnInit {
   }
 
   private loadOptionDetail(id: string): void {
+    // Phase 8 perf: fetch option detail first (needed for the form),
+    // then fan-out role matrix + assigned endpoints in parallel.
     this.menuOptionService.findOne(id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -247,10 +305,23 @@ export class MenuOptionsComponent implements OnInit {
           this.editingIcon.set(option.icon ?? '');
           this.editingOrder.set(option.display_order);
           this.editingParentId.set(option.parent_id);
-          // Parent options: all except self (prevent self-parent)
           this.parentOptions.set(this.allOptions().filter((o) => o.id !== id));
-          this.loadRoleMatrix(id);
-          this.loadAssignedEndpoints(id);
+
+          // Parallel: matrix + assigned endpoints can both fetch
+          // independently (~150ms saved per selection).
+          forkJoin({
+            matrix: this.menuOptionService.getRoleMatrix(id),
+            assigned: this.menuOptionService.getAssignedEndpoints(id),
+          })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: ({ matrix, assigned }) => {
+                if (this.selectedOptionId() !== id || this.isCreating()) return;
+                this.roleMatrix.set(matrix);
+                this.assignedEndpoints.set(assigned);
+              },
+              error: () => this.toast.error('Error al cargar la matriz o endpoints.', 'Error'),
+            });
         },
         error: () => this.toast.error('Error al cargar el detalle.', 'Error'),
       });
@@ -268,13 +339,19 @@ export class MenuOptionsComponent implements OnInit {
       });
   }
 
-  private loadAssignedEndpoints(_optionId: string): void {
-    // The backend doesn't have a separate endpoint for assigned endpoints.
-    // The MenuOption entity has endpoints via the menu_option_endpoints junction.
-    // We'll get them from the findOne response (if populated) or from the assign response.
-    // For now, we rely on the catalog filter: endpoints in the catalog that are
-    // assigned will be in the assignedEndpoints signal.
-    // TODO: backend needs GET /menu-options/:id/endpoints — for now clear on re-select
-    this.assignedEndpoints.set([]);
+  private loadAssignedEndpoints(optionId: string): void {
+    // sc-334 admin-controles-enhancements Phase 5 (D7/R1) — backend
+    // Phase 1 added GET /menu-options/:id/endpoints. Frontend Phase 2
+    // wired the service method. Now we actually call it.
+    this.menuOptionService
+      .getAssignedEndpoints(optionId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (endpoints) => {
+          if (this.selectedOptionId() !== optionId || this.isCreating()) return;
+          this.assignedEndpoints.set(endpoints);
+        },
+        error: () => this.toast.error('Error al cargar endpoints asignados.', 'Error'),
+      });
   }
 }

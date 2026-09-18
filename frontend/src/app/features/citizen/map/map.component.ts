@@ -7,10 +7,47 @@ import { GeoZoneService } from '../../catalogs/locations/services/geo-zone.servi
 import { Incident, IncidentStatus } from '../../../core/models/incident.model';
 import { MapFiltersComponent } from './components/map-filters/map-filters.component';
 import { MapDataService, MapActiveFilters } from './services/map-data.service';
-import { IGeoJsonPolygon, IGeoJsonMultiPolygon } from '../../catalogs/locations/interfaces/igeo-zone.interface';
+import {
+  IGeoZone,
+  IGeoJsonPolygon,
+  IGeoJsonMultiPolygon,
+  GeoZoneLevel,
+} from '../../catalogs/locations/interfaces/igeo-zone.interface';
 import { Subscription } from 'rxjs';
 
 type GeoZonePolygon = IGeoJsonPolygon | IGeoJsonMultiPolygon;
+
+/**
+ * sc-334 D3 — color palette for the four zone levels.
+ *
+ * Chosen for colorblind accessibility and contrast on OSM tiles. Stroke +
+ * fill are the same hue; opacity + dashArray differentiate the levels
+ * visually so a canton never looks identical to a parroquia stacked
+ * underneath it.
+ *
+ * Exported for unit tests in `map.component.spec.ts` — the test asserts
+ * the stroke color per level, not the values, so an architect redesign
+ * of the palette breaks the test loudly rather than silently.
+ */
+export const ZONE_STYLES: Record<GeoZoneLevel, L.PathOptions> = {
+  provincia: { color: '#6366f1', weight: 2, opacity: 0.8, fillColor: '#6366f1', fillOpacity: 0.08, dashArray: '6 4' },
+  canton:    { color: '#0891b2', weight: 2, opacity: 0.9, fillColor: '#0891b2', fillOpacity: 0.12 },
+  parroquia: { color: '#059669', weight: 2, opacity: 0.9, fillColor: '#059669', fillOpacity: 0.15 },
+  zona:      { color: '#d97706', weight: 2, opacity: 0.9, fillColor: '#d97706', fillOpacity: 0.10, dashArray: '2 3' },
+};
+
+/**
+ * Per-level overlay applied on top of `ZONE_STYLES[level]` when a zone
+ * becomes the active filter. We KEEP the colour (so the user can still
+ * tell the level at a glance) and only bump weight / fill / dashing
+ * for the selected outline.
+ */
+const HIGHLIGHT_OVERRIDES: Record<GeoZoneLevel, Partial<L.PathOptions>> = {
+  provincia: { weight: 4, fillOpacity: 0.18, dashArray: '' },
+  canton:    { weight: 4, fillOpacity: 0.22, dashArray: '' },
+  parroquia: { weight: 4, fillOpacity: 0.28, dashArray: '' },
+  zona:      { weight: 3.5, fillOpacity: 0.22, dashArray: '' },
+};
 
 // Canonical Leaflet icon fix for Webpack/Angular
 const iconRetinaUrl = '/assets/marker-icon-2x.png';
@@ -40,6 +77,17 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
   private map!: L.Map;
   private markerClusterGroup!: L.MarkerClusterGroup;
   private zoneLayerGroup!: L.LayerGroup;
+  /** sc-334 Phase 4 — zone_id → layer for highlight + fitBounds. */
+  private zoneLayerById = new Map<string, L.Layer>();
+  /** sc-334 debug-fix — layer → its zone.level, so highlightZone can
+   *  reset EVERY layer to its per-level default before re-styling the
+   *  selected one. Without this, a previously-selected zone would stay
+   *  in highlight style after the user picks a different one. */
+  private zoneLevelByLayer = new WeakMap<L.Layer, GeoZoneLevel>();
+  /** sc-334 debug-fix — tracks the currently-highlighted zone id so we
+   *  know when the selection actually changed (and skip redundant
+   *  setStyle calls when the user re-picks the same zone). */
+  private highlightedZoneId: string | null = null;
 
   incidents = signal<Incident[]>([]);
   displayedCount = signal(0);
@@ -111,42 +159,81 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
       this.geoZoneService.listAll().subscribe({
         next: (zones) => {
           this.zoneLayerGroup.clearLayers();
-
-          const activeZones = zones.filter(z => z.active && z.polygon);
-          activeZones.forEach(z => {
-            const layer = L.geoJSON(z.polygon as GeoZonePolygon as unknown as Parameters<typeof L.geoJSON>[0], {
-              style: () => ({
-                color: '#3b82f6',
-                weight: 2,
-                opacity: 0.8,
-                fillColor: '#3b82f6',
-                fillOpacity: 0.1,
-                dashArray: '3'
-              }),
-              onEachFeature: (feature, layer) => {
-                layer.on({
-                  mouseover: (e) => {
-                    const l = e.target as L.Path;
-                    l.setStyle({ fillOpacity: 0.3, weight: 3 });
-                  },
-                  mouseout: (e) => {
-                    const l = e.target as L.Path;
-                    const geoJsonLayer = layer as unknown as L.GeoJSON;
-                    if (geoJsonLayer.resetStyle) {
-                      geoJsonLayer.resetStyle(e.target);
-                    } else {
-                      l.setStyle({ fillOpacity: 0.1, weight: 2 });
-                    }
-                  }
-                });
-              }
-            });
-            this.zoneLayerGroup.addLayer(layer);
+          this.zoneLayerById.clear();
+          // sc-334 debug-fix — when zones reload, the previous highlight
+          //  belongs to a stale layer. Drop it so a later highlightZone()
+          //  call (with the same id) doesn't try to setStyle() on a layer
+          //  that's no longer in the map.
+          this.highlightedZoneId = null;
+          const layers = this.renderZonePolygons(zones);
+          layers.forEach((l, idx) => {
+            this.zoneLayerGroup.addLayer(l);
+            const zone = zones.filter(z => z.active && z.polygon != null)[idx];
+            if (zone) {
+              this.zoneLayerById.set(zone.id, l);
+              this.zoneLevelByLayer.set(l, zone.level);
+            }
           });
         },
         error: (err) => console.error('Error loading zones:', err?.message ?? 'unknown')
       })
     );
+  }
+
+  /**
+   * sc-334 D3 — public for testability. Returns one Leaflet layer per
+   * active zone with a polygon, using the per-level palette and a
+   * `bindPopup` payload that surfaces name + code + level + parent_name.
+   *
+   * Default `interactive: false` (spec R-): clicks must not block
+   * incident markers. The popup binding re-enables interaction for the
+   * bound layer so the popup can be opened.
+   */
+  renderZonePolygons(zones: IGeoZone[]): L.Layer[] {
+    return zones
+      .filter(z => z.active && z.polygon != null)
+      .map(z => this.createZoneLayer(z));
+  }
+
+  private createZoneLayer(zone: IGeoZone): L.Layer {
+    const layer = L.geoJSON(zone.polygon as GeoZonePolygon as unknown as Parameters<typeof L.geoJSON>[0], {
+      style: () => ZONE_STYLES[zone.level],
+      interactive: false,
+      bubblingMouseEvents: false,
+    });
+
+    const popupHtml = `
+      <div class="zone-popup">
+        <div class="font-semibold text-slate-900">${this.escapeHtml(zone.name)}</div>
+        <div class="text-xs text-slate-500 mt-1">
+          <span>Código: <strong>${this.escapeHtml(zone.code ?? '---')}</strong></span><br>
+          <span>Nivel: <strong>${zone.level}</strong></span><br>
+          <span>Padre: <strong>${this.escapeHtml(zone.parent_name ?? '---')}</strong></span>
+        </div>
+      </div>
+    `;
+    layer.bindPopup(popupHtml);
+
+    // Re-enable interaction now that the popup is bound — `interactive: false`
+    // would block the click that opens the popup. `bubblingMouseEvents: true`
+    // keeps incident markers underneath clickable.
+    const opts = (layer as unknown as { options: L.PathOptions & { bubblingMouseEvents?: boolean } }).options;
+    opts.interactive = true;
+    opts.bubblingMouseEvents = true;
+
+    return layer;
+  }
+
+  /** Minimal HTML escape for popup payloads — GeoJSON properties are
+   *  admin-controlled but a malicious admin should still not get XSS
+   *  via a zone name. */
+  private escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   private loadIncidents() {
@@ -269,5 +356,88 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
   onFiltersChange(filters: MapActiveFilters) {
     this.activeFilters = filters;
     this.loadIncidents();
+    // sc-334 Phase 4 R4 — drill-down: show ONLY the last selected
+    // zone polygon (hide the rest). Each step replaces the previous.
+    this.highlightZone(filters.zone_id);
+  }
+
+  /**
+   * Drill-down polygon visibility:
+   *
+   *   - When a zone is selected: hide every other zone layer (removeLayer)
+   *     and re-add the selected one with the highlight style applied.
+   *   - When the filter is cleared (zoneId empty): re-show every layer
+   *     at its per-level default so the full territorial map returns.
+   *
+   * Each filter change replaces the previous selection — picking a
+   * provincia hides any previously-shown canton or parroquia, and
+   * drilling into a canton hides the provincia. This matches the
+   * UX Andy asked for ("solo se muestre el poligono del ultimo
+   * seleccionado") and avoids the visual noise of sibling zones.
+   *
+   * Public for testability (spec 3.7).
+   */
+  highlightZone(zoneId: string | undefined): void {
+    // Step 0 — short-circuit when the selection didn't change, so we
+    //  don't burn a fitBounds animation on every status / priority
+    //  tweak that re-emits the same zone_id.
+    const normalizedId = zoneId || null;
+    if (normalizedId === this.highlightedZoneId) {
+      return;
+    }
+
+    // Step 1 — re-show every previously-hidden layer at its per-level
+    //  default. This handles both the no-selection case (everything
+    //  comes back) and the new-selection case (siblings get reset
+    //  before we re-style the new one).
+    for (const [, lyr] of this.zoneLayerById) {
+      const level = this.zoneLevelByLayer.get(lyr);
+      if (!level) continue;
+      (lyr as L.GeoJSON).setStyle(ZONE_STYLES[level]);
+      if (!this.zoneLayerGroup.hasLayer(lyr as L.Layer)) {
+        this.zoneLayerGroup.addLayer(lyr as L.Layer);
+      }
+    }
+
+    this.highlightedZoneId = normalizedId;
+
+    // Step 2 — hide every layer EXCEPT the selected one. We do this
+    //  AFTER the reset so a previously-shown sibling is fully restored
+    //  to its default style before being hidden (no flash of stale
+    //  highlight). Guarded by `zoneLayerById.has(normalizedId)` so an
+    //  unknown / not-yet-loaded selection leaves the existing visible
+    //  state intact instead of stripping the map.
+    if (normalizedId && this.zoneLayerById.has(normalizedId)) {
+      for (const [id, lyr] of this.zoneLayerById) {
+        if (id !== normalizedId) {
+          this.zoneLayerGroup.removeLayer(lyr as L.Layer);
+        }
+      }
+    }
+
+    if (!normalizedId || !this.map) {
+      return;
+    }
+
+    // Step 3 — apply the highlight overlay on the selected layer
+    //  (style only; it stays in zoneLayerGroup from step 1).
+    const layer = this.zoneLayerById.get(normalizedId);
+    if (!layer) {
+      return;
+    }
+
+    const level = this.zoneLevelByLayer.get(layer);
+    if (!level) {
+      return;
+    }
+    (layer as L.GeoJSON).setStyle({
+      ...ZONE_STYLES[level],
+      ...HIGHLIGHT_OVERRIDES[level],
+    });
+
+    const bounds = (layer as L.GeoJSON).getBounds();
+    if (bounds.isValid()) {
+      this.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+    }
   }
 }

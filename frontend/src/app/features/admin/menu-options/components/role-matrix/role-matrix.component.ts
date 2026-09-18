@@ -6,122 +6,106 @@ import {
   computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RoleMatrix, RoleMatrixEntry } from '../../../../../core/services/menu-option.service';
-import { UiTableComponent } from '../../../../../shared/components/ui-table/ui-table.component';
+import {
+  RoleMatrix,
+  RoleMatrixEntry,
+} from '../../../../../core/services/menu-option.service';
 
-export interface ScopeBlock {
-  key: keyof RoleMatrix;
+/**
+ * sc-334 admin-controles-enhancements Phase 4 (D2/R2/R7) — groups
+ * entries by scope for the template to iterate. Field names match
+ * design D2 and spec R2 (`{ scope, roles }`).
+ */
+export interface RoleGroup {
+  /** Scope key in the wire (matches `RoleMatrix` field names). */
+  scope: 'platform' | 'organization' | 'public';
+  /** Display label, Spanish domain term (F2.3 mock). */
   label: string;
-  entries: RoleMatrixEntry[];
+  /** Roles in this scope block. */
+  roles: RoleMatrixEntry[];
 }
 
 /**
- * RoleMatrixComponent (F5.6.5) — displays role × (read, write) matrix
- * grouped by three scope blocks: platform, organization, public.
+ * RoleMatrixComponent — admin role × (read, write) matrix grouped by
+ * three scope blocks (Plataforma / Organización / Público).
  *
- * Client-side validation: canWrite=true with canRead=false is blocked
- * in addition to the server's 422.
+ * Design D2 / spec R2/R7: layout is three stacked blocks. Each block
+ * shows roles in that scope with Read + Write checkboxes. The canWrite
+ * invariant (write requires read) is enforced here AND server-side
+ * (422 in `setRoleAccess`).
  */
 @Component({
   selector: 'app-role-matrix',
   standalone: true,
-  imports: [CommonModule, UiTableComponent],
+  imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="role-matrix space-y-6">
-      @for (block of scopeBlocks(); track block.key) {
-        <div class="scope-block">
-          <ui-table [caption]="block.label">
-            <thead>
-              <tr>
-                <th class="text-left">Rol</th>
-                <th class="text-center w-24">Lectura</th>
-                <th class="text-center w-24">Escritura</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (entry of block.entries; track entry.roleId) {
-                <tr>
-                  <td><div class="ui-table-title">{{ entry.roleName }}</div></td>
-                  <td class="text-center">
-                    <input
-                      type="checkbox"
-                      [checked]="entry.canRead"
-                      [disabled]="isDisabled()"
-                      (change)="toggleAccess(entry.roleId, 'canRead', $any($event.target).checked)"
-                      class="table-checkbox w-4 h-4 text-brand-primary rounded border-slate-300 focus:ring-brand-primary/40 cursor-pointer"
-                    />
-                  </td>
-                  <td class="text-center">
-                    <input
-                      type="checkbox"
-                      [checked]="entry.canWrite"
-                      [disabled]="isDisabled() || !entry.canRead"
-                      (change)="toggleAccess(entry.roleId, 'canWrite', $any($event.target).checked)"
-                      class="table-checkbox w-4 h-4 text-brand-primary rounded border-slate-300 focus:ring-brand-primary/40 cursor-pointer disabled:opacity-50"
-                    />
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="3" class="text-center text-slate-500 py-4">No hay roles en este nivel.</td>
-                </tr>
-              }
-            </tbody>
-          </ui-table>
-        </div>
-      }
-    </div>
-  `,
+  templateUrl: './role-matrix.component.html',
+  styleUrl: './role-matrix.component.css',
 })
 export class RoleMatrixComponent {
-  /** Role matrix from the API, grouped by scope. */
-  readonly matrix = input.required<RoleMatrix>();
+  /** Role matrix from the API. Nullable: parent component may not have loaded it yet. */
+  readonly matrix = input<RoleMatrix | null>(null);
 
-  /** True when a save is in progress — disables all checkboxes. */
+  /** True while a save is in progress — disables all checkboxes. */
   readonly saving = input<boolean>(false);
 
-  /** Emits when a role's access is toggled. */
-  readonly accessChange = output<{ roleId: string; canRead: boolean; canWrite: boolean }>();
+  /** Emits when a role's access is toggled. snake_case to match wire. */
+  readonly accessChanged = output<{ role_id: string; can_read: boolean; can_write: boolean }>();
 
-  /** Whether the matrix is in saving state. */
+  /** Aggregate disabled state. */
   readonly isDisabled = computed(() => this.saving());
 
-  /** Ordered scope blocks with labels. */
-  readonly scopeBlocks = computed<ScopeBlock[]>(() => {
+  /**
+   * Three blocks (platform / organization / public) with their roles.
+   * Returns [] when matrix is null so the template can `@for` cleanly.
+   */
+  readonly roleGroups = computed<RoleGroup[]>(() => {
     const m = this.matrix();
+    if (!m) {
+      return [];
+    }
     return [
-      { key: 'platform', label: 'Plataforma', entries: m.platform },
-      { key: 'organization', label: 'Organización', entries: m.organization },
-      { key: 'public', label: 'Público', entries: m.public },
+      { scope: 'platform', label: 'Plataforma', roles: m.platform },
+      { scope: 'organization', label: 'Organización', roles: m.organization },
+      { scope: 'public', label: 'Público', roles: m.public },
     ];
   });
 
   /**
    * Toggle a role's access. Client-side guard: canWrite cannot be
-   * set to true if canRead is false.
+   * set to true if canRead is false; turning canRead off forces
+   * canWrite off (you can't write what you can't see).
+   *
+   * Field names match the snake_case wire shape (see RoleMatrixEntry).
    */
-  toggleAccess(roleId: string, field: 'canRead' | 'canWrite', value: boolean): void {
+  toggleAccess(roleId: string, field: 'can_read' | 'can_write', value: boolean): void {
     const m = this.matrix();
+    if (!m) {
+      return;
+    }
     const allEntries = [...m.platform, ...m.organization, ...m.public];
-    const entry = allEntries.find((e) => e.roleId === roleId);
-    if (!entry) return;
+    const entry = allEntries.find((e) => e.role_id === roleId);
+    if (!entry) {
+      return;
+    }
 
-    const newCanRead = field === 'canRead' ? value : entry.canRead;
-    let newCanWrite = field === 'canWrite' ? value : entry.canWrite;
+    const newCanRead = field === 'can_read' ? value : entry.can_read;
+    let newCanWrite = field === 'can_write' ? value : entry.can_write;
 
-    // When canRead is turned off, force canWrite off too (you can't write what you can't see)
+    // R7 invariant: turning Read off forces Write off.
     if (!newCanRead) {
       newCanWrite = false;
     }
 
-    // Block: cannot explicitly set canWrite=true when canRead is false
-    if (field === 'canWrite' && value && !newCanRead) return;
+    // R7 invariant: cannot explicitly set Write=true when Read is false.
+    if (field === 'can_write' && value && !newCanRead) {
+      return;
+    }
 
-    this.accessChange.emit({
-      roleId,
-      canRead: newCanRead,
-      canWrite: newCanWrite,
+    this.accessChanged.emit({
+      role_id: roleId,
+      can_read: newCanRead,
+      can_write: newCanWrite,
     });
   }
 }

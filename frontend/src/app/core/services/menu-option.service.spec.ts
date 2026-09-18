@@ -96,8 +96,8 @@ describe('MenuOptionService', () => {
       expect(matrix.platform.length).toBe(2);
       expect(matrix.organization.length).toBe(1);
       expect(matrix.public.length).toBe(1);
-      expect(matrix.platform[0].roleName).toBe('master');
-      expect(matrix.platform[0].canRead).toBe(true);
+      expect(matrix.platform[0].role_name).toBe('master');
+      expect(matrix.platform[0].can_read).toBe(true);
       done();
     });
 
@@ -105,14 +105,14 @@ describe('MenuOptionService', () => {
     expect(req.request.method).toBe('GET');
     req.flush({
       platform: [
-        { roleId: 'r1', roleName: 'master', canRead: true, canWrite: true },
-        { roleId: 'r2', roleName: 'operador_sistema', canRead: true, canWrite: false },
+        { role_id: 'r1', role_name: 'master', can_read: true, can_write: true },
+        { role_id: 'r2', role_name: 'operador_sistema', can_read: true, can_write: false },
       ],
       organization: [
-        { roleId: 'r3', roleName: 'admin_org', canRead: false, canWrite: false },
+        { role_id: 'r3', role_name: 'admin_org', can_read: false, can_write: false },
       ],
       public: [
-        { roleId: 'r5', roleName: 'reporter', canRead: false, canWrite: false },
+        { role_id: 'r5', role_name: 'reporter', can_read: false, can_write: false },
       ],
     });
   });
@@ -182,5 +182,51 @@ describe('MenuOptionService', () => {
       page: 1,
       limit: 20,
     });
+  });
+
+  // ── sc-334 admin-controles-enhancements Phase 2 ────────────────────
+
+  it('GET /menu-options/:id/endpoints returns the assigned endpoints (D1/R1)', (done) => {
+    service.getAssignedEndpoints('a1').subscribe((endpoints) => {
+      expect(endpoints.length).toBe(2);
+      expect(endpoints[0].id).toBe('e1');
+      expect(endpoints[0].path).toBe('/api/incidents');
+      expect(endpoints[1].id).toBe('e2');
+      done();
+    });
+
+    const req = http.expectOne(`${baseUrl}/a1/endpoints`);
+    expect(req.request.method).toBe('GET');
+    expect(req.request.withCredentials).toBe(true);
+    req.flush([
+      { id: 'e1', method: 'GET', path: '/api/incidents', description: 'List incidents' },
+      { id: 'e2', method: 'POST', path: '/api/incidents', description: 'Create incident' },
+    ]);
+  });
+
+  it('GET /menu-options/:id/endpoints returns empty array when nothing is assigned', (done) => {
+    service.getAssignedEndpoints('a2').subscribe((endpoints) => {
+      expect(endpoints).toEqual([]);
+      done();
+    });
+
+    const req = http.expectOne(`${baseUrl}/a2/endpoints`);
+    req.flush([]);
+  });
+
+  it('GET /menu-options/endpoints forwards module filter as query param (D6/R6)', (done) => {
+    service.getEndpointCatalog({ page: 1, limit: 20, module: 'incidents' }).subscribe(() => done());
+
+    const req = http.expectOne(`${baseUrl}/endpoints?page=1&limit=20&module=incidents`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ data: [], total: 0, page: 1, limit: 20 });
+  });
+
+  it('GET /menu-options/endpoints omits module param when empty/whitespace', (done) => {
+    service.getEndpointCatalog({ module: '   ' }).subscribe(() => done());
+
+    const req = http.expectOne(`${baseUrl}/endpoints`);
+    expect(req.request.params.has('module')).toBe(false);
+    req.flush({ data: [], total: 0, page: 1, limit: 20 });
   });
 });

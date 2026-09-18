@@ -80,11 +80,32 @@ export class MenuService {
    * trackear sub-ítems y expandir/colapsar grupos. Antes de F5.6 los
    * children se pisaban con `[]` y el sidebar perdía todos los
    * sub-ítems (regresión 2026-09-14).
+   *
+   * sc-334 admin-controles-enhancements Phase 9 — sidebar depth cap at 2:
+   * the sidebar renders a 2-level tree (roots + their direct children).
+   * After migration 0060 added CRUD sub-sub-menus (3rd level under each
+   * sub-menu: "Crear usuario", "Editar usuario", etc.), the backend started
+   * including them in /api/menus/my — but those CRUD items belong to the
+   * admin tree, not the sidebar. They live on /app/admin/controles
+   * (which reads /api/menu-options directly and renders the full 3-level
+   * tree via MenuTreeComponent). In the sidebar, sub-sub-menus must NOT
+   * appear at all — clicking "Usuarios" navigates to /admin/users, where
+   * the user accesses the Crear/Editar actions from inside the page.
+   *
+   * El cap funciona así:
+   *   - depth 0 (root): recurse a level-2 items (depth 1)
+   *   - depth 1+ (level 2+): NUNCA se itera — los items de nivel 3+
+   *     no entran al árbol del sidebar
+   *
+   * Resultado: cada item de nivel 2 queda con `children: []` y no
+   * renderiza chevron de expandible (porque no tiene hijos). El admin
+   * screen sigue mostrando los 3 niveles vía MenuTreeComponent sin
+   * pasar por este transform.
    */
   private transformBackendMenu(items: BackendMenuItem[]): MenuItem[] {
     let nextId = 1;
 
-    const transformNode = (item: BackendMenuItem, index: number, parentId?: number): MenuItem => {
+    const transformNode = (item: BackendMenuItem, index: number, parentId?: number, depth = 0): MenuItem => {
       const id = nextId++;
       const out: MenuItem = {
         id,
@@ -101,9 +122,12 @@ export class MenuService {
       if (item.group) {
         out.group = item.group;
       }
-      if (item.children && item.children.length > 0) {
+      // Phase 9 sidebar depth cap: only recurse while depth < 1 so level-2
+      // items stay as flat links (no expandable chevron) and level-3 items
+      // never enter the sidebar tree at all. Root = depth 0; level-2 = depth 1.
+      if (depth < 1 && item.children && item.children.length > 0) {
         out.children = item.children.map((child, childIndex) =>
-          transformNode(child, childIndex, id),
+          transformNode(child, childIndex, id, depth + 1),
         );
       }
       return out;
@@ -135,6 +159,17 @@ export class MenuService {
 
       return formattedItem;
     });
+  }
+
+  /**
+   * Cuenta todos los items del menú recursivamente, incluyendo children.
+   * Útil para logs que necesitan mostrar el total de items, no solo root nodes.
+   */
+  countAllItems(items: MenuItem[]): number {
+    return items.reduce((sum, item) => {
+      const childCount = item.children?.length ?? 0;
+      return sum + 1 + childCount;
+    }, 0);
   }
 
   /**

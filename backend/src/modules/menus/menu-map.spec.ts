@@ -198,4 +198,37 @@ describe('MENU_MAP coherence with app routes (F1, D6)', () => {
       expect(definition.icon).toMatch(/^[a-z][a-z0-9-]*$/);
     }
   });
+
+  // front/2026-09-15-departments-menu D6 + 6.2: the CRUD UI lives at
+  // `/app/departamentos`; the backend MENU_MAP entry mirrors it so the
+  // sidebar shows the entry once the migration seeds the
+  // `READ departments` permission. Both the entry and the frontend
+  // route are added together in Phase 5 to keep the CRITICAL-2 test
+  // green at every commit.
+  describe('Departamentos entry (front/2026-09-15-departments-menu)', () => {
+    it('exists with route /departamentos, requires READ departments, group GESTION, order 81', () => {
+      const entry = MENU_MAP['Departamentos'];
+      expect(entry).toBeDefined();
+      expect(entry.route).toBe('/departamentos');
+      expect(entry.requires).toBe('READ departments');
+      expect(entry.group).toBe('GESTIÓN');
+      expect(entry.order).toBe(82);
+      expect(entry.icon).toMatch(/^[a-z][a-z0-9-]*$/);
+    });
+
+    it('sits directly under Organizaciones (order 80) within the GESTIÓN group', () => {
+      const orgs = MENU_MAP['Organizaciones']?.order;
+      const orgsGroup = MENU_MAP['Organizaciones']?.group;
+      const depts = MENU_MAP['Departamentos']?.order;
+      const deptsGroup = MENU_MAP['Departamentos']?.group;
+      // Same group so they render adjacent in the sidebar
+      expect(orgsGroup).toBe(deptsGroup);
+      // Departments right after Organizaciones (consecutive ordering
+      // preserves the "below Organizaciones" visual placement)
+      expect(orgs).toBeLessThan(depts!);
+      // No item from a later group should land between them
+      const roles = MENU_MAP['Roles']?.order ?? 0;
+      expect(roles).toBeLessThan(orgs!);
+    });
+  });
 });

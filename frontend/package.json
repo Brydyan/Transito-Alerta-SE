@@ -34,6 +34,7 @@
     "leaflet.markercluster": "^1.5.3",
     "lucide-angular": "^1.0.0",
     "ngx-echarts": "^22.0.0",
+    "shpjs": "^4.0.4",
     "ngx-extended-pdf-viewer": "^29.0.1",
     "pdfmake": "^0.3.11",
     "rxjs": "~7.8.0",

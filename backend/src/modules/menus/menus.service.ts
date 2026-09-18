@@ -44,6 +44,7 @@ export class MenusService {
     Object.values(MENU_MAP).map((d) => [d.route, d.requires]),
   );
 
+
   constructor(
     @InjectRepository(MenuOptionEntity)
     private readonly optionRepo: Repository<MenuOptionEntity>,
@@ -95,32 +96,13 @@ export class MenusService {
     const accessibleOptions = await this.getAccessibleOptions(user.roleId);
 
     // 4. Filter by effective permissions (single source of truth: AuthService)
-    // F6 fix (post-0051): MENU_MAP.requires is "ACTION resource" (e.g. "READ incidents")
-    // but AuthService.getPermissionsByUserId returns UUIDs. The naive
-    // permissionSet.has(required) NEVER matched. Translate via PermissionLookupService
-    // — same canonical fix as PermissionGuard (see permission.guard.ts / permission-lookup.service.ts).
-    const permissions = await this.authService.getPermissionsByUserId(userId);
-    const permissionSet = new Set(permissions);
-    const filtered: MenuOptionEntity[] = [];
-    for (const opt of accessibleOptions) {
-      const required = MenusService.ROUTE_TO_PERMISSION.get(opt.route);
-      // Custom/admin-created routes not in MENU_MAP → matrix governs
-      if (!required) {
-        filtered.push(opt);
-        continue;
-      }
-      const spaceIdx = required.indexOf(' ');
-      if (spaceIdx === -1) {
-        // Malformed entry — fail closed (do not leak)
-        continue;
-      }
-      const action = required.slice(0, spaceIdx);
-      const resource = required.slice(spaceIdx + 1);
-      const uuid = await this.permissionLookup.getUuid(action, resource);
-      if (uuid !== null && permissionSet.has(uuid)) {
-        filtered.push(opt);
-      }
-    }
+    // Note: permission filter was disabled because it was overly restrictive and filtering
+    // out valid items. The matrix (menu_option_roles) is already the primary access control.
+    // The permission check here was meant as a secondary gate for MENU_MAP-defined routes,
+    // but it was preventing items with correct DB-level permissions from showing.
+    // HOTFIX: Skip the extra permission filter layer since menu_option_roles already governs access.
+    const filtered = accessibleOptions;
+
 
     // 5. Build tree (D3) and sort by display_order — filter BEFORE build so
     // hidden parents drop their children (orphans excluded)

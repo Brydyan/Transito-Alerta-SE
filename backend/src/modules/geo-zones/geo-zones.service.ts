@@ -1,15 +1,20 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
 import { GEO_ZONE_LEVELS, GeoZoneLevel } from '../../entities/geo-zone.entity';
 import { CreateGeoZoneDto } from './dto/create-geo-zone.dto';
 import { UpdateGeoZoneDto } from './dto/update-geo-zone.dto';
 import {
+  FormDataRow,
   GeoZoneDetailRow,
   GeoZoneNode,
   GeoZonesRepository,
   ListFilters,
 } from './geo-zones.repository';
+import { ImportGeoZoneQueryDto } from './dto/import-geo-zone-query.dto';
+import { ImportGeoZoneResponse } from './dto/import-geo-zone-response.dto';
 
 export interface ListResult {
   items: GeoZoneDetailRow[];
@@ -34,11 +39,19 @@ const REQUIRED_PARENT_LEVEL: Record<GeoZoneLevel, GeoZoneLevel | null | '*'> = {
  * invalidation after a boundary change (D9) — GeoZonesModule imports
  * GeofencingModule, never the other way around.
  */
+/**
+ * Static level labels returned by getFormData (spec R9 — always the four
+ * valid levels in display form). Stored here, not in the entity enum, to
+ * keep the display strings decoupled from the DB values.
+ */
+const FORM_DATA_LEVELS = ['cantón', 'parroquia', 'provincia', 'sector'] as const;
+
 @Injectable()
 export class GeoZonesService {
   constructor(
     private readonly repo: GeoZonesRepository,
     private readonly geofencing: GeofencingService,
+    @InjectDataSource() private readonly dataSource?: DataSource,
   ) {}
 
   async create(dto: CreateGeoZoneDto): Promise<GeoZoneDetailRow> {
@@ -135,6 +148,167 @@ export class GeoZonesService {
   /** ALL zones including inactive (spec: GET /tree shows every zone). */
   getTree(): Promise<GeoZoneNode[]> {
     return this.repo.getSubtree(null);
+  }
+
+  /**
+   * Bulk shapefile import (design D5-D9 / spec R7-R8).
+   * Parses the zip buffer with shpjs, runs per-feature validation (D7),
+   * inserts valid features inside a single QueryRunner transaction, and
+   * purges geo caches on commit.
+   *
+   * A DB error mid-batch triggers a full rollback (spec R8 last scenario).
+   * Per-feature geometry / validation errors are collected and returned
+   * without aborting the whole import.
+   */
+  async importShapefile(
+    buffer: Buffer | ArrayBuffer,
+    query: Partial<ImportGeoZoneQueryDto> & { level: GeoZoneLevel },
+  ): Promise<ImportGeoZoneResponse> {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const shpjs = require('shpjs') as (b: ArrayBuffer) => Promise<{ type: string; features: Array<{ type: string; geometry: unknown; properties: Record<string, unknown> | null }> }>;
+
+    const nameColumn = query.name_column ?? 'NAME';
+    const codeColumn = query.code_column ?? 'CODE';
+    const autoParent = query.auto_parent !== false; // default true
+
+    // Parse zip (may throw for non-shapefile content — caller handles 400).
+    const ab: ArrayBuffer = buffer instanceof Buffer
+      ? (buffer.buffer as ArrayBuffer).slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      : (buffer as ArrayBuffer);
+    const collection = await shpjs(ab);
+    const features = collection.features ?? [];
+
+    const imported: number[] = [];
+    const skipped: Array<{ index: number; name: string }> = [];
+    const errors: ImportGeoZoneResponse['errors'] = [];
+    const warnings: string[] = [];
+
+    // Track codes seen in this batch to catch intra-batch duplicates.
+    const seenCodes = new Set<string>();
+
+    const ds = this.dataSource;
+    if (!ds) {
+      throw new Error('DataSource not injected — cannot manage transaction');
+    }
+    const qr = ds.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    try {
+      for (let i = 0; i < features.length; i++) {
+        const feature = features[i];
+        const props = (feature.properties ?? {}) as Record<string, unknown>;
+        const rawName = props[nameColumn] ?? props['nombre'] ?? props['NOMBRE'] ?? '';
+        const name = String(rawName ?? '').trim();
+        const code: string | null = props[codeColumn] != null ? String(props[codeColumn]).trim() : null;
+
+        // Validation: name required.
+        if (!name) {
+          errors.push({ index: i, name: `feature[${i}]`, reason: 'name is required' });
+          continue;
+        }
+
+        // Validation: name length.
+        if (name.length > 255) {
+          errors.push({ index: i, name: name.slice(0, 40), reason: 'name exceeds 255 characters' });
+          continue;
+        }
+
+        // Validation: code length.
+        if (code !== null && code.length > 32) {
+          errors.push({ index: i, name, reason: 'code exceeds 32 characters' });
+          continue;
+        }
+
+        // Duplicate code check: DB then intra-batch.
+        if (code !== null) {
+          if (seenCodes.has(code)) {
+            skipped.push({ index: i, name });
+            continue;
+          }
+          const existing = await this.repo.findByCode(code);
+          if (existing) {
+            skipped.push({ index: i, name });
+            continue;
+          }
+          seenCodes.add(code);
+        }
+
+        // Geometry validation via PostGIS.
+        let geometryCheck;
+        try {
+          geometryCheck = await this.repo.validateGeometry(feature.geometry);
+        } catch {
+          errors.push({ index: i, name, reason: 'Invalid GeoJSON geometry' });
+          continue;
+        }
+
+        if (!geometryCheck.valid) {
+          errors.push({ index: i, name, reason: `Invalid geometry: ${geometryCheck.reason ?? 'unknown'}` });
+          continue;
+        }
+        if (geometryCheck.inBounds === false) {
+          errors.push({ index: i, name, reason: 'Geometry outside Ecuador bounds' });
+          continue;
+        }
+
+        // Parent resolution.
+        let parentId: string | null = null;
+        if (autoParent) {
+          const parentCode = props['parent_code'] != null ? String(props['parent_code']) : null;
+          if (parentCode) {
+            const parent = await this.repo.findByCode(parentCode);
+            if (parent) {
+              parentId = parent.id;
+            }
+          }
+          if (parentId === null) {
+            const parent = await this.repo.findParentBySpatialContainment(feature.geometry);
+            if (parent) {
+              parentId = parent.id;
+            } else {
+              warnings.push(`Zone '${name}' imported without parent (no match found)`);
+            }
+          }
+        }
+
+        await this.repo.createInTransaction(qr, {
+          name,
+          parentId,
+          level: query.level,
+          active: true,
+          polygon: feature.geometry as import('./geo-zones.repository').GeoJsonGeometry | null,
+          code,
+        });
+
+        imported.push(i);
+      }
+
+      await qr.commitTransaction();
+      await this.purgeGeoCaches('__import__');
+
+    } catch (err) {
+      await qr.rollbackTransaction();
+      throw err;
+    } finally {
+      await qr.release();
+    }
+
+    return {
+      imported: imported.length,
+      skipped: skipped.length,
+      errors,
+      warnings,
+    };
+  }
+
+  /**
+   * Returns form-data for the import dialog (design D10 / spec R9):
+   * static levels array + all active zone rows sorted by level, name.
+   */
+  async getFormData(): Promise<{ levels: readonly string[]; parents: FormDataRow[] }> {
+    const parents = await this.repo.getFormData();
+    return { levels: FORM_DATA_LEVELS, parents };
   }
 
   /**

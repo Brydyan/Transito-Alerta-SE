@@ -430,4 +430,150 @@ describe('GeoZonesRepository', () => {
       expect(result).toBeNull();
     });
   });
+
+  // ── New methods for shapefile import (Phase 1) ────────────────────────
+
+  describe('createInTransaction', () => {
+    it('runs INSERT on the supplied QueryRunner, not the shared DataSource', async () => {
+      const returnedRow = {
+        id: 'zone-new',
+        name: 'Daule',
+        parent_id: 'parent-1',
+        level: 'canton',
+        active: true,
+        polygon: { type: 'MultiPolygon', coordinates: [] },
+        code: 'EC-09-01',
+        created_at: new Date(),
+      };
+      const qrManager = { query: jest.fn().mockResolvedValue([returnedRow]) };
+      const queryRunner = { manager: qrManager } as unknown as import('typeorm').QueryRunner;
+
+      const result = await repository.createInTransaction(queryRunner, {
+        name: 'Daule',
+        parentId: 'parent-1',
+        level: 'canton',
+        active: true,
+        polygon: { type: 'Polygon', coordinates: [] },
+        code: 'EC-09-01',
+      });
+
+      expect(dataSource.query).not.toHaveBeenCalled();
+      expect(qrManager.query).toHaveBeenCalledTimes(1);
+      const [sql, params] = qrManager.query.mock.calls[0];
+      expect(sql).toContain('INSERT INTO geo_zones');
+      expect(sql).toContain('ST_Multi');
+      expect(sql).toContain('ST_GeomFromGeoJSON');
+      expect(params).toContain('Daule');
+      expect(params).toContain('parent-1');
+      expect(params).toContain('canton');
+      expect(result).toEqual(returnedRow);
+    });
+
+    it('passes NULL polygon when polygon is null', async () => {
+      const qrManager = { query: jest.fn().mockResolvedValue([{ id: 'z', name: 'X' }]) };
+      const queryRunner = { manager: qrManager } as unknown as import('typeorm').QueryRunner;
+
+      await repository.createInTransaction(queryRunner, {
+        name: 'X',
+        parentId: null,
+        level: 'zona',
+        active: true,
+        polygon: null,
+        code: null,
+      });
+
+      const [sql, params] = qrManager.query.mock.calls[0];
+      expect(sql).toContain('CASE WHEN');
+      // null polygon → parameter is null
+      const polygonParam = params.find((p: unknown) => p === null || typeof p === 'object');
+      expect(polygonParam).toBeDefined();
+    });
+  });
+
+  describe('findByCode', () => {
+    it('returns the zone matching the exact code', async () => {
+      const row = { id: 'z1', name: 'Guayas', code: 'EC-09' };
+      dataSource.query.mockResolvedValue([row]);
+
+      const result = await repository.findByCode('EC-09');
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('code = $1');
+      expect(params).toEqual(['EC-09']);
+      expect(result).toEqual(row);
+    });
+
+    it('returns null when no zone has that code', async () => {
+      dataSource.query.mockResolvedValue([]);
+
+      const result = await repository.findByCode('NOT-FOUND');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('findParentBySpatialContainment', () => {
+    it('queries ST_Contains with the geometry and returns the first match', async () => {
+      const row = { id: 'parent-1', name: 'Guayas', level: 'provincia' };
+      dataSource.query.mockResolvedValue([row]);
+
+      const geometry = { type: 'Point', coordinates: [-79.9, -2.17] };
+      const result = await repository.findParentBySpatialContainment(geometry);
+
+      const [sql, params] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('ST_Contains');
+      expect(params).toContain(JSON.stringify(geometry));
+      expect(result).toEqual(row);
+    });
+
+    it('returns null when no zone spatially contains the geometry', async () => {
+      dataSource.query.mockResolvedValue([]);
+
+      const result = await repository.findParentBySpatialContainment({
+        type: 'Point',
+        coordinates: [0, 0],
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getFormData', () => {
+    it('queries active zones ordered by level then name', async () => {
+      const rows = [
+        { id: 'z1', name: 'Azuay', code: 'EC-01', level: 'canton' },
+        { id: 'z2', name: 'Quito', code: 'EC-17-01', level: 'parroquia' },
+      ];
+      dataSource.query.mockResolvedValue(rows);
+
+      const result = await repository.getFormData();
+
+      const [sql] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('active = true');
+      expect(sql).toContain('ORDER BY level, name');
+      expect(result).toEqual(rows);
+    });
+
+    it('returns empty array when no active zones exist', async () => {
+      dataSource.query.mockResolvedValue([]);
+
+      const result = await repository.getFormData();
+
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  describe('findAll — parent_name via LEFT JOIN', () => {
+    it('includes parent_name in the SELECT columns via LEFT JOIN', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([{ id: 'z1', name: 'Daule', parent_name: 'Guayas' }])
+        .mockResolvedValueOnce([{ count: '1' }]);
+
+      await repository.findAll({});
+
+      const [sql] = dataSource.query.mock.calls[0];
+      expect(sql).toContain('LEFT JOIN geo_zones');
+      expect(sql).toContain('parent_name');
+    });
+  });
 });

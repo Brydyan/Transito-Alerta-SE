@@ -34,6 +34,12 @@ export interface IGeoZone {
    * PostGIS geometry. Map component (F4.B.3) requires precise types. Optional.
    */
   polygon?: IGeoJsonPolygon | IGeoJsonMultiPolygon;
+  /**
+   * sc-334 D3 — populated by the LEFT JOIN in `GeoZonesRepository.findAll()`.
+   * Null when the zone has no parent or the parent row wasn't joined. Surfaced
+   * in map popups (`onEachFeature.bindPopup`) and the import dialog preview.
+   */
+  parent_name?: string | null;
 }
 
 /** Client-derived tree node. `children` and `depth` are NOT part of the wire. */
@@ -110,4 +116,44 @@ export interface IGeoZoneListParams {
 export interface IGeoZoneListResult {
   items: IGeoZone[];
   total: number;
+}
+
+/**
+ * sc-334 R8 — response envelope from `POST /geo-zones/import`.
+ *
+ * `imported` counts rows created. `skipped` counts duplicates bypassed
+ * (both intra-batch and DB pre-existing). `errors` lists per-feature
+ * failures (invalid geometry, out-of-bounds, empty name, parse failure).
+ * `warnings` lists non-fatal notices (e.g., parent not found via
+ * `parent_code` or ST_Contains).
+ *
+ * Status is always 200 — partial imports are still "successful" at the
+ * transport level; per-feature failures go into `errors` and the row
+ * counts in `imported` / `skipped`.
+ */
+export interface IImportGeoZoneResponse {
+  imported: number;
+  skipped: number;
+  errors: Array<{ index: number; name: string; reason: string }>;
+  warnings: string[];
+}
+
+/**
+ * sc-334 R9 — payload for `GET /geo-zones/form-data`.
+ *
+ * `levels` is the static 4-element level array (design D10):
+ * `['cantón', 'parroquia', 'provincia', 'sector']` — note these are the
+ * display labels, not the wire `level` values stored in `IGeoZone.level`
+ * (which stay lowercase English: `provincia`, `canton`, `parroquia`, `zona`).
+ * `parents` are active zones, sorted by level then name, suitable to
+ * populate parent dropdowns / form-data lookups.
+ */
+export interface IGeoZoneFormData {
+  levels: readonly string[];
+  parents: Array<{
+    id: string;
+    name: string;
+    code: string | null;
+    level: GeoZoneLevel;
+  }>;
 }

@@ -6,6 +6,15 @@ export class CreateIncidentCategoryDto {
   @MaxLength(255)
   name!: string;
 
+  /**
+   * sc-334-adjacent (T7.4) — optional free-text description surfaced in
+   * the admin form. Not exposed via /api/menus/my or /api/incidents.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
+
   @IsOptional()
   @IsUUID()
   parent_id?: string;

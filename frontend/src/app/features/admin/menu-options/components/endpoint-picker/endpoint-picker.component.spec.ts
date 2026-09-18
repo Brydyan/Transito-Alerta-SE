@@ -40,6 +40,44 @@ describe('EndpointPickerComponent', () => {
     expect(items[0].id).toBe('e1');
   });
 
+  // ── sc-334 admin-controles-enhancements Phase 7 (D6/R6) ──────────────
+
+  describe('module filter (D6/R6)', () => {
+    it('auto-detects modules from endpoint paths (first segment after /api)', () => {
+      // mockAvailable has 4 endpoints across users + incidents modules.
+      // expected unique modules: ['incidents', 'users']
+      expect(component.availableModules()).toEqual(['incidents', 'users']);
+    });
+
+    it('filters available endpoints by selected module (incidents)', () => {
+      component.moduleFilter.set('incidents');
+      const items = component.filteredAvailable();
+      expect(items.length).toBe(1);
+      expect(items[0].id).toBe('e3');
+      expect(items[0].path).toBe('/api/incidents');
+    });
+
+    it('filters available endpoints by selected module (roles)', () => {
+      component.moduleFilter.set('roles');
+      // No role endpoints in mockAvailable — empty result
+      expect(component.filteredAvailable()).toEqual([]);
+    });
+
+    it('combines module filter with search (search + module AND together)', () => {
+      component.moduleFilter.set('users');
+      component.availableSearch.set('delete');
+      const items = component.filteredAvailable();
+      expect(items.length).toBe(1);
+      expect(items[0].id).toBe('e4'); // DELETE /api/users/:id
+    });
+
+    it('null moduleFilter means no module filtering', () => {
+      component.moduleFilter.set(null);
+      const items = component.filteredAvailable();
+      expect(items.length).toBe(3); // all non-assigned
+    });
+  });
+
   it('filters available endpoints by search query', () => {
     component.availableSearch.set('users');
     const items = component.filteredAvailable();

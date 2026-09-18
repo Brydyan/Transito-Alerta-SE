@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, QueryRunner } from 'typeorm';
 
 import { GeoZoneLevel } from '../../entities/geo-zone.entity';
 
@@ -16,6 +16,8 @@ export interface GeoZoneDetailRow {
   id: string;
   name: string;
   parent_id: string | null;
+  /** sc-334 (D3): parent zone name from LEFT JOIN, for list/map tooltip. */
+  parent_name?: string | null;
   level: GeoZoneLevel;
   active: boolean;
   polygon: GeoJsonGeometry;
@@ -75,6 +77,21 @@ export interface CreateZoneInput {
   active: boolean;
   polygon: GeoJsonGeometry | null;
   code: string | null;
+}
+
+/** Lightweight row returned by GET /geo-zones/form-data (design D10). */
+export interface FormDataRow {
+  id: string;
+  name: string;
+  code: string | null;
+  level: GeoZoneLevel;
+}
+
+/** Minimal row for spatial containment parent lookup (design D7). */
+export interface ParentCandidateRow {
+  id: string;
+  name: string;
+  level: GeoZoneLevel;
 }
 
 export interface UpdateZonePatch {
@@ -231,53 +248,57 @@ export class GeoZonesRepository {
     const page = Math.max(filters.page ?? 1, 1);
     const offset = (page - 1) * perPage;
 
+    // All conditions reference the aliased table `g` to be safe alongside the LEFT JOIN.
     const conditions: string[] = [];
     const params: unknown[] = [];
 
     if (filters.active !== undefined) {
       params.push(filters.active);
-      conditions.push(`active = $${params.length}`);
+      conditions.push(`g.active = $${params.length}`);
     } else if (!filters.includeInactive) {
-      conditions.push('active = true');
+      conditions.push('g.active = true');
     }
 
     if (filters.search) {
       params.push(`%${filters.search}%`);
-      conditions.push(`name ILIKE $${params.length}`);
+      conditions.push(`g.name ILIKE $${params.length}`);
     }
 
     if (filters.parentId === null) {
-      conditions.push('parent_id IS NULL');
+      conditions.push('g.parent_id IS NULL');
     } else if (filters.parentId !== undefined) {
       params.push(filters.parentId);
-      conditions.push(`parent_id = $${params.length}`);
+      conditions.push(`g.parent_id = $${params.length}`);
     }
 
     if (filters.level !== undefined) {
       params.push(filters.level);
-      conditions.push(`level = $${params.length}`);
+      conditions.push(`g.level = $${params.length}`);
     }
 
     if (filters.code !== undefined) {
       params.push(filters.code);
-      conditions.push(`code = $${params.length}`);
+      conditions.push(`g.code = $${params.length}`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const itemsParams = [...params, perPage, offset];
+    // sc-334: LEFT JOIN adds parent_name for map tooltip (design D3).
     const items: GeoZoneDetailRow[] = await this.dataSource.query(
-      `SELECT id, name, parent_id, level, active,
-              ST_AsGeoJSON(polygon)::json AS polygon, code, created_at
-         FROM geo_zones
+      `SELECT g.id, g.name, g.parent_id, g.level, g.active,
+              ST_AsGeoJSON(g.polygon)::json AS polygon, g.code, g.created_at,
+              p.name AS parent_name
+         FROM geo_zones g
+         LEFT JOIN geo_zones p ON g.parent_id = p.id
          ${whereClause}
-        ORDER BY name ASC
+        ORDER BY g.name ASC
         LIMIT $${itemsParams.length - 1} OFFSET $${itemsParams.length}`,
       itemsParams,
     );
 
     const countRows: { count: string }[] = await this.dataSource.query(
-      `SELECT COUNT(*) AS count FROM geo_zones ${whereClause}`,
+      `SELECT COUNT(*) AS count FROM geo_zones g ${whereClause}`,
       params,
     );
 
@@ -376,6 +397,94 @@ export class GeoZonesRepository {
     }
 
     return true;
+  }
+
+  /**
+   * Transactional INSERT for bulk shapefile import (design D7/D9).
+   * Uses the caller-supplied QueryRunner so the write is scoped to the
+   * import transaction; falls back to ST_Multi/ST_SetSRID/ST_GeomFromGeoJSON
+   * same as `create()`.
+   */
+  async createInTransaction(
+    queryRunner: QueryRunner,
+    input: CreateZoneInput,
+  ): Promise<GeoZoneDetailRow> {
+    const rows: GeoZoneDetailRow[] = await queryRunner.manager.query(
+      `INSERT INTO geo_zones (id, name, parent_id, level, active, polygon, code)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4,
+               CASE WHEN $5::text IS NULL THEN NULL
+                    ELSE ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($5::text), 4326)) END,
+               $6)
+       RETURNING id, name, parent_id, level, active,
+                 ST_AsGeoJSON(polygon)::json AS polygon, code, created_at`,
+      [
+        input.name,
+        input.parentId,
+        input.level,
+        input.active,
+        input.polygon === null ? null : JSON.stringify(input.polygon),
+        input.code,
+      ],
+    );
+    return rows[0];
+  }
+
+  /**
+   * Exact-match lookup by administrative code (design D7 — parent_code attr).
+   * Returns null when no zone has that code.
+   */
+  async findByCode(code: string): Promise<GeoZoneDetailRow | null> {
+    const rows: GeoZoneDetailRow[] = await this.dataSource.query(
+      `SELECT id, name, parent_id, level, active,
+              ST_AsGeoJSON(polygon)::json AS polygon, code, created_at
+         FROM geo_zones
+        WHERE code = $1`,
+      [code],
+    );
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Spatial containment lookup (design D7 — ST_Contains fallback).
+   * Returns the first active zone whose boundary contains the supplied
+   * geometry centroid, ordered by level specificity (canton before provincia).
+   */
+  async findParentBySpatialContainment(
+    geometry: unknown,
+  ): Promise<ParentCandidateRow | null> {
+    const rows: ParentCandidateRow[] = await this.dataSource.query(
+      `SELECT id, name, level
+         FROM geo_zones
+        WHERE active = true
+          AND polygon IS NOT NULL
+          AND ST_Contains(
+                polygon,
+                ST_Centroid(ST_GeomFromGeoJSON($1::text))
+              )
+        ORDER BY CASE level
+                   WHEN 'parroquia' THEN 1
+                   WHEN 'canton'    THEN 2
+                   WHEN 'provincia' THEN 3
+                   ELSE 4
+                 END
+        LIMIT 1`,
+      [JSON.stringify(geometry)],
+    );
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Returns lightweight rows for the form-data endpoint (design D10):
+   * all active zones sorted by level then name. No pagination — the form
+   * needs all parents to populate the selector.
+   */
+  async getFormData(): Promise<FormDataRow[]> {
+    return this.dataSource.query(
+      `SELECT id, name, code, level
+         FROM geo_zones
+        WHERE active = true
+        ORDER BY level, name`,
+    );
   }
 }
 

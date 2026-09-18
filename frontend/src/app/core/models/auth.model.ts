@@ -80,6 +80,16 @@ export interface User {
    * y la primera respuesta de `/me`).
    */
   emailVerified?: boolean | null;
+  /**
+   * front/2026-09-15-departments-menu — the caller's own organization
+   * scope (matches `AuthContext.organizationId` on the backend). The
+   * `/auth/me` endpoint does NOT currently expose this; callers that
+   * need it (e.g. the dept create form pre-filling `organization_id`)
+   * may receive `null` until a future backend change exposes it. The
+   * backend controller enforces per-org scoping server-side, so the
+   * form's client-side check is best-effort only.
+   */
+  organizationId?: string | null;
 }
 
 /** @deprecated — same reason as the removed self-service register flow. */
