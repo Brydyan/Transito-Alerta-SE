@@ -212,4 +212,108 @@ describe('MapComponent', () => {
       geoJsonSpy.mockRestore();
     });
   });
+
+  // sc-334 debug-fix — polygon highlight + fitBounds behaviour
+  describe('highlightZone (debug-fix polygon highlight)', () => {
+    let setStyleSpyA: jest.Mock;
+    let setStyleSpyB: jest.Mock;
+    let fitBoundsSpy: jest.Mock;
+
+    // Synthetic setup that bypasses `loadZones()`'s async subscribe —
+    // we inject the layer-to-id / layer-to-level maps directly so the
+    // tests stay synchronous and don't depend on a fakeAsync + tick.
+    function injectZone(id: string, level: 'canton' | 'provincia' | 'parroquia' | 'zona') {
+      const layer = {
+        setStyle: jest.fn(),
+        getBounds: jest.fn().mockReturnValue({
+          isValid: () => true,
+          pad: jest.fn(),
+        }),
+        bindPopup: jest.fn(),
+        options: {},
+        on: jest.fn(),
+      };
+      const cmp = component as unknown as {
+        zoneLayerById: Map<string, typeof layer>;
+        zoneLevelByLayer: WeakMap<object, string>;
+        map: { fitBounds: jest.Mock };
+      };
+      cmp.zoneLayerById.set(id, layer);
+      cmp.zoneLevelByLayer.set(layer, level);
+      return layer.setStyle as jest.Mock;
+    }
+
+    beforeEach(() => {
+      setStyleSpyA = injectZone('A', 'canton');
+      setStyleSpyB = injectZone('B', 'canton');
+
+      // Provide a fake map so fitBounds has somewhere to land AND ngOnDestroy's
+      //  `this.map.remove()` call doesn't throw during teardown.
+      fitBoundsSpy = jest.fn();
+      (component as unknown as { map: { fitBounds: jest.Mock; remove: jest.Mock } }).map = {
+        fitBounds: fitBoundsSpy,
+        remove: jest.fn(),
+      };
+    });
+
+    it('applies highlight style (level colour preserved) when a zone is selected', () => {
+      component.highlightZone('A');
+
+      const callArgs = setStyleSpyA.mock.calls.at(-1)?.[0];
+      expect(callArgs).toBeDefined();
+      // The highlight must KEEP the level colour (canton = #0891b2)
+      expect(callArgs.color).toBe(ZONE_STYLES.canton.color);
+      expect(callArgs.weight).toBeGreaterThan(ZONE_STYLES.canton.weight ?? 0);
+      expect(callArgs.dashArray ?? '').toBe('');
+      expect(setStyleSpyB).not.toHaveBeenCalled();
+    });
+
+    it('resets the previous highlighted zone to its level default when the selection changes', () => {
+      // First selection: A
+      component.highlightZone('A');
+      expect(setStyleSpyA).toHaveBeenCalledTimes(1);
+
+      // Second selection: B — A must be reset to default BEFORE B is
+      // styled (in that order, so the visual transition doesn't flash).
+      component.highlightZone('B');
+
+      // A's last setStyle call must be the canton default.
+      const lastA = setStyleSpyA.mock.calls.at(-1)?.[0];
+      expect(lastA).toEqual(ZONE_STYLES.canton);
+
+      // B's last setStyle call must be the highlight override on top of
+      // the canton default.
+      const lastB = setStyleSpyB.mock.calls.at(-1)?.[0];
+      expect(lastB.color).toBe(ZONE_STYLES.canton.color);
+      expect(lastB.weight).toBeGreaterThan(ZONE_STYLES.canton.weight ?? 0);
+    });
+
+    it('is a no-op when the selection is identical (no redundant fitBounds)', () => {
+      component.highlightZone('A');
+      fitBoundsSpy.mockClear();
+
+      component.highlightZone('A');
+      expect(fitBoundsSpy).not.toHaveBeenCalled();
+      expect(setStyleSpyA).toHaveBeenCalledTimes(1); // unchanged
+    });
+
+    it('clears the highlight when zoneId is empty (no fitBounds)', () => {
+      component.highlightZone('A');
+      fitBoundsSpy.mockClear();
+
+      component.highlightZone(undefined);
+
+      // A's last setStyle call must be the default (reset to level).
+      const lastA = setStyleSpyA.mock.calls.at(-1)?.[0];
+      expect(lastA).toEqual(ZONE_STYLES.canton);
+      expect(fitBoundsSpy).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the zone id is not in zoneLayerById', () => {
+      component.highlightZone('nonexistent-id');
+      expect(setStyleSpyA).not.toHaveBeenCalled();
+      expect(setStyleSpyB).not.toHaveBeenCalled();
+      expect(fitBoundsSpy).not.toHaveBeenCalled();
+    });
+  });
 });

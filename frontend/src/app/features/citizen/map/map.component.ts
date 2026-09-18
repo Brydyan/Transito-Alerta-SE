@@ -32,8 +32,21 @@ type GeoZonePolygon = IGeoJsonPolygon | IGeoJsonMultiPolygon;
 export const ZONE_STYLES: Record<GeoZoneLevel, L.PathOptions> = {
   provincia: { color: '#6366f1', weight: 2, opacity: 0.8, fillColor: '#6366f1', fillOpacity: 0.08, dashArray: '6 4' },
   canton:    { color: '#0891b2', weight: 2, opacity: 0.9, fillColor: '#0891b2', fillOpacity: 0.12 },
-  parroquia: { color: '#059669', weight: 1.5, opacity: 0.9, fillColor: '#059669', fillOpacity: 0.15 },
-  zona:      { color: '#d97706', weight: 1, opacity: 0.9, fillColor: '#d97706', fillOpacity: 0.10, dashArray: '2 3' },
+  parroquia: { color: '#059669', weight: 2, opacity: 0.9, fillColor: '#059669', fillOpacity: 0.15 },
+  zona:      { color: '#d97706', weight: 2, opacity: 0.9, fillColor: '#d97706', fillOpacity: 0.10, dashArray: '2 3' },
+};
+
+/**
+ * Per-level overlay applied on top of `ZONE_STYLES[level]` when a zone
+ * becomes the active filter. We KEEP the colour (so the user can still
+ * tell the level at a glance) and only bump weight / fill / dashing
+ * for the selected outline.
+ */
+const HIGHLIGHT_OVERRIDES: Record<GeoZoneLevel, Partial<L.PathOptions>> = {
+  provincia: { weight: 4, fillOpacity: 0.18, dashArray: '' },
+  canton:    { weight: 4, fillOpacity: 0.22, dashArray: '' },
+  parroquia: { weight: 4, fillOpacity: 0.28, dashArray: '' },
+  zona:      { weight: 3.5, fillOpacity: 0.22, dashArray: '' },
 };
 
 // Canonical Leaflet icon fix for Webpack/Angular
@@ -66,6 +79,15 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
   private zoneLayerGroup!: L.LayerGroup;
   /** sc-334 Phase 4 — zone_id → layer for highlight + fitBounds. */
   private zoneLayerById = new Map<string, L.Layer>();
+  /** sc-334 debug-fix — layer → its zone.level, so highlightZone can
+   *  reset EVERY layer to its per-level default before re-styling the
+   *  selected one. Without this, a previously-selected zone would stay
+   *  in highlight style after the user picks a different one. */
+  private zoneLevelByLayer = new WeakMap<L.Layer, GeoZoneLevel>();
+  /** sc-334 debug-fix — tracks the currently-highlighted zone id so we
+   *  know when the selection actually changed (and skip redundant
+   *  setStyle calls when the user re-picks the same zone). */
+  private highlightedZoneId: string | null = null;
 
   incidents = signal<Incident[]>([]);
   displayedCount = signal(0);
@@ -138,12 +160,18 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
         next: (zones) => {
           this.zoneLayerGroup.clearLayers();
           this.zoneLayerById.clear();
+          // sc-334 debug-fix — when zones reload, the previous highlight
+          //  belongs to a stale layer. Drop it so a later highlightZone()
+          //  call (with the same id) doesn't try to setStyle() on a layer
+          //  that's no longer in the map.
+          this.highlightedZoneId = null;
           const layers = this.renderZonePolygons(zones);
           layers.forEach((l, idx) => {
             this.zoneLayerGroup.addLayer(l);
             const zone = zones.filter(z => z.active && z.polygon != null)[idx];
             if (zone) {
               this.zoneLayerById.set(zone.id, l);
+              this.zoneLevelByLayer.set(l, zone.level);
             }
           });
         },
@@ -328,27 +356,68 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
   onFiltersChange(filters: MapActiveFilters) {
     this.activeFilters = filters;
     this.loadIncidents();
-    // sc-334 Phase 4 R4: highlight selected zone + fitBounds.
+    // sc-334 Phase 4 R4 — highlight selected zone + fitBounds.
     this.highlightZone(filters.zone_id);
   }
 
   /**
-   * Restyle the selected zone layer with a heavier stroke + bump fill,
-   * and call `map.fitBounds()` on it. No-op when `zoneId` is empty or
-   * the layer was not rendered (e.g., zone has no polygon, or list
-   * pagination truncated the matching row).
+   * Restyle the selected zone layer with a heavier stroke + bumped fill,
+   * preserving its level colour. Resets the previously-highlighted zone
+   * (if any) to its per-level default first, so consecutive filter
+   * changes don't leave stale highlights behind. Then calls
+   * `map.fitBounds()` on the selected polygon's bounding box.
+   *
+   * No-op when `zoneId` is empty (clear filters) or the layer was not
+   * rendered (zone is inactive, missing polygon, or hasn't loaded yet).
+   *
+   * Public for testability (spec 3.7).
    */
-  private highlightZone(zoneId: string | undefined): void {
-    if (!zoneId) {
+  highlightZone(zoneId: string | undefined): void {
+    // sc-334 debug-fix — short-circuit when the selection didn't change,
+    //  so we don't burn a fitBounds animation on every filter tweak
+    //  (status / priority changes still re-emit the same zone_id).
+    const normalizedId = zoneId || null;
+    if (normalizedId === this.highlightedZoneId) {
       return;
     }
-    const layer = this.zoneLayerById.get(zoneId);
-    if (!layer || !this.map) {
+
+    // Step 1 — reset every previously-rendered zone to its per-level
+    //  default. We only reset if there was a previous highlight (avoids
+    //  touching styles when nothing has been highlighted yet).
+    if (this.highlightedZoneId) {
+      for (const [id, lyr] of this.zoneLayerById) {
+        if (id === this.highlightedZoneId) {
+          const level = this.zoneLevelByLayer.get(lyr);
+          if (level) {
+            (lyr as L.GeoJSON).setStyle(ZONE_STYLES[level]);
+          }
+        }
+      }
+    }
+
+    this.highlightedZoneId = normalizedId;
+
+    if (!normalizedId || !this.map) {
       return;
     }
-    const geo = layer as L.GeoJSON;
-    geo.setStyle({ weight: 4, dashArray: '' });
-    const bounds = geo.getBounds();
+
+    const layer = this.zoneLayerById.get(normalizedId);
+    if (!layer) {
+      return;
+    }
+
+    // Step 2 — apply highlight on top of the level default, preserving
+    //  the colour so the level stays identifiable at a glance.
+    const level = this.zoneLevelByLayer.get(layer);
+    if (!level) {
+      return;
+    }
+    (layer as L.GeoJSON).setStyle({
+      ...ZONE_STYLES[level],
+      ...HIGHLIGHT_OVERRIDES[level],
+    });
+
+    const bounds = (layer as L.GeoJSON).getBounds();
     if (bounds.isValid()) {
       this.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
     }
