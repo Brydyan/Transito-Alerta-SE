@@ -199,7 +199,7 @@ describe('MapComponent', () => {
     it('re-enables interactive + bubblingMouseEvents after bindPopup so the popup opens without blocking markers', () => {
       const mockLayer = {
         bindPopup: jest.fn(),
-        options: {} as { bubblingMouseEvents?: boolean },
+        options: {} as { interactive?: boolean; bubblingMouseEvents?: boolean },
         on: jest.fn(),
       };
       const geoJsonSpy = jest.spyOn(L, 'geoJSON').mockReturnValue(mockLayer as unknown as ReturnType<typeof L.geoJSON>);

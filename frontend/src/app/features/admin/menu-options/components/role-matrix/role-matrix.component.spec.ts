@@ -144,7 +144,7 @@ describe('RoleMatrixComponent', () => {
     );
     expect(platformRows.length).toBe(2);
 
-    const masterRow = Array.from(platformRows).find(
+    const masterRow = Array.from(platformRows as NodeListOf<Element>).find(
       (row: Element) => row.querySelector('span')?.textContent?.trim() === 'master',
     ) as HTMLElement | undefined;
     expect(masterRow).toBeTruthy();
