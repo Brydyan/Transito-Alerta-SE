@@ -105,14 +105,14 @@ describe('MenuOptionService', () => {
     expect(req.request.method).toBe('GET');
     req.flush({
       platform: [
-        { roleId: 'r1', roleName: 'master', canRead: true, canWrite: true },
-        { roleId: 'r2', roleName: 'operador_sistema', canRead: true, canWrite: false },
+        { role_id: 'r1', role_name: 'master', can_read: true, can_write: true },
+        { role_id: 'r2', role_name: 'operador_sistema', can_read: true, can_write: false },
       ],
       organization: [
-        { roleId: 'r3', roleName: 'admin_org', canRead: false, canWrite: false },
+        { role_id: 'r3', role_name: 'admin_org', can_read: false, can_write: false },
       ],
       public: [
-        { roleId: 'r5', roleName: 'reporter', canRead: false, canWrite: false },
+        { role_id: 'r5', role_name: 'reporter', can_read: false, can_write: false },
       ],
     });
   });
