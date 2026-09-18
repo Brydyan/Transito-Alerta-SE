@@ -96,8 +96,8 @@ describe('MenuOptionService', () => {
       expect(matrix.platform.length).toBe(2);
       expect(matrix.organization.length).toBe(1);
       expect(matrix.public.length).toBe(1);
-      expect(matrix.platform[0].roleName).toBe('master');
-      expect(matrix.platform[0].canRead).toBe(true);
+      expect(matrix.platform[0].role_name).toBe('master');
+      expect(matrix.platform[0].can_read).toBe(true);
       done();
     });
 

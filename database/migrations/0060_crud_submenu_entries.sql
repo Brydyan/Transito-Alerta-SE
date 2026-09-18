@@ -21,6 +21,15 @@
 
 BEGIN;
 
+-- ── Departamentos parent menu (missing from 0055 seed) ──
+-- Insert the parent "Departamentos" menu under GESTIÓN group if not already present.
+-- This was added to MENU_MAP after the initial migration but never seeded as a menu_option.
+INSERT INTO menu_options
+  (id, name, route, icon, parent_id, display_order, is_active, created_at, updated_at)
+VALUES
+  ('b0000000-0000-0000-0000-000000000012', 'Departamentos', '/departamentos', 'network', 'a0000000-0000-0000-0000-000000000002', 81, true, now(), now())
+ON CONFLICT (id) DO NOTHING;
+
 -- ── Usuarios (parent b0000000-0000-0000-0000-000000000006, order 60) ──
 
 INSERT INTO menu_options

@@ -145,14 +145,14 @@ describe('RoleMatrixComponent', () => {
     expect(platformRows.length).toBe(2);
 
     const masterRow = Array.from(platformRows).find(
-      (row) => row.querySelector('span')?.textContent?.trim() === 'master',
+      (row: Element) => row.querySelector('span')?.textContent?.trim() === 'master',
     ) as HTMLElement | undefined;
     expect(masterRow).toBeTruthy();
     const checkboxes = masterRow!.querySelectorAll('input[type="checkbox"]');
-    expect(checkboxes[0].checked).toBe(true); // can_read=true
-    expect(checkboxes[1].checked).toBe(false); // can_write=false
+    expect((checkboxes[0] as HTMLInputElement).checked).toBe(true); // can_read=true
+    expect((checkboxes[1] as HTMLInputElement).checked).toBe(false); // can_write=false
     // Write is NOT disabled when Read=true (R7 only disables Write when Read=false).
-    expect(checkboxes[1].disabled).toBe(false);
+    expect((checkboxes[1] as HTMLInputElement).disabled).toBe(false);
   });
 
   it('renders all-unchecked when no menu_option_roles rows exist (e.g. CRUD sub-sub-menus from migration 0060)', () => {
