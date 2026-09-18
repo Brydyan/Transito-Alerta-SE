@@ -21,6 +21,10 @@
 
 BEGIN;
 
+-- Temporarily disable FK constraints during inserts
+-- (all referenced parents exist by this point in migration chain: 0055)
+SET CONSTRAINTS ALL DEFERRED;
+
 -- ── Departamentos parent menu (missing from 0055 seed) ──
 -- Insert the parent "Departamentos" menu under GESTIÓN group if not already present.
 -- This was added to MENU_MAP after the initial migration but never seeded as a menu_option.
