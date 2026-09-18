@@ -241,7 +241,7 @@ describe('CategoryFormComponent', () => {
 
   it('on EDIT, derives mode from the loaded category and does not render the toggle', async () => {
     mockActivatedRoute = {
-      snapshot: { paramMap: { get: (k: string) => (k === 'id' ? 'sub-99' : null) } },
+      snapshot: { paramMap: { get: (k: string): string | null => (k === 'id' ? 'sub-99' : null) } },
     };
     mockCategoryService.getById.mockReturnValue(
       of({
