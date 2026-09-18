@@ -124,8 +124,6 @@ describe('CategoryListComponent (T7.4 — tree view)', () => {
 
     const { fixture } = await renderList();
     const form = fixture.componentInstance;
-
-    const parentNode = form.rows()[0]; // not actually used — use the tree node
     // Grab the tree node directly from the component.
     const treeNode = form.tree()[0];
     form.deleteCategory(treeNode);

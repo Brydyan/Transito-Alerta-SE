@@ -241,6 +241,7 @@ describe('CategoryFormComponent', () => {
 
   it('on EDIT, derives mode from the loaded category and does not render the toggle', async () => {
     mockActivatedRoute = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       snapshot: { paramMap: { get: ((k: string) => (k === 'id' ? 'sub-99' : null)) as any } },
     };
     mockCategoryService.getById.mockReturnValue(

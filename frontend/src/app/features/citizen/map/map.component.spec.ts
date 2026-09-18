@@ -216,7 +216,7 @@ describe('MapComponent', () => {
   // sc-334 debug-fix — polygon highlight + fitBounds behaviour
   describe('highlightZone (debug-fix polygon highlight)', () => {
     let setStyleSpyA: jest.Mock;
-    let setStyleSpyB: jest.Mock;
+    let _setStyleSpyB: jest.Mock;
     let fitBoundsSpy: jest.Mock;
     let addLayerSpy: jest.Mock;
     let removeLayerSpy: jest.Mock;
@@ -252,8 +252,8 @@ describe('MapComponent', () => {
 
     beforeEach(() => {
       setStyleSpyA = injectZone('A', 'canton');
-      setStyleSpyB = injectZone('B', 'canton');
-      const layers = (component as unknown as {
+      _setStyleSpyB = injectZone('B', 'canton');
+      const _layers = (component as unknown as {
         zoneLayerById: Map<string, { inGroup: boolean }>;
       }).zoneLayerById;
       addLayerSpy = jest.fn((l: { inGroup: boolean }) => {
@@ -272,8 +272,6 @@ describe('MapComponent', () => {
         removeLayer: removeLayerSpy as unknown as jest.Mock,
         hasLayer: hasLayerSpy as unknown as jest.Mock,
       };
-      // Capture the layers by reference for assertion convenience.
-      layers; // no-op (silences unused-var lint)
       fitBoundsSpy = jest.fn();
       cmp.map = {
         fitBounds: fitBoundsSpy,
