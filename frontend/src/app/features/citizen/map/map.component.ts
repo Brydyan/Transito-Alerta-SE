@@ -356,58 +356,76 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
   onFiltersChange(filters: MapActiveFilters) {
     this.activeFilters = filters;
     this.loadIncidents();
-    // sc-334 Phase 4 R4 — highlight selected zone + fitBounds.
+    // sc-334 Phase 4 R4 — drill-down: show ONLY the last selected
+    // zone polygon (hide the rest). Each step replaces the previous.
     this.highlightZone(filters.zone_id);
   }
 
   /**
-   * Restyle the selected zone layer with a heavier stroke + bumped fill,
-   * preserving its level colour. Resets the previously-highlighted zone
-   * (if any) to its per-level default first, so consecutive filter
-   * changes don't leave stale highlights behind. Then calls
-   * `map.fitBounds()` on the selected polygon's bounding box.
+   * Drill-down polygon visibility:
    *
-   * No-op when `zoneId` is empty (clear filters) or the layer was not
-   * rendered (zone is inactive, missing polygon, or hasn't loaded yet).
+   *   - When a zone is selected: hide every other zone layer (removeLayer)
+   *     and re-add the selected one with the highlight style applied.
+   *   - When the filter is cleared (zoneId empty): re-show every layer
+   *     at its per-level default so the full territorial map returns.
+   *
+   * Each filter change replaces the previous selection — picking a
+   * provincia hides any previously-shown canton or parroquia, and
+   * drilling into a canton hides the provincia. This matches the
+   * UX Andy asked for ("solo se muestre el poligono del ultimo
+   * seleccionado") and avoids the visual noise of sibling zones.
    *
    * Public for testability (spec 3.7).
    */
   highlightZone(zoneId: string | undefined): void {
-    // sc-334 debug-fix — short-circuit when the selection didn't change,
-    //  so we don't burn a fitBounds animation on every filter tweak
-    //  (status / priority changes still re-emit the same zone_id).
+    // Step 0 — short-circuit when the selection didn't change, so we
+    //  don't burn a fitBounds animation on every status / priority
+    //  tweak that re-emits the same zone_id.
     const normalizedId = zoneId || null;
     if (normalizedId === this.highlightedZoneId) {
       return;
     }
 
-    // Step 1 — reset every previously-rendered zone to its per-level
-    //  default. We only reset if there was a previous highlight (avoids
-    //  touching styles when nothing has been highlighted yet).
-    if (this.highlightedZoneId) {
-      for (const [id, lyr] of this.zoneLayerById) {
-        if (id === this.highlightedZoneId) {
-          const level = this.zoneLevelByLayer.get(lyr);
-          if (level) {
-            (lyr as L.GeoJSON).setStyle(ZONE_STYLES[level]);
-          }
-        }
+    // Step 1 — re-show every previously-hidden layer at its per-level
+    //  default. This handles both the no-selection case (everything
+    //  comes back) and the new-selection case (siblings get reset
+    //  before we re-style the new one).
+    for (const [, lyr] of this.zoneLayerById) {
+      const level = this.zoneLevelByLayer.get(lyr);
+      if (!level) continue;
+      (lyr as L.GeoJSON).setStyle(ZONE_STYLES[level]);
+      if (!this.zoneLayerGroup.hasLayer(lyr as L.Layer)) {
+        this.zoneLayerGroup.addLayer(lyr as L.Layer);
       }
     }
 
     this.highlightedZoneId = normalizedId;
 
+    // Step 2 — hide every layer EXCEPT the selected one. We do this
+    //  AFTER the reset so a previously-shown sibling is fully restored
+    //  to its default style before being hidden (no flash of stale
+    //  highlight). Guarded by `zoneLayerById.has(normalizedId)` so an
+    //  unknown / not-yet-loaded selection leaves the existing visible
+    //  state intact instead of stripping the map.
+    if (normalizedId && this.zoneLayerById.has(normalizedId)) {
+      for (const [id, lyr] of this.zoneLayerById) {
+        if (id !== normalizedId) {
+          this.zoneLayerGroup.removeLayer(lyr as L.Layer);
+        }
+      }
+    }
+
     if (!normalizedId || !this.map) {
       return;
     }
 
+    // Step 3 — apply the highlight overlay on the selected layer
+    //  (style only; it stays in zoneLayerGroup from step 1).
     const layer = this.zoneLayerById.get(normalizedId);
     if (!layer) {
       return;
     }
 
-    // Step 2 — apply highlight on top of the level default, preserving
-    //  the colour so the level stays identifiable at a glance.
     const level = this.zoneLevelByLayer.get(layer);
     if (!level) {
       return;

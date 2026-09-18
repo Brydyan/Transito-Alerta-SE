@@ -218,25 +218,32 @@ describe('MapComponent', () => {
     let setStyleSpyA: jest.Mock;
     let setStyleSpyB: jest.Mock;
     let fitBoundsSpy: jest.Mock;
+    let addLayerSpy: jest.Mock;
+    let removeLayerSpy: jest.Mock;
+    let hasLayerSpy: jest.Mock;
 
     // Synthetic setup that bypasses `loadZones()`'s async subscribe —
     // we inject the layer-to-id / layer-to-level maps directly so the
     // tests stay synchronous and don't depend on a fakeAsync + tick.
     function injectZone(id: string, level: 'canton' | 'provincia' | 'parroquia' | 'zona') {
+      // Each fake layer carries an `inGroup` flag so hasLayer() reflects
+      // addLayer/removeLayer state — mirroring the real Leaflet
+      // LayerGroup semantics the production code interacts with.
       const layer = {
+        id,
         setStyle: jest.fn(),
         getBounds: jest.fn().mockReturnValue({
           isValid: () => true,
           pad: jest.fn(),
         }),
         bindPopup: jest.fn(),
-        options: {},
+        options: {} as { bubblingMouseEvents?: boolean },
         on: jest.fn(),
+        inGroup: true,
       };
       const cmp = component as unknown as {
         zoneLayerById: Map<string, typeof layer>;
         zoneLevelByLayer: WeakMap<object, string>;
-        map: { fitBounds: jest.Mock };
       };
       cmp.zoneLayerById.set(id, layer);
       cmp.zoneLevelByLayer.set(layer, level);
@@ -246,6 +253,32 @@ describe('MapComponent', () => {
     beforeEach(() => {
       setStyleSpyA = injectZone('A', 'canton');
       setStyleSpyB = injectZone('B', 'canton');
+      const layers = (component as unknown as {
+        zoneLayerById: Map<string, { inGroup: boolean }>;
+      }).zoneLayerById;
+      addLayerSpy = jest.fn((l: { inGroup: boolean }) => {
+        l.inGroup = true;
+      });
+      removeLayerSpy = jest.fn((l: { inGroup: boolean }) => {
+        l.inGroup = false;
+      });
+      hasLayerSpy = jest.fn((l: { inGroup: boolean }) => l.inGroup);
+      const cmp = component as unknown as {
+        zoneLayerGroup: { addLayer: jest.Mock; removeLayer: jest.Mock; hasLayer: jest.Mock };
+        map: { fitBounds: jest.Mock; remove: jest.Mock };
+      };
+      cmp.zoneLayerGroup = {
+        addLayer: addLayerSpy as unknown as jest.Mock,
+        removeLayer: removeLayerSpy as unknown as jest.Mock,
+        hasLayer: hasLayerSpy as unknown as jest.Mock,
+      };
+      // Capture the layers by reference for assertion convenience.
+      layers; // no-op (silences unused-var lint)
+      fitBoundsSpy = jest.fn();
+      cmp.map = {
+        fitBounds: fitBoundsSpy,
+        remove: jest.fn(),
+      };
 
       // Provide a fake map so fitBounds has somewhere to land AND ngOnDestroy's
       //  `this.map.remove()` call doesn't throw during teardown.
@@ -259,60 +292,87 @@ describe('MapComponent', () => {
     it('applies highlight style (level colour preserved) when a zone is selected', () => {
       component.highlightZone('A');
 
-      const callArgs = setStyleSpyA.mock.calls.at(-1)?.[0];
-      expect(callArgs).toBeDefined();
-      // The highlight must KEEP the level colour (canton = #0891b2)
-      expect(callArgs.color).toBe(ZONE_STYLES.canton.color);
-      expect(callArgs.weight).toBeGreaterThan(ZONE_STYLES.canton.weight ?? 0);
-      expect(callArgs.dashArray ?? '').toBe('');
-      expect(setStyleSpyB).not.toHaveBeenCalled();
+      // B must have been hidden via removeLayer (drill-down).
+      expect(removeLayerSpy).toHaveBeenCalledWith(expect.objectContaining({ bindPopup: expect.any(Function) }));
+      // A's last setStyle call must be the highlight overlay.
+      const lastA = setStyleSpyA.mock.calls.at(-1)?.[0];
+      expect(lastA.color).toBe(ZONE_STYLES.canton.color);
+      expect(lastA.weight).toBeGreaterThan(ZONE_STYLES.canton.weight ?? 0);
+      expect(lastA.dashArray ?? '').toBe('');
+      expect(fitBoundsSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('resets the previous highlighted zone to its level default when the selection changes', () => {
-      // First selection: A
-      component.highlightZone('A');
-      expect(setStyleSpyA).toHaveBeenCalledTimes(1);
+    it('hides every non-selected layer via removeLayer (drill-down)', () => {
+      const layers = (component as unknown as {
+        zoneLayerById: Map<string, { id: string; inGroup: boolean }>;
+      }).zoneLayerById;
 
-      // Second selection: B — A must be reset to default BEFORE B is
-      // styled (in that order, so the visual transition doesn't flash).
+      component.highlightZone('A');
+
+      // After selecting A: only A is visible.
+      expect(layers.get('A')?.inGroup).toBe(true);
+      expect(layers.get('B')?.inGroup).toBe(false);
+      // B was the one removed.
+      expect(removeLayerSpy).toHaveBeenCalledTimes(1);
+      expect(removeLayerSpy).toHaveBeenCalledWith(layers.get('B'));
+    });
+
+    it('drill-down: A → B replaces A with B (only B visible)', () => {
+      const layers = (component as unknown as {
+        zoneLayerById: Map<string, { id: string; inGroup: boolean }>;
+      }).zoneLayerById;
+
+      component.highlightZone('A');
+      expect(layers.get('A')?.inGroup).toBe(true);
+      expect(layers.get('B')?.inGroup).toBe(false);
+
       component.highlightZone('B');
 
-      // A's last setStyle call must be the canton default.
-      const lastA = setStyleSpyA.mock.calls.at(-1)?.[0];
-      expect(lastA).toEqual(ZONE_STYLES.canton);
-
-      // B's last setStyle call must be the highlight override on top of
-      // the canton default.
-      const lastB = setStyleSpyB.mock.calls.at(-1)?.[0];
-      expect(lastB.color).toBe(ZONE_STYLES.canton.color);
-      expect(lastB.weight).toBeGreaterThan(ZONE_STYLES.canton.weight ?? 0);
+      // After B is selected: only B is visible.
+      expect(layers.get('B')?.inGroup).toBe(true);
+      expect(layers.get('A')?.inGroup).toBe(false);
     });
 
-    it('is a no-op when the selection is identical (no redundant fitBounds)', () => {
-      component.highlightZone('A');
-      fitBoundsSpy.mockClear();
+    it('re-shows every layer and resets styles when zoneId clears', () => {
+      const layers = (component as unknown as {
+        zoneLayerById: Map<string, { id: string; inGroup: boolean }>;
+      }).zoneLayerById;
 
       component.highlightZone('A');
-      expect(fitBoundsSpy).not.toHaveBeenCalled();
-      expect(setStyleSpyA).toHaveBeenCalledTimes(1); // unchanged
-    });
+      expect(layers.get('B')?.inGroup).toBe(false); // B was hidden
 
-    it('clears the highlight when zoneId is empty (no fitBounds)', () => {
-      component.highlightZone('A');
       fitBoundsSpy.mockClear();
 
       component.highlightZone(undefined);
 
-      // A's last setStyle call must be the default (reset to level).
+      // Both visible again.
+      expect(layers.get('A')?.inGroup).toBe(true);
+      expect(layers.get('B')?.inGroup).toBe(true);
+      // No fitBounds animation on clear (nothing to zoom into).
+      expect(fitBoundsSpy).not.toHaveBeenCalled();
+
+      // Last setStyle on A is the canton default (not highlight).
       const lastA = setStyleSpyA.mock.calls.at(-1)?.[0];
       expect(lastA).toEqual(ZONE_STYLES.canton);
+    });
+
+    it('is a no-op when the selection is identical (no redundant fitBounds / removeLayer)', () => {
+      component.highlightZone('A');
+      fitBoundsSpy.mockClear();
+      removeLayerSpy.mockClear();
+      addLayerSpy.mockClear();
+
+      component.highlightZone('A');
       expect(fitBoundsSpy).not.toHaveBeenCalled();
+      expect(removeLayerSpy).not.toHaveBeenCalled();
+      expect(addLayerSpy).not.toHaveBeenCalled();
     });
 
     it('does nothing when the zone id is not in zoneLayerById', () => {
       component.highlightZone('nonexistent-id');
-      expect(setStyleSpyA).not.toHaveBeenCalled();
-      expect(setStyleSpyB).not.toHaveBeenCalled();
+      // Even unknown selections shouldn't remove layers (we'd lose the
+      // visible state for an unrelated filter change).
+      expect(removeLayerSpy).not.toHaveBeenCalled();
       expect(fitBoundsSpy).not.toHaveBeenCalled();
     });
   });
