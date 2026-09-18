@@ -21,7 +21,4 @@ WHERE menu_option_id IN (
   )
 );
 
--- Record this migration
-INSERT INTO schema_migrations (version, name, checksum) VALUES ('0061', '0061_inherit_crud_submenu_perms.DOWN.sql', 'manual');
-
 COMMIT;

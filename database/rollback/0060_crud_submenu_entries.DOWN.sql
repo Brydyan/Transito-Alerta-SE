@@ -27,7 +27,4 @@ WHERE (
   OR id = 'b0000000-0000-0000-0000-000000000012'
 );
 
--- Record this migration
-INSERT INTO schema_migrations (version, name, checksum) VALUES ('0060', '0060_crud_submenu_entries.DOWN.sql', 'manual');
-
 COMMIT;

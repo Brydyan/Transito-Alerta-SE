@@ -199,9 +199,9 @@ describe('MenuOptionsComponent', () => {
 
     it('suggests max+1 for sub-menu under parent (1, 2 → 3)', () => {
       setOptions([
-        { ...sampleOption, id: 'p1', parent_id: null as string | null, display_order: 10 },
-        { ...sampleOption, id: 'c1', parent_id: 'p1' as string | null, display_order: 1 },
-        { ...sampleOption, id: 'c2', parent_id: 'p1' as string | null, display_order: 2 },
+        { ...sampleOption, id: 'p1', parent_id: null, display_order: 10 },
+        { ...sampleOption, id: 'c1', parent_id: 'p1', display_order: 1 } as unknown as typeof sampleOption,
+        { ...sampleOption, id: 'c2', parent_id: 'p1', display_order: 2 } as unknown as typeof sampleOption,
       ]);
       setEditingParentId('p1');
       expect(component.nextOrder()).toBe(3);
