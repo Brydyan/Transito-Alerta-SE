@@ -57,7 +57,7 @@ Chain strategy: feature-branch-chain
 
 ### T-01 — Extend LayoutService with isSmallViewport$ (D2) — RED
 
-- [ ] **T-01**: Write failing unit tests for `LayoutService.isSmallViewport$` reactive viewport detection.
+- [x] **T-01**: Write failing unit tests for `LayoutService.isSmallViewport$` reactive viewport detection.
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/core/services/layout.service.spec.ts` (new or extend existing)
@@ -68,7 +68,7 @@ Chain strategy: feature-branch-chain
 
 ### T-02 — Extend LayoutService with isSmallViewport$ (D2) — GREEN
 
-- [ ] **T-02**: Implement `LayoutService.isSmallViewport$` observable/signal.
+- [x] **T-02**: Implement `LayoutService.isSmallViewport$` observable/signal.
 
   **Scope**: Service only.
   **Files**: `frontend/src/app/core/services/layout.service.ts`
@@ -79,7 +79,7 @@ Chain strategy: feature-branch-chain
 
 ### T-03 — Create DataCardComponent internal leaf (D12) — RED
 
-- [ ] **T-03**: Write failing unit tests for `DataCardComponent` (internal card used by TableToCard).
+- [x] **T-03**: Write failing unit tests for `DataCardComponent` (internal card used by TableToCard).
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/shared/components/data-card/data-card.component.spec.ts` (new)
@@ -90,7 +90,7 @@ Chain strategy: feature-branch-chain
 
 ### T-04 — Create DataCardComponent internal leaf (D12) — GREEN
 
-- [ ] **T-04**: Implement `DataCardComponent` (standalone, OnPush, Tailwind).
+- [x] **T-04**: Implement `DataCardComponent` (standalone, OnPush, Tailwind).
 
   **Scope**: Component implementation.
   **Files**: `frontend/src/app/shared/components/data-card/data-card.component.ts` (new), `frontend/src/app/shared/components/data-card/index.ts` (new)
@@ -102,7 +102,7 @@ Chain strategy: feature-branch-chain
 
 ### T-05 — Define cardFields configs for all 5 tables (D3) — RED
 
-- [ ] **T-05**: Write failing tests asserting `cardFields` config shape per table (spec S2.2 / S9.1–S9.5).
+- [x] **T-05**: Write failing tests asserting `cardFields` config shape per table (spec S2.2 / S9.1–S9.5).
 
   **Scope**: Tests only — validates the config contract, not rendering.
   **Files**: `frontend/src/app/shared/components/table-to-card/card-fields.spec.ts` (new) or co-located `card-fields-config.spec.ts`
@@ -112,7 +112,7 @@ Chain strategy: feature-branch-chain
 
 ### T-06 — Define cardFields configs for all 5 tables (D3) — GREEN
 
-- [ ] **T-06**: Implement `cardFields` config factory/constant.
+- [x] **T-06**: Implement `cardFields` config factory/constant.
 
   **Scope**: Config module.
   **Files**: `frontend/src/app/shared/components/table-to-card/card-fields.ts` (new) (or `card-config.ts`)
@@ -123,7 +123,7 @@ Chain strategy: feature-branch-chain
 
 ### T-07 — Create TableToCardComponent skeleton (D1) — RED
 
-- [ ] **T-07**: Write failing unit tests for `TableToCardComponent` responsive switching.
+- [x] **T-07**: Write failing unit tests for `TableToCardComponent` responsive switching.
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/shared/components/table-to-card/table-to-card.component.spec.ts` (new)
@@ -134,7 +134,7 @@ Chain strategy: feature-branch-chain
 
 ### T-08 — Create TableToCardComponent skeleton (D1) — GREEN
 
-- [ ] **T-08**: Implement `TableToCardComponent` skeleton (no ActionDropdown/FilterDrawer yet — stubbed slots).
+- [x] **T-08**: Implement `TableToCardComponent` skeleton (no ActionDropdown/FilterDrawer yet — stubbed slots).
 
   **Scope**: Component implementation.
   **Files**: `frontend/src/app/shared/components/table-to-card/table-to-card.component.ts` (new), `frontend/src/app/shared/components/table-to-card/index.ts` (new)

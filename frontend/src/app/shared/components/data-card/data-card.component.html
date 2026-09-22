@@ -1,0 +1,35 @@
+<div class="bg-bg-secondary border border-border-subtle rounded-lg p-4">
+  @for (field of fields(); track field.key) {
+    <div class="mb-2" [attr.data-card-field]="field.key">
+      @if (field.format === 'badge' || field.format === 'priority-badge') {
+        <ui-badge
+          [variant]="resolveBadge(field)"
+          [label]="getValue(field)"
+        ></ui-badge>
+      } @else if (field.key === 'icon') {
+        <span class="text-sm text-slate-500">{{ getValue(field) }}</span>
+      } @else {
+        <span
+          [class]="
+            field.key === 'descripcion'
+              ? 'text-sm text-slate-700 line-clamp-2'
+              : 'text-sm text-slate-700'
+          "
+        >
+          {{ getValue(field) }}
+        </span>
+      }
+    </div>
+  }
+
+  <div class="mt-4 flex gap-2">
+    <button
+      class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 bg-brand-primary border-brand-primary text-white hover:bg-brand-primary-hover hover:border-brand-primary-hover focus:ring-2 focus:ring-brand-primary/40"
+      data-card-detail
+      (click)="onDetailClick()"
+    >
+      Ver detalle
+    </button>
+    <ng-content select="[cardActions]" />
+  </div>
+</div>
