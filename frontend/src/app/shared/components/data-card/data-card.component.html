@@ -22,7 +22,7 @@
     </div>
   }
 
-  <div class="mt-4 flex gap-2">
+  <div data-card-footer class="mt-4 flex gap-2">
     <button
       class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 bg-brand-primary border-brand-primary text-white hover:bg-brand-primary-hover hover:border-brand-primary-hover focus:ring-2 focus:ring-brand-primary/40"
       data-card-detail
@@ -30,6 +30,9 @@
     >
       Ver detalle
     </button>
-    <ng-content select="[cardActions]" />
+    <app-action-dropdown
+      [actions]="actions()"
+      (actionSelected)="onActionClick($event)"
+    />
   </div>
 </div>

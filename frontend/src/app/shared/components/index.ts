@@ -16,3 +16,4 @@ export { UiTableComponent } from './ui-table';
 export { MapPickerComponent } from './map-picker/map-picker.component';
 export { DataCardComponent, type CardField, type CardAction } from './data-card';
 export { TableToCardComponent } from './table-to-card';
+export { ActionDropdownComponent } from './action-dropdown';

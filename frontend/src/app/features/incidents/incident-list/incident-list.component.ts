@@ -30,6 +30,11 @@ import { PaginationComponent } from '../../../shared/components/pagination/pagin
 import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.component';
 import { UiKpiCardComponent } from '../../../shared/components/ui-kpi-card/ui-kpi-card.component';
 import { UiTableComponent } from '../../../shared/components/ui-table/ui-table.component';
+import { TableToCardComponent } from '../../../shared/components/table-to-card/table-to-card.component';
+import { ActionDropdownComponent, CardAction } from '../../../shared/components/action-dropdown/action-dropdown.component';
+import { INCIDENTS_CARD_FIELDS } from '../../../shared/components/table-to-card/card-fields';
+import { CardField } from '../../../shared/components/data-card/data-card.component';
+import { ConfirmDialogService } from '../../../shared/components/confirm-dialog/confirm-dialog.service';
 
 // FIX-16 — reverse geocode cache (same approach as feed incident-card).
 // Duplicated locally to avoid coupling feed ↔ list; both share Nominatim
@@ -90,6 +95,7 @@ function extractPlaceName(data: { address?: Record<string, string>; display_name
     UiCardComponent,
     UiKpiCardComponent,
     UiTableComponent,
+    TableToCardComponent,
   ],
   templateUrl: './incident-list.component.html',
   styleUrl: './incident-list.component.css',
@@ -100,6 +106,7 @@ export class IncidentListComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly confirmDialog = inject(ConfirmDialogService);
 
   // ── Filter signals (D2) ─────────────────────────────────────────────
   // Las señales se derivan de la URL al montar. La mutación
@@ -132,6 +139,35 @@ export class IncidentListComponent implements OnInit {
   readonly permissions = computed<string[]>(
     () => this.authService.user()?.permissions ?? [],
   );
+
+  // ── Card fields & actions (D1, D4, D8, S9.1) ──────────────────────
+  /** 3-field card configuration for mobile card view (S9.1). */
+  readonly cardFields: CardField[] = [...INCIDENTS_CARD_FIELDS];
+
+  /** Items cast to Record format for TableToCardComponent. */
+  readonly cardItems = computed<Record<string, unknown>[]>(() =>
+    this.incidents() as unknown as Record<string, unknown>[],
+  );
+
+  /** Permission-gated actions for card dropdown menu (S2.4, T-13). */
+  readonly cardActions = computed<CardAction[]>(() => {
+    const perms = this.permissions();
+    const actions: CardAction[] = [];
+
+    if (perms.includes('UPDATE incidents')) {
+      actions.push({ id: 'edit', label: 'Editar' });
+    }
+    if (perms.includes('DELETE incidents')) {
+      actions.push({ id: 'delete', label: 'Eliminar' });
+    }
+    if (perms.includes('UPDATE incidents')) {
+      actions.push({ id: 'claim', label: 'Reclamar' });
+      actions.push({ id: 'release', label: 'Liberar' });
+      actions.push({ id: 'close', label: 'Cerrar' });
+    }
+
+    return actions;
+  });
 
   // ── Catálogos de filtros (mock 02-01) ──────────────────────────────
   // Los valores `pendiente`/`en_proceso`/`resuelto`/`cerrada` son
@@ -346,6 +382,50 @@ export class IncidentListComponent implements OnInit {
   // ── Row navigation ────────────────────────────────────────────────
   goToDetail(incident: Incident): void {
     this.router.navigate(['/app/incidencias', incident.id]);
+  }
+
+  // ── Card actions (D4, D8, S2.4) ──────────────────────────────────
+  /** Handle card action dropdown selection. */
+  onCardAction(event: { action: CardAction; data: Record<string, unknown> }): void {
+    const incident = event.data as unknown as Incident;
+    switch (event.action.id) {
+      case 'edit':
+        // R6/S9.1: Edit must appear in the menu, but there is NO
+        // incident edit route in this app (only list + detail).
+        // Navigate to detail until a form route exists.
+        this.goToDetail(incident);
+        break;
+      case 'delete':
+        this.confirmDialog
+          .confirm({
+            title: 'Confirmar eliminación',
+            message: `¿Estás seguro de que deseas eliminar "${incident.title}"? Esta acción no se puede deshacer.`,
+            isDanger: true,
+            confirmText: 'Eliminar',
+            cancelText: 'Cancelar',
+          })
+          .subscribe((confirmed) => {
+            if (!confirmed) return;
+            this.incidentService.deleteIncident(incident.id).subscribe({
+              next: () => {
+                this.fetch();
+              },
+              error: () => {
+                // Error handled by toast in service
+              },
+            });
+          });
+        break;
+      case 'claim':
+        // TODO: wire to claim service when available
+        break;
+      case 'release':
+        // TODO: wire to release service when available
+        break;
+      case 'close':
+        // TODO: wire to close service when available
+        break;
+    }
   }
 
   // ── Derived UI helpers ────────────────────────────────────────────

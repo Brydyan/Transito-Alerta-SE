@@ -6,6 +6,7 @@ import {
   Output,
 } from '@angular/core';
 import { UiBadgeComponent, type UiBadgeVariant } from '../ui-badge';
+import { ActionDropdownComponent, type CardAction as ActionDropdownCardAction } from '../action-dropdown/action-dropdown.component';
 
 /**
  * Configuration for a single field displayed inside a card.
@@ -56,7 +57,7 @@ function toBadgeVariant(value: string): UiBadgeVariant {
 @Component({
   selector: 'app-data-card',
   standalone: true,
-  imports: [UiBadgeComponent],
+  imports: [UiBadgeComponent, ActionDropdownComponent],
   templateUrl: './data-card.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {

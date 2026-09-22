@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter, ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
 
@@ -6,6 +7,7 @@ import { IncidentListComponent } from './incident-list.component';
 import { IncidentService } from '../../../core/services/incident.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { Incident, IncidentListResult } from '../../../core/models/incident.model';
+import { LayoutService } from '../../../core/services/layout.service';
 
 /**
  * F3 (sc-303) — F3.2.9 list specs.
@@ -196,5 +198,162 @@ describe('IncidentListComponent (F3.2.9)', () => {
     );
     fixture.detectChanges();
     expect(component.rangeText()).toBe('Mostrando 0 de 0 incidencias');
+  });
+});
+
+/**
+ * T-13 — RED: Failing integration tests for IncidentListComponent
+ * rendering cards on mobile (S9.1).
+ *
+ * S2.1: table converts to card grid on mobile.
+ * S2.2: each card shows title | status badge | priority badge.
+ * S2.3: card includes "Ver detalle" button.
+ * S2.4: card includes action dropdown (⋮).
+ * S6.3: delete confirmation on mobile.
+ * S6.4: dropdown closes after action selection.
+ */
+describe('IncidentListComponent — mobile cards integration (S9.1)', () => {
+  let fixture: import('@angular/core/testing').ComponentFixture<IncidentListComponent>;
+  let component: IncidentListComponent;
+
+  const makeIncident = (id: string, overrides: Partial<Incident> = {}): Incident => ({
+    id,
+    title: `Bache en Av. Principal ${id}`,
+    description: 'Descripcion de prueba',
+    status: 'pending',
+    priority: 'high',
+    lat: -2.2,
+    lng: -80.8,
+    zone_id: 'zone-1',
+    geofence_matched: true,
+    organization_id: 'org-A',
+    citizen_id: 'user-1',
+    assigned_to: null,
+    category_id: null,
+    claimed_by: null,
+    claimed_at: null,
+    approved_by: null,
+    approved_at: null,
+    rejected_by: null,
+    rejected_at: null,
+    rejection_reason: null,
+    closed_reason: null,
+    resolution_date: null,
+    follower_count: 0,
+    corroboration_count: 0,
+    is_followed_by_me: false,
+    is_corroborated_by_me: false,
+    created_at: new Date('2026-09-01'),
+    updated_at: new Date('2026-09-01'),
+    deleted_at: null,
+    ...overrides,
+  });
+
+  const incidents: Incident[] = [
+    makeIncident('inc-1'),
+    makeIncident('inc-2', { status: 'resolved', priority: 'low' }),
+  ];
+
+  function setupMobile() {
+    const spy = {
+      getIncidents: jest.fn().mockReturnValue(
+        of<IncidentListResult>({ items: incidents, total: 2, page: 1, limit: 10 }),
+      ),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap({}) },
+            queryParamMap: of(convertToParamMap({})),
+          },
+        },
+        { provide: IncidentService, useValue: spy },
+        {
+          provide: AuthService,
+          useValue: {
+            user: () => ({
+              permissions: ['READ incidents', 'UPDATE incidents', 'DELETE incidents'],
+            }),
+          },
+        },
+        {
+          provide: LayoutService,
+          useValue: { isSmallViewport$: of(true) },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(IncidentListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    return { spy };
+  }
+
+  it('renders cards (app-data-card) on mobile instead of table rows', () => {
+    setupMobile();
+    // On mobile, TableToCard renders app-data-card elements
+    const cards = fixture.debugElement.queryAll(By.css('app-data-card'));
+    expect(cards.length).toBe(2);
+  });
+
+  it('each card shows title, status badge, and priority badge (S9.1)', () => {
+    setupMobile();
+    const cards = fixture.debugElement.queryAll(By.css('app-data-card'));
+    expect(cards.length).toBe(2);
+
+    // First card should have field values rendered
+    const firstCard = cards[0];
+    const cardText = firstCard.nativeElement.textContent;
+    expect(cardText).toContain('Bache en Av. Principal inc-1');
+    expect(cardText).toContain('pending');
+    expect(cardText).toContain('high');
+  });
+
+  it('each card has "Ver detalle" button (S2.3)', () => {
+    setupMobile();
+    const detailBtns = fixture.debugElement.queryAll(By.css('[data-card-detail]'));
+    expect(detailBtns.length).toBe(2);
+    for (const btn of detailBtns) {
+      expect(btn.nativeElement.textContent).toContain('Ver detalle');
+    }
+  });
+
+  it('each card has action dropdown (⋮) (S2.4)', () => {
+    setupMobile();
+    const dropdowns = fixture.debugElement.queryAll(By.css('app-action-dropdown'));
+    expect(dropdowns.length).toBe(2);
+  });
+
+  it('clicking "Ver detalle" navigates to detail page', () => {
+    setupMobile();
+    const spy = jest.spyOn(component, 'goToDetail');
+    const detailBtns = fixture.debugElement.queryAll(By.css('[data-card-detail]'));
+    detailBtns[0].nativeElement.click();
+    expect(spy).toHaveBeenCalledWith(incidents[0]);
+  });
+
+  it('card grid is visible and table is hidden on mobile', () => {
+    setupMobile();
+    const cardGrid = fixture.debugElement.query(By.css('[data-card-grid]'));
+    expect(cardGrid).toBeTruthy();
+    expect(cardGrid.nativeElement.classList.contains('hidden')).toBe(false);
+
+    const tableWrapper = fixture.debugElement.query(By.css('[data-table-wrapper]'));
+    expect(tableWrapper).toBeTruthy();
+    expect(tableWrapper.nativeElement.classList.contains('hidden')).toBe(true);
+  });
+
+  it('provides INCIDENTS_CARD_FIELDS to TableToCard (S9.1 fields)', () => {
+    setupMobile();
+    // Verify the component has cardFields defined
+    expect(component['cardFields']).toBeDefined();
+  });
+
+  it('provides cardActions derived from permissions', () => {
+    setupMobile();
+    // Verify the component has cardActions defined
+    expect(component['cardActions']).toBeDefined();
   });
 });

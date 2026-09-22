@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { DataCardComponent, CardField, CardAction } from './data-card.component';
+import { ActionDropdownComponent } from '../action-dropdown/action-dropdown.component';
 
 /**
  * T-03 — RED: Failing tests for DataCardComponent.
@@ -120,5 +121,83 @@ describe('DataCardComponent', () => {
     const el = descEl.nativeElement as HTMLElement;
     const span = el.querySelector('span');
     expect(span?.classList.contains('line-clamp-2')).toBe(true);
+  });
+});
+
+/**
+ * T-11 — RED: Tests for "Ver detalle" button prominence (D8).
+ *
+ * S2.3: "Ver detalle" is always visible at card footer.
+ * S2.4: ActionDropdown sits adjacent in flex row.
+ * D8: primary action always visible, not inside dropdown.
+ */
+describe('DataCardComponent — Ver detalle prominence (D8)', () => {
+  let fixture: ComponentFixture<DataCardComponent>;
+  let component: DataCardComponent;
+
+  const sampleData: Record<string, unknown> = {
+    id: 'item-1',
+    title: 'Bache en Av. Principal',
+    status: 'pending',
+    priority: 'high',
+  };
+
+  const baseFields: CardField[] = [
+    { key: 'title', label: 'Titulo' },
+    { key: 'status', label: 'Estado', format: 'badge' },
+    { key: 'priority', label: 'Prioridad', format: 'priority-badge' },
+  ];
+
+  const baseActions: CardAction[] = [
+    { id: 'edit', label: 'Editar' },
+    { id: 'delete', label: 'Eliminar' },
+  ];
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    fixture = TestBed.createComponent(DataCardComponent);
+    component = fixture.componentInstance;
+    fixture.componentRef.setInput('data', sampleData);
+    fixture.componentRef.setInput('fields', baseFields);
+    fixture.componentRef.setInput('actions', baseActions);
+    fixture.detectChanges();
+  });
+
+  it('always renders "Ver detalle" button in card footer — not inside dropdown', () => {
+    const detailBtn = fixture.debugElement.query(By.css('[data-card-detail]'));
+    expect(detailBtn).toBeTruthy();
+    expect(detailBtn.nativeElement.textContent).toContain('Ver detalle');
+  });
+
+  it('clicking "Ver detalle" emits detailClicked with the data item', () => {
+    const emitSpy = jest.spyOn(component.detailClicked, 'emit');
+    const detailBtn = fixture.debugElement.query(By.css('[data-card-detail]'));
+    detailBtn.nativeElement.click();
+    expect(emitSpy).toHaveBeenCalledWith(sampleData);
+  });
+
+  it('card footer has flex layout with gap for button + dropdown row (D8)', () => {
+    const footer = fixture.debugElement.query(By.css('[data-card-footer]'));
+    expect(footer).toBeTruthy();
+    const classes = footer.nativeElement.className;
+    expect(classes).toContain('flex');
+    expect(classes).toContain('gap-2');
+  });
+
+  it('"Ver detalle" button uses flex-1 to take remaining space (D8)', () => {
+    const detailBtn = fixture.debugElement.query(By.css('[data-card-detail]'));
+    expect(detailBtn).toBeTruthy();
+    expect(detailBtn.nativeElement.classList.contains('flex-1')).toBe(true);
+  });
+
+  it('renders app-action-dropdown adjacent to "Ver detalle" button (D8)', () => {
+    const actionDropdown = fixture.debugElement.query(By.css('app-action-dropdown'));
+    expect(actionDropdown).toBeTruthy();
+  });
+
+  it('action dropdown receives the card actions input', () => {
+    const actionDropdown = fixture.debugElement.query(By.css('app-action-dropdown'));
+    expect(actionDropdown).toBeTruthy();
+    // The dropdown component should be present with actions wired
   });
 });

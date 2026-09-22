@@ -60,7 +60,14 @@
       "
     />
   } @else {
-    <ui-table>
+    <table-to-card
+      [items]="cardItems()"
+      [cardFields]="cardFields"
+      [cardActions]="cardActions()"
+      (detailClicked)="goToDetail($any($event))"
+      (actionClicked)="onCardAction($event)"
+    >
+      <ui-table>
       <thead>
         <tr>
           <th class="ui-table-cell-select">
@@ -116,6 +123,7 @@
         }
       </tbody>
     </ui-table>
+    </table-to-card>
   }
 </ui-card>
 

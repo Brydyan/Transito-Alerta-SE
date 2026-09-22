@@ -1,0 +1,27 @@
+<div class="relative" appClickOutside (appClickOutside)="onClickOutside()">
+  <button
+    data-action-dropdown-trigger
+    type="button"
+    class="p-2 hover:bg-gray-100 rounded focus:ring-2 focus:ring-brand-primary/40 focus:outline-none"
+    aria-label="More actions"
+    (click)="toggle()"
+  >
+    ⋮
+  </button>
+  @if (isOpen()) {
+    <div
+      data-action-dropdown-menu
+      class="absolute right-0 mt-2 w-48 bg-white rounded shadow-lg z-50 border border-border-subtle"
+    >
+      @for (action of actions(); track action.id) {
+        <button
+          type="button"
+          class="block w-full text-left px-4 py-2 hover:bg-gray-100 min-h-[44px] text-sm text-slate-700 focus:ring-2 focus:ring-brand-primary/40 focus:outline-none"
+          (click)="onActionClick(action)"
+        >
+          {{ action.label }}
+        </button>
+      }
+    </div>
+  }
+</div>

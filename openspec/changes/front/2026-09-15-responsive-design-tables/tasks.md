@@ -150,7 +150,7 @@ Chain strategy: feature-branch-chain
 
 ### T-09 — Create ActionDropdownComponent (D4) — RED
 
-- [ ] **T-09**: Write failing unit tests for `ActionDropdownComponent` (kebab ⋮).
+- [x] **T-09**: Write failing unit tests for `ActionDropdownComponent` (kebab ⋮).
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/shared/components/action-dropdown/action-dropdown.component.spec.ts` (new)
@@ -161,7 +161,7 @@ Chain strategy: feature-branch-chain
 
 ### T-10 — Create ActionDropdownComponent (D4) — GREEN
 
-- [ ] **T-10**: Implement `ActionDropdownComponent` (standalone, OnPush).
+- [x] **T-10**: Implement `ActionDropdownComponent` (standalone, OnPush).
 
   **Scope**: Component implementation.
   **Files**: `frontend/src/app/shared/components/action-dropdown/action-dropdown.component.ts` (new), `frontend/src/app/shared/components/action-dropdown/index.ts` (new), uses `frontend/src/app/shared/directives/click-outside.directive.ts` (read-only if reused)
@@ -172,7 +172,7 @@ Chain strategy: feature-branch-chain
 
 ### T-11 — Wire "Ver detalle" prominence into DataCard/TableToCard (D8) — RED
 
-- [ ] **T-11**: Write failing tests for "Ver detalle" button always visible on card footer (D8).
+- [x] **T-11**: Write failing tests for "Ver detalle" button always visible on card footer (D8).
 
   **Scope**: Tests only (extends DataCard/TableToCard specs).
   **Files**: `frontend/src/app/shared/components/data-card/data-card.component.spec.ts`, `frontend/src/app/shared/components/table-to-card/table-to-card.component.spec.ts`
@@ -183,7 +183,7 @@ Chain strategy: feature-branch-chain
 
 ### T-12 — Wire "Ver detalle" prominence into DataCard/TableToCard (D8) — GREEN
 
-- [ ] **T-12**: Implement prominent "Ver detalle" button in `DataCardComponent` footer.
+- [x] **T-12**: Implement prominent "Ver detalle" button in `DataCardComponent` footer.
 
   **Scope**: Component template/styles.
   **Files**: `frontend/src/app/shared/components/data-card/data-card.component.ts`, `frontend/src/app/shared/components/table-to-card/table-to-card.component.ts` (slot wiring)
@@ -194,7 +194,7 @@ Chain strategy: feature-branch-chain
 
 ### T-13 — Pilot integration: IncidentsListComponent → TableToCard (D1, D8) — RED
 
-- [ ] **T-13**: Write failing integration tests for `IncidentListComponent` rendering cards on mobile.
+- [x] **T-13**: Write failing integration tests for `IncidentListComponent` rendering cards on mobile.
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/features/incidents/incident-list/incident-list.component.spec.ts` (extend)
@@ -205,7 +205,7 @@ Chain strategy: feature-branch-chain
 
 ### T-14 — Pilot integration: IncidentsListComponent → TableToCard (D1, D8) — GREEN
 
-- [ ] **T-14**: Migrate `IncidentListComponent` to use `TableToCardComponent` + `DataCard` + `ActionDropdown`.
+- [x] **T-14**: Migrate `IncidentListComponent` to use `TableToCardComponent` + `DataCard` + `ActionDropdown`.
 
   **Scope**: Feature component wiring.
   **Files**: `frontend/src/app/features/incidents/incident-list/incident-list.component.ts`, `frontend/src/app/features/incidents/incident-list/incident-list.component.html`
