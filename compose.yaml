@@ -65,6 +65,25 @@ services:
       timeout: 3s
       retries: 5
 
+  # ── Migrations (solo perfil staging) ──────────────────────────────────────
+  # Init container: valida + ejecuta migraciones antes de que arranque el backend.
+  # EXIT 0 si OK, EXIT 1 si drift. El backend solo arranca si migrations = 0.
+  migrations:
+    profiles: [staging]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.migrations
+      target: migrations
+    image: tase-migrations:${IMAGE_TAG:-latest}
+    container_name: tase-migrations
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-transito_alerta}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npx ts-node scripts/run-migrations.ts
+
   # ── Backend NestJS (solo perfil staging) ─────────────────────────────────────
   backend:
     profiles: [staging]
@@ -101,6 +120,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:3001/api/health || exit 1']
       interval: 30s
