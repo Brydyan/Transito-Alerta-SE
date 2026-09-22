@@ -291,26 +291,21 @@ export class DepartmentsRepository {
    * trivial — we just delete-then-insert in a single round-trip.
    */
   async replaceCategoriesForDept(deptId: string, categoryIds: string[]): Promise<void> {
-    if (categoryIds.length === 0) {
-      // Empty array → wipe the dept's assignments (intentional; lets an
-      // admin "clear" the dept's scope). Equivalent to the delete-only
-      // path but kept separate for clarity.
-      await this.dataSource.query(
-        'DELETE FROM department_incident_categories WHERE department_id = $1',
-        [deptId],
-      );
-      return;
-    }
-    // Single statement with `unnest` so the whole replacement is one
-    // round-trip and atomic. ON CONFLICT DO NOTHING preserves the rows
-    // the caller re-submitted (idempotent on the client side).
+    // Always delete first (idempotent — if none exist, no-op).
     await this.dataSource.query(
-      `DELETE FROM department_incident_categories WHERE department_id = $1;
-       INSERT INTO department_incident_categories (department_id, incident_category_id)
-       SELECT $1, UNNEST($2::uuid[])
-       ON CONFLICT DO NOTHING`,
-      [deptId, categoryIds],
+      'DELETE FROM department_incident_categories WHERE department_id = $1',
+      [deptId],
     );
+
+    // Then insert the new set (if non-empty).
+    if (categoryIds.length > 0) {
+      await this.dataSource.query(
+        `INSERT INTO department_incident_categories (department_id, incident_category_id)
+         SELECT $1, UNNEST($2::uuid[])
+         ON CONFLICT DO NOTHING`,
+        [deptId, categoryIds],
+      );
+    }
   }
 
   /**
