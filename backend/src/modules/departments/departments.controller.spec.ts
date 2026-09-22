@@ -214,12 +214,12 @@ describe('DepartmentsController', () => {
   });
 
   describe('create (POST /)', () => {
-    const baseDto = { name: 'Traffic', description: null, organizationId: 'org-1' };
+    const baseDto = { name: 'Traffic', description: null, organization_id: 'org-1' };
 
-    it('master: creates in any org (DTO.organizationId is honored)', async () => {
+    it('master: creates in any org (DTO.organization_id is honored)', async () => {
       service.createWithCategories.mockResolvedValue({ ...activeDept, organization_id: 'org-9' });
 
-      const dto = { ...baseDto, organizationId: 'org-9' };
+      const dto = { ...baseDto, organization_id: 'org-9' };
       const result = await controller.create(
         dto as never,
         buildReq({ roleName: 'master', organizationId: null }),
@@ -233,7 +233,7 @@ describe('DepartmentsController', () => {
       expect(result.organization_id).toBe('org-9');
     });
 
-    it('admin_org: creates in own org (DTO.organizationId === user.organizationId)', async () => {
+    it('admin_org: creates in own org (DTO.organization_id === user.organizationId)', async () => {
       service.createWithCategories.mockResolvedValue(activeDept);
 
       await controller.create(
@@ -251,7 +251,7 @@ describe('DepartmentsController', () => {
     it('admin_org creating in another org: 403', async () => {
       await expect(
         controller.create(
-          { ...baseDto, organizationId: 'org-2' } as never,
+          { ...baseDto, organization_id: 'org-2' } as never,
           buildReq({ organizationId: 'org-1', roleName: 'admin_org' }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -272,7 +272,7 @@ describe('DepartmentsController', () => {
       service.createWithCategories.mockResolvedValue({ ...activeDept, organization_id: 'org-9' });
 
       await controller.create(
-        { ...baseDto, organizationId: 'org-9' } as never,
+        { ...baseDto, organization_id: 'org-9' } as never,
         buildReq({ roleName: 'operador_sistema', organizationId: null }),
       );
 
