@@ -36,6 +36,7 @@ describe('UsersListComponent (F6 rediseño)', () => {
   ];
 
   beforeEach(async () => {
+    localStorage.clear();
     const mockAuthService = {
       logout: jest.fn(),
       currentUser: signal({ name: 'Test', roleName: 'Admin' }),
@@ -302,5 +303,129 @@ describe('UsersListComponent — mobile cards integration (S9.2)', () => {
     const modalSpy = jest.spyOn(component['userDetailModalService'] as never, 'open' as never) as unknown as jest.Mock;
     component.onCardDetail({ usuarioId: '1' });
     expect(modalSpy).toHaveBeenCalled();
+  });
+});
+
+/**
+ * T-23 — RED: Failing tests for localStorage filter persistence (D9).
+ *
+ * D9: Use localStorage to persist filter/sort state per table.
+ * S5.2: Filter state persists across navigation.
+ * Key pattern: 'users-filters'.
+ */
+describe('UsersListComponent — localStorage filter persistence (D9)', () => {
+  let component: UsersListComponent;
+  let fixture: ComponentFixture<UsersListComponent>;
+  let mockUsersService: {
+    getUsers: jest.Mock;
+    getRoles: jest.Mock;
+    getOrganizations: jest.Mock;
+    deleteUser: jest.Mock;
+  };
+
+  const STORAGE_KEY = 'users-filters';
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  function setupWithFilters(storedFilters: Record<string, unknown> | null = null) {
+    if (storedFilters) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(storedFilters));
+    }
+
+    mockUsersService = {
+      getUsers: jest.fn().mockReturnValue(
+        of({ data: [{ usuarioId: 1, nombres: 'Test', apellidos: 'User', email: 'test@test.com', rol: { rolId: 1, nombre: 'ADMIN' } }], total: 1, meta: { total: 1, page: 1, last_page: 1, per_page: 10 } }),
+      ),
+      getRoles: jest.fn().mockReturnValue(of([])),
+      getOrganizations: jest.fn().mockReturnValue(of([])),
+      deleteUser: jest.fn().mockReturnValue(of(undefined)),
+    };
+
+    TestBed.configureTestingModule({
+      imports: [UsersListComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuthService,
+          useValue: { logout: jest.fn(), currentUser: signal({ name: 'Test', roleName: 'Admin' }) },
+        },
+        { provide: UsersService, useValue: mockUsersService },
+        { provide: ToastService, useValue: { success: jest.fn(), error: jest.fn() } },
+        { provide: ConfirmDialogService, useValue: { confirm: () => of(true) } },
+      ],
+    });
+  }
+
+  it('saves filter state to localStorage on filter change (D9 key: users-filters)', () => {
+    setupWithFilters();
+    fixture = TestBed.createComponent(UsersListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const setItemSpy = jest.spyOn(Storage.prototype, 'setItem');
+    component.onFilterChange({ role: '1', org: 'org-1' });
+
+    expect(setItemSpy).toHaveBeenCalledWith(
+      STORAGE_KEY,
+      expect.any(String),
+    );
+
+    const stored = JSON.parse(setItemSpy.mock.calls[0][1] as string);
+    expect(stored).toHaveProperty('role', '1');
+    expect(stored).toHaveProperty('org', 'org-1');
+    setItemSpy.mockRestore();
+  });
+
+  it('hydrates filter state from localStorage on ngOnInit (D9)', () => {
+    setupWithFilters({ role: '2', org: '' });
+    fixture = TestBed.createComponent(UsersListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // The filter signals should be hydrated from localStorage
+    expect(component.selectedRole()).toBe('2');
+  });
+
+  it('calls loadData with hydrated filters from localStorage (D9)', () => {
+    setupWithFilters({ role: '1', org: '' });
+    fixture = TestBed.createComponent(UsersListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // getUsers should have been called with the hydrated role filter
+    expect(mockUsersService.getUsers).toHaveBeenCalled();
+    const callArgs = mockUsersService.getUsers.mock.calls[0];
+    expect(callArgs[2]).toBe('1'); // role parameter
+  });
+
+  it('falls back to defaults when localStorage is empty (D9)', () => {
+    setupWithFilters(null);
+    fixture = TestBed.createComponent(UsersListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.selectedRole()).toBe('');
+    expect(component.selectedOrg()).toBe('');
+  });
+
+  it('saves search term to localStorage on search (D9)', () => {
+    setupWithFilters();
+    fixture = TestBed.createComponent(UsersListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const setItemSpy = jest.spyOn(Storage.prototype, 'setItem');
+    component.onSearch('María');
+
+    expect(setItemSpy).toHaveBeenCalledWith(
+      STORAGE_KEY,
+      expect.any(String),
+    );
+
+    const stored = JSON.parse(setItemSpy.mock.calls[0][1] as string);
+    expect(stored).toHaveProperty('search', 'María');
+    setItemSpy.mockRestore();
   });
 });

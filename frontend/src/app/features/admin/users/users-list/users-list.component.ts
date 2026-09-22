@@ -97,6 +97,9 @@ export class UsersListComponent implements OnInit {
   // que la inyección de DI no se queje en runtime.
   protected readonly authService = inject(AuthService);
 
+  /** D9 — localStorage key for filter persistence. */
+  private static readonly STORAGE_KEY = 'users-filters';
+
   /** Datos crudos del backend. */
   readonly users = signal<ReadonlyArray<User>>([]);
   readonly roles = signal<ReadonlyArray<Role>>([]);
@@ -230,6 +233,22 @@ export class UsersListComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    // D9 — Hydrate filter state from localStorage before loading data.
+    const stored = localStorage.getItem(UsersListComponent.STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as {
+          role?: string;
+          org?: string;
+          search?: string;
+        };
+        if (parsed.role) this.selectedRole.set(parsed.role);
+        if (parsed.org) this.selectedOrg.set(parsed.org);
+        if (parsed.search) this.searchTerm.set(parsed.search);
+      } catch {
+        // Malformed stored data — fall through to defaults
+      }
+    }
     this.loadLookups();
     this.loadUsers();
   }
@@ -305,6 +324,15 @@ export class UsersListComponent implements OnInit {
     this.searchTerm.set(term);
     // La búsqueda es local — no recarga del backend (decisión de
     // diseño: «Instant feedback, no server overhead»).
+    // D9 — Persist search term to localStorage.
+    localStorage.setItem(
+      UsersListComponent.STORAGE_KEY,
+      JSON.stringify({
+        role: this.selectedRole(),
+        org: this.selectedOrg(),
+        search: term,
+      }),
+    );
   }
 
   onFilterChange(filters: { role: string; org: string }): void {
@@ -317,6 +345,15 @@ export class UsersListComponent implements OnInit {
     // los soporte — deviation documentada en apply-progress.
     this.selectedRole.set(filters.role);
     this.selectedOrg.set(filters.org);
+    // D9 — Persist filter state to localStorage.
+    localStorage.setItem(
+      UsersListComponent.STORAGE_KEY,
+      JSON.stringify({
+        role: filters.role,
+        org: filters.org,
+        search: this.searchTerm(),
+      }),
+    );
     this.refetch();
   }
 

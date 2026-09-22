@@ -42,6 +42,7 @@ describe('RolesComponent (F6 rediseño)', () => {
   };
 
   beforeEach(async () => {
+    localStorage.clear();
     mockRolesService = {
       getRoles: jest.fn().mockReturnValue(of(fixtureRoles)),
       getRoleStats: jest.fn().mockReturnValue(of(fixtureStats)),

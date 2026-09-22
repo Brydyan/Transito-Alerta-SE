@@ -476,3 +476,167 @@ describe('IncidentListComponent — load-more behavior (D5)', () => {
     expect(loadMoreBtn).toBeNull();
   });
 });
+
+/**
+ * T-23 — RED: Failing tests for filter/sort persistence via localStorage (D9).
+ *
+ * D9: Use localStorage to persist filter/sort state per table.
+ * S5.2: Filter state persists across navigation.
+ * Key pattern: 'incidents-filters'.
+ * Storage: onFilterChange → localStorage.setItem; ngOnInit → localStorage.getItem with fallback.
+ */
+describe('IncidentListComponent — localStorage filter persistence (D9)', () => {
+  let fixture: import('@angular/core/testing').ComponentFixture<IncidentListComponent>;
+  let component: IncidentListComponent;
+
+  const STORAGE_KEY = 'incidents-filters';
+
+  const makeIncident = (id: string): Incident => ({
+    id,
+    title: `Incident ${id}`,
+    description: '',
+    status: 'pending',
+    priority: 'medium',
+    lat: -2.2,
+    lng: -80.8,
+    zone_id: 'zone-1',
+    geofence_matched: true,
+    organization_id: 'org-A',
+    citizen_id: 'user-1',
+    assigned_to: null,
+    category_id: null,
+    claimed_by: null,
+    claimed_at: null,
+    approved_by: null,
+    approved_at: null,
+    rejected_by: null,
+    rejected_at: null,
+    rejection_reason: null,
+    closed_reason: null,
+    resolution_date: null,
+    follower_count: 0,
+    corroboration_count: 0,
+    is_followed_by_me: false,
+    is_corroborated_by_me: false,
+    created_at: new Date('2026-09-01'),
+    updated_at: new Date('2026-09-01'),
+    deleted_at: null,
+  });
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  function setupWithFilters(storedFilters: Record<string, unknown> | null = null) {
+    if (storedFilters) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(storedFilters));
+    }
+    const spy = {
+      getIncidents: jest.fn().mockReturnValue(
+        of<IncidentListResult>({ items: [makeIncident('inc-1')], total: 1, page: 1, limit: 10 }),
+      ),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap({}) },
+            queryParamMap: of(convertToParamMap({})),
+          },
+        },
+        { provide: IncidentService, useValue: spy },
+        {
+          provide: AuthService,
+          useValue: { user: () => ({ permissions: ['READ incidents'] }) },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(IncidentListComponent);
+    component = fixture.componentInstance;
+    return { spy };
+  }
+
+  it('saves filter state to localStorage on status change (D9 key: incidents-filters)', () => {
+    const { spy } = setupWithFilters();
+    fixture.detectChanges();
+
+    const setItemSpy = jest.spyOn(Storage.prototype, 'setItem');
+    component.onStatusChange('resolved');
+
+    expect(setItemSpy).toHaveBeenCalledWith(
+      STORAGE_KEY,
+      expect.any(String),
+    );
+
+    const stored = JSON.parse(setItemSpy.mock.calls[0][1] as string);
+    expect(stored).toHaveProperty('status', 'resolved');
+    setItemSpy.mockRestore();
+  });
+
+  it('hydrates filter state from localStorage on ngOnInit (D9)', () => {
+    const { spy } = setupWithFilters({ status: 'in_progress' });
+    fixture.detectChanges();
+
+    // The status filter should be hydrated from localStorage
+    expect(component.statusFilter()).toBe('in_progress');
+  });
+
+  it('calls loadData with hydrated filters from localStorage (D9)', () => {
+    const { spy } = setupWithFilters({ status: 'closed' });
+    fixture.detectChanges();
+
+    // getIncidents should have been called with the hydrated filter
+    expect(spy.getIncidents).toHaveBeenCalled();
+    const callArgs = spy.getIncidents.mock.calls[0][0] as Record<string, unknown>;
+    expect(callArgs['status']).toBe('closed');
+  });
+
+  it('falls back to DEFAULT_FILTERS when localStorage is empty (D9)', () => {
+    const { spy } = setupWithFilters(null);
+    fixture.detectChanges();
+
+    // statusFilter should be null (default) when no stored filters
+    expect(component.statusFilter()).toBeNull();
+    const callArgs = spy.getIncidents.mock.calls[0][0] as Record<string, unknown>;
+    expect(callArgs).not.toHaveProperty('status');
+  });
+
+  it('preserves query-param compat — URL status takes precedence over localStorage (D2)', () => {
+    // URL has status=pending, localStorage has status=closed
+    // URL should win (existing D2 behavior)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ status: 'closed' }));
+
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap({ status: 'pending' }) },
+            queryParamMap: of(convertToParamMap({ status: 'pending' })),
+          },
+        },
+        {
+          provide: IncidentService,
+          useValue: {
+            getIncidents: jest.fn().mockReturnValue(
+              of<IncidentListResult>({ items: [], total: 0, page: 1, limit: 10 }),
+            ),
+          },
+        },
+        {
+          provide: AuthService,
+          useValue: { user: () => ({ permissions: ['READ incidents'] }) },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(IncidentListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // URL status 'pending' should take precedence
+    expect(component.statusFilter()).toBe('pending');
+  });
+});

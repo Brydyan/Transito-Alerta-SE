@@ -78,6 +78,9 @@ function extractPlaceName(data: { address?: Record<string, string>; display_name
  *  - F3.2.9: filtros combinables generan los query params
  *    correctos; restaurar desde URL reconstruye el estado;
  *    `empty-state` cuando no hay resultados.
+ *  - D9 (Batch 4): filter state persisted via localStorage
+ *    (key: 'incidents-filters'). URL params take precedence
+ *    over localStorage when both are present.
  */
 @Component({
   selector: 'app-incident-list',
@@ -107,6 +110,9 @@ export class IncidentListComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly confirmDialog = inject(ConfirmDialogService);
+
+  /** D9 — localStorage key for filter persistence. */
+  private static readonly STORAGE_KEY = 'incidents-filters';
 
   // ── Filter signals (D2) ─────────────────────────────────────────────
   // Las señales se derivan de la URL al montar. La mutación
@@ -198,8 +204,25 @@ export class IncidentListComponent implements OnInit {
     // 1) Hidratar filtros desde la URL (D2 — "restaurar desde URL
     //    reconstruye el estado"). Hoy sólo `status` se persiste.
     const qp = this.route.snapshot.queryParamMap;
-    this.statusFilter.set((qp.get('status') as IncidentStatus | null) ?? null);
-    this.currentPage.set(Number(qp.get('page') ?? '1'));
+    const urlStatus = qp.get('status') as IncidentStatus | null;
+    const urlPage = Number(qp.get('page') ?? '1');
+
+    // D9 — Hydrate from localStorage if URL params are absent.
+    // URL params take precedence over localStorage (D2 decision).
+    if (urlStatus) {
+      this.statusFilter.set(urlStatus);
+    } else {
+      const stored = localStorage.getItem(IncidentListComponent.STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as { status?: IncidentStatus | null };
+          this.statusFilter.set(parsed.status ?? null);
+        } catch {
+          // Malformed stored data — fall through to default (null)
+        }
+      }
+    }
+    this.currentPage.set(urlPage);
 
     // 2) La búsqueda libre se mantiene en memoria (FormControl)
     //    pero NO se manda al backend (C1 — el backend no la soporta).
@@ -356,6 +379,11 @@ export class IncidentListComponent implements OnInit {
   onStatusChange(value: IncidentStatus | null): void {
     this.statusFilter.set(value);
     this.currentPage.set(1);
+    // D9 — Persist filter state to localStorage.
+    localStorage.setItem(
+      IncidentListComponent.STORAGE_KEY,
+      JSON.stringify({ status: value }),
+    );
     this.navigateWithFilters();
     this.fetch();
   }
@@ -368,6 +396,8 @@ export class IncidentListComponent implements OnInit {
     // silencioso. Cuando un change de backend agregue soporte,
     // se reintroduce la signal y se vuelve a montar el selector.
     this.currentPage.set(1);
+    // D9 — Clear persisted filters.
+    localStorage.removeItem(IncidentListComponent.STORAGE_KEY);
     this.navigateWithFilters();
     this.fetch();
   }

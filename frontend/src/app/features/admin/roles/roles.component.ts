@@ -80,6 +80,9 @@ export class RolesComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
 
+  /** D9 — localStorage key for filter persistence. */
+  private static readonly STORAGE_KEY = 'roles-filters';
+
   readonly roles = signal<ReadonlyArray<RoleListItem>>([]);
   readonly stats = signal<RoleStats>({
     totalPermissions: 0,
@@ -168,6 +171,16 @@ export class RolesComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    // D9 — Hydrate search from localStorage before loading data.
+    const stored = localStorage.getItem(RolesComponent.STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as { search?: string };
+        if (parsed.search) this.searchTerm.set(parsed.search);
+      } catch {
+        // Malformed stored data — fall through to defaults
+      }
+    }
     this.loadRoles();
     this.loadStats();
   }
@@ -237,6 +250,11 @@ export class RolesComponent implements OnInit {
 
   onSearch(term: string): void {
     this.searchTerm.set(term);
+    // D9 — Persist search term to localStorage.
+    localStorage.setItem(
+      RolesComponent.STORAGE_KEY,
+      JSON.stringify({ search: term }),
+    );
     this.refetch();
   }
 

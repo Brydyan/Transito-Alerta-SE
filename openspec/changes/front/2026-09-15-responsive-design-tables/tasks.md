@@ -288,7 +288,7 @@ Chain strategy: feature-branch-chain
 
 ### T-21 — Define card grid responsive CSS + breakpoint tokens (D7, D13) — RED
 
-- [ ] **T-21**: Write failing tests for responsive grid/breakpoint contract (D7 + D13).
+- [x] **T-21**: Write failing tests for responsive grid/breakpoint contract (D7 + D13).
 
   **Scope**: Tests / style contract tests.
   **Files**: `frontend/src/app/shared/components/table-to-card/table-to-card.component.spec.ts` (grid class assertions), `frontend/src/app/layout/layout-tokens.regression.spec.ts` (extend if exists) or `frontend/src/styles/_tables.css.spec.ts` (new regression spec reading computed styles)
@@ -298,7 +298,7 @@ Chain strategy: feature-branch-chain
 
 ### T-22 — Implement card grid responsive CSS + breakpoint tokens (D7, D13) — GREEN
 
-- [ ] **T-22**: Apply grid CSS + breakpoint definitions (Tailwind standard, no new config).
+- [x] **T-22**: Apply grid CSS + breakpoint definitions (Tailwind standard, no new config).
 
   **Scope**: Styles + component class wiring.
   **Files**: `frontend/src/styles/_tables.css`, `frontend/src/styles/_layout.css`, `frontend/src/app/shared/components/table-to-card/table-to-card.component.ts` (grid classes), `frontend/src/app/shared/components/ui-table/ui-table.component.ts` (sticky header class)
@@ -309,7 +309,7 @@ Chain strategy: feature-branch-chain
 
 ### T-23 — Implement localStorage sort/filter persistence (D9) — RED
 
-- [ ] **T-23**: Write failing tests for filter/sort persistence via localStorage (D9).
+- [x] **T-23**: Write failing tests for filter/sort persistence via localStorage (D9).
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/features/incidents/incident-list/incident-list.component.spec.ts` (extend), `frontend/src/app/features/admin/users/users-list/users-list.component.spec.ts` (extend)
@@ -320,7 +320,7 @@ Chain strategy: feature-branch-chain
 
 ### T-24 — Implement localStorage sort/filter persistence (D9) — GREEN
 
-- [ ] **T-24**: Wire localStorage persistence per table list.
+- [x] **T-24**: Wire localStorage persistence per table list.
 
   **Scope**: Feature components.
   **Files**: `frontend/src/app/features/incidents/incident-list/incident-list.component.ts`, `frontend/src/app/features/admin/users/users-list/users-list.component.ts`, `frontend/src/app/features/admin/roles/roles.component.ts` (and `frontend/src/app/features/catalogs/organizations/organization-list/organization-list.component.ts` + `frontend/src/app/features/catalogs/incident-categories/category-list/category-list.component.ts` if migrated this batch)
