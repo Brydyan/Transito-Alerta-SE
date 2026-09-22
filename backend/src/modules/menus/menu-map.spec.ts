@@ -200,16 +200,16 @@ describe('MENU_MAP coherence with app routes (F1, D6)', () => {
   });
 
   // front/2026-09-15-departments-menu D6 + 6.2: the CRUD UI lives at
-  // `/app/departamentos`; the backend MENU_MAP entry mirrors it so the
+  // `/app/admin/departamentos`; the backend MENU_MAP entry mirrors it so the
   // sidebar shows the entry once the migration seeds the
   // `READ departments` permission. Both the entry and the frontend
   // route are added together in Phase 5 to keep the CRITICAL-2 test
   // green at every commit.
   describe('Departamentos entry (front/2026-09-15-departments-menu)', () => {
-    it('exists with route /departamentos, requires READ departments, group GESTION, order 81', () => {
+    it('exists with route /admin/departamentos, requires READ departments, group GESTION, order 82', () => {
       const entry = MENU_MAP['Departamentos'];
       expect(entry).toBeDefined();
-      expect(entry.route).toBe('/departamentos');
+      expect(entry.route).toBe('/admin/departamentos');
       expect(entry.requires).toBe('READ departments');
       expect(entry.group).toBe('GESTIÓN');
       expect(entry.order).toBe(82);
