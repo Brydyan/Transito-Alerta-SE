@@ -95,7 +95,7 @@ export const MENU_MAP: Record<string, MenuDefinition> = {
     order: 70,
   },
   Organizaciones: {
-    route: '/organizaciones',
+    route: '/admin/organizaciones',
     requires: 'READ organizations',
     icon: 'building-2',
     group: 'GESTIÓN',
@@ -103,9 +103,9 @@ export const MENU_MAP: Record<string, MenuDefinition> = {
   },
   // front/2026-09-15-departments-menu: Departamentos in GESTIÓN group,
   // order 82, between Organizaciones (80) and Auditoría de Acceso (85).
-  // Route: /departamentos (like categorias/ubicaciones, not /admin/*)
+  // Route: /admin/departamentos (moved to admin section)
   Departamentos: {
-    route: '/departamentos',
+    route: '/admin/departamentos',
     requires: 'READ departments',
     icon: 'building-2',
     group: 'GESTIÓN',

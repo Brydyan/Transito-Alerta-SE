@@ -22,7 +22,6 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { HasPermissionDirective } from '../../../../shared/directives/has-permission.directive';
 import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
-import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
 import { UiTableComponent } from '../../../../shared/components/ui-table/ui-table.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
 
@@ -56,7 +55,6 @@ const GLOBAL_ROLES = new Set(['master', 'operador_sistema']);
     TableSkeletonComponent,
     HasPermissionDirective,
     UiPageHeaderComponent,
-    UiButtonComponent,
     UiTableComponent,
     UiIconComponent,
   ],

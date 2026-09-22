@@ -63,7 +63,7 @@ INSERT INTO menu_options (id, name, route, icon, parent_id, display_order, is_ac
 VALUES
   ('b0000000-0000-0000-0000-000000000006', 'Usuarios', '/admin/users', 'users', 'a0000000-0000-0000-0000-000000000002', 60, true),
   ('b0000000-0000-0000-0000-000000000007', 'Roles', '/admin/roles', 'shield', 'a0000000-0000-0000-0000-000000000002', 70, true),
-  ('b0000000-0000-0000-0000-000000000008', 'Organizaciones', '/organizaciones', 'building-2', 'a0000000-0000-0000-0000-000000000002', 80, true)
+  ('b0000000-0000-0000-0000-000000000008', 'Organizaciones', '/admin/organizaciones', 'building-2', 'a0000000-0000-0000-0000-000000000002', 80, true)
 ON CONFLICT (id) DO NOTHING;
 
 -- CATÁLOGOS children

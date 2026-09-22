@@ -26,7 +26,6 @@ export interface IIncidentCategoryOption {
   parent_id: string | null;
 }
 import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
-import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
 
 // Roles that bypass the per-org scoping (mirror of backend's
@@ -56,7 +55,6 @@ const GLOBAL_ROLES = new Set(['master', 'operador_sistema']);
     CommonModule,
     ReactiveFormsModule,
     UiPageHeaderComponent,
-    UiButtonComponent,
     UiIconComponent,
   ],
   templateUrl: './department-form.component.html',
@@ -324,7 +322,7 @@ export class DepartmentFormComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['../../'], { relativeTo: this.route });
+    this.router.navigate(['../'], { relativeTo: this.route });
   }
 
   private loadDepartment(id: string): void {

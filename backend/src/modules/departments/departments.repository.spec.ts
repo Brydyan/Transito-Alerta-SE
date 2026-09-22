@@ -319,17 +319,22 @@ describe('DepartmentsRepository', () => {
   // ─────────────────────────────────────────────────────────────────
 
   describe('replaceCategoriesForDept', () => {
-    it('replaces the dept\'s category assignment in one statement (DELETE + INSERT ... ON CONFLICT)', async () => {
+    it('executes DELETE then INSERT in separate queries (idempotent two-step)', async () => {
       dataSource.query.mockResolvedValue([]);
 
       await repository.replaceCategoriesForDept('dept-1', ['cat-1', 'cat-2', 'cat-3']);
 
-      const [sql, params] = dataSource.query.mock.calls[0];
-      expect(sql).toContain('DELETE FROM department_incident_categories WHERE department_id = $1');
-      expect(sql).toContain('INSERT INTO department_incident_categories');
-      expect(sql).toContain('UNNEST($2::uuid[])');
-      expect(sql).toContain('ON CONFLICT DO NOTHING');
-      expect(params).toEqual(['dept-1', ['cat-1', 'cat-2', 'cat-3']]);
+      // First call: DELETE
+      const [deleteSql, deleteParams] = dataSource.query.mock.calls[0];
+      expect(deleteSql).toBe('DELETE FROM department_incident_categories WHERE department_id = $1');
+      expect(deleteParams).toEqual(['dept-1']);
+
+      // Second call: INSERT
+      const [insertSql, insertParams] = dataSource.query.mock.calls[1];
+      expect(insertSql).toContain('INSERT INTO department_incident_categories');
+      expect(insertSql).toContain('UNNEST($2::uuid[])');
+      expect(insertSql).toContain('ON CONFLICT DO NOTHING');
+      expect(insertParams).toEqual(['dept-1', ['cat-1', 'cat-2', 'cat-3']]);
     });
 
     it('issues DELETE-only when categoryIds is empty (wipe dept\'s scope)', async () => {
@@ -337,9 +342,9 @@ describe('DepartmentsRepository', () => {
 
       await repository.replaceCategoriesForDept('dept-1', []);
 
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
       const [sql, params] = dataSource.query.mock.calls[0];
-      expect(sql).toContain('DELETE FROM department_incident_categories WHERE department_id = $1');
-      expect(sql).not.toContain('INSERT');
+      expect(sql).toBe('DELETE FROM department_incident_categories WHERE department_id = $1');
       expect(params).toEqual(['dept-1']);
     });
   });

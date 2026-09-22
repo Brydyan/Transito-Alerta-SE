@@ -96,7 +96,7 @@ export class DepartmentsController {
       if (!user.organizationId) {
         throw new ForbiddenException('Caller has no organization scope');
       }
-      if (dto.organizationId !== user.organizationId) {
+      if (dto.organization_id !== user.organizationId) {
         throw new ForbiddenException('Cannot create a department in another organization');
       }
     }
@@ -104,7 +104,7 @@ export class DepartmentsController {
       {
         name: dto.name,
         description: dto.description ?? null,
-        organizationId: dto.organizationId,
+        organizationId: dto.organization_id,
       },
       dto.category_ids ?? [],
     );

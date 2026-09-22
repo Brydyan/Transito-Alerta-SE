@@ -25,7 +25,7 @@ export class CreateDepartmentDto {
   description?: string | null;
 
   @IsUUID('4')
-  organizationId!: string;
+  organization_id!: string;
 
   /**
    * 0058 — incident categories handled by this dept. Optional: when

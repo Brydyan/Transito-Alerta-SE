@@ -196,6 +196,74 @@ export const routes: Routes = [
                 (m) => m.AuditLogsComponent,
               ),
           },
+          {
+            // front/2026-09-15-departments-menu (Phase 5.1): the CRUD UI
+            // now lives at /app/admin/departamentos. Moved from catalog-level
+            // to admin section. Mirrors the categorias route tree
+            // shape (list / new / :id/edit).
+            path: 'departamentos',
+            data: { breadcrumb: 'Departamentos', title: 'Departamentos', phase: 'F6' },
+            children: [
+              {
+                path: '',
+                data: { breadcrumb: 'Departamentos' },
+                loadComponent: () =>
+                  import(
+                    './features/catalogs/departments/department-list/department-list.component'
+                  ).then((m) => m.DepartmentListComponent),
+              },
+              {
+                path: 'new',
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Nuevo Departamento', permission: 'CREATE departments' },
+                loadComponent: () =>
+                  import(
+                    './features/catalogs/departments/department-form/department-form.component'
+                  ).then((m) => m.DepartmentFormComponent),
+              },
+              {
+                path: ':id/edit',
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Editar Departamento', permission: 'UPDATE departments' },
+                loadComponent: () =>
+                  import(
+                    './features/catalogs/departments/department-form/department-form.component'
+                  ).then((m) => m.DepartmentFormComponent),
+              },
+            ],
+          },
+          {
+            path: 'organizaciones',
+            data: { breadcrumb: 'Organizaciones', title: 'Organizaciones', phase: 'F2' },
+            children: [
+              {
+                path: '',
+                data: { breadcrumb: 'Organizaciones' },
+                loadComponent: () =>
+                  import('./features/catalogs/organizations/organization-list/organization-list.component').then(
+                    (m) => m.OrganizationListComponent,
+                  ),
+              },
+              {
+                path: 'new',
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Nueva Organización', permission: 'CREATE organizations' },
+                loadComponent: () =>
+                  import('./features/catalogs/organizations/organization-form/organization-form.component').then(
+                    (m) => m.OrganizationFormComponent,
+                  ),
+              },
+              {
+                path: ':id/edit',
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Editar Organización', permission: 'UPDATE organizations' },
+                loadComponent: () =>
+                  import('./features/catalogs/organizations/organization-form/organization-form.component').then(
+                    (m) => m.OrganizationFormComponent,
+                  ),
+              },
+            ],
+          },
         ],
       },
 
@@ -288,38 +356,6 @@ export const routes: Routes = [
           ),
       },
       {
-        path: 'organizaciones',
-        data: { breadcrumb: 'Organizaciones', title: 'Organizaciones', phase: 'F2' },
-        children: [
-          {
-            path: '',
-            data: { breadcrumb: 'Organizaciones' },
-            loadComponent: () =>
-              import('./features/catalogs/organizations/organization-list/organization-list.component').then(
-                (m) => m.OrganizationListComponent,
-              ),
-          },
-          {
-            path: 'new',
-            canActivate: [permissionGuard],
-            data: { breadcrumb: 'Nueva Organización', permission: 'CREATE organizations' },
-            loadComponent: () =>
-              import('./features/catalogs/organizations/organization-form/organization-form.component').then(
-                (m) => m.OrganizationFormComponent,
-              ),
-          },
-          {
-            path: ':id/edit',
-            canActivate: [permissionGuard],
-            data: { breadcrumb: 'Editar Organización', permission: 'UPDATE organizations' },
-            loadComponent: () =>
-              import('./features/catalogs/organizations/organization-form/organization-form.component').then(
-                (m) => m.OrganizationFormComponent,
-              ),
-          },
-        ],
-      },
-      {
         path: 'categorias',
         data: { breadcrumb: 'Categorías', title: 'Categorías', phase: 'F2' },
         children: [
@@ -348,42 +384,6 @@ export const routes: Routes = [
               import('./features/catalogs/incident-categories/category-form/category-form.component').then(
                 (m) => m.CategoryFormComponent,
               ),
-          },
-        ],
-      },
-      {
-        // front/2026-09-15-departments-menu (Phase 5.1): the CRUD UI
-        // lives at /app/departamentos. Sibling of categorias / ubicaciones
-        // in the CATÁLOGOS group. Mirrors the categorias route tree
-        // shape (list / new / :id/edit).
-        path: 'departamentos',
-        data: { breadcrumb: 'Departamentos', title: 'Departamentos', phase: 'F6' },
-        children: [
-          {
-            path: '',
-            data: { breadcrumb: 'Departamentos' },
-            loadComponent: () =>
-              import(
-                './features/catalogs/departments/department-list/department-list.component'
-              ).then((m) => m.DepartmentListComponent),
-          },
-          {
-            path: 'new',
-            canActivate: [permissionGuard],
-            data: { breadcrumb: 'Nuevo Departamento', permission: 'CREATE departments' },
-            loadComponent: () =>
-              import(
-                './features/catalogs/departments/department-form/department-form.component'
-              ).then((m) => m.DepartmentFormComponent),
-          },
-          {
-            path: ':id/edit',
-            canActivate: [permissionGuard],
-            data: { breadcrumb: 'Editar Departamento', permission: 'UPDATE departments' },
-            loadComponent: () =>
-              import(
-                './features/catalogs/departments/department-form/department-form.component'
-              ).then((m) => m.DepartmentFormComponent),
           },
         ],
       },
