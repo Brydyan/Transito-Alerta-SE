@@ -14,18 +14,20 @@
   </button>
 </ui-page-header>
 
-<section class="toolbar">
-  <app-search-bar
-    class="toolbar__search"
-    placeholder="Buscar por nombre, email o cargo..."
-    (searchChange)="onSearch($event)"
-  />
-  <app-filter-bar
-    [roles]="roles()"
-    [organizations]="organizations()"
-    (filterChange)="onFilterChange($event)"
-  />
-</section>
+<app-filter-drawer>
+  <section class="toolbar">
+    <app-search-bar
+      class="toolbar__search"
+      placeholder="Buscar por nombre, email o cargo..."
+      (searchChange)="onSearch($event)"
+    />
+    <app-filter-bar
+      [roles]="roles()"
+      [organizations]="organizations()"
+      (filterChange)="onFilterChange($event)"
+    />
+  </section>
+</app-filter-drawer>
 
 @if (errorMessage()) {
   <div class="error-banner" role="alert">
@@ -41,7 +43,18 @@
 @if (isLoading()) {
   <app-table-skeleton [cols]="7" [rows]="5" />
 } @else {
-  <ui-table caption="Listado de usuarios">
+  <table-to-card
+    [items]="cardItems()"
+    [cardFields]="cardFields"
+    [cardActions]="cardActions()"
+    [hasMore]="hasMore()"
+    [isLoadingMore]="isLoadingMore()"
+    trackKey="usuarioId"
+    (detailClicked)="onCardDetail($event)"
+    (actionClicked)="onCardAction($event)"
+    (loadMore)="loadMoreUsers()"
+  >
+    <ui-table caption="Listado de usuarios">
     <thead>
       <tr>
         <th>Foto</th>
@@ -115,7 +128,8 @@
         </tr>
       }
     </tbody>
-  </ui-table>
+    </ui-table>
+  </table-to-card>
 
   <app-pagination
     [totalItems]="total()"

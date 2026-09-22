@@ -14,13 +14,15 @@
   </button>
 </ui-page-header>
 
-<section class="toolbar">
-  <app-search-bar
-    class="toolbar__search"
-    placeholder="Nombre del rol..."
-    (searchChange)="onSearch($event)"
-  />
-</section>
+<app-filter-drawer>
+  <section class="toolbar">
+    <app-search-bar
+      class="toolbar__search"
+      placeholder="Nombre del rol..."
+      (searchChange)="onSearch($event)"
+    />
+  </section>
+</app-filter-drawer>
 
 @if (errorMessage()) {
   <div class="error-banner" role="alert">
@@ -36,7 +38,18 @@
 @if (isLoading()) {
   <app-table-skeleton [cols]="3" [rows]="5" />
 } @else {
-  <ui-table caption="Listado de roles">
+  <table-to-card
+    [items]="cardItems()"
+    [cardFields]="cardFields"
+    [cardActions]="cardActions()"
+    [hasMore]="hasMore()"
+    [isLoadingMore]="isLoadingMore()"
+    trackKey="rolId"
+    (detailClicked)="onCardDetail($event)"
+    (actionClicked)="onCardAction($event)"
+    (loadMore)="loadMoreRoles()"
+  >
+    <ui-table caption="Listado de roles">
     <thead>
       <tr>
         <th>Nombre</th>
@@ -77,7 +90,8 @@
         </tr>
       }
     </tbody>
-  </ui-table>
+    </ui-table>
+  </table-to-card>
 
   <app-pagination
     [totalItems]="total()"

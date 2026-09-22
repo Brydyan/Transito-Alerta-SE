@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -8,6 +9,7 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { UsersService } from '../services/users.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
+import { LayoutService } from '../../../../core/services/layout.service';
 
 import { UsersListComponent } from './users-list.component';
 
@@ -123,6 +125,50 @@ describe('UsersListComponent (F6 rediseño)', () => {
     expect(mockUsersService.getUsers).toHaveBeenCalledWith(1, 10, '1', 'org-1');
   });
 
+  // ── Filtros role/org locales (UX fix: el backend ignora role/org
+  //    en GET /users, así que visibleUsers debe filtrar localmente) ──
+  it('visibleUsers filtra localmente por rol cuando selectedRole está seteado (UX fix)', () => {
+    component.selectedRole.set('1');
+    const visible = component.visibleUsers();
+    expect(visible.length).toBe(2);
+    expect(visible.every((u) => String(u.rol?.rolId) === '1')).toBe(true);
+  });
+
+  it('visibleUsers filtra localmente por organización cuando selectedOrg está seteado (UX fix)', () => {
+    component.users.set([
+      {
+        usuarioId: 'u1',
+        nombres: 'A',
+        apellidos: 'B',
+        email: 'a@test.com',
+        rol: { rolId: '1', nombre: 'ADMIN ORG' },
+        organizationId: 'org-1',
+      },
+      {
+        usuarioId: 'u2',
+        nombres: 'C',
+        apellidos: 'D',
+        email: 'c@test.com',
+        rol: { rolId: '2', nombre: 'OPERADOR ORG' },
+        organizationId: null,
+      },
+    ] as never);
+    component.selectedOrg.set('org-1');
+    expect(component.visibleUsers().length).toBe(1);
+    expect(component.visibleUsers()[0].usuarioId).toBe('u1');
+  });
+
+  it('filtros combinados: search + rol aplican AND (UX fix)', () => {
+    component.onSearch('María');
+    component.selectedRole.set('1');
+    // "María" matchea la búsqueda pero su rol es 2 → 0 con rol 1.
+    expect(component.visibleUsers().length).toBe(0);
+
+    component.selectedRole.set('2');
+    expect(component.visibleUsers().length).toBe(1);
+    expect(component.visibleUsers()[0].email).toBe('maria@test.com');
+  });
+
   it('getOrganizationName resuelve el nombre desde el signal organizations (fix batch C.1)', () => {
     expect(component.getOrganizationName(undefined)).toBe('—');
     expect(component.getOrganizationName(null)).toBe('—');
@@ -136,5 +182,125 @@ describe('UsersListComponent (F6 rediseño)', () => {
   it('delete llama al service y recarga la lista', () => {
     component.onDelete(1);
     expect(mockUsersService.deleteUser).toHaveBeenCalledWith(1);
+  });
+});
+
+/**
+ * T-19 — RED: Failing tests for Users mobile cards (S9.2).
+ *
+ * S9.2: Users cards show nombre | email | rol + detail + ⋮.
+ * S3.2: Load-more button on mobile when hasMore=true.
+ * S4.1: Desktop still shows ui-table + inline filters.
+ */
+describe('UsersListComponent — mobile cards integration (S9.2)', () => {
+  let component: UsersListComponent;
+  let fixture: ComponentFixture<UsersListComponent>;
+  let mockUsersService: {
+    getUsers: jest.Mock;
+    getRoles: jest.Mock;
+    getOrganizations: jest.Mock;
+    deleteUser: jest.Mock;
+  };
+
+  const fixtureUsers = [
+    { usuarioId: '1', nombres: 'Juan', apellidos: 'Pérez', email: 'juan@test.com', rol: { rolId: '1', nombre: 'ADMIN ORG' } },
+    { usuarioId: '2', nombres: 'María', apellidos: 'López', email: 'maria@test.com', rol: { rolId: '2', nombre: 'OPERADOR ORG' } },
+  ];
+
+  function setupMobile() {
+    mockUsersService = {
+      getUsers: jest.fn().mockReturnValue(
+        of({ data: fixtureUsers, total: 2, meta: { total: 2, page: 1, last_page: 1, per_page: 10 } }),
+      ),
+      getRoles: jest.fn().mockReturnValue(of([])),
+      getOrganizations: jest.fn().mockReturnValue(of([])),
+      deleteUser: jest.fn().mockReturnValue(of(undefined)),
+    };
+
+    TestBed.configureTestingModule({
+      imports: [UsersListComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuthService,
+          useValue: { logout: jest.fn(), currentUser: signal({ name: 'Test', roleName: 'Admin' }) },
+        },
+        { provide: UsersService, useValue: mockUsersService },
+        { provide: ToastService, useValue: { success: jest.fn(), error: jest.fn() } },
+        { provide: ConfirmDialogService, useValue: { confirm: () => of(true) } },
+        {
+          provide: LayoutService,
+          useValue: { isSmallViewport$: of(true) },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(UsersListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  }
+
+  it('renders card grid on mobile (app-data-card elements)', () => {
+    setupMobile();
+    const cards = fixture.debugElement.queryAll(By.css('app-data-card'));
+    expect(cards.length).toBe(2);
+  });
+
+  it('each card shows nombre, email, and rol (S9.2)', () => {
+    setupMobile();
+    const cards = fixture.debugElement.queryAll(By.css('app-data-card'));
+    const firstCardText = cards[0].nativeElement.textContent;
+    expect(firstCardText).toContain('Juan');
+    expect(firstCardText).toContain('juan@test.com');
+    expect(firstCardText).toContain('ADMIN ORG');
+  });
+
+  it('each card has "Ver detalle" button (S2.3)', () => {
+    setupMobile();
+    const detailBtns = fixture.debugElement.queryAll(By.css('[data-card-detail]'));
+    expect(detailBtns.length).toBe(2);
+  });
+
+  it('each card has action dropdown (S2.4)', () => {
+    setupMobile();
+    const dropdowns = fixture.debugElement.queryAll(By.css('app-action-dropdown'));
+    expect(dropdowns.length).toBe(2);
+  });
+
+  it('provides USERS_CARD_FIELDS to TableToCard', () => {
+    setupMobile();
+    expect(component['cardFields']).toBeDefined();
+    expect(component['cardFields'].length).toBe(3);
+  });
+
+  it('card grid is visible and table is hidden on mobile', () => {
+    setupMobile();
+    const cardGrid = fixture.debugElement.query(By.css('[data-card-grid]'));
+    expect(cardGrid).toBeTruthy();
+    expect(cardGrid.nativeElement.classList.contains('hidden')).toBe(false);
+
+    const tableWrapper = fixture.debugElement.query(By.css('[data-table-wrapper]'));
+    expect(tableWrapper).toBeTruthy();
+    expect(tableWrapper.nativeElement.classList.contains('hidden')).toBe(true);
+  });
+
+  it('mobile card "Editar" action navigates to /edit (S9.2 regression)', () => {
+    setupMobile();
+    const navigateSpy = jest.spyOn(component['router'] as never, 'navigate' as never) as unknown as jest.Mock;
+    component.onCardAction({ action: { id: 'edit', label: 'Editar' }, data: { usuarioId: '1' } });
+    expect(navigateSpy).toHaveBeenCalledWith(['/app/admin/users', '1', 'edit']);
+  });
+
+  it('mobile card "Eliminar" action confirms and deletes (S9.2 regression)', () => {
+    setupMobile();
+    component.onCardAction({ action: { id: 'delete', label: 'Eliminar' }, data: { usuarioId: '1' } });
+    expect(mockUsersService.deleteUser).toHaveBeenCalledWith('1');
+  });
+
+  it('mobile card "Ver detalle" opens the read-only modal (S9.2 regression)', () => {
+    setupMobile();
+    const modalSpy = jest.spyOn(component['userDetailModalService'] as never, 'open' as never) as unknown as jest.Mock;
+    component.onCardDetail({ usuarioId: '1' });
+    expect(modalSpy).toHaveBeenCalled();
   });
 });

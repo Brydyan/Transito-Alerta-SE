@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -7,6 +8,7 @@ import { RolesComponent } from './roles.component';
 import { RolesService } from './services/roles.service';
 import { ToastService } from '../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../shared/components/confirm-dialog/confirm-dialog.service';
+import { LayoutService } from '../../../core/services/layout.service';
 
 /**
  * F6 rediseño (`2026-09-08-f6-roles-redesign`) — contrato del
@@ -101,6 +103,17 @@ describe('RolesComponent (F6 rediseño)', () => {
     expect(component.visibleRoles().length).toBe(5);
   });
 
+  it('cardItems refleja la búsqueda local (UX fix: las cards mobile usan visibleRoles)', () => {
+    component.onSearch('operador');
+    // La tabla usa visibleRoles() pero cardItems usaba roles() crudo,
+    // así la búsqueda no se reflejaba en las cards mobile.
+    expect(component.cardItems().length).toBe(2);
+    expect(component.cardItems().map((c) => c['nombre'])).toEqual([
+      'operador_sistema',
+      'operador_organizacion',
+    ]);
+  });
+
   it('captura 500 del backend en getRoles y enciende errorMessage', () => {
     mockRolesService.getRoles.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 500 })),
@@ -160,5 +173,116 @@ describe('RolesComponent (F6 rediseño)', () => {
     fixture.detectChanges();
     const badge = fixture.nativeElement.querySelector('.permission-badge') as HTMLElement;
     expect(badge.textContent).toContain('—');
+  });
+});
+
+/**
+ * T-19 — RED: Failing tests for Roles mobile cards (S9.3).
+ *
+ * S9.3: Roles cards show nombre | [N] permisos | [N] usuarios + detail + ⋮.
+ * S4.1: Desktop still shows ui-table + inline filters.
+ */
+describe('RolesComponent — mobile cards integration (S9.3)', () => {
+  let component: RolesComponent;
+  let fixture: ComponentFixture<RolesComponent>;
+  let mockRolesService: {
+    getRoles: jest.Mock;
+    getRoleStats: jest.Mock;
+    deleteRole: jest.Mock;
+  };
+
+  const fixtureRoles = [
+    { rolId: '1', nombre: 'admin_sistema', isSystemRole: true, permissionCount: 48 },
+    { rolId: '2', nombre: 'operador_sistema', isSystemRole: true, permissionCount: 32 },
+  ];
+
+  function setupMobile() {
+    mockRolesService = {
+      getRoles: jest.fn().mockReturnValue(of(fixtureRoles)),
+      getRoleStats: jest.fn().mockReturnValue(of({ totalPermissions: 80, protectedModules: 5, assignedUsers: 10 })),
+      deleteRole: jest.fn().mockReturnValue(of(undefined)),
+    };
+
+    TestBed.configureTestingModule({
+      imports: [RolesComponent],
+      providers: [
+        provideRouter([]),
+        { provide: RolesService, useValue: mockRolesService },
+        { provide: ToastService, useValue: { success: jest.fn(), error: jest.fn() } },
+        { provide: ConfirmDialogService, useValue: { confirm: jest.fn().mockReturnValue(of(false)) } },
+        {
+          provide: LayoutService,
+          useValue: { isSmallViewport$: of(true) },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(RolesComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  }
+
+  it('renders card grid on mobile (app-data-card elements)', () => {
+    setupMobile();
+    const cards = fixture.debugElement.queryAll(By.css('app-data-card'));
+    expect(cards.length).toBe(2);
+  });
+
+  it('each card shows nombre and permissionCount (S9.3)', () => {
+    setupMobile();
+    const cards = fixture.debugElement.queryAll(By.css('app-data-card'));
+    const firstCardText = cards[0].nativeElement.textContent;
+    expect(firstCardText).toContain('admin_sistema');
+    expect(firstCardText).toContain('48');
+  });
+
+  it('each card has "Ver detalle" button (S2.3)', () => {
+    setupMobile();
+    const detailBtns = fixture.debugElement.queryAll(By.css('[data-card-detail]'));
+    expect(detailBtns.length).toBe(2);
+  });
+
+  it('each card has action dropdown (S2.4)', () => {
+    setupMobile();
+    const dropdowns = fixture.debugElement.queryAll(By.css('app-action-dropdown'));
+    expect(dropdowns.length).toBe(2);
+  });
+
+  it('provides ROLES_CARD_FIELDS to TableToCard', () => {
+    setupMobile();
+    expect(component['cardFields']).toBeDefined();
+    expect(component['cardFields'].length).toBe(3);
+  });
+
+  it('card grid is visible and table is hidden on mobile', () => {
+    setupMobile();
+    const cardGrid = fixture.debugElement.query(By.css('[data-card-grid]'));
+    expect(cardGrid).toBeTruthy();
+    expect(cardGrid.nativeElement.classList.contains('hidden')).toBe(false);
+
+    const tableWrapper = fixture.debugElement.query(By.css('[data-table-wrapper]'));
+    expect(tableWrapper).toBeTruthy();
+    expect(tableWrapper.nativeElement.classList.contains('hidden')).toBe(true);
+  });
+
+  it('mobile card "Editar" action navigates to the role editor (S9.3 regression)', () => {
+    setupMobile();
+    const navigateSpy = jest.spyOn(component['router'] as never, 'navigate' as never) as unknown as jest.Mock;
+    component.onCardAction({ action: { id: 'edit', label: 'Editar' }, data: { rolId: '1' } });
+    expect(navigateSpy).toHaveBeenCalledWith(['/app/admin/roles', '1']);
+  });
+
+  it('mobile card "Eliminar" action confirms and deletes (S9.3 regression)', () => {
+    setupMobile();
+    (TestBed.inject(ConfirmDialogService).confirm as jest.Mock).mockReturnValue(of(true));
+    component.onCardAction({ action: { id: 'delete', label: 'Eliminar' }, data: { rolId: '1' } });
+    expect(mockRolesService.deleteRole).toHaveBeenCalledWith('1');
+  });
+
+  it('mobile card "Ver detalle" navigates to the role editor (S9.3 regression)', () => {
+    setupMobile();
+    const navigateSpy = jest.spyOn(component['router'] as never, 'navigate' as never) as unknown as jest.Mock;
+    component.onCardDetail({ rolId: '1' });
+    expect(navigateSpy).toHaveBeenCalledWith(['/app/admin/roles', '1']);
   });
 });

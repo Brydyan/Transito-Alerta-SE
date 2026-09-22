@@ -1,5 +1,12 @@
 import { Injectable, signal } from '@angular/core';
-import { Observable, fromEvent, map, debounceTime, shareReplay } from 'rxjs';
+import {
+  Observable,
+  fromEvent,
+  map,
+  debounceTime,
+  shareReplay,
+  startWith,
+} from 'rxjs';
 
 @Injectable({
   providedIn: 'root',
@@ -13,6 +20,11 @@ export class LayoutService {
    * Emits `true` when `window.innerWidth < 1024` (mobile/tablet),
    * `false` when >= 1024 (desktop/table mode).
    * Debounces resize events by 200ms and replays the last value.
+   *
+   * `startWith` (UX fix): emits the current viewport state immediately
+   * on subscribe, so the first render never waits for a resize event.
+   * Without it, consumers using `| async` saw `null` until the first
+   * resize and decided the wrong branch on initial paint.
    */
   readonly isSmallViewport$: Observable<boolean> = fromEvent(
     typeof window !== 'undefined' ? window : globalThis,
@@ -20,6 +32,9 @@ export class LayoutService {
   ).pipe(
     debounceTime(200),
     map(() => window.innerWidth < this.breakpoint),
+    startWith(
+      typeof window !== 'undefined' ? window.innerWidth < this.breakpoint : false,
+    ),
     shareReplay(1),
   );
 

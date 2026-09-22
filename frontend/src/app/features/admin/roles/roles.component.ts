@@ -30,6 +30,10 @@ import { PaginationComponent } from '../../../shared/components/pagination/pagin
 import { SearchBarComponent } from '../users/users-list/components/search-bar.component';
 import { ActionMenuComponent } from '../users/users-list/components/action-menu.component';
 import { StatsCardsComponent } from './components/stats-cards.component';
+import { TableToCardComponent } from '../../../shared/components/table-to-card/table-to-card.component';
+import { FilterDrawerComponent } from '../../../shared/components/filter-drawer/filter-drawer.component';
+import { ROLES_CARD_FIELDS } from '../../../shared/components/table-to-card/card-fields';
+import { type CardField, type CardAction } from '../../../shared/components/data-card/data-card.component';
 
 /**
  * RolesComponent rediseñado — F6 (`2026-09-08-f6-roles-redesign`).
@@ -62,6 +66,8 @@ import { StatsCardsComponent } from './components/stats-cards.component';
     SearchBarComponent,
     ActionMenuComponent,
     StatsCardsComponent,
+    TableToCardComponent,
+    FilterDrawerComponent,
   ],
   templateUrl: './roles.component.html',
   styleUrl: './roles.component.css',
@@ -100,6 +106,59 @@ export class RolesComponent implements OnInit {
   });
 
   readonly hasFilters = computed(() => !!this.searchTerm());
+
+  // ── Card fields & actions (D1, D4, D8, S9.3) ──────────────────────
+  /** 3-field card configuration for mobile card view (S9.3). */
+  readonly cardFields: CardField[] = [...ROLES_CARD_FIELDS];
+
+  /** Items cast to Record format for TableToCardComponent.
+   *  Uses `visibleRoles()` so the mobile card view reflects the local
+   *  search term — previously it mapped raw `roles()` and the cards
+   *  ignored search while the desktop table honored it. */
+  readonly cardItems = computed<Record<string, unknown>[]>(() => {
+    return this.visibleRoles().map((r) => ({
+      ...r,
+      permisosCount: r.permissionCount ?? 0,
+      usuariosCount: 0,
+    })) as unknown as Record<string, unknown>[];
+  });
+
+  /** Card actions for mobile dropdown (edit, delete). */
+  readonly cardActions = computed<CardAction[]>(() => {
+    return [
+      { id: 'edit', label: 'Editar' },
+      { id: 'delete', label: 'Eliminar' },
+    ];
+  });
+
+  // ── Load-more state (D5, S3.2) ───────────────────────────────────
+  readonly hasMore = signal(false);
+  readonly isLoadingMore = signal(false);
+  private loadMorePage = 2;
+
+  /** Append next page of roles to the list (D5, S3.2). */
+  loadMoreRoles(): void {
+    this.isLoadingMore.set(true);
+    this.rolesService
+      .getRoles(this.loadMorePage, this.pageSize(), this.searchTerm() || undefined)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (list) => {
+          if (!list) {
+            this.isLoadingMore.set(false);
+            return;
+          }
+          this.roles.update((prev) => [...prev, ...list]);
+          this.total.set(this.roles().length);
+          this.hasMore.set(list.length === this.pageSize());
+          this.loadMorePage++;
+          this.isLoadingMore.set(false);
+        },
+        error: () => {
+          this.isLoadingMore.set(false);
+        },
+      });
+  }
 
   readonly pageRange = computed(() => {
     if (this.total() === 0) return '0';
@@ -165,6 +224,9 @@ export class RolesComponent implements OnInit {
           }
           this.roles.set(list);
           this.total.set(list.length);
+          // D5: hasMore depends on whether more items are available
+          this.loadMorePage = 2;
+          this.hasMore.set(list.length === this.pageSize());
         },
         error: (err) => {
           console.error('[Roles] subscription error:', err);
@@ -187,11 +249,44 @@ export class RolesComponent implements OnInit {
    *  un filtro nuevo no deje al usuario en una página vacía. */
   private refetch(): void {
     this.currentPage.set(1);
+    this.loadMorePage = 2;
+    this.hasMore.set(false);
     this.loadRoles();
   }
 
   onView(roleId: string | number): void {
     this.router.navigate(['/app/admin/roles', roleId]);
+  }
+
+  /** Detail CTA on mobile card — same navigation as the desktop eye
+   *  icon (`onView`). */
+  onCardDetail(data: Record<string, unknown>): void {
+    const id = data['rolId'];
+    if (id != null) {
+      this.onView(id as string);
+    }
+  }
+
+  /** Dispatch mobile card dropdown actions (S9.3).
+   *  Fix: `table-to-card` emits `actionClicked` but these outputs were
+   *  never connected on mobile — desktop worked because `ui-table`
+   *  uses `app-action-menu` directly. */
+  onCardAction(event: { action: CardAction; data: Record<string, unknown> }): void {
+    const id = event.data['rolId'];
+    if (id == null) {
+      this.toast.error('No se encontró el rol.', 'Error');
+      return;
+    }
+    switch (event.action.id) {
+      case 'edit':
+        this.onEdit(id as string);
+        break;
+      case 'delete':
+        this.onDelete(id as string);
+        break;
+      default:
+        break;
+    }
   }
 
   onEdit(roleId: string | number): void {

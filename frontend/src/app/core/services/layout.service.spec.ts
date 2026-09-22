@@ -46,6 +46,16 @@ describe('LayoutService — isSmallViewport$', () => {
     sub.unsubscribe();
   }));
 
+  it('emits the initial value immediately on subscribe (startWith UX fix)', fakeAsync(() => {
+    // Sin un resize previo, el observable DEBE emitir el valor inicial
+    // calculado — antes esto quedaba en `null` hasta el primer resize,
+    // y el FilterDrawer/table-to-card decidían mal en el primer render.
+    setInnerWidth(1280);
+    let result: boolean | undefined;
+    service.isSmallViewport$.subscribe((v) => (result = v));
+    expect(result).toBe(false);
+  }));
+
   it('emits false when window.innerWidth >= 1024', fakeAsync(() => {
     setInnerWidth(1280);
     let result: boolean | undefined;
@@ -63,9 +73,13 @@ describe('LayoutService — isSmallViewport$', () => {
     let emissionCount = 0;
     const sub = service.isSmallViewport$.subscribe(() => emissionCount++);
 
+    // startWith emits the initial value on subscribe
+    expect(emissionCount).toBe(1);
+
     // Initial resize to start the chain
     window.dispatchEvent(new Event('resize'));
     tick(300);
+    expect(emissionCount).toBe(2);
 
     // Now make rapid changes within debounce window
     setInnerWidth(1300);
@@ -78,12 +92,12 @@ describe('LayoutService — isSmallViewport$', () => {
     window.dispatchEvent(new Event('resize'));
     tick(50);
 
-    // Only 1 emission so far (initial), none from the rapid changes
-    expect(emissionCount).toBe(1);
+    // No emissions from the rapid changes (still debounced)
+    expect(emissionCount).toBe(2);
 
     // After debounce settles
     tick(200);
-    expect(emissionCount).toBe(2);
+    expect(emissionCount).toBe(3);
     sub.unsubscribe();
   }));
 

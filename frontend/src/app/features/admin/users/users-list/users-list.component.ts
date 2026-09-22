@@ -29,6 +29,11 @@ import { UiBadgeComponent } from '../../../../shared/components/ui-badge/ui-badg
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { UiTableComponent } from '../../../../shared/components/ui-table/ui-table.component';
+import { TableToCardComponent } from '../../../../shared/components/table-to-card/table-to-card.component';
+import { FilterDrawerComponent } from '../../../../shared/components/filter-drawer/filter-drawer.component';
+import { USERS_CARD_FIELDS } from '../../../../shared/components/table-to-card/card-fields';
+import { type CardField, type CardAction } from '../../../../shared/components/data-card/data-card.component';
+import { type CardAction as ActionDropdownCardAction } from '../../../../shared/components/action-dropdown/action-dropdown.component';
 import { AuthService } from '../../../../core/services/auth.service';
 
 import { SearchBarComponent } from './components/search-bar.component';
@@ -72,6 +77,8 @@ import { UserDetailModalService } from '../user-detail-modal/user-detail-modal.s
     FilterBarComponent,
     ActionMenuComponent,
     UserDetailModalComponent,
+    TableToCardComponent,
+    FilterDrawerComponent,
   ],
   templateUrl: './users-list.component.html',
   styleUrl: './users-list.component.css',
@@ -109,21 +116,38 @@ export class UsersListComponent implements OnInit {
   readonly selectedRole = signal('');
   readonly selectedOrg = signal('');
 
-  /** Lista que se muestra en la grilla — `users()` filtrada por
-   *  `searchTerm` (búsqueda local) o `users()` entera. */
+  /**
+   * Lista que se muestra en la grilla.
+   *
+   * Search is local; selectedRole/selectedOrg are ALSO applied locally
+   * (AND combination) so filters work on the visible list immediately.
+   * NOTE: the backend's `GET /users` ignores `role`/`org` query params
+   * today (documented deviation, see apply-progress + users.service.ts);
+   * keeping the filters local guarantees the UI honors them regardless,
+   * matching how the spec's "Instant feedback" decision works for search.
+   */
   readonly visibleUsers = computed(() => {
     const term = this.searchTerm().trim().toLowerCase();
-    if (!term) return this.users();
+    const role = this.selectedRole();
+    const org = this.selectedOrg();
     return this.users().filter((u) => {
-      const haystack = [
-        u.nombres,
-        u.apellidos,
-        u.email,
-        u.rol?.nombre ?? '',
-      ]
-        .join(' ')
-        .toLowerCase();
-      return haystack.includes(term);
+      // Search: match by name/email/role name.
+      if (term) {
+        const haystack = [
+          u.nombres,
+          u.apellidos,
+          u.email,
+          u.rol?.nombre ?? '',
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
+      // Role filter: compare against the role's id (string-tolerant).
+      if (role && String(u.rol?.rolId ?? '') !== String(role)) return false;
+      // Org filter: compare against organizationId.
+      if (org && String(u.organizationId ?? '') !== String(org)) return false;
+      return true;
     });
   });
 
@@ -136,6 +160,67 @@ export class UsersListComponent implements OnInit {
     () =>
       !!this.searchTerm() || !!this.selectedRole() || !!this.selectedOrg(),
   );
+
+  // ── Card fields & actions (D1, D4, D8, S9.2) ──────────────────────
+  /** 3-field card configuration for mobile card view (S9.2). */
+  readonly cardFields: CardField[] = [...USERS_CARD_FIELDS];
+
+  /** Items cast to Record format for TableToCardComponent. */
+  readonly cardItems = computed<Record<string, unknown>[]>(() => {
+    return this.visibleUsers().map((u) => ({
+      ...u,
+      nombre: `${u.nombres} ${u.apellidos}`.trim(),
+      rol: u.rol?.nombre ?? 'Sin rol',
+    })) as unknown as Record<string, unknown>[];
+  });
+
+  /** Card actions for mobile dropdown (edit, delete, permissions). */
+  readonly cardActions = computed<CardAction[]>(() => {
+    const actions: CardAction[] = [
+      { id: 'edit', label: 'Editar' },
+      { id: 'delete', label: 'Eliminar' },
+    ];
+    return actions;
+  });
+
+  // ── Load-more state (D5, S3.2) ───────────────────────────────────
+  readonly hasMore = signal(false);
+  readonly isLoadingMore = signal(false);
+  private loadMorePage = 2;
+
+  /** Append next page of users to the list (D5, S3.2). */
+  loadMoreUsers(): void {
+    this.isLoadingMore.set(true);
+    this.usersService
+      .getUsers(
+        this.loadMorePage,
+        this.pageSize(),
+        this.selectedRole() || undefined,
+        this.selectedOrg() || undefined,
+      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          if (!response) {
+            this.isLoadingMore.set(false);
+            return;
+          }
+          const newItems = response.data ?? [];
+          this.users.update((prev) => [...prev, ...newItems]);
+          const total =
+            (response as { total?: number }).total ??
+            (response as { meta?: { total?: number } }).meta?.total ??
+            0;
+          this.total.set(total);
+          this.hasMore.set(newItems.length === this.pageSize());
+          this.loadMorePage++;
+          this.isLoadingMore.set(false);
+        },
+        error: () => {
+          this.isLoadingMore.set(false);
+        },
+      });
+  }
 
   readonly pageRange = computed(() => {
     if (this.total() === 0) return '0';
@@ -210,6 +295,9 @@ export class UsersListComponent implements OnInit {
           (response as { meta?: { total?: number } }).meta?.total ??
           (response.data ?? []).length;
         this.total.set(total);
+        // D5: hasMore depends on whether there are more pages
+        this.loadMorePage = 2;
+        this.hasMore.set((response.data ?? []).length === this.pageSize());
       });
   }
 
@@ -248,6 +336,8 @@ export class UsersListComponent implements OnInit {
    *  varado en una página que ya no tiene datos con el filtro activo. */
   private refetch(): void {
     this.currentPage.set(1);
+    this.loadMorePage = 2;
+    this.hasMore.set(false);
     this.loadUsers();
   }
 
@@ -271,6 +361,37 @@ export class UsersListComponent implements OnInit {
 
   onEdit(userId: string | number): void {
     this.router.navigate(['/app/admin/users', userId, 'edit']);
+  }
+
+  /** Detail CTA on mobile card — same read-only modal as the desktop
+   *  eye icon (`onView`). */
+  onCardDetail(data: Record<string, unknown>): void {
+    const id = data['usuarioId'];
+    if (id != null) {
+      this.onView(id as string);
+    }
+  }
+
+  /** Dispatch mobile card dropdown actions (S9.2).
+   *  Fix: `table-to-card` emits `actionClicked` but these outputs were
+   *  never connected on mobile — desktop worked because `ui-table`
+   *  uses `app-action-menu` directly. */
+  onCardAction(event: { action: CardAction; data: Record<string, unknown> }): void {
+    const id = event.data['usuarioId'];
+    if (id == null) {
+      this.toastService.error('No se encontró el usuario.', 'Error');
+      return;
+    }
+    switch (event.action.id) {
+      case 'edit':
+        this.onEdit(id as string);
+        break;
+      case 'delete':
+        this.onDelete(id as string);
+        break;
+      default:
+        break;
+    }
   }
 
   onDelete(userId: string | number): void {
