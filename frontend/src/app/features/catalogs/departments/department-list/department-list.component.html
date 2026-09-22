@@ -48,7 +48,7 @@
   <!-- Body: loading skeleton, empty state, or table -->
   <ng-container *ngIf="isLoading(); else loaded">
     <div class="p-6">
-      <app-table-skeleton [rows]="5" [cols]="showOrganizationColumn() ? 6 : 5" />
+      <app-table-skeleton [rows]="5" [cols]="showOrganizationColumn() ? 5 : 4" />
     </div>
   </ng-container>
 
@@ -61,7 +61,6 @@
             <th class="px-6 py-3 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold">Descripción</th>
             <th *ngIf="showOrganizationColumn()" class="px-6 py-3 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold">{{ organizationHeaderLabel }}</th>
             <th class="px-6 py-3 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold">Usuarios</th>
-            <th class="px-6 py-3 text-left text-xs uppercase tracking-wider text-slate-500 font-semibold">Creado</th>
             <th class="px-6 py-3 text-right text-xs uppercase tracking-wider text-slate-500 font-semibold">Acciones</th>
           </tr>
         </thead>
@@ -75,7 +74,6 @@
                 {{ dept.user_count ?? 0 }}
               </span>
             </td>
-            <td class="px-6 py-3 text-sm text-slate-500">{{ dept.created_at | date: 'dd/MM/yyyy HH:mm' }}</td>
             <td class="px-6 py-3 text-right">
               <button
                 type="button"
