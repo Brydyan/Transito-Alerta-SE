@@ -1,7 +1,7 @@
 <!-- Card grid — visible on mobile/tablet only -->
 <div
   data-card-grid
-  [class]="(isSmallViewport$ | async) ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'hidden'"
+  [class]="(isSmallViewport$ | async) ? 'grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6' : 'hidden'"
 >
   @for (item of items(); track item[trackKey()]) {
     <app-data-card

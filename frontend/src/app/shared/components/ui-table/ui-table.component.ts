@@ -73,6 +73,9 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
         text-transform: uppercase;
         text-align: left;
         vertical-align: middle;
+        position: sticky;
+        top: 0;
+        z-index: 10;
       }
       :host ::ng-deep .ui-table td {
         padding: 0.875rem 1.25rem;

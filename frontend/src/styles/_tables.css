@@ -73,4 +73,38 @@
       overflow: visible !important;
     }
   }
+
+  /* =====================
+     Responsive Card Grid — D7, D13 (Batch 4)
+     =====================
+     Tailwind standard breakpoints (no custom config):
+       sm: 640px   md: 768px   lg: 1024px   xl: 1280px   2xl: 1536px
+
+     S7.3 — Responsive spacing:
+       sm:  0.5rem gap, 1rem card padding
+       md:  1rem gap,   1.25rem card padding
+       lg+: 1.5rem gap, 1.5rem card padding
+     ===================== */
+
+  /* Card grid responsive spacing (applied via Tailwind classes on
+     table-to-card component; this layer provides fallback for
+     non-Tailwind contexts and progressive enhancement). */
+  .card-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem; /* sm: 0.5rem (S7.3) */
+  }
+
+  @media (min-width: 640px) { /* md */
+    .card-grid {
+      gap: 1rem; /* md: 1rem (S7.3) */
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1024px) { /* lg+ */
+    .card-grid {
+      gap: 1.5rem; /* lg+: 1.5rem (S7.3) */
+    }
+  }
 }

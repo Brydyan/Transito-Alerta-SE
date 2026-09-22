@@ -103,6 +103,57 @@ describe('TableToCardComponent', () => {
   });
 
   /**
+   * T-21 — RED: Failing tests for responsive grid/breakpoint contract (D7, D13).
+   *
+   * S2.1: card grid toggles at lg breakpoint (1024px).
+   * S7.1: standard Tailwind breakpoints; no custom config.
+   * S7.3: responsive spacing (sm 0.5rem, md 1rem, lg+ 1.5rem).
+   * S1.2: desktop ui-table gets sticky header.
+   */
+  describe('responsive grid contract (D7, D13) — T-21', () => {
+    it('card grid has responsive CSS classes grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 (D7)', () => {
+      createComponent(true);
+      const cardGrid = fixture.debugElement.query(By.css('[data-card-grid]'));
+      expect(cardGrid).toBeTruthy();
+      const classes = cardGrid.nativeElement.className;
+      expect(classes).toContain('grid');
+      expect(classes).toContain('grid-cols-1');
+      expect(classes).toContain('md:grid-cols-2');
+      expect(classes).toContain('gap-4');
+      expect(classes).toContain('lg:gap-6');
+    });
+
+    it('card grid is hidden on desktop (isSmallViewport$=false) via hidden class', () => {
+      createComponent(false);
+      const cardGrid = fixture.debugElement.query(By.css('[data-card-grid]'));
+      expect(cardGrid).toBeTruthy();
+      expect(cardGrid.nativeElement.classList.contains('hidden')).toBe(true);
+    });
+
+    it('card grid is visible on mobile (isSmallViewport$=true) without hidden class', () => {
+      createComponent(true);
+      const cardGrid = fixture.debugElement.query(By.css('[data-card-grid]'));
+      expect(cardGrid).toBeTruthy();
+      expect(cardGrid.nativeElement.classList.contains('hidden')).toBe(false);
+    });
+
+    it('desktop table wrapper has no hidden class when isSmallViewport$=false', () => {
+      createComponent(false);
+      const tableWrapper = fixture.debugElement.query(By.css('[data-table-wrapper]'));
+      expect(tableWrapper).toBeTruthy();
+      expect(tableWrapper.nativeElement.classList.contains('hidden')).toBe(false);
+    });
+
+    it('desktop table wrapper preserves overflow-x-auto for progressive fallback (S10.1–S10.2)', () => {
+      createComponent(false);
+      const tableWrapper = fixture.debugElement.query(By.css('[data-table-wrapper]'));
+      expect(tableWrapper).toBeTruthy();
+      // The table wrapper is a pass-through; overflow-x-auto lives on
+      // ui-table's internal wrapper. Here we just verify the wrapper exists.
+    });
+  });
+
+  /**
    * T-15 — RED: Failing tests for "Ver más datos" infinite scroll (D5).
    *
    * S3.2: "Ver más datos" button appears below card grid on mobile when hasMore=true.

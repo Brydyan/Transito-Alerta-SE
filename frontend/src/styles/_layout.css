@@ -1,6 +1,11 @@
 /* 
   Layout Styles
   Global styles for the application shell (Header, Sidebar, Main Layout)
+
+  Tailwind standard breakpoints (D7, D13 — Batch 4):
+    sm: 640px   md: 768px   lg: 1024px   xl: 1280px   2xl: 1536px
+  No custom breakpoints are added; responsive behavior uses standard
+  Tailwind prefixes (hidden lg:block, block lg:hidden, grid-cols-1 md:grid-cols-2).
 */
 
 /* ---------------------------------------------------
