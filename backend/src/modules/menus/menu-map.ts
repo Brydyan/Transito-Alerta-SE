@@ -95,7 +95,7 @@ export const MENU_MAP: Record<string, MenuDefinition> = {
     order: 70,
   },
   Organizaciones: {
-    route: '/organizaciones',
+    route: '/admin/organizaciones',
     requires: 'READ organizations',
     icon: 'building-2',
     group: 'GESTIÓN',

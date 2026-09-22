@@ -232,6 +232,38 @@ export const routes: Routes = [
               },
             ],
           },
+          {
+            path: 'organizaciones',
+            data: { breadcrumb: 'Organizaciones', title: 'Organizaciones', phase: 'F2' },
+            children: [
+              {
+                path: '',
+                data: { breadcrumb: 'Organizaciones' },
+                loadComponent: () =>
+                  import('./features/catalogs/organizations/organization-list/organization-list.component').then(
+                    (m) => m.OrganizationListComponent,
+                  ),
+              },
+              {
+                path: 'new',
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Nueva Organización', permission: 'CREATE organizations' },
+                loadComponent: () =>
+                  import('./features/catalogs/organizations/organization-form/organization-form.component').then(
+                    (m) => m.OrganizationFormComponent,
+                  ),
+              },
+              {
+                path: ':id/edit',
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Editar Organización', permission: 'UPDATE organizations' },
+                loadComponent: () =>
+                  import('./features/catalogs/organizations/organization-form/organization-form.component').then(
+                    (m) => m.OrganizationFormComponent,
+                  ),
+              },
+            ],
+          },
         ],
       },
 
@@ -322,38 +354,6 @@ export const routes: Routes = [
           import('./features/citizen-report/citizen-report.component').then(
             (m) => m.CitizenReportComponent,
           ),
-      },
-      {
-        path: 'organizaciones',
-        data: { breadcrumb: 'Organizaciones', title: 'Organizaciones', phase: 'F2' },
-        children: [
-          {
-            path: '',
-            data: { breadcrumb: 'Organizaciones' },
-            loadComponent: () =>
-              import('./features/catalogs/organizations/organization-list/organization-list.component').then(
-                (m) => m.OrganizationListComponent,
-              ),
-          },
-          {
-            path: 'new',
-            canActivate: [permissionGuard],
-            data: { breadcrumb: 'Nueva Organización', permission: 'CREATE organizations' },
-            loadComponent: () =>
-              import('./features/catalogs/organizations/organization-form/organization-form.component').then(
-                (m) => m.OrganizationFormComponent,
-              ),
-          },
-          {
-            path: ':id/edit',
-            canActivate: [permissionGuard],
-            data: { breadcrumb: 'Editar Organización', permission: 'UPDATE organizations' },
-            loadComponent: () =>
-              import('./features/catalogs/organizations/organization-form/organization-form.component').then(
-                (m) => m.OrganizationFormComponent,
-              ),
-          },
-        ],
       },
       {
         path: 'categorias',

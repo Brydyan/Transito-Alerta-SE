@@ -192,7 +192,7 @@ export class OrganizationFormComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['../../'], { relativeTo: this.route });
+    this.router.navigate(['../'], { relativeTo: this.route });
   }
 
   private loadOrganization(id: string): void {
