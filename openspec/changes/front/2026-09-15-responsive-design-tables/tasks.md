@@ -220,7 +220,7 @@ Chain strategy: feature-branch-chain
 
 ### T-15 — Implement "Ver más datos" infinite scroll trigger (D5) — RED
 
-- [ ] **T-15**: Write failing tests for manual infinite scroll ("Ver más datos") on mobile.
+- [x] **T-15**: Write failing tests for manual infinite scroll ("Ver más datos") on mobile.
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/shared/components/table-to-card/table-to-card.component.spec.ts` (extend) and `frontend/src/app/features/incidents/incident-list/incident-list.component.spec.ts` (extend)
@@ -231,7 +231,7 @@ Chain strategy: feature-branch-chain
 
 ### T-16 — Implement "Ver más datos" infinite scroll trigger (D5) — GREEN
 
-- [ ] **T-16**: Implement `loadMoreData()` + "Ver más datos" button (manual, no auto-load).
+- [x] **T-16**: Implement `loadMoreData()` + "Ver más datos" button (manual, no auto-load).
 
   **Scope**: Shared + feature logic.
   **Files**: `frontend/src/app/shared/components/table-to-card/table-to-card.component.ts` (button + `hasMore`/`isLoading` inputs/outputs), `frontend/src/app/features/incidents/incident-list/incident-list.component.ts` (pagination state: `currentPage`, `pageSize`, `hasMore`, `isLoadingMore`)
@@ -242,7 +242,7 @@ Chain strategy: feature-branch-chain
 
 ### T-17 — Create FilterDrawerComponent (D6) — RED
 
-- [ ] **T-17**: Write failing tests for `FilterDrawerComponent` mobile collapsible.
+- [x] **T-17**: Write failing tests for `FilterDrawerComponent` mobile collapsible.
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/shared/components/filter-drawer/filter-drawer.component.spec.ts` (new)
@@ -253,7 +253,7 @@ Chain strategy: feature-branch-chain
 
 ### T-18 — Create FilterDrawerComponent (D6) — GREEN
 
-- [ ] **T-18**: Implement `FilterDrawerComponent` (standalone, OnPush).
+- [x] **T-18**: Implement `FilterDrawerComponent` (standalone, OnPush).
 
   **Scope**: Component implementation.
   **Files**: `frontend/src/app/shared/components/filter-drawer/filter-drawer.component.ts` (new), `frontend/src/app/shared/components/filter-drawer/index.ts` (new)
@@ -263,7 +263,7 @@ Chain strategy: feature-branch-chain
 
 ### T-19 — Integrate UsersListComponent + RolesComponent: cards + load-more + drawer (S9.2–S9.3) — RED
 
-- [ ] **T-19**: Write failing integration tests for Users + Roles mobile cards.
+- [x] **T-19**: Write failing integration tests for Users + Roles mobile cards.
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/features/admin/users/users-list/users-list.component.spec.ts` (extend), `frontend/src/app/features/admin/roles/roles.component.spec.ts` (extend)
@@ -273,7 +273,7 @@ Chain strategy: feature-branch-chain
 
 ### T-20 — Integrate UsersListComponent + RolesComponent: cards + load-more + drawer (S9.2–S9.3) — GREEN
 
-- [ ] **T-20**: Migrate `UsersListComponent` + `RolesComponent` to `TableToCard` + `FilterDrawer` + load-more.
+- [x] **T-20**: Migrate `UsersListComponent` + `RolesComponent` to `TableToCard` + `FilterDrawer` + load-more.
 
   **Scope**: Feature components.
   **Files**: `frontend/src/app/features/admin/users/users-list/users-list.component.ts`, `frontend/src/app/features/admin/users/users-list/users-list.component.html`, `frontend/src/app/features/admin/roles/roles.component.ts`, `frontend/src/app/features/admin/roles/roles.component.html`

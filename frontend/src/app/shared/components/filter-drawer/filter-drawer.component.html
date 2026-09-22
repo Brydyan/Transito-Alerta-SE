@@ -1,0 +1,85 @@
+<!--
+  FilterDrawer presentation (S4.x).
+
+  A SINGLE projected slot (`ng-content`) that is ALWAYS rendered, with its
+  role switched purely by CSS classes. This is deliberate: Angular 21
+  projects content only into the LAST `ng-content` of a template when
+  several unselected slots exist in mutually-exclusive branches, which
+  left the desktop branch empty in the old two-slot layout (S4.1
+  regression). One always-rendered slot avoids that entirely.
+
+  Roles by state:
+  - Desktop (>= 1024px): container is a normal inline block; content
+    always visible (S4.1).
+  - Mobile (< 1024px), closed: container `hidden`; a "Filtros" toggle
+    button is shown (S4.2).
+  - Mobile, open: the same container becomes the slide-in drawer
+    (fixed, left, full height) with overlay (S4.3) and a header with
+    close button (S4.5). Filter changes apply immediately (S4.4).
+-->
+
+@if ((isSmallViewport$ | async) === true && !isOpen()) {
+  <!-- Mobile "Filtros" toggle button (S4.2) — only when closed -->
+  <button
+    data-filters-toggle
+    type="button"
+    (click)="toggleDrawer()"
+    class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 bg-bg-secondary border-border-subtle text-text-primary hover:bg-bg-tertiary focus:ring-2 focus:ring-brand-primary/40"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </svg>
+    Filtros
+  </button>
+}
+
+@if ((isSmallViewport$ | async) === true && isOpen()) {
+  <!-- Drawer overlay (S4.3) -->
+  <div
+    data-filter-overlay
+    class="fixed inset-0 bg-black/30 z-40"
+    (click)="closeDrawer()"
+    aria-hidden="true"
+  ></div>
+}
+
+<!--
+  Content container — ALWAYS rendered.
+  Desktop: inline (S4.1). Mobile closed: hidden. Mobile open: drawer.
+-->
+<div
+  [attr.data-filter-drawer]="(isSmallViewport$ | async) === true && isOpen() ? '' : null"
+  [class.hidden]="(isSmallViewport$ | async) === true && !isOpen()"
+  [class.fixed]="(isSmallViewport$ | async) === true && isOpen()"
+  [class.left-0]="(isSmallViewport$ | async) === true && isOpen()"
+  [class.top-0]="(isSmallViewport$ | async) === true && isOpen()"
+  [class.bottom-0]="(isSmallViewport$ | async) === true && isOpen()"
+  [class.w-64]="(isSmallViewport$ | async) === true && isOpen()"
+  [class.bg-bg-secondary]="(isSmallViewport$ | async) === true && isOpen()"
+  [class.shadow-lg]="(isSmallViewport$ | async) === true && isOpen()"
+  [class.z-50]="(isSmallViewport$ | async) === true && isOpen()"
+  [class.p-4]="(isSmallViewport$ | async) === true && isOpen()"
+  [class.overflow-y-auto]="(isSmallViewport$ | async) === true && isOpen()"
+>
+  @if ((isSmallViewport$ | async) === true && isOpen()) {
+    <!-- Drawer header (S4.5) -->
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-text-primary">Filtros</h2>
+      <button
+        data-filter-close
+        type="button"
+        (click)="closeDrawer()"
+        class="p-2 rounded-lg hover:bg-bg-tertiary transition-colors"
+        aria-label="Cerrar filtros"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+  }
+
+  <!-- Filter content projected from parent (S4.4: changes apply immediately) -->
+  <ng-content />
+</div>

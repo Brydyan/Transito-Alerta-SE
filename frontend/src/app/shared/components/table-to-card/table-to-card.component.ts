@@ -44,12 +44,26 @@ export class TableToCardComponent {
   /** Actions available on each card. */
   readonly cardActions = input<CardAction[]>([]);
 
+  /** Item key used for @for track identity. Defaults to `id`
+   *  (incidents use `id`); users/roles pass `usuarioId`/`rolId`
+   *  because their wire models use domain-specific primary keys. */
+  readonly trackKey = input<string>('id');
+
   /** Route or event for detail navigation. */
   readonly detailRoute = input<string>('');
+
+  /** Whether more data is available to load (S3.2, S3.5). */
+  readonly hasMore = input<boolean>(false);
+
+  /** Whether a load-more fetch is currently in flight (S3.3). */
+  readonly isLoadingMore = input<boolean>(false);
 
   /** Reactive viewport switch from LayoutService (D2). */
   readonly isSmallViewport$: Observable<boolean> = inject(LayoutService).isSmallViewport$;
 
   @Output() readonly detailClicked = new EventEmitter<Record<string, unknown>>();
   @Output() readonly actionClicked = new EventEmitter<{ action: CardAction; data: Record<string, unknown> }>();
+
+  /** Emit when user clicks "Ver más datos" (D5, S3.2). */
+  @Output() readonly loadMore = new EventEmitter<void>();
 }

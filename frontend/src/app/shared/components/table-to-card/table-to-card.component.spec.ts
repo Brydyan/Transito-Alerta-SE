@@ -101,4 +101,86 @@ describe('TableToCardComponent', () => {
       expect(component.cardFields()).toEqual(mockFields);
     });
   });
+
+  /**
+   * T-15 — RED: Failing tests for "Ver más datos" infinite scroll (D5).
+   *
+   * S3.2: "Ver más datos" button appears below card grid on mobile when hasMore=true.
+   * S3.3: Button shows loading state when isLoadingMore=true.
+   * S3.4: No auto-load on scroll (button click only).
+   * S3.5: Button hidden when hasMore=false.
+   * S3.1: Button hidden on desktop.
+   */
+  describe('load-more button (D5, S3.2–S3.5)', () => {
+    it('shows "Ver más datos" button on mobile when hasMore=true', () => {
+      createComponent(true);
+      fixture.componentRef.setInput('hasMore', true);
+      fixture.componentRef.setInput('isLoadingMore', false);
+      fixture.detectChanges();
+
+      const loadMoreBtn = fixture.debugElement.query(By.css('[data-load-more]'));
+      expect(loadMoreBtn).toBeTruthy();
+      expect(loadMoreBtn.nativeElement.textContent).toContain('Ver más datos');
+    });
+
+    it('hides "Ver más datos" button on mobile when hasMore=false (S3.5)', () => {
+      createComponent(true);
+      fixture.componentRef.setInput('hasMore', false);
+      fixture.componentRef.setInput('isLoadingMore', false);
+      fixture.detectChanges();
+
+      const loadMoreBtn = fixture.debugElement.query(By.css('[data-load-more]'));
+      expect(loadMoreBtn).toBeNull();
+    });
+
+    it('hides "Ver más datos" button on desktop (S3.1)', () => {
+      createComponent(false);
+      fixture.componentRef.setInput('hasMore', true);
+      fixture.componentRef.setInput('isLoadingMore', false);
+      fixture.detectChanges();
+
+      const loadMoreBtn = fixture.debugElement.query(By.css('[data-load-more]'));
+      expect(loadMoreBtn).toBeNull();
+    });
+
+    it('shows "Cargando..." and disables button when isLoadingMore=true (S3.3)', () => {
+      createComponent(true);
+      fixture.componentRef.setInput('hasMore', true);
+      fixture.componentRef.setInput('isLoadingMore', true);
+      fixture.detectChanges();
+
+      const loadMoreBtn = fixture.debugElement.query(By.css('[data-load-more]'));
+      expect(loadMoreBtn).toBeTruthy();
+      expect(loadMoreBtn.nativeElement.textContent).toContain('Cargando');
+      expect(loadMoreBtn.nativeElement.disabled).toBe(true);
+    });
+
+    it('emits loadMore event when button clicked', () => {
+      createComponent(true);
+      fixture.componentRef.setInput('hasMore', true);
+      fixture.componentRef.setInput('isLoadingMore', false);
+      fixture.detectChanges();
+
+      const spy = jest.fn();
+      component.loadMore.subscribe(spy);
+
+      const loadMoreBtn = fixture.debugElement.query(By.css('[data-load-more]'));
+      loadMoreBtn.nativeElement.click();
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not emit loadMore when button is disabled', () => {
+      createComponent(true);
+      fixture.componentRef.setInput('hasMore', true);
+      fixture.componentRef.setInput('isLoadingMore', true);
+      fixture.detectChanges();
+
+      const spy = jest.fn();
+      component.loadMore.subscribe(spy);
+
+      const loadMoreBtn = fixture.debugElement.query(By.css('[data-load-more]'));
+      loadMoreBtn.nativeElement.click();
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
 });

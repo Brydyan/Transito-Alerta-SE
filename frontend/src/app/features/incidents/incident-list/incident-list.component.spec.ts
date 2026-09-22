@@ -357,3 +357,122 @@ describe('IncidentListComponent — mobile cards integration (S9.1)', () => {
     expect(component['cardActions']).toBeDefined();
   });
 });
+
+/**
+ * T-15 — RED: Failing tests for load-more behavior on IncidentListComponent.
+ *
+ * S3.5: Backend does NOT paginate (C1 ronda 4) — hasMore=false,
+ *       no load-more button rendered.
+ * S3.1: Desktop pagination untouched (shouldShowPagination already false).
+ */
+describe('IncidentListComponent — load-more behavior (D5)', () => {
+  let fixture: import('@angular/core/testing').ComponentFixture<IncidentListComponent>;
+  let component: IncidentListComponent;
+
+  function setupWithIncidents(count: number) {
+    const items = Array.from({ length: count }, (_, i) => ({
+      id: `inc-${i}`,
+      title: `Incident ${i}`,
+      status: 'pending' as const,
+      priority: 'medium' as const,
+      description: '',
+      lat: -2.2,
+      lng: -80.8,
+      zone_id: 'zone-1',
+      geofence_matched: true,
+      organization_id: 'org-A',
+      citizen_id: 'user-1',
+      assigned_to: null,
+      category_id: null,
+      claimed_by: null,
+      claimed_at: null,
+      approved_by: null,
+      approved_at: null,
+      rejected_by: null,
+      rejected_at: null,
+      rejection_reason: null,
+      closed_reason: null,
+      resolution_date: null,
+      follower_count: 0,
+      corroboration_count: 0,
+      is_followed_by_me: false,
+      is_corroborated_by_me: false,
+      created_at: new Date('2026-09-01'),
+      updated_at: new Date('2026-09-01'),
+      deleted_at: null,
+    }));
+
+    const spy = {
+      getIncidents: jest.fn().mockReturnValue(
+        of({ items, total: count, page: 1, limit: count }),
+      ),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap({}) },
+            queryParamMap: of(convertToParamMap({})),
+          },
+        },
+        { provide: IncidentService, useValue: spy },
+        {
+          provide: AuthService,
+          useValue: { user: () => ({ permissions: ['READ incidents'] }) },
+        },
+      ],
+    });
+
+    fixture = TestBed.createComponent(IncidentListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    return { spy };
+  }
+
+  it('hasMore is false because backend does not paginate (C1 ronda 4)', () => {
+    setupWithIncidents(5);
+    // IncidentService returns all items; shouldShowPagination is false.
+    // The component should NOT expose a load-more path.
+    expect(component.shouldShowPagination()).toBe(false);
+  });
+
+  it('does not render load-more button on mobile for incidents', () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap({}) },
+            queryParamMap: of(convertToParamMap({})),
+          },
+        },
+        {
+          provide: IncidentService,
+          useValue: {
+            getIncidents: jest.fn().mockReturnValue(
+              of({ items: [], total: 0, page: 1, limit: 10 }),
+            ),
+          },
+        },
+        {
+          provide: AuthService,
+          useValue: { user: () => ({ permissions: ['READ incidents'] }) },
+        },
+        {
+          provide: LayoutService,
+          useValue: { isSmallViewport$: of(true) },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(IncidentListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const loadMoreBtn = fixture.debugElement.query(By.css('[data-load-more]'));
+    expect(loadMoreBtn).toBeNull();
+  });
+});
