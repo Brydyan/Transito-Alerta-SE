@@ -65,11 +65,11 @@ services:
       timeout: 3s
       retries: 5
 
-  # ── Migrations (solo perfil staging) ──────────────────────────────────────
+  # ── Migrations (dev + staging) ────────────────────────────────────────────
   # Init container: valida + ejecuta migraciones antes de que arranque el backend.
   # EXIT 0 si OK, EXIT 1 si drift. El backend solo arranca si migrations = 0.
+  # Runs in both dev (docker compose up) and staging (with --profile staging)
   migrations:
-    profiles: [staging]
     build:
       context: .
       dockerfile: backend/Dockerfile.migrations
