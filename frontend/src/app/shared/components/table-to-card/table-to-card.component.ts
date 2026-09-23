@@ -52,6 +52,9 @@ export class TableToCardComponent {
   /** Route or event for detail navigation. */
   readonly detailRoute = input<string>('');
 
+  /** Whether initial data is loading (D11 skeleton, S5.1 no-shift). */
+  readonly isLoading = input<boolean>(false);
+
   /** Whether more data is available to load (S3.2, S3.5). */
   readonly hasMore = input<boolean>(false);
 

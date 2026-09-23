@@ -1,18 +1,28 @@
-<!-- Card grid — visible on mobile/tablet only -->
-<div
-  data-card-grid
-  [class]="(isSmallViewport$ | async) ? 'grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6' : 'hidden'"
->
-  @for (item of items(); track item[trackKey()]) {
-    <app-data-card
-      [data]="item"
-      [fields]="cardFields()"
-      [actions]="cardActions()"
-      (detailClicked)="detailClicked.emit($event)"
-      (actionClicked)="actionClicked.emit($event)"
-    ></app-data-card>
-  }
-</div>
+<!-- Card skeleton — shown while initial load (D11, S5.1) -->
+@if ((isSmallViewport$ | async) && isLoading()) {
+  <div data-card-skeleton class="animate-pulse h-64 bg-gray-200 rounded"></div>
+} @else {
+  <!-- Card grid — visible on mobile/tablet only -->
+  <div
+    data-card-grid
+    [class]="(isSmallViewport$ | async) ? 'grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6' : 'hidden'"
+  >
+    @for (item of items(); track item[trackKey()]) {
+      <app-data-card
+        [data]="item"
+        [fields]="cardFields()"
+        [actions]="cardActions()"
+        (detailClicked)="detailClicked.emit($event)"
+        (actionClicked)="actionClicked.emit($event)"
+      ></app-data-card>
+    }
+  </div>
+}
+
+<!-- Skeleton for load-more in-flight (D11) -->
+@if ((isSmallViewport$ | async) && isLoadingMore()) {
+  <div data-card-skeleton class="animate-pulse h-64 bg-gray-200 rounded mt-4"></div>
+}
 
 <!-- "Ver más datos" button — mobile only, below card grid (D5, S3.2–S3.5) -->
 @if ((isSmallViewport$ | async) && hasMore()) {
@@ -21,7 +31,7 @@
       data-load-more
       [disabled]="isLoadingMore()"
       (click)="loadMore.emit()"
-      class="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium rounded-lg border transition-all duration-200 bg-brand-primary border-brand-primary text-white hover:bg-brand-primary-hover hover:border-brand-primary-hover focus:ring-2 focus:ring-brand-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
+      class="inline-flex items-center gap-2 px-6 py-3 min-h-[44px] min-w-[44px] h-11 text-sm font-medium rounded-lg border transition-all duration-200 bg-brand-primary border-brand-primary text-white hover:bg-brand-primary-hover hover:border-brand-primary-hover focus-visible:ring-2 focus-visible:ring-brand-primary/40 focus-visible:outline-none focus:ring-2 focus:ring-brand-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
     >
       @if (isLoadingMore()) {
         <span class="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full" aria-hidden="true"></span>

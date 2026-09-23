@@ -234,4 +234,94 @@ describe('TableToCardComponent', () => {
       expect(spy).not.toHaveBeenCalled();
     });
   });
-});
+
+  /**
+   * T-27 — RED: Touch-friendly sizing for Ver más datos (D10, S6.2/S8.2).
+   * Must FAIL before T-28 styling.
+   */
+  describe('touch target sizing — Ver más datos (D10, T-27)', () => {
+    it('Ver más datos button has min-h-[44px] or h-11 (≥44px)', () => {
+      createComponent(true);
+      fixture.componentRef.setInput('hasMore', true);
+      fixture.componentRef.setInput('isLoadingMore', false);
+      fixture.detectChanges();
+      const btn = fixture.debugElement.query(By.css('[data-load-more]'));
+      expect(btn).toBeTruthy();
+      const cls: string = btn.nativeElement.className;
+      const hasTouch = cls.includes('min-h-[44px]') || cls.includes('h-11') || cls.includes('min-h-11');
+      expect(hasTouch).toBe(true);
+    });
+  });
+
+  /**
+   * T-29 — RED: CLS stability / skeleton (D11, S5.1).
+   * Must FAIL before T-30 implementation.
+   */
+  describe('CLS stability / skeleton (D11, S5.1 — T-29)', () => {
+    it('shows skeleton animate-pulse h-64 bg-gray-200 rounded while isLoadingMore=true instead of empty grid', () => {
+      createComponent(true);
+      fixture.componentRef.setInput('hasMore', true);
+      fixture.componentRef.setInput('isLoadingMore', true);
+      // If isLoading input exists, set it as well
+      const anyComp = component as unknown as Record<string, unknown>;
+      if ('isLoading' in component) {
+        fixture.componentRef.setInput('isLoading' as never, true as never);
+      }
+      fixture.detectChanges();
+      const skeleton = fixture.debugElement.query(By.css('[data-card-skeleton]'));
+      expect(skeleton).toBeTruthy();
+      const cls: string = skeleton.nativeElement.className;
+      expect(cls).toContain('animate-pulse');
+      expect(cls).toContain('h-64');
+      expect(cls).toContain('bg-gray-200');
+      expect(cls).toContain('rounded');
+    });
+
+    it('shows skeleton while isLoading=true (initial load) on mobile', () => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [{ provide: LayoutService, useValue: { isSmallViewport$: of(true) } }],
+      });
+      const f = TestBed.createComponent(TableToCardComponent);
+      const c = f.componentInstance;
+      f.componentRef.setInput('items', []);
+      f.componentRef.setInput('cardFields', mockFields);
+      // Set isLoading if present
+      if ('isLoading' in c) {
+        f.componentRef.setInput('isLoading' as never, true as never);
+      } else {
+        // If isLoading not yet implemented, this test MUST fail — we assert skeleton exists
+        // which will be absent, causing failure (RED phase)
+      }
+      f.componentRef.setInput('hasMore', false);
+      f.componentRef.setInput('isLoadingMore', false);
+      f.detectChanges();
+      const skeleton = f.debugElement.query(By.css('[data-card-skeleton]'));
+      // Expect skeleton to exist when isLoading — before implementation this fails
+      expect(skeleton).toBeTruthy();
+    });
+
+    it('appending items via loadMore does not shift existing card DOM order (no layout shift S5.1)', () => {
+      createComponent(true);
+      fixture.componentRef.setInput('hasMore', true);
+      fixture.componentRef.setInput('isLoadingMore', false);
+      fixture.detectChanges();
+      const beforeCards = fixture.debugElement.queryAll(By.css('app-data-card'));
+      const beforeCount = beforeCards.length;
+      expect(beforeCount).toBe(2);
+      // Append new item
+      const newItems = [
+        ...mockItems,
+        { id: '3', title: 'Item 3', status: 'closed' },
+      ];
+      fixture.componentRef.setInput('items', newItems as never);
+      fixture.detectChanges();
+      const afterCards = fixture.debugElement.queryAll(By.css('app-data-card'));
+      expect(afterCards.length).toBe(3);
+      // First two cards should remain same order/data
+      const firstAfterInputs = afterCards[0].componentInstance.data();
+      const secondAfterInputs = afterCards[1].componentInstance.data();
+      expect(firstAfterInputs).toEqual(mockItems[0]);
+      expect(secondAfterInputs).toEqual(mockItems[1]);
+    });
+  });
