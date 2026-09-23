@@ -115,9 +115,9 @@
 
 ---
 
-## R4: Filter Drawer (Mobile Collapsible)
+## R4: Filter Panel (Mobile Collapsible — Anchored Dropdown)
 
-**Requirement**: Filters are hidden in drawer on mobile; always visible on desktop.
+**Requirement**: Filters are hidden behind the "Filtros" button on mobile and shown in an anchored panel below the button; always visible inline on desktop.
 
 ### S4.1 — Desktop filters visible
 
@@ -126,33 +126,35 @@
 **Then** filter panel (search, dropdowns, date pickers) is visible  
 **And** filters remain visible during scroll
 
-### S4.2 — Mobile filters in drawer
+### S4.2 — Mobile filters hidden behind button (anchored panel)
 
 **Given** mobile user (sm/md) viewing any table  
 **When** page loads  
 **Then** filter panel is hidden (collapsed)  
-**And** "Filtros" button is visible at top of table/grid
+**And** "Filtros" button is visible at top of table/grid  
+**And** the panel, when opened, appears anchored directly below the "Filtros" button
 
-### S4.3 — Open/close drawer
+### S4.3 — Open/close filter panel (anchored dropdown below button)
 
 **Given** mobile user clicks "Filtros" button  
 **When** button is tapped  
-**Then** filter drawer slides in from left or bottom (scoped)  
-**And** drawer overlays card grid (z-index managed)
+**Then** filter panel opens anchored directly below the button (`relative` wrapper + `absolute left-0 top-full mt-2` panel, compact width `w-64`/`w-72`)  
+**And** panel uses card styling (`rounded-lg border shadow-lg z-50 max-h-[80vh] overflow-y-auto p-4`) and is positioned absolute-overlay (no layout shift)  
+**And** z-index is managed and the grid remains visible behind the panel (no dark overlay)
 
 ### S4.4 — Filter changes apply immediately
 
-**Given** mobile user in filter drawer  
+**Given** mobile user in filter panel  
 **When** user changes a filter (e.g., status dropdown, search input)  
 **Then** table/grid updates immediately (no "Apply" button)  
-**And** drawer stays open (user can close manually or continue filtering)
+**And** panel stays open (user can close manually or continue filtering)
 
-### S4.5 — Close drawer
+### S4.5 — Close panel
 
-**Given** filter drawer is open  
-**When** user clicks outside drawer, presses Esc, or taps close button  
-**Then** drawer slides out  
-**And** card grid is fully visible again
+**Given** filter panel is open  
+**When** user clicks outside panel, presses Esc, or taps close button (`data-filter-close`, ≥44px, `aria-label="Cerrar filtros"`)  
+**Then** panel closes (no slide animation required) and is hidden  
+**And** card grid is fully visible again (was never obscured by a dark overlay)
 
 ---
 

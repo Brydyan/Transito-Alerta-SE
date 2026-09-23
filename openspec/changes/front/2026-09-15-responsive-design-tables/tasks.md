@@ -242,23 +242,23 @@ Chain strategy: feature-branch-chain
 
 ### T-17 — Create FilterDrawerComponent (D6) — RED
 
-- [x] **T-17**: Write failing tests for `FilterDrawerComponent` mobile collapsible.
+- [x] **T-17**: Write failing tests for `FilterDrawerComponent` mobile collapsible. (Batch 5 polish: panel anchored below Filtros button instead of full-height drawer per user feedback)
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/shared/components/filter-drawer/filter-drawer.component.spec.ts` (new)
   **Done criteria**:
-  - Tests assert: desktop (`isSmallViewport=false`) → `<ng-content>` filters visible always, no "Filtros" button (S4.1); mobile → filters hidden, "Filtros" button visible (S4.2); click "Filtros" slides drawer with overlay `fixed inset-0 bg-black/30 z-40` + panel `fixed left-0 top-0 bottom-0 w-64 bg-white shadow-lg z-50` (S4.3); filter change applies immediately (no Apply button) and drawer stays open (S4.4); Esc / outside-click / "Cerrar" closes drawer (S4.5); keyboard focus trap / focus ring (S8.1).
+  - Tests assert: desktop (`isSmallViewport=false`) → `<ng-content>` filters visible inline, no "Filtros" button (S4.1); mobile → filters hidden, "Filtros" button visible with `aria-expanded="false"` (S4.2, anchored-panel contract); click "Filtros" opens anchored panel `absolute left-0 top-full mt-2 w-72 rounded-lg border shadow-lg z-50 max-h-[80vh] overflow-y-auto p-4` inside `relative inline-flex` wrapper (S4.3 — NO dark overlay `fixed inset-0 bg-black/30`, NO full-height `fixed left-0 top-0 bottom-0`), grid remains visible behind; filter change applies immediately (no Apply button) and panel stays open (S4.4); Esc / outside tap via `ClickOutsideDirective` / close button (`data-filter-close`, `aria-label="Cerrar filtros"`) closes panel (S4.5, no slide); wrapper/panel classes assert `absolute`/`top-full`/`mt-2` and `relative` anchoring; single `ng-content` slot preserved; a11y focus ring (S8.1).
   - Tests currently **fail**.
   - Covers S4.1–S4.5.
 
 ### T-18 — Create FilterDrawerComponent (D6) — GREEN
 
-- [x] **T-18**: Implement `FilterDrawerComponent` (standalone, OnPush).
+- [x] **T-18**: Implement `FilterDrawerComponent` (standalone, OnPush). (Batch 5 polish: panel anchored below Filtros button instead of full-height drawer per user feedback)
 
   **Scope**: Component implementation.
-  **Files**: `frontend/src/app/shared/components/filter-drawer/filter-drawer.component.ts` (new), `frontend/src/app/shared/components/filter-drawer/index.ts` (new)
+  **Files**: `frontend/src/app/shared/components/filter-drawer/filter-drawer.component.ts` (new), `frontend/src/app/shared/components/filter-drawer/index.ts` (new), `frontend/src/app/shared/components/filter-drawer/filter-drawer.component.html` (anchored panel)
   **Done criteria**:
-  - Uses `LayoutService.isSmallViewport$` to switch desktop inline vs mobile drawer; `isOpen` signal; overlay click + `Escape` HostListener + close button; Tailwind only; z-index managed.
+  - Uses `LayoutService.isSmallViewport$` to switch desktop inline vs mobile anchored panel; `isOpen` signal; `ClickOutsideDirective` for outside tap + `Escape` HostListener + close button (`data-filter-close` ≥44px); wrapper `relative inline-flex flex-col` with panel `absolute left-0 top-full mt-2 w-72 rounded-lg border shadow-lg z-50 max-h-[80vh] overflow-y-auto p-4`; Tailwind only, `aria-expanded` on toggle, z-index managed, no dark overlay, no layout shift (absolute overlay).
   - `T-17` tests now **pass**.
 
 ### T-19 — Integrate UsersListComponent + RolesComponent: cards + load-more + drawer (S9.2–S9.3) — RED
@@ -446,7 +446,7 @@ Chain strategy: feature-branch-chain
 | R1 Desktop | S1.1 → T-07, T-08, T-14, T-21, T-22; S1.2 → T-21, T-22 |
 | R2 Mobile cards | S2.1 → T-07, T-08, T-13, T-14, T-21, T-22; S2.2 → T-03–T-06, T-13, T-19, T-25; S2.3 → T-11, T-12; S2.4 → T-09, T-10; S2.5 → T-04, T-30 |
 | R3 Infinite scroll | S3.1 → T-15, T-16, T-19, T-20; S3.2–S3.5 → T-15, T-16, T-19, T-20 |
-| R4 Filter drawer | S4.1–S4.5 → T-17, T-18, T-19, T-20 |
+| R4 Filter panel (anchored dropdown) | S4.1–S4.5 → T-17, T-18, T-19, T-20 |
 | R5 Context | S5.1 → T-15, T-29, T-30; S5.2 → T-23, T-24; S5.3 → T-32, T-33 |
 | R6 Dropdown | S6.1 → T-09, T-10; S6.2 → T-09, T-10, T-27, T-28, T-31; S6.3 → T-13, T-14; S6.4 → T-09, T-10 |
 | R7 Breakpoints | S7.1 → T-01, T-02, T-21, T-22; S7.2–S7.3 → T-22, T-30 |
