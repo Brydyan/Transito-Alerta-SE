@@ -78,7 +78,7 @@ export class DataCardComponent {
   @Output() readonly detailClicked = new EventEmitter<Record<string, unknown>>();
   @Output() readonly actionClicked = new EventEmitter<{ action: CardAction; data: Record<string, unknown> }>();
 
-  /** S8.3: computed aria-label for screen reader announcement. */
+  /** S8.3: computed aria-label — Card: title, field: value, ..., Actions: count */
   readonly ariaLabel = (): string => {
     const d = this.data() as Record<string, unknown> | undefined;
     if (!d) return 'Card';
@@ -86,7 +86,8 @@ export class DataCardComponent {
     const fieldValues = f
       .map((field) => `${field.label}: ${this.getValue(field)}`)
       .join(', ');
-    return `Card: ${fieldValues}`;
+    const actionsCount = this.actions().length;
+    return `Card: ${fieldValues}, Actions: ${actionsCount}`;
   };
 
   /** Resolve the display value for a field from the data object. */

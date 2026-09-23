@@ -1,4 +1,4 @@
-<div class="bg-bg-secondary border border-border-subtle rounded-lg p-4">
+<div data-card-root class="bg-bg-secondary border border-border-subtle rounded-lg p-4 min-h-[80px]">
   @for (field of fields(); track field.key) {
     <div class="mb-2" [attr.data-card-field]="field.key">
       @if (field.format === 'badge' || field.format === 'priority-badge') {
@@ -7,13 +7,17 @@
           [label]="getValue(field)"
         ></ui-badge>
       } @else if (field.key === 'icon') {
-        <span class="text-sm text-slate-500">{{ getValue(field) }}</span>
+        <div class="aspect-video w-full bg-gray-100 rounded flex items-center justify-center min-h-[60px] overflow-hidden">
+          <span class="text-sm text-slate-500">{{ getValue(field) }}</span>
+        </div>
       } @else {
         <span
           [class]="
             field.key === 'descripcion'
               ? 'text-sm text-slate-700 line-clamp-2'
-              : 'text-sm text-slate-700'
+              : field.key === 'title' || field.key === 'nombre'
+                ? 'text-base lg:text-lg font-semibold text-slate-900'
+                : 'text-sm text-slate-700'
           "
         >
           {{ getValue(field) }}
@@ -24,7 +28,7 @@
 
   <div data-card-footer class="mt-4 flex gap-2">
     <button
-      class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 bg-brand-primary border-brand-primary text-white hover:bg-brand-primary-hover hover:border-brand-primary-hover focus:ring-2 focus:ring-brand-primary/40"
+      class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] min-w-[44px] text-sm font-medium rounded-lg border transition-all duration-200 bg-brand-primary border-brand-primary text-white hover:bg-brand-primary-hover hover:border-brand-primary-hover focus-visible:ring-2 focus-visible:ring-brand-primary/40 focus-visible:outline-none focus:ring-2 focus:ring-brand-primary/40"
       data-card-detail
       (click)="onDetailClick()"
     >
