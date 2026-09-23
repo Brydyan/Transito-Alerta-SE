@@ -1,0 +1,40 @@
+# Dockerfile.migrations — Init container para aplicar + validar migraciones
+#
+# Stages:
+#   dependencies — instala pnpm + deps (igual que el build principal)
+#   migrations — copia scripts + datos + aplica (si falta) + valida
+#
+# Flujo:
+#   1. Conecta a BD. Si schema_migrations NO existe → aplica todas las migrations.
+#   2. Si schema_migrations ya existe → solo valida checksums (no aplica duplicadas).
+#   3. EXIT 0 si OK, EXIT 1 si drift/error.
+#
+# Uso en docker-compose:
+#   migrations:
+#     ...
+#     command: sh -c "<bootstrap + validate>"
+
+FROM node:22-alpine AS dependencies
+WORKDIR /app
+RUN corepack enable
+COPY backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
+RUN CI=true pnpm install --frozen-lockfile
+
+FROM node:22-alpine AS migrations
+WORKDIR /app/backend
+RUN corepack enable
+# Instala postgresql-client para psql (aplica migrations en BD fresca)
+RUN apk add --no-cache postgresql-client
+# Copia deps
+COPY --from=dependencies /app/node_modules /app/backend/node_modules
+# Copia scripts (incluyendo lib/) + config
+COPY backend/scripts/ /app/backend/scripts/
+COPY backend/tsconfig.scripts.json /app/backend/
+# Copia migrations desde la raíz
+COPY database/migrations /app/database/migrations
+# Copia entrypoint script
+COPY backend/scripts/entrypoint-migrations.sh /app/backend/scripts/entrypoint-migrations.sh
+RUN chmod +x /app/backend/scripts/entrypoint-migrations.sh
+
+# Entrypoint: aplica + valida (verbose logging para debug en staging)
+CMD ["/app/backend/scripts/entrypoint-migrations.sh"]

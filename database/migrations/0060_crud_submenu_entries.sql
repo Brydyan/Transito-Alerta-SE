@@ -31,7 +31,7 @@ SET CONSTRAINTS ALL DEFERRED;
 INSERT INTO menu_options
   (id, name, route, icon, parent_id, display_order, is_active, created_at, updated_at)
 VALUES
-  ('b0000000-0000-0000-0000-000000000012', 'Departamentos', '/departamentos', 'network', 'a0000000-0000-0000-0000-000000000002', 81, true, now(), now())
+  ('b0000000-0000-0000-0000-000000000012', 'Departamentos', '/admin/departamentos', 'network', 'a0000000-0000-0000-0000-000000000002', 81, true, now(), now())
 ON CONFLICT (id) DO NOTHING;
 
 -- ── Usuarios (parent b0000000-0000-0000-0000-000000000006, order 60) ──
