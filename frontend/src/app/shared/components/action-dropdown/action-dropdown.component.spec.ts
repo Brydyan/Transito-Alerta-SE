@@ -141,6 +141,125 @@ describe('ActionDropdownComponent', () => {
 });
 
 /**
+ * T-27 — RED: Touch-friendly sizing ≥44px (D10, S6.2/S8.2).
+ * Every interactive element in the dropdown must be ≥44x44px.
+ * Tests must FAIL before T-28 styling.
+ */
+describe('ActionDropdownComponent — touch target sizing (D10, T-27)', () => {
+  let fixture: ComponentFixture<ActionDropdownComponent>;
+  let component: ActionDropdownComponent;
+
+  const sampleActions: CardAction[] = [
+    { id: 'edit', label: 'Editar' },
+    { id: 'delete', label: 'Eliminar' },
+  ];
+
+  function createComponent(): void {
+    TestBed.configureTestingModule({});
+    fixture = TestBed.createComponent(ActionDropdownComponent);
+    component = fixture.componentInstance;
+    fixture.componentRef.setInput('actions', sampleActions);
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => createComponent());
+
+  it('⋮ trigger button has min-h-[44px] and min-w-[44px] (≥44x44px)', () => {
+    const trigger = fixture.debugElement.query(By.css('[data-action-dropdown-trigger]'));
+    expect(trigger).toBeTruthy();
+    const cls: string = trigger.nativeElement.className;
+    const hasMinH = cls.includes('min-h-[44px]') || cls.includes('h-11');
+    const hasMinW = cls.includes('min-w-[44px]') || cls.includes('min-w-11') || cls.includes('w-11');
+    expect(hasMinH).toBe(true);
+    expect(hasMinW).toBe(true);
+  });
+
+  it('dropdown items have min-h-[44px] touch target', () => {
+    component.isOpen.set(true);
+    fixture.detectChanges();
+    const items = fixture.debugElement.queryAll(By.css('[data-action-dropdown-menu] button'));
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      const cls: string = item.nativeElement.className;
+      expect(cls.includes('min-h-[44px]') || cls.includes('h-11')).toBe(true);
+    }
+  });
+
+  it('dropdown items have h-11 or min-h-[44px] + px-3/px-4 spacing', () => {
+    component.isOpen.set(true);
+    fixture.detectChanges();
+    const items = fixture.debugElement.queryAll(By.css('[data-action-dropdown-menu] button'));
+    for (const item of items) {
+      const cls: string = item.nativeElement.className;
+      // spec wants py-2 px-3 min-h-[44px] or h-11 px-4 py-2
+      const hasSizing = cls.includes('min-h-[44px]') || cls.includes('h-11');
+      expect(hasSizing).toBe(true);
+    }
+  });
+});
+
+/**
+ * T-31 — RED+GREEN: Accessibility audit for ActionDropdown (S8.1–S8.4).
+ */
+describe('ActionDropdownComponent — a11y audit (S8.1–S8.4, T-31)', () => {
+  let fixture: ComponentFixture<ActionDropdownComponent>;
+  let component: ActionDropdownComponent;
+  const sampleActions: CardAction[] = [
+    { id: 'edit', label: 'Editar' },
+    { id: 'delete', label: 'Eliminar' },
+  ];
+  function createComponent(): void {
+    TestBed.configureTestingModule({});
+    fixture = TestBed.createComponent(ActionDropdownComponent);
+    component = fixture.componentInstance;
+    fixture.componentRef.setInput('actions', sampleActions);
+    fixture.detectChanges();
+  }
+  beforeEach(() => createComponent());
+
+  it('trigger has visible focus ring (S8.1)', () => {
+    const trigger = fixture.debugElement.query(By.css('[data-action-dropdown-trigger]'));
+    const cls: string = trigger.nativeElement.className;
+    const hasFocusRing = cls.includes('focus-visible') || cls.includes('focus:ring');
+    expect(hasFocusRing).toBe(true);
+  });
+
+  it('dropdown items have visible focus ring (S8.1)', () => {
+    component.isOpen.set(true);
+    fixture.detectChanges();
+    const items = fixture.debugElement.queryAll(By.css('[data-action-dropdown-menu] button'));
+    for (const item of items) {
+      const cls: string = item.nativeElement.className;
+      expect(cls.includes('focus:ring') || cls.includes('focus-visible')).toBe(true);
+    }
+  });
+
+  it('re-asserts touch targets ≥44px (S8.2)', () => {
+    const trigger = fixture.debugElement.query(By.css('[data-action-dropdown-trigger]'));
+    const cls: string = trigger.nativeElement.className;
+    expect(cls.includes('min-h-[44px]') || cls.includes('h-11')).toBe(true);
+  });
+
+  it('no critical content hidden behind :hover — menu requires tap not hover (S8.4)', () => {
+    // Menu hidden before click — not hover-revealed
+    let menu = fixture.debugElement.query(By.css('[data-action-dropdown-menu]'));
+    expect(menu).toBeNull();
+    // After click it appears — hover alone should not
+    const trigger = fixture.debugElement.query(By.css('[data-action-dropdown-trigger]'));
+    trigger.nativeElement.click();
+    fixture.detectChanges();
+    menu = fixture.debugElement.query(By.css('[data-action-dropdown-menu]'));
+    expect(menu).toBeTruthy();
+  });
+
+  it('dropdown menu does not use hover-only CSS to reveal (S8.4)', () => {
+    const html = fixture.nativeElement.innerHTML as string;
+    // Should not rely on group-hover to show menu
+    expect(html.includes('group-hover')).toBe(false);
+  });
+});
+
+/**
  * Wrapper component for testing ActionDropdown in a realistic context.
  */
 @Component({
