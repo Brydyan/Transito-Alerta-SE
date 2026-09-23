@@ -82,7 +82,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: npx ts-node scripts/run-migrations.ts
+    # Use Dockerfile.migrations CMD (entrypoint-migrations.sh) instead of overriding
+    # entrypoint: /app/backend/scripts/entrypoint-migrations.sh
 
   # ── Backend NestJS (solo perfil staging) ─────────────────────────────────────
   backend:
