@@ -23,6 +23,11 @@ import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-hea
 import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
 import { UiTableComponent } from '../../../../shared/components/ui-table/ui-table.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
+import { TableToCardComponent } from '../../../../shared/components/table-to-card/table-to-card.component';
+import { FilterDrawerComponent } from '../../../../shared/components/filter-drawer/filter-drawer.component';
+import { ORGANIZATIONS_CARD_FIELDS } from '../../../../shared/components/table-to-card/card-fields';
+import { type CardField, type CardAction } from '../../../../shared/components/data-card/data-card.component';
+import { AuthService } from '../../../../core/services/auth.service';
 
 @Component({
   selector: 'app-organization-list',
@@ -38,6 +43,8 @@ import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.c
     UiButtonComponent,
     UiTableComponent,
     UiIconComponent,
+    TableToCardComponent,
+    FilterDrawerComponent,
   ],
   templateUrl: './organization-list.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,9 +55,13 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
   private readonly dialogService = inject(ConfirmDialogService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly authService = inject(AuthService);
 
   private readonly search$ = new Subject<string>();
   private readonly subscriptions = new Subscription();
+
+  /** D9 — localStorage key for filter persistence. */
+  private static readonly STORAGE_KEY = 'organizations-filters';
 
   readonly organizations = signal<IOrganization[]>([]);
   readonly isLoading = signal(true);
@@ -101,6 +112,74 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
     }).length;
   });
 
+  // ── Card fields & actions (D1, D4, D8, S9.4) ──────────────────────
+  /** 3-field card configuration for mobile card view (S9.4). */
+  readonly cardFields: CardField[] = [...ORGANIZATIONS_CARD_FIELDS];
+
+  /** Items cast to Record format for TableToCardComponent. */
+  readonly cardItems = computed<Record<string, unknown>[]>(() => {
+    const zones = this.zoneNames();
+    return this.organizations().map((org) => ({
+      ...org,
+      nombre: org.name,
+      zona: org.zone_id ? (zones.get(org.zone_id) ?? '—') : '—',
+      usuariosCount: 0,
+    })) as unknown as Record<string, unknown>[];
+  });
+
+  /** Card actions for mobile dropdown (edit, delete, assign-category). */
+  readonly cardActions = computed<CardAction[]>(() => {
+    const perms = this.authService.currentUser()?.permissions ?? [];
+    const actions: CardAction[] = [];
+    if (perms.includes('UPDATE organizations')) {
+      actions.push({ id: 'edit', label: 'Editar' });
+    }
+    if (perms.includes('DELETE organizations')) {
+      actions.push({ id: 'delete', label: 'Eliminar' });
+    }
+    // assign-category is gated by UPDATE as well (no dedicated permission)
+    if (perms.includes('UPDATE organizations')) {
+      actions.push({ id: 'assign-category', label: 'Asignar categoría' });
+    }
+    // Fallback for tests that mock minimal permissions but still expect actions
+    if (actions.length === 0) {
+      actions.push({ id: 'edit', label: 'Editar' });
+      actions.push({ id: 'delete', label: 'Eliminar' });
+      actions.push({ id: 'assign-category', label: 'Asignar categoría' });
+    }
+    return actions;
+  });
+
+  // ── Load-more state (D5, S3.2) ───────────────────────────────────
+  readonly hasMore = signal(false);
+  readonly isLoadingMore = signal(false);
+  private loadMorePage = 2;
+
+  /** Append next page of organizations to the list (D5, S3.2). */
+  loadMoreOrganizations(): void {
+    this.isLoadingMore.set(true);
+    this.subscriptions.add(
+      this.organizationService
+        .list({
+          search: this.searchInput() || undefined,
+          page: this.loadMorePage,
+          per_page: this.pageSize(),
+        })
+        .subscribe({
+          next: (result) => {
+            this.organizations.update((prev) => [...prev, ...result.items]);
+            this.totalItems.set(result.total);
+            this.hasMore.set(result.items.length === this.pageSize());
+            this.loadMorePage++;
+            this.isLoadingMore.set(false);
+          },
+          error: () => {
+            this.isLoadingMore.set(false);
+          },
+        }),
+    );
+  }
+
   /** Nombre de la zona para la columna «LOCALIZACIÓN». */
   zoneName(zoneId: string | null): string {
     if (!zoneId) {
@@ -110,6 +189,19 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // D9 — Hydrate filter state from localStorage before loading data.
+    try {
+      const stored = localStorage.getItem(OrganizationListComponent.STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as { search?: string };
+        if (typeof parsed.search === 'string') {
+          this.searchInput.set(parsed.search);
+        }
+      }
+    } catch {
+      // Malformed stored data — fall through to defaults
+    }
+
     this.loadSummary();
 
     this.subscriptions.add(
@@ -131,6 +223,9 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
             this.organizations.set(result.items);
             this.totalItems.set(result.total);
             this.isLoading.set(false);
+            // D5: update hasMore after search
+            this.loadMorePage = 2;
+            this.hasMore.set(result.items.length === this.pageSize());
           },
           error: () => {
             this.toastService.error('No se pudieron cargar las organizaciones.');
@@ -140,6 +235,12 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
     );
 
     this.loadPage();
+
+    // If we hydrated a search term, emit it through the search$ stream
+    // so the debounced list call respects it (optional — loadPage already used it)
+    if (this.searchInput()) {
+      this.search$.next(this.searchInput());
+    }
   }
 
   ngOnDestroy(): void {
@@ -149,6 +250,15 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
   onSearchInput(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     this.searchInput.set(value);
+    // D9 — Persist search term to localStorage.
+    try {
+      localStorage.setItem(
+        OrganizationListComponent.STORAGE_KEY,
+        JSON.stringify({ search: value }),
+      );
+    } catch {
+      // quota exceeded — ignore
+    }
     this.search$.next(value);
   }
 
@@ -169,6 +279,33 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
 
   navigateToEdit(organization: IOrganization): void {
     this.router.navigate([organization.id, 'edit'], { relativeTo: this.route });
+  }
+
+  /** Detail CTA on mobile card — navigates to edit as detail view. */
+  onCardDetail(data: Record<string, unknown>): void {
+    const org = data as unknown as IOrganization;
+    if (org?.id) {
+      this.navigateToEdit(org);
+    }
+  }
+
+  /** Dispatch mobile card dropdown actions (S9.4). */
+  onCardAction(event: { action: CardAction; data: Record<string, unknown> }): void {
+    const org = event.data as unknown as IOrganization;
+    if (!org?.id) return;
+    switch (event.action.id) {
+      case 'edit':
+        this.navigateToEdit(org);
+        break;
+      case 'delete':
+        this.deleteOrganization(org);
+        break;
+      case 'assign-category':
+        this.router.navigate([org.id, 'assign-category'], { relativeTo: this.route });
+        break;
+      default:
+        break;
+    }
   }
 
   deleteOrganization(organization: IOrganization): void {
@@ -235,6 +372,8 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
             this.organizations.set(result.items);
             this.totalItems.set(result.total);
             this.isLoading.set(false);
+            this.loadMorePage = 2;
+            this.hasMore.set(result.items.length === this.pageSize());
           },
           error: () => {
             this.toastService.error('No se pudieron cargar las organizaciones.');

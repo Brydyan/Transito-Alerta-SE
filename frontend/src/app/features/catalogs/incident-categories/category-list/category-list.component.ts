@@ -25,6 +25,10 @@ import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-hea
 import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
 import { UiTableComponent } from '../../../../shared/components/ui-table/ui-table.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
+import { TableToCardComponent } from '../../../../shared/components/table-to-card/table-to-card.component';
+import { FilterDrawerComponent } from '../../../../shared/components/filter-drawer/filter-drawer.component';
+import { CATEGORIES_CARD_FIELDS } from '../../../../shared/components/table-to-card/card-fields';
+import { type CardField, type CardAction } from '../../../../shared/components/data-card/data-card.component';
 
 const INDENT_PER_DEPTH = 24;
 
@@ -40,6 +44,8 @@ const INDENT_PER_DEPTH = 24;
     UiButtonComponent,
     UiTableComponent,
     UiIconComponent,
+    TableToCardComponent,
+    FilterDrawerComponent,
   ],
   templateUrl: './category-list.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -52,6 +58,9 @@ export class CategoryListComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
 
   private readonly subscriptions = new Subscription();
+
+  /** D9 — localStorage key for filter persistence. */
+  private static readonly STORAGE_KEY = 'categories-filters';
 
   /** Raw flat list returned by `listAll()`. */
   readonly rows = signal<IIncidentCategory[]>([]);
@@ -96,11 +105,81 @@ export class CategoryListComponent implements OnInit, OnDestroy {
     return out;
   });
 
+  // ── Card fields & actions (D1, D4, D8, S9.5) ──────────────────────
+  /** 3-field card configuration for mobile card view (S9.5). */
+  readonly cardFields: CardField[] = [...CATEGORIES_CARD_FIELDS];
+
+  /** Items cast to Record format for TableToCardComponent.
+   *  Uses visibleNodes() so the mobile card view reflects tree expansion
+   *  and search filtering — consistent with roles pattern using visibleRoles. */
+  readonly cardItems = computed<Record<string, unknown>[]>(() => {
+    return this.visibleNodes().map((node) => ({
+      ...node,
+      nombre: node.name,
+      descripcion: node.description ?? '—',
+      icon: node.name,
+    })) as unknown as Record<string, unknown>[];
+  });
+
+  /** Card actions for mobile dropdown (edit, delete). */
+  readonly cardActions = computed<CardAction[]>(() => {
+    return [
+      { id: 'edit', label: 'Editar' },
+      { id: 'delete', label: 'Eliminar' },
+    ];
+  });
+
+  // ── Load-more state (D5, S3.2) ───────────────────────────────────
+  readonly hasMore = signal(false);
+  readonly isLoadingMore = signal(false);
+  private loadMorePage = 2;
+  readonly pageSize = signal(10);
+
+  /** Append next page of categories to the list (D5, S3.2).
+   *  Categories are typically a small dataset; this is a fallback
+   *  for when the catalog grows beyond one page. */
+  loadMoreCategories(): void {
+    this.isLoadingMore.set(true);
+    this.subscriptions.add(
+      this.categoryService.list({ page: this.loadMorePage, per_page: this.pageSize() }).subscribe({
+        next: (result) => {
+          const newItems = result.items ?? [];
+          if (newItems.length === 0) {
+            this.hasMore.set(false);
+            this.isLoadingMore.set(false);
+            return;
+          }
+          const merged = [...this.rows(), ...newItems];
+          this.rows.set(merged);
+          this.tree.set(buildCategoryTree(merged));
+          this.hasMore.set(newItems.length === this.pageSize());
+          this.loadMorePage++;
+          this.isLoadingMore.set(false);
+        },
+        error: () => {
+          this.isLoadingMore.set(false);
+        },
+      }),
+    );
+  }
+
   get indentForDepth(): (depth: number) => string {
     return (depth: number) => `${depth * INDENT_PER_DEPTH}px`;
   }
 
   ngOnInit(): void {
+    // D9 — Hydrate search from localStorage before loading data.
+    try {
+      const stored = localStorage.getItem(CategoryListComponent.STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as { search?: string };
+        if (typeof parsed.search === 'string') {
+          this.searchTerm.set(parsed.search);
+        }
+      }
+    } catch {
+      // Malformed stored data — fall through to defaults
+    }
     this.loadAll();
   }
 
@@ -109,7 +188,17 @@ export class CategoryListComponent implements OnInit, OnDestroy {
   }
 
   onSearchInput(event: Event): void {
-    this.searchTerm.set((event.target as HTMLInputElement).value);
+    const value = (event.target as HTMLInputElement).value;
+    this.searchTerm.set(value);
+    // D9 — Persist search term to localStorage.
+    try {
+      localStorage.setItem(
+        CategoryListComponent.STORAGE_KEY,
+        JSON.stringify({ search: value }),
+      );
+    } catch {
+      // quota exceeded — ignore
+    }
   }
 
   toggleExpand(node: IncidentCategoryNode): void {
@@ -145,6 +234,31 @@ export class CategoryListComponent implements OnInit, OnDestroy {
 
   navigateToEdit(category: IIncidentCategory): void {
     this.router.navigate([category.id, 'edit'], { relativeTo: this.route });
+  }
+
+  /** Detail CTA on mobile card — navigates to edit as detail view. */
+  onCardDetail(data: Record<string, unknown>): void {
+    const id = data['id'] as string | undefined;
+    if (id) {
+      this.router.navigate([id, 'edit'], { relativeTo: this.route });
+    }
+  }
+
+  /** Dispatch mobile card dropdown actions (S9.5). */
+  onCardAction(event: { action: CardAction; data: Record<string, unknown> }): void {
+    const id = event.data['id'] as string | undefined;
+    if (!id) return;
+    const node = this.visibleNodes().find((n) => n.id === id) ?? (event.data as unknown as IncidentCategoryNode);
+    switch (event.action.id) {
+      case 'edit':
+        this.navigateToEdit(node as unknown as IIncidentCategory);
+        break;
+      case 'delete':
+        this.deleteCategory(node as IncidentCategoryNode);
+        break;
+      default:
+        break;
+    }
   }
 
   deleteCategory(node: IncidentCategoryNode): void {
@@ -195,6 +309,10 @@ export class CategoryListComponent implements OnInit, OnDestroy {
           this.tree.set(buildCategoryTree(items));
           this.expandedIds.set(new Set());
           this.isLoading.set(false);
+          // D5: hasMore depends on whether more items beyond first page exist
+          // Since listAll loads up to 100, hasMore is false unless catalog is huge
+          this.loadMorePage = 2;
+          this.hasMore.set(items.length === this.pageSize());
         },
         error: () => {
           this.toastService.error('No se pudieron cargar las categorías.');

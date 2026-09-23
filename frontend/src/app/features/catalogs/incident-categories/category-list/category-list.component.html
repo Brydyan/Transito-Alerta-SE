@@ -17,8 +17,7 @@
     </button>
   </ui-page-header>
 
-  <div class="border-none shadow-sm rounded-lg overflow-hidden">
-    <!-- Card Header (Search) -->
+  <app-filter-drawer>
     <div class="bg-bg-secondary border-b-0 pt-6 pb-4 px-6 flex flex-wrap items-center gap-4">
       <div class="relative max-w-sm flex-1 min-w-64">
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
@@ -37,7 +36,9 @@
         <span class="font-medium text-slate-700">{{ rows().length }}</span> en total
       </div>
     </div>
+  </app-filter-drawer>
 
+  <div class="border-none shadow-sm rounded-lg overflow-hidden">
     <!-- Loading skeleton -->
     @if (isLoading()) {
       <div class="px-6 pb-4">
@@ -54,88 +55,98 @@
         (actionClicked)="navigateToCreate()"
       />
     } @else {
-      <!-- Tree table — same pattern as /app/ubicaciones -->
-      <ui-table>
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Descripción</th>
-            <th class="ui-table-cell-actions">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (node of visibleNodes(); track node.id) {
+      <table-to-card
+        [items]="cardItems()"
+        [cardFields]="cardFields"
+        [cardActions]="cardActions()"
+        [hasMore]="hasMore()"
+        [isLoadingMore]="isLoadingMore()"
+        (detailClicked)="onCardDetail($any($event))"
+        (actionClicked)="onCardAction($event)"
+        (loadMore)="loadMoreCategories()"
+      >
+        <ui-table>
+          <thead>
             <tr>
-              <td>
-                <div
-                  class="flex items-center gap-2"
-                  [style.padding-left]="indentForDepth(node.depth)"
-                >
-                  @if (hasChildren(node)) {
-                    <button
-                      type="button"
-                      class="text-slate-500 hover:text-brand-primary shrink-0"
-                      (click)="toggleExpand(node)"
-                      [attr.aria-expanded]="isExpanded(node)"
-                      [attr.aria-label]="isExpanded(node) ? 'Contraer sub-categorías' : 'Expandir sub-categorías'"
-                      data-testid="category-toggle"
-                    >
-                      <ui-icon
-                        [name]="isExpanded(node) ? 'chevron-down' : 'chevron-right'"
-                        [size]="16"
-                      />
-                    </button>
-                  } @else {
-                    <span class="w-4 shrink-0" aria-hidden="true"></span>
-                  }
-                  <span class="ui-table-title">
-                    {{ node.name }}
-                    @if (node.depth === 0) {
-                      <span class="ml-2 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                        Categoría
-                      </span>
-                    } @else {
-                      <span class="ml-2 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                        Sub-categoría
-                      </span>
-                    }
-                  </span>
-                </div>
-              </td>
-              <td class="text-slate-500 text-sm">
-                {{ node.description || '—' }}
-              </td>
-              <td class="ui-table-cell-actions">
-                <button
-                  uiButton
-                  variant="ghost"
-                  size="sm"
-                  *hasPermission="'UPDATE incident-categories'"
-                  (click)="navigateToEdit(node)"
-                  aria-label="Editar categoría"
-                >
-                  <ui-icon name="pencil" [size]="14" />
-                  Editar
-                </button>
-                <button
-                  uiButton
-                  variant="ghost"
-                  size="sm"
-                  *hasPermission="'DELETE incident-categories'"
-                  [disabled]="!canDelete(node)"
-                  [attr.aria-disabled]="!canDelete(node)"
-                  [attr.title]="!canDelete(node) ? 'Tiene sub-categorías — no se puede eliminar' : ''"
-                  (click)="deleteCategory(node)"
-                  aria-label="Eliminar categoría"
-                >
-                  <ui-icon name="trash-2" [size]="14" class="text-red-500" />
-                  Eliminar
-                </button>
-              </td>
+              <th>Nombre</th>
+              <th>Descripción</th>
+              <th class="ui-table-cell-actions">Acciones</th>
             </tr>
-          }
-        </tbody>
-      </ui-table>
+          </thead>
+          <tbody>
+            @for (node of visibleNodes(); track node.id) {
+              <tr>
+                <td>
+                  <div
+                    class="flex items-center gap-2"
+                    [style.padding-left]="indentForDepth(node.depth)"
+                  >
+                    @if (hasChildren(node)) {
+                      <button
+                        type="button"
+                        class="text-slate-500 hover:text-brand-primary shrink-0"
+                        (click)="toggleExpand(node)"
+                        [attr.aria-expanded]="isExpanded(node)"
+                        [attr.aria-label]="isExpanded(node) ? 'Contraer sub-categorías' : 'Expandir sub-categorías'"
+                        data-testid="category-toggle"
+                      >
+                        <ui-icon
+                          [name]="isExpanded(node) ? 'chevron-down' : 'chevron-right'"
+                          [size]="16"
+                        />
+                      </button>
+                    } @else {
+                      <span class="w-4 shrink-0" aria-hidden="true"></span>
+                    }
+                    <span class="ui-table-title">
+                      {{ node.name }}
+                      @if (node.depth === 0) {
+                        <span class="ml-2 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                          Categoría
+                        </span>
+                      } @else {
+                        <span class="ml-2 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                          Sub-categoría
+                        </span>
+                      }
+                    </span>
+                  </div>
+                </td>
+                <td class="text-slate-500 text-sm">
+                  {{ node.description || '—' }}
+                </td>
+                <td class="ui-table-cell-actions">
+                  <button
+                    uiButton
+                    variant="ghost"
+                    size="sm"
+                    *hasPermission="'UPDATE incident-categories'"
+                    (click)="navigateToEdit(node)"
+                    aria-label="Editar categoría"
+                  >
+                    <ui-icon name="pencil" [size]="14" />
+                    Editar
+                  </button>
+                  <button
+                    uiButton
+                    variant="ghost"
+                    size="sm"
+                    *hasPermission="'DELETE incident-categories'"
+                    [disabled]="!canDelete(node)"
+                    [attr.aria-disabled]="!canDelete(node)"
+                    [attr.title]="!canDelete(node) ? 'Tiene sub-categorías — no se puede eliminar' : ''"
+                    (click)="deleteCategory(node)"
+                    aria-label="Eliminar categoría"
+                  >
+                    <ui-icon name="trash-2" [size]="14" class="text-red-500" />
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </ui-table>
+      </table-to-card>
     }
   </div>
 </div>

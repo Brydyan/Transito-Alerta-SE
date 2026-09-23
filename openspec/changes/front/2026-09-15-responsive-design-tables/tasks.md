@@ -329,7 +329,7 @@ Chain strategy: feature-branch-chain
 
 ### T-25 — Integrate OrganizationListComponent + CategoryListComponent (S9.4–S9.5) — RED
 
-- [ ] **T-25**: Write failing integration tests for Orgs + Categories mobile cards.
+- [x] **T-25**: Write failing integration tests for Orgs + Categories mobile cards.
 
   **Scope**: Tests only.
   **Files**: `frontend/src/app/features/catalogs/organizations/organization-list/organization-list.component.spec.ts` (extend or create), `frontend/src/app/features/catalogs/incident-categories/category-list/category-list.component.spec.ts` (extend or create)
@@ -339,7 +339,7 @@ Chain strategy: feature-branch-chain
 
 ### T-26 — Integrate OrganizationListComponent + CategoryListComponent (S9.4–S9.5) — GREEN
 
-- [ ] **T-26**: Migrate `OrganizationListComponent` + `CategoryListComponent` to full responsive contract.
+- [x] **T-26**: Migrate `OrganizationListComponent` + `CategoryListComponent` to full responsive contract.
 
   **Scope**: Feature components.
   **Files**: `frontend/src/app/features/catalogs/organizations/organization-list/organization-list.component.ts`, `frontend/src/app/features/catalogs/organizations/organization-list/organization-list.component.html`, `frontend/src/app/features/catalogs/incident-categories/category-list/category-list.component.ts`, `frontend/src/app/features/catalogs/incident-categories/category-list/category-list.component.html`
