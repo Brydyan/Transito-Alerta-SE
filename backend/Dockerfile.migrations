@@ -1,13 +1,18 @@
-# Dockerfile.migrations — Init container para validar + ejecutar migraciones
+# Dockerfile.migrations — Init container para aplicar + validar migraciones
 #
-# Estapas:
+# Stages:
 #   dependencies — instala pnpm + deps (igual que el build principal)
-#   migrations — copia scripts + datos + ejecuta validación
+#   migrations — copia scripts + datos + aplica (si falta) + valida
+#
+# Flujo:
+#   1. Conecta a BD. Si schema_migrations NO existe → aplica todas las migrations.
+#   2. Si schema_migrations ya existe → solo valida checksums (no aplica duplicadas).
+#   3. EXIT 0 si OK, EXIT 1 si drift/error.
 #
 # Uso en docker-compose:
 #   migrations:
 #     ...
-#     command: npx ts-node scripts/run-migrations.ts
+#     command: sh -c "<bootstrap + validate>"
 
 FROM node:22-alpine AS dependencies
 WORKDIR /app
@@ -18,11 +23,34 @@ RUN CI=true pnpm install --frozen-lockfile
 FROM node:22-alpine AS migrations
 WORKDIR /app/backend
 RUN corepack enable
+# Instala postgresql-client para psql (aplica migrations en BD fresca)
+RUN apk add --no-cache postgresql-client
 # Copia deps
 COPY --from=dependencies /app/node_modules /app/backend/node_modules
 # Copia scripts de migraciones (incluyendo lib/)
 COPY backend/scripts/ /app/backend/scripts/
 # Copia migrations desde la raíz
 COPY database/migrations /app/database/migrations
-# El comando se ejecuta desde docker-compose (ver compose.yaml)
-CMD ["npx", "ts-node", "scripts/run-migrations.ts"]
+
+# Entrypoint: aplica + valida
+CMD ["sh", "-c", "\
+  set -e; \
+  DB_URL=\"${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/transito_alerta}\"; \
+  echo \"[migrations] Connecting to $DB_URL...\"; \
+  \
+  SCHEMA_EXISTS=$(psql \"$DB_URL\" -tc \"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'schema_migrations');\" 2>/dev/null || echo 'f'); \
+  \
+  if [ \"$SCHEMA_EXISTS\" = 'f' ]; then \
+    echo \"[migrations] schema_migrations table NOT found. Bootstrapping...\"; \
+    for f in /app/database/migrations/*.sql; do \
+      echo \"  → $(basename $f)\"; \
+      psql \"$DB_URL\" < \"$f\" > /dev/null 2>&1 || { echo \"ERROR applying $(basename $f)\"; exit 1; }; \
+    done; \
+    echo \"[migrations] Bootstrap complete.\"; \
+  else \
+    echo \"[migrations] schema_migrations table found. Skipping bootstrap.\"; \
+  fi; \
+  \
+  echo \"[migrations] Validating checksums...\"; \
+  exec npx ts-node scripts/run-migrations.ts; \
+"]
