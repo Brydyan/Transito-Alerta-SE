@@ -11,6 +11,7 @@ function makeCategory(overrides: Partial<IncidentCategoryEntity> = {}): Incident
     name: 'Traffic',
     description: null,
     parentId: null,
+    priority: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -77,14 +78,20 @@ describe('IncidentCategoriesService', () => {
     it('validates parent existence and cycle guard when parent_id is provided', async () => {
       categoryRepo.findOne.mockResolvedValue(makeCategory({ id: 'parent-1' }));
       categoriesRepository.validateNoCycles.mockResolvedValue(true);
-      categoryRepo.save.mockResolvedValue(makeCategory({ parentId: 'parent-1' }));
+      categoryRepo.save.mockResolvedValue(
+        makeCategory({ parentId: 'parent-1', priority: 'medium' }),
+      );
 
-      await service.create({ name: 'Accident', parent_id: 'parent-1' });
+      await service.create({
+        name: 'Accident',
+        parent_id: 'parent-1',
+        priority: 'medium',
+      });
 
       expect(categoryRepo.findOne).toHaveBeenCalledWith({ where: { id: 'parent-1' } });
       expect(categoriesRepository.validateNoCycles).toHaveBeenCalledWith(null, 'parent-1');
       expect(categoryRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ parentId: 'parent-1' }),
+        expect.objectContaining({ parentId: 'parent-1', priority: 'medium' }),
       );
     });
 
@@ -219,6 +226,109 @@ describe('IncidentCategoriesService', () => {
       await service.getTree();
 
       expect(categoriesRepository.getSubtree).toHaveBeenCalledWith(null);
+    });
+  });
+
+  // ── 2026-09-22-sc-subcategory-priority-assignment ─────────────────────
+  // D1/D4 (design.md) — `priority` solo se exige en sub-categorías.
+  // La validación vive en el service (defensa en profundidad): el form
+  // del frontend ya envía `priority: 'medium'` por defecto, pero el
+  // backend rechaza explícitamente sub sin priority para evitar datos
+  // inconsistentes vía API directa.
+
+  describe('create — priority validation', () => {
+    it('persists the provided priority on a sub-category', async () => {
+      categoryRepo.findOne.mockResolvedValue(makeCategory({ id: 'parent-1' }));
+      categoriesRepository.validateNoCycles.mockResolvedValue(true);
+      categoryRepo.save.mockResolvedValue(
+        makeCategory({ parentId: 'parent-1', priority: 'high' }),
+      );
+
+      const result = await service.create({
+        name: 'Agua Potable (Daño)',
+        parent_id: 'parent-1',
+        priority: 'high',
+      });
+
+      expect(categoryRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ parentId: 'parent-1', priority: 'high' }),
+      );
+      expect(result.priority).toBe('high');
+    });
+
+    it('throws BadRequestException when creating a sub-category without priority', async () => {
+      categoryRepo.findOne.mockResolvedValue(makeCategory({ id: 'parent-1' }));
+      categoriesRepository.validateNoCycles.mockResolvedValue(true);
+
+      await expect(
+        service.create({
+          name: 'Sin prioridad',
+          parent_id: 'parent-1',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(categoryRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('keeps priority null when creating a root category, even if priority is sent', async () => {
+      categoryRepo.save.mockResolvedValue(makeCategory({ priority: null }));
+
+      const result = await service.create({
+        name: 'Categoría raíz',
+        priority: 'high',
+      });
+
+      expect(categoryRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ parentId: null, priority: null }),
+      );
+      expect(result.priority).toBeNull();
+    });
+  });
+
+  describe('update — priority validation', () => {
+    it('updates priority when dto provides one for a sub-category', async () => {
+      categoryRepo.findOne.mockResolvedValue(
+        makeCategory({ id: 'sub-1', parentId: 'parent-1', priority: 'low' }),
+      );
+      categoryRepo.save.mockImplementation(async (x) => x);
+
+      const result = await service.update('sub-1', { priority: 'critical' });
+
+      expect(categoryRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ priority: 'critical' }),
+      );
+      expect(result.priority).toBe('critical');
+    });
+
+    it('throws BadRequestException when removing priority from an existing sub-category', async () => {
+      // Existing sub with priority, update sends priority: null (explicit clear).
+      categoryRepo.findOne.mockResolvedValue(
+        makeCategory({ id: 'sub-1', parentId: 'parent-1', priority: 'low' }),
+      );
+
+      await expect(
+        service.update('sub-1', { priority: null }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(categoryRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not touch priority when dto omits it on update of a sub-category', async () => {
+      categoryRepo.findOne.mockResolvedValue(
+        makeCategory({ id: 'sub-1', parentId: 'parent-1', priority: 'medium' }),
+      );
+      categoryRepo.save.mockImplementation(async (x) => x);
+
+      const result = await service.update('sub-1', { name: 'Nuevo nombre' });
+
+      expect(result.priority).toBe('medium');
+    });
+
+    it('leaves priority alone for root categories even when dto sends one', async () => {
+      categoryRepo.findOne.mockResolvedValue(makeCategory({ id: 'root-1', priority: null }));
+      categoryRepo.save.mockImplementation(async (x) => x);
+
+      const result = await service.update('root-1', { priority: 'high' });
+
+      expect(result.priority).toBeNull();
     });
   });
 });

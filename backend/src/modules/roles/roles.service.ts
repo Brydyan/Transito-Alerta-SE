@@ -5,6 +5,8 @@ import { DataSource, IsNull, Not, Repository } from 'typeorm';
 import { RoleEntity } from '../../entities/role.entity';
 import { UserEntity } from '../../entities/user.entity';
 import { PermissionEntity } from '../../entities/permission.entity';
+import { MenuOptionRoleEntity } from '../menus/entities/menu-option-role.entity';
+import { MenuOptionEntity } from '../menus/entities/menu-option.entity';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { assertCanGrantRole, assertCanManage } from '../../common/authz/assert-can-manage';
 import { AuthService } from '../auth/auth.service';
@@ -54,6 +56,10 @@ export class RolesService {
     private readonly userRepo: Repository<UserEntity>,
     @InjectRepository(PermissionEntity)
     private readonly permissionRepo: Repository<PermissionEntity>,
+    @InjectRepository(MenuOptionRoleEntity)
+    private readonly menuRoleRepo: Repository<MenuOptionRoleEntity>,
+    @InjectRepository(MenuOptionEntity)
+    private readonly menuOptionRepo: Repository<MenuOptionEntity>,
     private readonly dataSource: DataSource,
     private readonly authService: AuthService,
   ) {}
@@ -69,6 +75,39 @@ export class RolesService {
       throw new NotFoundException(`Role ${roleId} not found`);
     }
     return role.permissions ?? [];
+  }
+
+  /**
+   * F6 fix — returns menu options accessible to a role, with their names.
+   * Used by the user form to display "ACCESO A" / "SIN ACCESO A" panels
+   * with menu names instead of UUIDs.
+   */
+  async getMenuAccessByRole(roleId: string): Promise<Array<{ menuOptionId: string; name: string; canRead: boolean; canWrite: boolean }>> {
+    const role = await this.roleRepo.findOne({ where: { id: roleId } });
+    if (!role) {
+      throw new NotFoundException(`Role ${roleId} not found`);
+    }
+
+    // Join menu_option_roles with menu_options to get names
+    const accesses = await this.dataSource.query<Array<{ menu_option_id: string; name: string; can_read: boolean; can_write: boolean }>>(
+      `SELECT
+        mor.menu_option_id,
+        mo.name,
+        mor.can_read,
+        mor.can_write
+      FROM menu_option_roles mor
+      INNER JOIN menu_options mo ON mor.menu_option_id = mo.id
+      WHERE mor.role_id = $1 AND mo.deleted_at IS NULL
+      ORDER BY mo.display_order ASC`,
+      [roleId]
+    );
+
+    return accesses.map(row => ({
+      menuOptionId: row.menu_option_id,
+      name: row.name,
+      canRead: row.can_read,
+      canWrite: row.can_write,
+    }));
   }
 
   /**

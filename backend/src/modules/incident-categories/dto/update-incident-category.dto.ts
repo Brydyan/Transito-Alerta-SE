@@ -1,4 +1,6 @@
-import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+
+import { IncidentPriority } from '../../../entities/incident.entity';
 
 export class UpdateIncidentCategoryDto {
   @IsOptional()
@@ -24,4 +26,15 @@ export class UpdateIncidentCategoryDto {
   @IsOptional()
   @IsUUID()
   parent_id?: string | null;
+
+  /**
+   * 2026-09-22-sc-subcategory-priority-assignment. Optional at DTO
+   * level. `undefined` leaves the current value untouched (the form
+   * doesn't re-send it on every PATCH). `null` is an explicit "clear
+   * priority" — the service rejects it for sub-categories (D4
+   * application-level enforcement). Root categories ignore it.
+   */
+  @IsOptional()
+  @IsIn(['low', 'medium', 'high', 'critical'])
+  priority?: IncidentPriority | null;
 }

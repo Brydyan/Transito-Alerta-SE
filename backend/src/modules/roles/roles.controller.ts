@@ -43,6 +43,14 @@ export class RolesController {
     return this.rolesService.listPermissions(id);
   }
 
+  @Get(':id/menu-access')
+  @RequirePermission('READ')
+  getMenuAccess(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<Array<{ menuOptionId: string; name: string; canRead: boolean; canWrite: boolean }>> {
+    return this.rolesService.getMenuAccessByRole(id);
+  }
+
   @Post(':id/assign')
   @RequirePermission('ASSIGN')
   assign(
