@@ -107,4 +107,23 @@
       gap: 1.5rem; /* lg+: 1.5rem (S7.3) */
     }
   }
+
+  /* =====================
+     Polish — D10 touch sizing + D11 CLS (Batch 5)
+     ===================== */
+  .btn-mobile {
+    @apply h-11 px-4 py-2 min-h-[44px] min-w-[44px];
+  }
+
+  .dropdown-item {
+    @apply py-2 px-3 min-h-[44px] h-11;
+  }
+
+  .card-image-slot {
+    @apply aspect-video w-full object-cover min-h-[60px];
+  }
+
+  .card-skeleton {
+    @apply animate-pulse h-64 bg-gray-200 rounded;
+  }
 }
