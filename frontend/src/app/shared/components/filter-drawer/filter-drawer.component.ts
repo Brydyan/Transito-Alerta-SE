@@ -5,19 +5,21 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { AsyncPipe } from '@angular/common';
+import { AsyncPipe, NgClass } from '@angular/common';
 import { Observable } from 'rxjs';
 import { LayoutService } from '../../../core/services/layout.service';
+import { ClickOutsideDirective } from '../../directives/click-outside.directive';
 
 /**
- * FilterDrawerComponent — collapsible filter drawer for mobile (D6).
+ * FilterDrawerComponent — collapsible filter panel anchored below button (D6).
  *
  * On desktop (>= 1024px): filter content is always visible inline (S4.1).
  * On mobile (< 1024px): filters are hidden behind a "Filtros" toggle button;
- * clicking it opens a slide-in drawer with overlay (S4.2, S4.3).
+ * clicking it opens an anchored dropdown panel directly below the button
+ * (S4.2, S4.3) with card styling, no dark overlay — grid remains visible.
  *
- * Drawer closes on:
- * - Overlay click (S4.5)
+ * Panel closes on:
+ * - Outside tap via ClickOutsideDirective (S4.5)
  * - Escape key (S4.5)
  * - Close button (S4.5)
  *
@@ -32,7 +34,7 @@ import { LayoutService } from '../../../core/services/layout.service';
 @Component({
   selector: 'app-filter-drawer',
   standalone: true,
-  imports: [AsyncPipe],
+  imports: [AsyncPipe, NgClass, ClickOutsideDirective],
   templateUrl: './filter-drawer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -51,6 +53,13 @@ export class FilterDrawerComponent {
   /** Close the mobile drawer. */
   closeDrawer(): void {
     this.isOpen.set(false);
+  }
+
+  /** Close on outside tap (S4.5) via ClickOutsideDirective. */
+  onClickOutside(): void {
+    if (this.isOpen()) {
+      this.isOpen.set(false);
+    }
   }
 
   /** Close on Escape key (S4.5). */
