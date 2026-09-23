@@ -190,6 +190,85 @@
                 <small class="text-red-500 text-xs mt-1 block">{{ msg }}</small>
               }
             </div>
+
+            <!-- 2026-09-22-sc-subcategory-priority-assignment (D5) — priority
+                 radios render only for sub-categories. Defaults to "medium"
+                 on form init; on EDIT the existing value is patched. -->
+            @if (isSub()) {
+              <fieldset
+                class="border border-slate-200 rounded-lg p-4"
+                data-testid="category-priority-fieldset"
+              >
+                <legend class="text-sm font-medium text-slate-700 px-2">
+                  Prioridad <span class="text-red-500">*</span>
+                </legend>
+                <p class="text-xs text-slate-500 mt-0 mb-3">
+                  Prioridad por defecto que heredarán los incidentes creados con esta sub-categoría.
+                </p>
+                <div class="flex flex-wrap gap-3">
+                  <label
+                    class="flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer flex-1 min-w-32 transition-colors"
+                    [ngClass]="priorityControl.value === 'low'
+                      ? 'border-brand-primary bg-brand-primary-soft text-brand-primary'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'"
+                  >
+                    <input
+                      type="radio"
+                      formControlName="priority"
+                      value="low"
+                      class="accent-brand-primary"
+                      data-testid="category-priority-low"
+                    />
+                    <span class="text-sm">Bajo</span>
+                  </label>
+                  <label
+                    class="flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer flex-1 min-w-32 transition-colors"
+                    [ngClass]="priorityControl.value === 'medium'
+                      ? 'border-brand-primary bg-brand-primary-soft text-brand-primary'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'"
+                  >
+                    <input
+                      type="radio"
+                      formControlName="priority"
+                      value="medium"
+                      class="accent-brand-primary"
+                      data-testid="category-priority-medium"
+                    />
+                    <span class="text-sm">Medio</span>
+                  </label>
+                  <label
+                    class="flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer flex-1 min-w-32 transition-colors"
+                    [ngClass]="priorityControl.value === 'high'
+                      ? 'border-brand-primary bg-brand-primary-soft text-brand-primary'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'"
+                  >
+                    <input
+                      type="radio"
+                      formControlName="priority"
+                      value="high"
+                      class="accent-brand-primary"
+                      data-testid="category-priority-high"
+                    />
+                    <span class="text-sm">Alto</span>
+                  </label>
+                  <label
+                    class="flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer flex-1 min-w-32 transition-colors"
+                    [ngClass]="priorityControl.value === 'critical'
+                      ? 'border-brand-primary bg-brand-primary-soft text-brand-primary'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'"
+                  >
+                    <input
+                      type="radio"
+                      formControlName="priority"
+                      value="critical"
+                      class="accent-brand-primary"
+                      data-testid="category-priority-critical"
+                    />
+                    <span class="text-sm">Crítica</span>
+                  </label>
+                </div>
+              </fieldset>
+            }
           </div>
         </div>
       </div>

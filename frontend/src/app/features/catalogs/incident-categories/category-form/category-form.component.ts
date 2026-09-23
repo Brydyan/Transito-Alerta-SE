@@ -15,6 +15,7 @@ import { ConfirmDialogService } from '../../../../shared/components/confirm-dial
 import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiButtonComponent } from '../../../../shared/components/ui-button/ui-button.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
+import { IncidentPriority } from '../../../../core/models/incident.model';
 import {
   IIncidentCategory,
   IncidentCategoryTreeNode,
@@ -85,6 +86,10 @@ export class CategoryFormComponent implements OnInit {
     name: ['', [Validators.required, Validators.maxLength(255)]],
     description: ['', [Validators.maxLength(2000)]],
     parent_id: [null as string | null],
+    // 2026-09-22-sc-subcategory-priority-assignment (D6) — pre-filled
+    // default. Validation lives server-side (the service rejects subs
+    // without priority). Root categories ignore this value on submit.
+    priority: ['medium' as IncidentPriority],
   });
 
   get nameControl() {
@@ -95,6 +100,9 @@ export class CategoryFormComponent implements OnInit {
   }
   get parentIdControl() {
     return this.form.get('parent_id')!;
+  }
+  get priorityControl() {
+    return this.form.get('priority')!;
   }
 
   fieldInvalid(field: string): boolean {
@@ -161,6 +169,7 @@ export class CategoryFormComponent implements OnInit {
       name: string;
       description: string | null;
       parent_id: string | null;
+      priority: IncidentPriority;
     };
     const dto = {
       name: raw.name,
@@ -170,6 +179,12 @@ export class CategoryFormComponent implements OnInit {
         : this.isSub()
           ? raw.parent_id
           : null,
+      // 2026-09-22-sc-subcategory-priority-assignment (D1) — priority
+      // only travels on sub-category CREATE/UPDATE. On EDIT of a root
+      // we still send `undefined` so the service keeps it null. On
+      // EDIT of a sub we send the current value so the service can
+      // accept the explicit re-send.
+      priority: this.isSub() ? raw.priority : undefined,
     };
 
     if (this.isEditing()) {
@@ -241,6 +256,10 @@ export class CategoryFormComponent implements OnInit {
           name: category.name,
           description: category.description ?? '',
           parent_id: category.parent_id,
+          // 2026-09-22-sc-subcategory-priority-assignment (D6) —
+          // fallback to 'medium' for legacy rows created before 0065
+          // (which all have NULL priority in the DB).
+          priority: category.priority ?? 'medium',
         });
         // Derive mode from existing parent. EDIT never re-exposes the
         // toggle, so this is read-only context for the template.

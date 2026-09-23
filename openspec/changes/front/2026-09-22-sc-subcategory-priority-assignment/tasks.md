@@ -10,18 +10,18 @@
 
 ### 1.1 Create Migration File
 
-- [ ] Create: `database/migrations/0063_incident_category_priority.sql`
-- [ ] Write UP migration:
+- [x] Create: `database/migrations/0063_incident_category_priority.sql`
+- [x] Write UP migration:
   ```sql
   ALTER TABLE incident_categories
   ADD COLUMN priority VARCHAR(16) DEFAULT NULL;
   ```
-- [ ] Write DOWN migration:
+- [x] Write DOWN migration:
   ```sql
   ALTER TABLE incident_categories
   DROP COLUMN priority;
   ```
-- [ ] Save file
+- [x] Save file
 
 **Acceptance**: File exists and is syntactically valid SQL.
 
@@ -29,8 +29,8 @@
 
 ### 1.2 Update MIGRATION_LOG.md
 
-- [ ] Open `database/MIGRATION_LOG.md`
-- [ ] Add entry for 0063:
+- [x] Open `database/MIGRATION_LOG.md`
+- [x] Add entry for 0063:
   ```
   ### 0063 — incident_category_priority
   **Date**: 2026-09-22
@@ -51,15 +51,15 @@
 
 ### 2.1 Update IncidentCategoryEntity
 
-- [ ] Open `backend/src/entities/incident-category.entity.ts`
-- [ ] Add import for `IncidentPriority` enum (likely from `backend/src/common/enums/incident-priority.enum.ts`)
-- [ ] Add column decorator:
+- [x] Open `backend/src/entities/incident-category.entity.ts`
+- [x] Add import for `IncidentPriority` enum (likely from `backend/src/common/enums/incident-priority.enum.ts`)
+- [x] Add column decorator:
   ```typescript
   @Column({ type: 'varchar', length: 16, nullable: true })
   priority: IncidentPriority | null;
   ```
-- [ ] Save file
-- [ ] Run `npm run typecheck` to verify no TS errors
+- [x] Save file
+- [x] Run `npm run typecheck` to verify no TS errors
 
 **Acceptance**: Entity compiles; field is typed as `IncidentPriority | null`.
 
@@ -67,14 +67,14 @@
 
 ### 2.2 Update CreateIncidentCategoryDto
 
-- [ ] Open `backend/src/modules/incident-categories/dto/create-incident-category.dto.ts`
-- [ ] Add field:
+- [x] Open `backend/src/modules/incident-categories/dto/create-incident-category.dto.ts`
+- [x] Add field:
   ```typescript
   @IsOptional()
   @IsEnum(IncidentPriority)
   priority?: IncidentPriority;
   ```
-- [ ] Run `npm run typecheck`
+- [x] Run `npm run typecheck`
 
 **Acceptance**: DTO compiles; priority is optional.
 
@@ -82,14 +82,14 @@
 
 ### 2.3 Update UpdateIncidentCategoryDto
 
-- [ ] Open `backend/src/modules/incident-categories/dto/update-incident-category.dto.ts`
-- [ ] Add field (same as create DTO):
+- [x] Open `backend/src/modules/incident-categories/dto/update-incident-category.dto.ts`
+- [x] Add field (same as create DTO):
   ```typescript
   @IsOptional()
   @IsEnum(IncidentPriority)
   priority?: IncidentPriority;
   ```
-- [ ] Run `npm run typecheck`
+- [x] Run `npm run typecheck`
 
 **Acceptance**: DTO compiles.
 
@@ -97,15 +97,15 @@
 
 ### 2.4 Update IncidentCategoriesService.create()
 
-- [ ] Open `backend/src/modules/incident-categories/incident-categories.service.ts`
-- [ ] Locate `create()` method
-- [ ] Add validation after parent check:
+- [x] Open `backend/src/modules/incident-categories/incident-categories.service.ts`
+- [x] Locate `create()` method
+- [x] Add validation after parent check:
   ```typescript
   if (dto.parent_id && !dto.priority) {
     throw new BadRequestException('Sub-categories must have a priority');
   }
   ```
-- [ ] Pass priority to entity creation:
+- [x] Pass priority to entity creation:
   ```typescript
   const entity = this.categoryRepo.create({
     name: dto.name,
@@ -121,8 +121,8 @@
 
 ### 2.5 Update IncidentCategoriesService.update()
 
-- [ ] Locate `update()` method
-- [ ] Add validation:
+- [x] Locate `update()` method
+- [x] Add validation:
   ```typescript
   // If updating a sub-category, priority must be provided
   if (existing.parentId && dto.priority === undefined && dto.parent_id !== null) {
@@ -132,7 +132,7 @@
     }
   }
   ```
-- [ ] Update entity assignment:
+- [x] Update entity assignment:
   ```typescript
   if (dto.priority !== undefined) {
     existing.priority = dto.priority;
@@ -145,20 +145,20 @@
 
 ### 2.6 Unit Tests: Service
 
-- [ ] Open test file: `backend/src/modules/incident-categories/incident-categories.service.spec.ts`
-- [ ] Add test: "Create sub-category with default priority 'medium'"
+- [x] Open test file: `backend/src/modules/incident-categories/incident-categories.service.spec.ts`
+- [x] Add test: "Create sub-category with default priority 'medium'"
   - Arrange: Create DTO with parent_id, no priority
   - Act: Call service.create()
   - Assert: Entity has priority = 'medium' (or whatever default is in DTO)
-- [ ] Add test: "Create sub-category with custom priority 'high'"
+- [x] Add test: "Create sub-category with custom priority 'high'"
   - Arrange: Create DTO with parent_id and priority = 'high'
   - Act: Call service.create()
   - Assert: Entity has priority = 'high'
-- [ ] Add test: "Create root category has priority = null"
+- [x] Add test: "Create root category has priority = null"
   - Arrange: Create DTO without parent_id
   - Act: Call service.create()
   - Assert: Entity has priority = null
-- [ ] Run: `npm test -- incident-categories.service.spec.ts`
+- [x] Run: `npm test -- incident-categories.service.spec.ts`
 
 **Acceptance**: All 3 tests pass.
 
@@ -166,8 +166,8 @@
 
 ### 2.7 Run Backend Linting & TypeCheck
 
-- [ ] Run: `npm run lint -- src/modules/incident-categories`
-- [ ] Run: `npm run typecheck`
+- [x] Run: `npm run lint -- src/modules/incident-categories`
+- [x] Run: `npm run typecheck`
 
 **Acceptance**: No errors or warnings.
 
@@ -175,8 +175,8 @@
 
 ### 2.8 Run Full Backend Test Suite
 
-- [ ] Run: `npm test`
-- [ ] Verify no new failures (existing tests should still pass)
+- [x] Run: `npm test`
+- [x] Verify no new failures (existing tests should still pass)
 
 **Acceptance**: Test suite exits with code 0.
 
@@ -186,20 +186,20 @@
 
 ### 3.1 Update IIncidentCategory Interface
 
-- [ ] Open `frontend/src/app/features/catalogs/incident-categories/interfaces/iincident-category.interface.ts`
-- [ ] Add field to `IIncidentCategory`:
+- [x] Open `frontend/src/app/features/catalogs/incident-categories/interfaces/iincident-category.interface.ts`
+- [x] Add field to `IIncidentCategory`:
   ```typescript
   priority?: IncidentPriority | null;
   ```
-- [ ] Add field to `ICreateIncidentCategoryDto`:
+- [x] Add field to `ICreateIncidentCategoryDto`:
   ```typescript
   priority?: IncidentPriority;
   ```
-- [ ] Add field to `IUpdateIncidentCategoryDto`:
+- [x] Add field to `IUpdateIncidentCategoryDto`:
   ```typescript
   priority?: IncidentPriority;
   ```
-- [ ] Run `npm run typecheck`
+- [x] Run `npm run typecheck`
 
 **Acceptance**: Interface compiles.
 
@@ -207,10 +207,10 @@
 
 ### 3.2 Import IncidentPriority Enum
 
-- [ ] Check if `IncidentPriority` enum is already defined in frontend
+- [x] Check if `IncidentPriority` enum is already defined in frontend
   - Likely in: `frontend/src/app/common/enums/incident-priority.enum.ts` or similar
-- [ ] If not defined, create it with values: `low`, `medium`, `high`, `critical`
-- [ ] Import in interfaces file
+- [x] If not defined, create it with values: `low`, `medium`, `high`, `critical`
+- [x] Import in interfaces file
 
 **Acceptance**: Enum is available and imported.
 
@@ -218,8 +218,8 @@
 
 ### 3.3 Update CategoryFormComponent: Add isSubCategory Computed
 
-- [ ] Open `frontend/src/app/features/catalogs/incident-categories/category-form/category-form.component.ts`
-- [ ] Add computed property after `isSub`:
+- [x] Open `frontend/src/app/features/catalogs/incident-categories/category-form/category-form.component.ts`
+- [x] Add computed property after `isSub`:
   ```typescript
   readonly isSubCategory = computed(() => {
     const parentId = this.form.get('parent_id')?.value;
@@ -233,8 +233,8 @@
 
 ### 3.4 Update CategoryFormComponent: Add Priority FormControl
 
-- [ ] Locate form group definition
-- [ ] Add priority control:
+- [x] Locate form group definition
+- [x] Add priority control:
   ```typescript
   priority: ['medium' as IncidentPriority], // Default value
   ```
@@ -245,9 +245,9 @@
 
 ### 3.5 Update CategoryFormComponent: onSubmit()
 
-- [ ] Locate `onSubmit()` method
-- [ ] Find where DTO is constructed
-- [ ] Update:
+- [x] Locate `onSubmit()` method
+- [x] Find where DTO is constructed
+- [x] Update:
   ```typescript
   const dto = {
     name: raw.name,
@@ -267,8 +267,8 @@
 
 ### 3.6 Update CategoryFormComponent: Load Priority on Edit
 
-- [ ] Locate `loadCategory()` method
-- [ ] Update form patch:
+- [x] Locate `loadCategory()` method
+- [x] Update form patch:
   ```typescript
   this.form.patchValue({
     name: category.name,
@@ -284,9 +284,9 @@
 
 ### 3.7 Update Template: Add Radio Button Group
 
-- [ ] Open `category-form.component.html`
-- [ ] Find where parent_id field is rendered
-- [ ] Add after it:
+- [x] Open `category-form.component.html`
+- [x] Find where parent_id field is rendered
+- [x] Add after it:
   ```html
   <ng-container *ngIf="isSubCategory()">
     <fieldset class="priority-fieldset">
@@ -339,8 +339,8 @@
 
 ### 3.8 Add Styling (Optional)
 
-- [ ] Add CSS to `.component.scss` for radio button styling (horizontal layout, proper spacing)
-- [ ] Verify it matches existing form style
+- [x] Add CSS to `.component.scss` for radio button styling (horizontal layout, proper spacing)
+- [x] Verify it matches existing form style
 
 **Acceptance**: Radio buttons look consistent with form.
 
@@ -348,8 +348,8 @@
 
 ### 3.9 Frontend Linting & TypeCheck
 
-- [ ] Run: `npm run lint -- category-form.component.ts`
-- [ ] Run: `npm run typecheck`
+- [x] Run: `npm run lint -- category-form.component.ts`
+- [x] Run: `npm run typecheck`
 
 **Acceptance**: No errors.
 
@@ -359,13 +359,13 @@
 
 ### 4.1 Unit Tests: CategoryFormComponent
 
-- [ ] Open test file: `category-form.component.spec.ts`
-- [ ] Add test: "isSubCategory computed returns true when parent_id is set"
-- [ ] Add test: "Priority field is visible when isSubCategory is true"
-- [ ] Add test: "Priority field is hidden when isSubCategory is false"
-- [ ] Add test: "Priority defaults to 'medium' on form init"
-- [ ] Add test: "onSubmit includes priority for sub-categories"
-- [ ] Run: `npm test -- category-form.component.spec.ts`
+- [x] Open test file: `category-form.component.spec.ts`
+- [x] Add test: "isSubCategory computed returns true when parent_id is set"
+- [x] Add test: "Priority field is visible when isSubCategory is true"
+- [x] Add test: "Priority field is hidden when isSubCategory is false"
+- [x] Add test: "Priority defaults to 'medium' on form init"
+- [x] Add test: "onSubmit includes priority for sub-categories"
+- [x] Run: `npm test -- category-form.component.spec.ts`
 
 **Acceptance**: All tests pass.
 
@@ -373,8 +373,8 @@
 
 ### 4.2 E2E Test: Create Sub-Category with Priority
 
-- [ ] Open: `frontend/e2e/category-form.e2e.ts` or create if needed
-- [ ] Add test: "Admin creates sub-category with priority 'high'"
+- [x] Open: `frontend/e2e/category-form.e2e.ts` or create if needed
+- [x] Add test: "Admin creates sub-category with priority 'high'"
   - Navigate to category create
   - Select parent category
   - Fill name, description
@@ -383,13 +383,13 @@
   - Assert: Priority field visible, "Alto" selected
   - Assert: API call includes `priority: 'high'`
   - Assert: Toast shows success
-- [ ] Add test: "Admin edits sub-category and changes priority"
+- [x] Add test: "Admin edits sub-category and changes priority"
   - Navigate to edit existing sub-category
   - Assert: Priority field shows current value
   - Change priority to different value
   - Click Save
   - Assert: API call includes new priority
-- [ ] Run: `npm run test:e2e`
+- [x] Run: `npm run test:e2e`
 
 **Acceptance**: E2E tests pass.
 
@@ -397,14 +397,14 @@
 
 ### 4.3 E2E Test: Incident Priority Pre-Fill
 
-- [ ] Add test: "Citizen publishes incident with category that has priority"
+- [x] Add test: "Citizen publishes incident with category that has priority"
   - Navigate to incident create
   - Select category with `priority = 'high'`
   - Assert: Incident priority field pre-fills to "Alto"
   - Can change it manually
   - Submit incident
   - Assert: Incident saved with correct priority
-- [ ] Run: `npm run test:e2e`
+- [x] Run: `npm run test:e2e`
 
 **Acceptance**: Pre-fill test passes.
 
@@ -412,8 +412,8 @@
 
 ### 4.4 Run Full Frontend Test Suite
 
-- [ ] Run: `npm test`
-- [ ] Verify no new failures
+- [x] Run: `npm test`
+- [x] Verify no new failures
 
 **Acceptance**: All tests pass.
 
@@ -421,8 +421,8 @@
 
 ### 4.5 Integration Test: API + Frontend
 
-- [ ] Start server: `docker compose up -d`
-- [ ] Manual test in browser:
+- [x] Start server: `docker compose up -d`
+- [x] Manual test in browser:
   1. Navigate to `/app/categorias/new`
   2. Fill root category form (no parent)
   3. Assert: No priority field
@@ -444,10 +444,10 @@
 
 ### 4.6 Regression Testing
 
-- [ ] Run full test suite: `npm test && npm run test:e2e`
-- [ ] Verify category list view unchanged (no priority columns)
-- [ ] Verify category delete still works
-- [ ] Verify root categories work as before
+- [x] Run full test suite: `npm test && npm run test:e2e`
+- [x] Verify category list view unchanged (no priority columns)
+- [x] Verify category delete still works
+- [x] Verify root categories work as before
 
 **Acceptance**: No regressions.
 
