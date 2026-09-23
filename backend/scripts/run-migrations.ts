@@ -29,7 +29,7 @@
 import { Client } from 'pg';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
-import { listMigrations, checksumOf, type MigrationFile } from './lib/migration-files';
+import { listMigrations, checksumOf, type MigrationFile } from './lib/migration-files.js';
 
 async function main() {
   const args = process.argv.slice(2);
