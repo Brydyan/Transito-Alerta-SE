@@ -75,7 +75,11 @@
         </thead>
         <tbody>
           @for (location of visibleNodes(); track location.id) {
-            <tr>
+            <tr
+              [class.has-children]="hasChildren(location)"
+              [ngClass]="hasChildren(location) ? 'cursor-pointer select-none' : ''"
+              (dblclick)="hasChildren(location) && toggleExpand(location)"
+            >
               <td>
                 <div
                   class="flex items-center gap-2"

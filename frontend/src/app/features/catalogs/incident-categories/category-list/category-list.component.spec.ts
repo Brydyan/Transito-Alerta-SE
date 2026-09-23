@@ -6,6 +6,18 @@ import { ConfirmDialogService } from '../../../../shared/components/confirm-dial
 import { of, throwError } from 'rxjs';
 import { ActivatedRoute, Router } from '@angular/router';
 
+/**
+ * Helpers comunes para tests de doble-click en filas del árbol.
+ */
+function rowByName(name: string): HTMLElement | undefined {
+  const rows = Array.from(document.querySelectorAll('tbody tr')) as HTMLElement[];
+  return rows.find((r) => r.textContent?.includes(name));
+}
+
+function dispatchDblClick(el: HTMLElement): void {
+  el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+}
+
 describe('CategoryListComponent (T7.4 — tree view)', () => {
   let mockCategoryService: {
     listAll: jest.Mock;
@@ -139,5 +151,90 @@ describe('CategoryListComponent (T7.4 — tree view)', () => {
     mockCategoryService.listAll.mockReturnValue(throwError(() => new Error('boom')));
     await renderList();
     expect(mockToastService.error).toHaveBeenCalledWith('No se pudieron cargar las categorías.');
+  });
+
+  // ── 2026-09-22-sc-tree-list-double-click-expand-catalog ─────────────
+  // Doble-click en fila con hijos = toggle expand. Doble-click en hoja = no-op.
+
+  describe('double-click on row', () => {
+    beforeEach(() => {
+      mockCategoryService.listAll.mockReturnValue(
+        of([
+          { id: 'p', name: 'Parent', description: null, parent_id: null, created_at: '', updated_at: '' },
+          { id: 'c1', name: 'Child 1', description: null, parent_id: 'p', created_at: '', updated_at: '' },
+          { id: 'c2', name: 'Child 2', description: null, parent_id: 'p', created_at: '', updated_at: '' },
+        ]),
+      );
+    });
+
+    it('applies the has-children class only to rows that have children', async () => {
+      const { fixture } = await renderList();
+      fixture.detectChanges();
+
+      const parentRow = rowByName('Parent');
+      const childRow = rowByName('Child 1');
+
+      expect(parentRow).toBeTruthy();
+      // Child rows are not rendered until parent is expanded.
+      expect(childRow).toBeUndefined();
+
+      // Parent must have has-children class (it has children, even if hidden).
+      expect(parentRow!.classList.contains('has-children')).toBe(true);
+    });
+
+    it('toggles expand/collapse when double-clicking a row that has children', async () => {
+      const { fixture } = await renderList();
+      fixture.detectChanges();
+
+      const parentRow = rowByName('Parent')!;
+      const { componentInstance } = fixture;
+
+      // Initially child rows are not in the DOM.
+      expect(screen.queryByText('Child 1')).toBeNull();
+
+      dispatchDblClick(parentRow);
+      fixture.detectChanges();
+
+      // After dblclick on parent, children become visible.
+      expect(screen.queryByText('Child 1')).toBeTruthy();
+      expect(screen.queryByText('Child 2')).toBeTruthy();
+      // Toggle was actually called (state is expanded).
+      expect(componentInstance.expandedIds().has('p')).toBe(true);
+
+      // Second dblclick collapses again.
+      dispatchDblClick(parentRow);
+      fixture.detectChanges();
+      expect(screen.queryByText('Child 1')).toBeNull();
+      expect(componentInstance.expandedIds().has('p')).toBe(false);
+    });
+
+    it('does NOT expand when double-clicking a leaf row', async () => {
+      mockCategoryService.listAll.mockReturnValue(
+        of([
+          { id: 'p', name: 'Parent', description: null, parent_id: null, created_at: '', updated_at: '' },
+          { id: 'c', name: 'Child', description: null, parent_id: 'p', created_at: '', updated_at: '' },
+        ]),
+      );
+
+      const { fixture } = await renderList();
+      fixture.detectChanges();
+
+      // Expand parent first so the leaf row becomes visible.
+      const parentRow = rowByName('Parent')!;
+      dispatchDblClick(parentRow);
+      fixture.detectChanges();
+
+      // Now there is a leaf row.
+      const leafRow = rowByName('Child')!;
+      expect(leafRow.classList.contains('has-children')).toBe(false);
+
+      const toggleSpy = jest.spyOn(fixture.componentInstance, 'toggleExpand');
+
+      dispatchDblClick(leafRow);
+      fixture.detectChanges();
+
+      // toggleExpand was not called for the leaf.
+      expect(toggleSpy).not.toHaveBeenCalled();
+    });
   });
 });

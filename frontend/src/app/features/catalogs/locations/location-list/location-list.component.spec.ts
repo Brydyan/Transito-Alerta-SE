@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/angular';
+import { render, screen, fireEvent } from '@testing-library/angular';
 import { of } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 import { LocationListComponent } from './location-list.component';
@@ -7,6 +7,18 @@ import { ToastService } from '../../../../shared/components/toast/toast.service'
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { IGeoZone } from '../interfaces/igeo-zone.interface';
+
+/**
+ * Helpers comunes para tests de doble-click en filas del árbol.
+ */
+function rowByName(name: string): HTMLElement | undefined {
+  const rows = Array.from(document.querySelectorAll('tbody tr')) as HTMLElement[];
+  return rows.find((r) => r.textContent?.includes(name));
+}
+
+function dispatchDblClick(el: HTMLElement): void {
+  el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+}
 
 /**
  * F2.3.5 — specs for the Ubicaciones tree list.
@@ -157,6 +169,73 @@ describe('LocationListComponent', () => {
       await setup([]);
       const button = screen.queryByRole('button', { name: /importar shapefile/i });
       expect(button).toBeNull();
+    });
+  });
+
+  // ── 2026-09-22-sc-tree-list-double-click-expand-catalog ─────────────
+  // Doble-click en fila con hijos = toggle expand. Doble-click en hoja = no-op.
+
+  describe('double-click on row', () => {
+    const tree = (): IGeoZone[] => [
+      zone({ id: 'p', name: 'Parent', level: 'provincia' }),
+      zone({ id: 'c1', name: 'Child 1', level: 'canton', parent_id: 'p' }),
+      zone({ id: 'c2', name: 'Child 2', level: 'canton', parent_id: 'p' }),
+    ];
+
+    it('applies the has-children class only to rows that have children', async () => {
+      const { fixture } = await setup(tree());
+      fixture.detectChanges();
+
+      const parentRow = rowByName('Parent');
+      expect(parentRow).toBeTruthy();
+      expect(parentRow!.classList.contains('has-children')).toBe(true);
+    });
+
+    it('toggles expand/collapse when double-clicking a row that has children', async () => {
+      const { fixture } = await setup(tree());
+      fixture.detectChanges();
+
+      const parentRow = rowByName('Parent')!;
+      const { componentInstance } = fixture;
+
+      // Initially child rows are not in the DOM.
+      expect(screen.queryByText('Child 1')).toBeNull();
+
+      dispatchDblClick(parentRow);
+      fixture.detectChanges();
+
+      // After dblclick on parent, children become visible.
+      expect(screen.queryByText('Child 1')).toBeTruthy();
+      expect(screen.queryByText('Child 2')).toBeTruthy();
+      expect(componentInstance.expandedIds().has('p')).toBe(true);
+
+      // Second dblclick collapses again.
+      dispatchDblClick(parentRow);
+      fixture.detectChanges();
+      expect(screen.queryByText('Child 1')).toBeNull();
+      expect(componentInstance.expandedIds().has('p')).toBe(false);
+    });
+
+    it('does NOT expand when double-clicking a leaf row', async () => {
+      const { fixture } = await setup(tree());
+      fixture.detectChanges();
+
+      // Expand parent first so the leaf row becomes visible.
+      const parentRow = rowByName('Parent')!;
+      dispatchDblClick(parentRow);
+      fixture.detectChanges();
+
+      // Now there is a leaf row.
+      const leafRow = rowByName('Child 1')!;
+      expect(leafRow.classList.contains('has-children')).toBe(false);
+
+      const toggleSpy = jest.spyOn(fixture.componentInstance, 'toggleExpand');
+
+      dispatchDblClick(leafRow);
+      fixture.detectChanges();
+
+      // toggleExpand was not called for the leaf.
+      expect(toggleSpy).not.toHaveBeenCalled();
     });
   });
 });
