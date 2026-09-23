@@ -22,6 +22,27 @@ export class IncidentFeedService {
     return STAFF_ROLES.includes(user.roleName ?? '');
   }
 
+  /**
+   * Resolve a zone_id to itself + all descendant zones (children, grandchildren, etc).
+   * Uses PostgreSQL recursive CTE to handle hierarchical geo_zones structure.
+   *
+   * Example: zona_id='provincia-123' returns ['provincia-123', 'canton-1', 'canton-2', 'parroquia-1a', 'parroquia-2a']
+   */
+  private async resolveZoneHierarchy(zoneId: string): Promise<string[]> {
+    const result = await this.dataSource.query<{ id: string }[]>(
+      `WITH RECURSIVE zone_tree AS (
+        SELECT id FROM geo_zones WHERE id = $1 AND deleted_at IS NULL
+        UNION ALL
+        SELECT gz.id FROM geo_zones gz
+        INNER JOIN zone_tree zt ON gz.parent_id = zt.id
+        WHERE gz.deleted_at IS NULL
+      )
+      SELECT id FROM zone_tree`,
+      [zoneId]
+    );
+    return result.map(r => r.id);
+  }
+
   async getStaffFeed(query: FeedQueryDto, user: AuthContext): Promise<FeedResponseDto> {
     const page = query.page ?? 1;
     const perPage = Math.min(query.per_page ?? 20, query.bbox ? STAFF_BBOX_CAP : 500);
@@ -48,8 +69,16 @@ export class IncidentFeedService {
       conditions.push(`i.priority = $${params.length}`);
     }
     if (query.zone_id) {
-      params.push(query.zone_id);
-      conditions.push(`i.zone_id = $${params.length}`);
+      // Fix: resolve zone hierarchy to include all child zones
+      const zoneIds = await this.resolveZoneHierarchy(query.zone_id);
+      if (zoneIds.length > 0) {
+        const placeholders = zoneIds.map((_, idx) => `$${params.length + idx + 1}`).join(',');
+        params.push(...zoneIds);
+        conditions.push(`i.zone_id IN (${placeholders})`);
+      } else {
+        // Zone not found or deleted; return empty
+        conditions.push('1=0');
+      }
     }
     if (query.incident_category_id) {
       params.push(query.incident_category_id);
@@ -151,7 +180,12 @@ export class IncidentFeedService {
     if (cached) {
       let items = cached;
       if (query.status) items = items.filter((i) => i.status === query.status);
-      if (query.zone_id) items = items.filter((i) => i.location_id === query.zone_id);
+      if (query.zone_id) {
+        // Fix: resolve zone hierarchy to include all child zones
+        const zoneIds = await this.resolveZoneHierarchy(query.zone_id);
+        const zoneIdSet = new Set(zoneIds);
+        items = items.filter((i) => i.location_id && zoneIdSet.has(i.location_id));
+      }
       const total = items.length;
       const start = (page - 1) * perPage;
       return {
@@ -164,7 +198,18 @@ export class IncidentFeedService {
     const params: unknown[] = [];
     const conditions: string[] = ['1=1'];
     if (query.status) { params.push(query.status); conditions.push(`i.status = $${params.length}`); }
-    if (query.zone_id) { params.push(query.zone_id); conditions.push(`i.zone_id = $${params.length}`); }
+    if (query.zone_id) {
+      // Fix: resolve zone hierarchy to include all child zones
+      const zoneIds = await this.resolveZoneHierarchy(query.zone_id);
+      if (zoneIds.length > 0) {
+        const placeholders = zoneIds.map((_, idx) => `$${params.length + idx + 1}`).join(',');
+        params.push(...zoneIds);
+        conditions.push(`i.zone_id IN (${placeholders})`);
+      } else {
+        // Zone not found or deleted; return empty
+        conditions.push('1=0');
+      }
+    }
 
     params.push(perPage);
     const limitIdx = params.length;
