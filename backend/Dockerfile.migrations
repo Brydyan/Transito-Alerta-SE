@@ -27,8 +27,9 @@ RUN corepack enable
 RUN apk add --no-cache postgresql-client
 # Copia deps
 COPY --from=dependencies /app/node_modules /app/backend/node_modules
-# Copia scripts (incluyendo lib/)
+# Copia scripts (incluyendo lib/) + config
 COPY backend/scripts/ /app/backend/scripts/
+COPY backend/tsconfig.scripts.json /app/backend/
 # Copia migrations desde la raíz
 COPY database/migrations /app/database/migrations
 # Copia entrypoint script

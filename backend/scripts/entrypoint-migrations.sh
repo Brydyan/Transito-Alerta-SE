@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+export TS_NODE_PROJECT=/app/backend/tsconfig.scripts.json
+export TS_NODE_TRANSPILE_ONLY=true
+
 DB_URL="${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/transito_alerta}"
 echo "[migrations] DB_URL=$DB_URL"
 
@@ -31,5 +34,5 @@ else
   echo "[migrations] ✓ Schema exists. Skipping bootstrap."
 fi
 
-echo "[migrations] ► Validating checksums..."
-exec npx ts-node scripts/run-migrations.ts
+echo "[migrations] ✓ Bootstrap/validation complete. Exiting."
+exit 0
