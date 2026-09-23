@@ -15,7 +15,7 @@ fi
 echo "[migrations] ✓ Connected."
 
 echo "[migrations] Checking schema_migrations table..."
-SCHEMA_EXISTS=$(psql "$DB_URL" -tc "SELECT to_regclass('schema_migrations') IS NOT NULL" 2>/dev/null || echo 'f')
+SCHEMA_EXISTS=$(psql "$DB_URL" -tc "SELECT to_regclass('schema_migrations') IS NOT NULL" 2>/dev/null | tr -d ' ' || echo 'f')
 echo "[migrations] schema_migrations exists: $SCHEMA_EXISTS"
 
 if [ "$SCHEMA_EXISTS" = 'f' ]; then
