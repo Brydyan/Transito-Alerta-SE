@@ -20,8 +20,8 @@ WORKDIR /app/backend
 RUN corepack enable
 # Copia deps
 COPY --from=dependencies /app/node_modules /app/backend/node_modules
-# Copia scripts de migraciones
-COPY backend/scripts /app/backend/scripts
+# Copia scripts de migraciones (incluyendo lib/)
+COPY backend/scripts/ /app/backend/scripts/
 # Copia migrations desde la raíz
 COPY database/migrations /app/database/migrations
 # El comando se ejecuta desde docker-compose (ver compose.yaml)
