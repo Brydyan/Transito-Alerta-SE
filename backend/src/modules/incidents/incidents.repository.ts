@@ -71,6 +71,9 @@ export interface CreateIncidentInput {
   isAnonymous: boolean;
 }
 
+export const DEFAULT_PAGE_SIZE = 20;
+export const MAX_PAGE_SIZE = 100;
+
 export const getSelectColumns = (actorId?: string) => `
   id, title, description, status, priority,
   citizen_id, is_anonymous,
@@ -137,12 +140,17 @@ export class IncidentsRepository {
    * `scope` is a REQUIRED parameter (T3.2 design D3) — never optional,
    * never defaulted. An unscoped call is a compile error, not a silent
    * `global` leak.
+   *
+   * Pagination: mirrors Users module pattern (DEFAULT_PAGE_SIZE=20, MAX_PAGE_SIZE=100).
+   * Returns envelope `{items, total}` with parameterized LIMIT/OFFSET and a separate COUNT(*).
    */
   async findAll(
     filters: { zoneId?: string; status?: IncidentStatus },
     scope: SubjectScope,
-    actorId?: string
-  ): Promise<IncidentRow[]> {
+    actorId?: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{ items: IncidentRow[]; total: number }> {
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -163,10 +171,28 @@ export class IncidentsRepository {
     conditions.push('deleted_at IS NULL');
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    return this.dataSource.query(
-      `SELECT ${getSelectColumns(actorId)} FROM incidents ${where} ORDER BY created_at DESC LIMIT 1000`,
-      params,
+
+    // COUNT query — total matching rows before pagination
+    const countParams = [...params];
+    const countRows: Array<{ total: string; count: string }> = await this.dataSource.query(
+      `SELECT COUNT(*) AS total FROM incidents ${where}`,
+      countParams,
     );
+    const total = Number(countRows[0]?.total ?? countRows[0]?.count ?? 0);
+
+    const take = Math.min(Math.max(limit, 1), MAX_PAGE_SIZE);
+    const safePage = Math.max(page, 1);
+    const offset = (safePage - 1) * take;
+
+    const dataParams: unknown[] = [...params, take, offset];
+    const limitIdx = dataParams.length - 1;
+    const offsetIdx = dataParams.length;
+    const items: IncidentRow[] = await this.dataSource.query(
+      `SELECT ${getSelectColumns(actorId)} FROM incidents ${where} ORDER BY created_at DESC LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      dataParams,
+    );
+
+    return { items, total };
   }
 
   async findOne(id: string, scope: SubjectScope, actorId?: string): Promise<IncidentRow | null> {

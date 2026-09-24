@@ -28,6 +28,7 @@ import { UpdateIncidentDto } from './dto/update-incident.dto';
 import { UpdateIncidentStatusDto } from './dto/update-incident-status.dto';
 import { StatsQueryDto } from './dto/stats-query.dto';
 import { WeeklyStatsQueryDto } from './dto/weekly-stats-query.dto';
+import { IncidentListQueryDto } from './dto/incident-list-query.dto';
 // AUD (sc-327) D4 — DTO y servicio de revelación de autoría
 // sellada. La ruta `POST /incidents/:id/reveal-reporter` vive
 // en este mismo controller porque comparte el guard
@@ -103,10 +104,17 @@ export class IncidentsController {
   @RequirePermission('READ')
   findAll(
     @Req() req: AuthenticatedRequest,
-    @Query('zone_id') zoneId?: string,
-    @Query('status') status?: IncidentStatus,
-  ): Promise<IncidentRow[]> {
-    return this.incidentsService.findAll({ zoneId, status }, req.user!.scope, req.user!.userId);
+    @Query() query: IncidentListQueryDto,
+  ): Promise<{ items: IncidentRow[]; total: number }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    return this.incidentsService.findAll(
+      { zoneId: query.zone_id, status: query.status as IncidentStatus | undefined },
+      req.user!.scope,
+      req.user!.userId,
+      page,
+      limit,
+    );
   }
 
   // ---- T5.2 analytics routes — declared BEFORE :id to avoid shadowing ---
