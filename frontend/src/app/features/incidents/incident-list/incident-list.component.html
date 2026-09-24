@@ -1,0 +1,180 @@
+<ui-page-header
+  kicker="GESTIÓN / LISTADO"
+  title="Incidencias"
+  [subtitle]="rangeText()"
+>
+  <div page-header-actions class="flex items-center gap-2">
+    <!-- Assignment toolbar button — RBAC: ASSIGN permission required -->
+    @if (hasAssignPermission()) {
+      <button
+        type="button"
+        class="btn btn-primary"
+        (click)="openAssignmentModal()"
+        data-testid="toolbar-assign"
+        title="Asignar incidencia a operador"
+      >
+        <ui-icon name="user-plus" [size]="16" />
+        Asignar
+      </button>
+    }
+
+    <button
+      type="button"
+      class="btn btn-secondary"
+      (click)="onClearFilters()"
+      [disabled]="!hasActiveFilters()"
+      data-testid="clear-filters"
+    >
+      <ui-icon name="filter-x" [size]="16" />
+      Limpiar filtros
+    </button>
+  </div>
+</ui-page-header>
+
+<!-- Barra de filtros -->
+<ui-card class="block mb-6">
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="filter-bar">
+    <div>
+      <label class="form-label" for="status">Estado</label>
+      <select
+        id="status"
+        class="form-select w-full"
+        [value]="statusFilter() ?? ''"
+        (change)="onStatusChange($any($event.target).value || null)"
+        data-testid="status-select"
+      >
+        <option value="">Todos</option>
+        @for (opt of statusOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+</ui-card>
+
+<!-- Tabla / skeleton / empty state -->
+<ui-card>
+  @if (loading()) {
+    <app-table-skeleton [rows]="6" [cols]="6" />
+  } @else if (incidents().length === 0) {
+    <app-empty-state
+      icon="inbox"
+      title="Sin incidencias para mostrar"
+      [description]="
+        hasActiveFilters()
+          ? 'Probá limpiar los filtros o ajustar la búsqueda.'
+          : 'Cuando se reporten incidencias van a aparecer acá.'
+      "
+    />
+  } @else {
+    <ui-table>
+      <thead>
+        <tr>
+          <th class="ui-table-cell-select">
+            <input type="checkbox" aria-label="Seleccionar todo" />
+          </th>
+          <th>Incidencia</th>
+          <th>Estado</th>
+          <th>Prioridad</th>
+          <th>Ubicación</th>
+          <th>Fecha</th>
+          <th class="ui-table-cell-actions">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of incidents(); track row.id) {
+          <tr [attr.data-testid]="'row-' + row.id">
+            <td class="ui-table-cell-select" (click)="$event.stopPropagation()">
+              <input type="checkbox" [attr.aria-label]="'Seleccionar ' + row.title" />
+            </td>
+            <td>
+              <div class="ui-table-title" [title]="row.title">
+                {{ truncate(row.title) }}
+              </div>
+              <div class="ui-table-subtitle">
+                {{ row.description || 'Sin descripción' }}
+              </div>
+            </td>
+            <td>
+              <ui-badge [variant]="badgeStatusFor(row.status)" />
+            </td>
+            <td>
+              <ui-badge [variant]="badgePriorityFor(row.priority)" />
+            </td>
+            <td>
+              <div class="flex items-center gap-2 text-sm text-slate-600">
+                <ui-icon name="map-pin" [size]="14" />
+                {{ locationLabel(row) }}
+              </div>
+            </td>
+            <td>
+              <div class="flex items-center gap-2 text-sm text-slate-600">
+                <ui-icon name="calendar" [size]="14" />
+                {{ row.created_at | date: 'short' }}
+              </div>
+            </td>
+            <td class="ui-table-cell-actions" (click)="$event.stopPropagation()">
+              <!-- Three-dot dropdown (D2 — replaces single "Ver" button) -->
+              <app-actions-dropdown
+                [incidentId]="row.id"
+                [hasAssignPermission]="hasAssignPermission()"
+                (view)="goToDetail(row)"
+                (assign)="openAssignmentModal($event)"
+                (tracking)="openTracking($event)"
+                [attr.data-testid]="'actions-' + row.id"
+              />
+            </td>
+          </tr>
+        }
+      </tbody>
+    </ui-table>
+  }
+</ui-card>
+
+<!-- Paginación (oculta hasta que el backend soporte paginación real) -->
+@if (shouldShowPagination()) {
+  <div class="mt-4">
+    <app-pagination
+      [totalItems]="total()"
+      [currentPage]="currentPage()"
+      [pageSize]="10"
+      [itemNameSingular]="'incidencia'"
+      [itemNamePlural]="'incidencias'"
+      (pageChange)="onPageChange($event)"
+    />
+  </div>
+}
+
+<!-- Tarjetas de contexto (F3.2.8 / D8) -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6" data-testid="context-cards">
+  <ui-kpi-card
+    label="Cobertura territorial"
+    [value]="territorialCoverage() ?? '—'"
+  />
+  <ui-kpi-card
+    label="Incidencias abiertas"
+    [value]="openIncidents() ?? '—'"
+  />
+  <ui-kpi-card
+    label="Tiempo de respuesta"
+    [value]="avgResponseTime() ?? '—'"
+  />
+</section>
+
+<!-- Assignment Modal overlay -->
+@if (assignmentModalOpen()) {
+  <app-assignment-modal
+    (closed)="closeAssignmentModal()"
+    (assigned)="onAssignmentCompleted($event)"
+    data-testid="assignment-modal"
+  />
+}
+
+<!-- Tracking Panel side panel -->
+@if (trackingPanelOpen() && trackingIncidentId()) {
+  <app-tracking-panel
+    [incidentId]="trackingIncidentId()!"
+    (closed)="closeTracking()"
+    data-testid="tracking-panel"
+  />
+}

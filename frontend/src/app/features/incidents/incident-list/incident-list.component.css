@@ -1,0 +1,6 @@
+/* F3 (sc-303) — list layout. Las clases helper de F0 viven en
+   `ui-table` y `ui-card`; acá sólo lo específico del listado. */
+:host {
+  display: block;
+  padding: 1.5rem 0;
+}
