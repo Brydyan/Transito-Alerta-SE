@@ -68,19 +68,24 @@ export interface CreateIncidentDto {
 // F3.1.3 (D2 + F3.2.9) — typed filters for the listing. Sent as query
 // params to `GET /api/incidents` and `GET /api/incidents/feed`.
 //
-// F3 (sc-303) C1 (ronda 4) — updated (pagination): `GET /api/incidents/feed`
-// now supports `status`, `priority`, `page`, `per_page`,
-// `incident_category_id` (consumed by the citizen feed). `GET /api/incidents`
-// listing still only honors `status` and silently ignores the rest.
-// `search` remains unsupported by the feed endpoint and stays commented
-// as debt — do not send it to `/incidents/feed`.
+// sc-339 (2026-09-23) — `GET /api/incidents` now enforces
+// `forbidNonWhitelisted: true` and whitelists ONLY `zone_id`,
+// `status`, `page`, `limit` (IncidentListQueryDto). Any extra param
+// (search, priority, per_page, category) returns 400. `GET
+// /api/incidents/feed` keeps its own DTO (FeedQueryDto: status,
+// priority, page, per_page, incident_category_id, zone_id) and is
+// NOT affected. `IncidentListFilters` therefore carries both shapes
+// but callers MUST use `toListQueryParams` vs `toFeedQueryParams`.
 export interface IncidentListFilters {
+  zone_id?: string;
   status?: IncidentStatus;
-  priority?: IncidentPriority;
   page?: number;
+  limit?: number;
+  // Feed-only (FeedQueryDto) — never sent to `GET /api/incidents`.
+  priority?: IncidentPriority;
   per_page?: number;
   incident_category_id?: string;
-  // DEBT — feed endpoint does not support search:
+  // DEBT — neither endpoint supports free-text search; sending it 400s.
   //   - search?: string;            (ILIKE sobre title/description)
 }
 

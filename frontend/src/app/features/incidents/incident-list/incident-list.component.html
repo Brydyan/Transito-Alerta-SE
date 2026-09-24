@@ -119,25 +119,16 @@
   }
 </ui-card>
 
-<!-- Paginación (F3.2.6) — F3 (sc-303) C1 (ronda 4) -->
-<!--
-  Oculta hasta que el backend soporte paginación real. Hoy
-  `getIncidents` recibe hasta 1000 filas de una sola vez; el
-  `total` devuelto por el service es `items.length` y el
-  paginador prometería una funcionalidad que no existe.
-  Cuando se extienda `incidents.controller.ts:findAll` para
-  aceptar `page`/`limit` y devolver un envelope con `total`
-  real, este `@if` se vuelve a abrir.
--->
 @if (shouldShowPagination()) {
   <div class="mt-4">
     <app-pagination
       [totalItems]="total()"
       [currentPage]="currentPage()"
-      [pageSize]="10"
+      [pageSize]="pageSize()"
       [itemNameSingular]="'incidencia'"
       [itemNamePlural]="'incidencias'"
       (pageChange)="onPageChange($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
     />
   </div>
 }

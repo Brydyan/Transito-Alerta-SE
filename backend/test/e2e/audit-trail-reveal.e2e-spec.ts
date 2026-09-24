@@ -423,7 +423,8 @@ describe('E2E AUD — D4 transactional rollback (FIX-1) + reveal coverage (FIX-2
       .get('/api/incidents')
       .set({ Authorization: `Bearer ${master.accessToken}` })
       .expect(200);
-    const found = list.body.find((r: { id: string }) => r.id === id);
+    // sc-339 — GET /api/incidents returns `{items, total}`.
+    const found = list.body.items.find((r: { id: string }) => r.id === id);
     expect(found).toBeDefined();
     const body = JSON.stringify(found);
     expect(body).not.toContain(reporterId);
@@ -673,7 +674,8 @@ describe('E2E AUD — D4 transactional rollback (FIX-1) + reveal coverage (FIX-2
       .get('/api/incidents')
       .set({ Authorization: `Bearer ${reporter.accessToken}` })
       .expect(200);
-    const found = list.body.find((r: { id: string }) => r.id === created.body.id);
+    // sc-339 — GET /api/incidents returns `{items, total}`.
+    const found = list.body.items.find((r: { id: string }) => r.id === created.body.id);
     expect(found).toBeDefined();
     expect(found.is_anonymous).toBe(true);
     // El id del reporter NO aparece en su propia respuesta —

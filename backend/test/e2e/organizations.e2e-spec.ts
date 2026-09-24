@@ -95,11 +95,12 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
         .set(auth(orgAAdmin))
         .expect(200);
 
-      const ids: string[] = list.body.map((r: { id: string }) => r.id);
+      // sc-339 — GET /api/incidents returns `{items, total}`.
+      const ids: string[] = list.body.items.map((r: { id: string }) => r.id);
       expect(ids).toContain(created.body.id);
       expect(ids.every((id: string) => id !== undefined)).toBe(true);
       // Zero Org B incidents leak into Org A's listing.
-      const orgIds: (string | null)[] = list.body.map((r: { organization_id: string | null }) => r.organization_id);
+      const orgIds: (string | null)[] = list.body.items.map((r: { organization_id: string | null }) => r.organization_id);
       expect(orgIds.every((oid) => oid === orgAId)).toBe(true);
     });
 
@@ -134,7 +135,8 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
         .set(auth(orgAOperator))
         .expect(200);
 
-      const ids: string[] = list.body.map((r: { id: string }) => r.id);
+      // sc-339 — envelope `{items, total}`.
+      const ids: string[] = list.body.items.map((r: { id: string }) => r.id);
       expect(ids).toContain(assignedIncidentId);
       expect(ids).not.toContain(unassignedIncidentId);
     });
@@ -150,7 +152,8 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
         .set(auth(orphanedAdmin))
         .expect(200);
 
-      expect(list.body).toEqual([]);
+      // sc-339 — envelope `{items, total}`: empty items for the orphaned admin.
+      expect(list.body.items).toEqual([]);
     });
 
     it('operador_sistema sees incidents from both organizations', async () => {
@@ -163,7 +166,8 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
         .set(auth(sysOperator))
         .expect(200);
 
-      const orgIds = new Set(list.body.map((r: { organization_id: string | null }) => r.organization_id));
+      // sc-339 — envelope `{items, total}`.
+      const orgIds = new Set(list.body.items.map((r: { organization_id: string | null }) => r.organization_id));
       expect(orgIds.has(orgAId)).toBe(true);
       expect(orgIds.has(orgBId)).toBe(true);
     });
@@ -201,7 +205,8 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
         .get('/api/incidents')
         .set(auth(orgAAdmin))
         .expect(200);
-      expect(list.body.map((r: { id: string }) => r.id)).toContain(created.body.id);
+      // sc-339 — envelope `{items, total}`.
+      expect(list.body.items.map((r: { id: string }) => r.id)).toContain(created.body.id);
     });
 
     it('an incident created outside every zone is still accepted 201 with organization_id=NULL (R2)', async () => {

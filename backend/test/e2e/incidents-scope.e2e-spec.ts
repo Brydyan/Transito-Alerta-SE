@@ -78,7 +78,8 @@ describe('IncidentsRepository — scope filtering (T3.2)', () => {
 
   it('global scope sees every incident, regardless of organization', async () => {
     const scope: SubjectScope = { kind: 'global' };
-    const rows = await repo.findAll({}, scope);
+    const result = await repo.findAll({}, scope);
+    const rows = (result as any).items ?? result;
     expect(ids(rows)).toEqual(
       ids([
         { id: incidentOrgAAssigned },
@@ -87,23 +88,28 @@ describe('IncidentsRepository — scope filtering (T3.2)', () => {
         { id: incidentNoOrg },
       ]),
     );
+    // pagination envelope carries total
+    expect((result as any).total).toBe(4);
   });
 
   it('public scope sees every incident (unchanged from today)', async () => {
     const scope: SubjectScope = { kind: 'public' };
-    const rows = await repo.findAll({}, scope);
+    const result = await repo.findAll({}, scope);
+    const rows = (result as any).items ?? result;
     expect(rows.length).toBe(4);
   });
 
   it('org scope sees only that organization\'s incidents', async () => {
     const scope: SubjectScope = { kind: 'org', organizationId: orgAId };
-    const rows = await repo.findAll({}, scope);
+    const result = await repo.findAll({}, scope);
+    const rows = (result as any).items ?? result;
     expect(ids(rows)).toEqual(ids([{ id: incidentOrgAAssigned }, { id: incidentOrgAUnassigned }]));
   });
 
   it('org_assigned scope sees only own-org incidents assigned to that user', async () => {
     const scope: SubjectScope = { kind: 'org_assigned', organizationId: orgAId, userId: userA };
-    const rows = await repo.findAll({}, scope);
+    const result = await repo.findAll({}, scope);
+    const rows = (result as any).items ?? result;
     expect(ids(rows)).toEqual(ids([{ id: incidentOrgAAssigned }]));
   });
 
@@ -113,13 +119,15 @@ describe('IncidentsRepository — scope filtering (T3.2)', () => {
       organizationId: orgAId,
       userId: userOther,
     };
-    const rows = await repo.findAll({}, scope);
+    const result = await repo.findAll({}, scope);
+    const rows = (result as any).items ?? result;
     expect(rows).toEqual([]);
   });
 
   it('deny scope sees nothing', async () => {
     const scope: SubjectScope = { kind: 'deny', reason: 'staff_without_organization' };
-    const rows = await repo.findAll({}, scope);
+    const result = await repo.findAll({}, scope);
+    const rows = (result as any).items ?? result;
     expect(rows).toEqual([]);
   });
 
@@ -140,6 +148,26 @@ describe('IncidentsRepository — scope filtering (T3.2)', () => {
       const scope: SubjectScope = { kind: 'org_assigned', organizationId: orgAId, userId: userA };
       const row = await repo.findOne(incidentOrgAUnassigned, scope);
       expect(row).toBeNull();
+    });
+  });
+
+  describe('pagination', () => {
+    it('returns envelope with items and total respecting page/limit', async () => {
+      const scope: SubjectScope = { kind: 'global' };
+      const page1 = await repo.findAll({}, scope, undefined, 1, 2);
+      const page2 = await repo.findAll({}, scope, undefined, 2, 2);
+      const all = await repo.findAll({}, scope, undefined, 1, 100);
+      const p1 = (page1 as any).items ?? page1;
+      const p2 = (page2 as any).items ?? page2;
+      const tall = (all as any).items ?? all;
+      expect((page1 as any).total).toBe(4);
+      expect(p1.length).toBe(2);
+      expect(p2.length).toBe(2);
+      expect(tall.length).toBe(4);
+      // distinct pages do not overlap
+      const ids1 = p1.map((r: any) => r.id);
+      const ids2 = p2.map((r: any) => r.id);
+      expect(ids1.some((id: string) => ids2.includes(id))).toBe(false);
     });
   });
 });
