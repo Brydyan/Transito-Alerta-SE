@@ -62,8 +62,8 @@ if ! command -v docker &> /dev/null; then
   error "docker is not installed"
 fi
 
-if ! command -v docker-compose &> /dev/null; then
-  error "docker-compose is not installed"
+if ! command -v docker compose &> /dev/null; then
+  error "docker compose is not installed"
 fi
 
 if ! command -v psql &> /dev/null; then
@@ -76,14 +76,15 @@ success "Prerequisites OK"
 log "Bringing up postgres + redis containers..."
 docker compose up -d postgres redis
 
-log "Waiting for postgres to be healthy (max 30 seconds)..."
-for i in {1..30}; do
+log "Waiting for postgres to be healthy (max 60 seconds)..."
+for i in {1..60}; do
   if docker exec tase-postgres pg_isready -U "$DB_USER" -d "$DB_NAME" > /dev/null 2>&1; then
     success "postgres is ready"
+    sleep 2  # Extra buffer to ensure DB is fully initialized
     break
   fi
-  if [ $i -eq 30 ]; then
-    error "postgres failed to start after 30 seconds"
+  if [ $i -eq 60 ]; then
+    error "postgres failed to start after 60 seconds"
   fi
   echo -n "."
   sleep 1
@@ -94,10 +95,10 @@ sleep 2  # Redis starts quickly, just give it a moment
 success "redis is ready"
 
 # Step 2: Apply migrations
-log "Applying database migrations (0001-0065)..."
+log "Applying database migrations..."
 
 migration_count=0
-for f in database/migrations/000*.sql; do
+for f in database/migrations/00*.sql; do
   if [ ! -f "$f" ]; then
     warn "No migration files found in database/migrations/"
     break
@@ -106,12 +107,14 @@ for f in database/migrations/000*.sql; do
   fname=$(basename "$f")
   echo -ne "  → $fname ... "
 
+  # Suppress output but capture stderr for error handling
   if psql "postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
-    -v ON_ERROR_STOP=1 -q < "$f" > /dev/null 2>&1; then
+    -v ON_ERROR_STOP=1 -q < "$f" 2>/tmp/migration_error.log; then
     echo "✓"
     migration_count=$((migration_count + 1))
   else
-    error "Failed to apply $fname"
+    error_output=$(cat /tmp/migration_error.log)
+    error "Failed to apply $fname. Error: $error_output"
   fi
 done
 
