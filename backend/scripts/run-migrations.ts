@@ -118,8 +118,12 @@ async function validateMigrations(client: Client): Promise<void> {
 
     const storedChecksum = result.rows[0].checksum;
 
-    // Backfill usa checksum literal 'backfill', saltar validación
-    if (storedChecksum.trim() === 'backfill') {
+    // Backfill usa checksum literal 'backfill', saltar validación.
+    // Manual (0060+) registra 'manual' explícitamente porque las
+    // migraciones se aplican a mano en el editor SQL de Supabase y el
+    // checksum literal del archivo no es estable entre entornos.
+    const literal = storedChecksum.trim();
+    if (literal === 'backfill' || literal === 'manual') {
       continue;
     }
 
@@ -149,11 +153,11 @@ async function validateMigrations(client: Client): Promise<void> {
  */
 async function printStatus(client: Client): Promise<void> {
   const migrations = listMigrations();
-  const applied = await client.query<{ version: string; name: string; applied_at: string }>(
-    'SELECT version, name, applied_at FROM schema_migrations ORDER BY version',
+  const applied = await client.query<{ version: string; name: string; checksum: string; applied_at: string }>(
+    'SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version',
   );
 
-  const appliedMap = new Map(applied.rows.map((r) => [r.version, r.applied_at]));
+  const appliedMap = new Map(applied.rows.map((r) => [r.version, r]));
 
   console.log(
     'Version  Name                             Status           Applied At\n' +
@@ -161,13 +165,19 @@ async function printStatus(client: Client): Promise<void> {
   );
 
   for (const m of migrations) {
-    const timestamp = appliedMap.get(m.version);
-    const status = timestamp
-      ? timestamp === 'backfill'
+    const row = appliedMap.get(m.version);
+    // applied_at es timestamptz: pg lo devuelve como Date. El estado
+    // '[backfill]' se lee del checksum literal, no de applied_at.
+    const status = row
+      ? row.checksum.trim() === 'backfill'
         ? '[backfill]'
         : '✅ applied'
       : '⏳ pending';
-    const appliedAt = timestamp && timestamp !== 'backfill' ? timestamp.substring(0, 19) : 'N/A';
+    const appliedAt = row
+      ? row.checksum.trim() === 'backfill'
+        ? 'N/A'
+        : new Date(row.applied_at).toISOString().substring(0, 19).replace('T', ' ')
+      : 'N/A';
 
     console.log(`${m.version}  ${m.name.padEnd(32)}  ${status.padEnd(14)}  ${appliedAt}`);
   }
@@ -232,7 +242,7 @@ async function rolldownMigrations(client: Client, targetVersion: string): Promis
   for (const migration of toRollback) {
     const downFile = resolve(
       __dirname,
-      '..',
+      '../..',
       'database',
       'rollback',
       `${migration.version}_${migration.name}.DOWN.sql`,
