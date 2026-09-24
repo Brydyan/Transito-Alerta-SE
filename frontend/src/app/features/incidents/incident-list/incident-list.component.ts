@@ -23,6 +23,7 @@ import {
 import { UiPageHeaderComponent } from '../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiBadgeComponent, UiBadgeStatus, UiBadgePriority } from '../../../shared/components/ui-badge/ui-badge.component';
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
+import { ViewActionBtnComponent } from '../../../shared/components/view-action-btn/view-action-btn.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { TableSkeletonComponent } from '../../../shared/components/table-skeleton/table-skeleton.component';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
@@ -34,6 +35,8 @@ import { AssignmentModalComponent } from '../assignment-modal/assignment-modal.c
 import { TrackingPanelComponent } from '../tracking-panel/tracking-panel.component';
 
 // FIX-16 — reverse geocode cache (same approach as feed incident-card).
+// Duplicated locally to avoid coupling feed ↔ list; both share Nominatim
+// semantics (deduped by lat,lng rounded to 5 decimals).
 const reverseGeocodeCache = new Map<string, string>();
 const inFlightReverseGeocodes = new Map<string, Promise<string | null>>();
 
@@ -59,18 +62,20 @@ function extractPlaceName(data: { address?: Record<string, string>; display_name
 /**
  * F3 (sc-303) — F3.2 Listado de Incidencias.
  *
- * Extended with incidents-assignment feature:
- *   - Three-dot ActionsDropdown per row (Ver, Asignar, Seguimiento, Eliminar)
- *   - Toolbar "Asignar" bulk button (ASSIGN permission gate)
- *   - AssignmentModal overlay
- *   - TrackingPanel side panel
- *
- * State signals added:
- *   - dropdownOpenId: which row's dropdown is currently open
- *   - assignmentModalOpen: whether the assignment modal is visible
- *   - preSelectedIncidentId: incident pre-selected when modal opens from a row
- *   - trackingPanelOpen: whether the tracking panel is visible
- *   - trackingIncidentId: which incident to show in the tracking panel
+ * Convenciones heredadas:
+ *  - F0 primitivos (`ui-page-header`, `ui-table`, `ui-badge`,
+ *    `empty-state`, `table-skeleton`, `pagination`, `ui-card`,
+ *    `ui-kpi-card`).
+ *  - D2 (design.md): los filtros viven en query params. El
+ *    componente los deriva de `ActivatedRoute`; cambiar un
+ *    filtro navega con los params nuevos. Un listado
+ *    filtrado es compartible por enlace.
+ *  - D8: las tarjetas de contexto muestran guion cuando la
+ *    métrica está indisponible, **nunca cero** (cero es
+ *    un valor legítimo).
+ *  - F3.2.9: filtros combinables generan los query params
+ *    correctos; restaurar desde URL reconstruye el estado;
+ *    `empty-state` cuando no hay resultados.
  */
 @Component({
   selector: 'app-incident-list',
@@ -81,6 +86,7 @@ function extractPlaceName(data: { address?: Record<string, string>; display_name
     UiPageHeaderComponent,
     UiBadgeComponent,
     UiIconComponent,
+    ViewActionBtnComponent,
     EmptyStateComponent,
     TableSkeletonComponent,
     PaginationComponent,
@@ -102,17 +108,30 @@ export class IncidentListComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
 
   // ── Filter signals (D2) ─────────────────────────────────────────────
+  // sc-339 — filters now map to `GET /api/incidents?zone_id=&status=&page=&limit=`.
+  // Only `status` is exposed in the UI today; `zone_id` is supported by
+  // the model/service but has no selector yet (future zone dropdown).
+  // `search`/`priority` are NOT sent — they would 400 (forbidNonWhitelisted).
   readonly searchCtrl = new FormControl<string>('', { nonNullable: true });
   readonly statusFilter = signal<IncidentStatus | null>(null);
   readonly currentPage = signal<number>(1);
+  readonly pageSize = signal<number>(20);
 
   // ── Data signals ───────────────────────────────────────────────────
   readonly loading = signal<boolean>(true);
   readonly incidents = signal<Incident[]>([]);
   readonly total = signal<number>(0);
+
+  // FIX-16 — location names resolved via Nominatim (key = incident.id).
+  // Trigger change detection via signal update after fetch.
   readonly locationNames = signal<Map<string, string>>(new Map());
 
-  // ── Permission signals ─────────────────────────────────────────────
+  // ── Permisos (para el menú de acciones de fila) ────────────────────
+  // F3.4 / D4 — el detail lee `permissions` del usuario actual para
+  // derivar las acciones via `availableActions()`. El listado sólo
+  // las necesita si en el futuro agrega acciones en fila; por
+  // ahora exponemos el signal para que `availableActions` y los
+  // hijos que lo pidan encuentren la fuente única.
   readonly permissions = computed<string[]>(
     () => this.authService.user()?.permissions ?? [],
   );
@@ -140,7 +159,9 @@ export class IncidentListComponent implements OnInit {
   readonly trackingPanelOpen = signal<boolean>(false);
   readonly trackingIncidentId = signal<string | null>(null);
 
-  // ── Catálogos de filtros ──────────────────────────────────────────
+  // ── Catálogos de filtros (mock 02-01) ──────────────────────────────
+  // Los valores `pendiente`/`en_proceso`/`resuelto`/`cerrada` son
+  // el `UiBadgeStatus` que el shared consume; el wire es inglés.
   readonly statusOptions: Array<{ value: IncidentStatus; label: string; badge: UiBadgeStatus }> = [
     { value: 'pending', label: 'Pendiente', badge: 'pendiente' },
     { value: 'in_progress', label: 'En proceso', badge: 'en_proceso' },
@@ -155,22 +176,51 @@ export class IncidentListComponent implements OnInit {
   ];
 
   // ── Métricas de las tarjetas de contexto (D8) ─────────────────────
+  // Cada `null` representa "indisponible" → se renderiza guion.
+  // `0` es un valor legítimo: el backend lo informa y se muestra
+  // como "0". Distinción crucial: el bug de mostrar `0` cuando
+  // falló la consulta es lo que D8 prohíbe.
   readonly territorialCoverage = signal<string | null>(null);
   readonly openIncidents = signal<string | null>(null);
   readonly avgResponseTime = signal<string | null>(null);
 
   ngOnInit(): void {
+    // 1) Hidratar filtros desde la URL (D2 — "restaurar desde URL
+    //    reconstruye el estado"). Hoy sólo `status` se persiste.
     const qp = this.route.snapshot.queryParamMap;
     this.statusFilter.set((qp.get('status') as IncidentStatus | null) ?? null);
     this.currentPage.set(Number(qp.get('page') ?? '1'));
 
+    // 2) La búsqueda libre se mantiene en memoria (FormControl)
+    //    pero NO se manda al backend (C1 — el backend no la soporta).
+    //    Cuando el backend extienda `findAll`, descomentar el
+    //    handler y agregar el caso a `toQueryParams()`.
     this.searchCtrl.valueChanges
       .pipe(debounceTime(300), distinctUntilChanged())
       .subscribe(() => {
         this.currentPage.set(1);
+        // No llamamos a navigateWithFilters ni a fetch: la
+        // búsqueda es local hasta que el backend la soporte.
       });
 
     this.fetch();
+  }
+
+  /** Traduce `IncidentStatus` (wire) → `UiBadgeStatus` (F0). */
+  badgeStatusFor(s: IncidentStatus): UiBadgeStatus {
+    return (
+      {
+        pending: 'pendiente',
+        in_progress: 'en_proceso',
+        resolved: 'resuelto',
+        closed: 'cerrada',
+      } as const
+    )[s];
+  }
+
+  /** Traduce `IncidentPriority` (wire) → `UiBadgePriority` (F0). */
+  badgePriorityFor(p: IncidentPriority): UiBadgePriority {
+    return p;
   }
 
   // ── Assignment modal ────────────────────────────────────────────────
@@ -220,39 +270,30 @@ export class IncidentListComponent implements OnInit {
     this.trackingIncidentId.set(null);
   }
 
-  // ── Existing methods (unchanged) ────────────────────────────────────
-
-  badgeStatusFor(s: IncidentStatus): UiBadgeStatus {
-    return (
-      {
-        pending: 'pendiente',
-        in_progress: 'en_proceso',
-        resolved: 'resuelto',
-        closed: 'cerrada',
-      } as const
-    )[s];
-  }
-
-  badgePriorityFor(p: IncidentPriority): UiBadgePriority {
-    return p;
-  }
-
+  /** Construye los query params actuales (sc-339: zone_id, status, page, limit). */
   private currentFilters(): IncidentListFilters {
     const f: IncidentListFilters = {};
     if (this.statusFilter()) f.status = this.statusFilter()!;
+    f.page = this.currentPage();
+    f.limit = this.pageSize();
     return f;
   }
 
+  /** Empuja el estado actual de los filtros a la URL (D2). */
   navigateWithFilters(): void {
-    const f = this.currentFilters();
+    const f: IncidentListFilters = {};
+    if (this.statusFilter()) f.status = this.statusFilter()!;
+    // Page is not persisted to keep URL shareable without coupling to pagination
+    // offset; the list always opens on page 1 when navigated via URL.
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: f,
+      queryParams: f.status ? { status: f.status } : { status: null },
       queryParamsHandling: 'merge',
       replaceUrl: false,
     });
   }
 
+  /** Carga la página actual con los filtros en la URL (replaces items). */
   private fetch(): void {
     this.loading.set(true);
     const f = this.currentFilters();
@@ -349,6 +390,7 @@ export class IncidentListComponent implements OnInit {
     });
   }
 
+  // ── Filter handlers ────────────────────────────────────────────────
   onStatusChange(value: IncidentStatus | null): void {
     this.statusFilter.set(value);
     this.currentPage.set(1);
@@ -359,39 +401,59 @@ export class IncidentListComponent implements OnInit {
   onClearFilters(): void {
     this.searchCtrl.setValue('');
     this.statusFilter.set(null);
+    // F3 (sc-303) C1 (ronda 4) — `priorityFilter` se retiró: el
+    // backend no lo acepta y mandarlo en la URL es un no-op
+    // silencioso. Cuando un change de backend agregue soporte,
+    // se reintroduce la signal y se vuelve a montar el selector.
     this.currentPage.set(1);
     this.navigateWithFilters();
     this.fetch();
   }
 
+  // ── Pagination ────────────────────────────────────────────────────
   onPageChange(page: number): void {
     this.currentPage.set(page);
     this.navigateWithFilters();
     this.fetch();
   }
 
+  /** Cambia el tamaño de página — resetea a página 1 y recarga. */
+  onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.currentPage.set(1);
+    this.fetch();
+  }
+
+  // ── Row navigation ────────────────────────────────────────────────
   goToDetail(incident: Incident): void {
     this.router.navigate(['/app/incidencias', incident.id]);
   }
 
+  // ── Derived UI helpers ────────────────────────────────────────────
   readonly hasActiveFilters = computed(() => this.statusFilter() !== null);
+
+  readonly shouldShowPagination = computed(() => this.total() > this.pageSize());
 
   readonly rangeText = computed(() => {
     const total = this.total();
     if (total === 0) return 'Mostrando 0 de 0 incidencias';
-    return `Mostrando ${total} de ${total} incidencia${total === 1 ? '' : 's'}`;
+    const from = (this.currentPage() - 1) * this.pageSize() + 1;
+    const to = Math.min(this.currentPage() * this.pageSize(), total);
+    if (from === to) return `Mostrando ${from} de ${total} incidencia${total === 1 ? '' : 's'}`;
+    return `Mostrando ${from}-${to} de ${total} incidencia${total === 1 ? '' : 's'}`;
   });
 
-  readonly shouldShowPagination = computed(() => false);
-
+  /** Trunca el título a N chars con elipsis (F3.2.5). */
   truncate(title: string, max: number = 60): string {
     if (!title) return '';
     return title.length > max ? title.slice(0, max - 1) + '…' : title;
   }
 
+  /** Ubicación textual: reverse name si está resuelto, else coordenadas 4 decimales (FIX-16). */
   locationLabel(incident: Incident): string {
     const cached = this.locationNames().get(incident.id);
     if (cached) return cached;
+    // Kick off fetch lazily if not already cached/in-flight (covers rows rendered after fetch).
     this.ensureLocationName(incident);
     const coords = this.getCoordinates(incident);
     if (coords) return `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`;

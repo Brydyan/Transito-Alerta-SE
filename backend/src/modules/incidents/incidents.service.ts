@@ -21,6 +21,9 @@ import { IncidentRow, IncidentsRepository } from './incidents.repository';
 export const INCIDENTS_STREAM_KEY = 'incidents:events';
 const INCIDENTS_LIST_CACHE_TTL_MS = 30_000;
 
+export const DEFAULT_PAGE_SIZE = 20;
+export const MAX_PAGE_SIZE = 100;
+
 /** T7.7 (0036) — `check_is_leaf_category()` raises with this Postgres code (23514, check_violation). */
 const PG_CHECK_VIOLATION = '23514';
 
@@ -196,20 +199,29 @@ export class IncidentsService {
    * leak. The list cache KEY carries the scope discriminator (design
    * "Scope-blind list cache" risk mitigation) — threading scope into the
    * repository alone would still serve org A's cached array to org B.
+   *
+   * Pagination: page/limit flow controller → service → repository → cache key.
+   * Cache key now includes page/limit so distinct pages are cached independently
+   * but all are invalidated together via the zone tag-set (purgeZoneCache deletes
+   * every key registered under the zone's geo:tags:{zone} set).
    */
   async findAll(
     filters: { zoneId?: string; status?: IncidentStatus },
     scope: SubjectScope,
-    actorId?: string
-  ): Promise<IncidentRow[]> {
-    const key = this.listCacheKey(filters.zoneId, filters.status, scope);
-    const cached = await this.cache.get<IncidentRow[]>(key);
+    actorId?: string,
+    page = 1,
+    limit = DEFAULT_PAGE_SIZE,
+  ): Promise<{ items: IncidentRow[]; total: number }> {
+    const take = Math.min(Math.max(limit, 1), MAX_PAGE_SIZE);
+    const safePage = Math.max(page, 1);
+    const key = this.listCacheKey(filters.zoneId, filters.status, scope, safePage, take);
+    const cached = await this.cache.get<{ items: IncidentRow[]; total: number }>(key);
     if (cached) {
       return cached;
     }
 
-    const rows = await this.incidentsRepository.findAll(filters, scope, actorId);
-    await this.cache.set(key, rows, INCIDENTS_LIST_CACHE_TTL_MS);
+    const result = await this.incidentsRepository.findAll(filters, scope, actorId, safePage, take);
+    await this.cache.set(key, result, INCIDENTS_LIST_CACHE_TTL_MS);
 
     // Register under the zone's tag-set so a later write purges EVERY cached
     // variant of this list, including status-filtered ones. Deleting keys by
@@ -221,7 +233,7 @@ export class IncidentsService {
     // Unzoned listings reflect every zone, so any write must invalidate them.
     await this.geofencingService.tagCacheKey(ALL_ZONES_TAG, key);
 
-    return rows;
+    return result;
   }
 
   async findOne(id: string, scope: SubjectScope, actorId?: string): Promise<IncidentRow> {
@@ -241,8 +253,10 @@ export class IncidentsService {
     zoneId: string | undefined,
     status: string | undefined,
     scope: SubjectScope,
+    page: number,
+    limit: number,
   ): string {
-    return `incidents:list:${zoneId ?? 'all'}:${status ?? 'all'}:${scopeCacheKey(scope)}`;
+    return `incidents:list:${zoneId ?? 'all'}:${status ?? 'all'}:${scopeCacheKey(scope)}:${page}:${limit}`;
   }
 
   /**

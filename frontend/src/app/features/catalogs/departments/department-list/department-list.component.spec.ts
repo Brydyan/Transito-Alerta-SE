@@ -210,4 +210,28 @@ describe('DepartmentListComponent', () => {
     );
     jest.useRealTimers();
   });
+
+  it('onPageSizeChange resets to page 1 and refetches with new per_page', async () => {
+    mockDepartmentService.list.mockReturnValue(of({ items: [], total: 0 }));
+    const { fixture } = await render(DepartmentListComponent, {
+      providers: [
+        { provide: DepartmentService, useValue: mockDepartmentService },
+        { provide: ToastService, useValue: mockToastService },
+        { provide: ConfirmDialogService, useValue: mockDialogService },
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: ActivatedRoute, useValue: mockActivatedRoute },
+      ],
+    });
+    const component = fixture.componentInstance as DepartmentListComponent;
+    // Simulate being on page 3
+    component.currentPage.set(3);
+    component.pageSize.set(10);
+    mockDepartmentService.list.mockClear();
+    component.onPageSizeChange(20);
+    expect(component.pageSize()).toBe(20);
+    expect(component.currentPage()).toBe(1);
+    expect(mockDepartmentService.list).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, per_page: 20 }),
+    );
+  });
 });

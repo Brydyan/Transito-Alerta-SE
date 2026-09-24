@@ -137,6 +137,16 @@ describe('RolesComponent (F6 rediseño)', () => {
     expect(mockRolesService.deleteRole).not.toHaveBeenCalled();
   });
 
+  it('onPageSizeChange resetea a página 1 y recarga con el nuevo tamaño', () => {
+    component.onPageChange(2);
+    expect(component.currentPage()).toBe(2);
+    mockRolesService.getRoles.mockClear();
+    component.onPageSizeChange(10);
+    expect(component.pageSize()).toBe(10);
+    expect(component.currentPage()).toBe(1);
+    expect(mockRolesService.getRoles).toHaveBeenCalledWith(1, 10, undefined);
+  });
+
   // F6 fix batch (W.1) — los badges de permisos muestran el
   // `permissionCount` del backend. Mock 04-01 los espera como
   // 48 / 32 / 24 / 18 / 8 (en el orden de la lista). La aserción

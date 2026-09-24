@@ -13,7 +13,7 @@ El listado DEBE permitir filtrar por estado y reflejar los filtros en la URL (b�
   restablecen y se recarga el listado completo
 - Scenario: Filtros en la URL — GIVEN un listado filtrado WHEN se copia la URL y se
   abre en otra pestaña THEN se restauran los mismos filtros y página
-- Scenario: Conteo — GIVEN una página de resultados THEN el pie indica el total, con la forma «Mostrando N de N»
+- Scenario: Conteo y Paginación — GIVEN una página de resultados THEN se renderizan controles de paginación y el pie indica el rango actual sobre el total, con la forma «Mostrando 1-20 de N» en lugar de «Mostrando N de N»
 
 ### Requirement: Filtro por categoría y subcategoría
 El listado DEBE permitir filtrar por categoría y por subcategoría, de forma jerárquica.

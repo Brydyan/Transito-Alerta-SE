@@ -123,18 +123,29 @@ describe('IncidentsRepository', () => {
 
   describe('findAll', () => {
     it('filters by zoneId and status when provided (scope required, D3)', async () => {
-      dataSource.query.mockResolvedValue([]);
+      dataSource.query
+        .mockResolvedValueOnce([{ total: '0' }])
+        .mockResolvedValueOnce([]);
 
       await repository.findAll({ zoneId: 'zone-1', status: 'pending' }, GLOBAL_SCOPE);
 
-      const [sql, params] = dataSource.query.mock.calls[0];
-      expect(sql).toContain('zone_id = $1');
-      expect(sql).toContain('status = $2');
-      expect(params).toEqual(['zone-1', 'pending']);
+      const [countSql, countParams] = dataSource.query.mock.calls[0];
+      expect(countSql).toContain('COUNT(*)');
+      expect(countSql).toContain('zone_id = $1');
+      expect(countSql).toContain('status = $2');
+      expect(countParams).toEqual(['zone-1', 'pending']);
+      const [dataSql, dataParams] = dataSource.query.mock.calls[1];
+      expect(dataSql).toContain('zone_id = $1');
+      expect(dataSql).toContain('status = $2');
+      expect(dataSql).toContain('LIMIT $');
+      expect(dataSql).toContain('OFFSET $');
+      expect(dataParams).toEqual(['zone-1', 'pending', 20, 0]);
     });
 
     it('has no WHERE beyond the scope fragment when no filters are given', async () => {
-      dataSource.query.mockResolvedValue([]);
+      dataSource.query
+        .mockResolvedValueOnce([{ total: '0' }])
+        .mockResolvedValueOnce([]);
 
       await repository.findAll({}, GLOBAL_SCOPE);
 
@@ -144,13 +155,65 @@ describe('IncidentsRepository', () => {
     });
 
     it('applies the scope fragment (org scope filters by organization_id)', async () => {
-      dataSource.query.mockResolvedValue([]);
+      dataSource.query
+        .mockResolvedValueOnce([{ total: '0' }])
+        .mockResolvedValueOnce([]);
 
       await repository.findAll({}, { kind: 'org', organizationId: 'org-1' });
 
       const [sql, params] = dataSource.query.mock.calls[0];
       expect(sql).toContain('organization_id = $1');
       expect(params).toEqual(['org-1']);
+    });
+
+    it('returns envelope {items, total} with parameterized LIMIT/OFFSET', async () => {
+      const row = { id: 'inc-1' };
+      dataSource.query
+        .mockResolvedValueOnce([{ total: '5' }])
+        .mockResolvedValueOnce([row]);
+
+      const result = await repository.findAll({}, GLOBAL_SCOPE);
+
+      expect(result).toEqual({ items: [row], total: 5 });
+      const [, dataParams] = dataSource.query.mock.calls[1];
+      // default page=1 limit=20 -> offset 0
+      expect(dataParams.slice(-2)).toEqual([20, 0]);
+      const [dataSql] = dataSource.query.mock.calls[1];
+      expect(dataSql).toContain('LIMIT $');
+      expect(dataSql).toContain('OFFSET $');
+    });
+
+    it('paginates with page/limit (offset = (page-1)*limit)', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([{ total: '100' }])
+        .mockResolvedValueOnce([]);
+
+      await repository.findAll({}, GLOBAL_SCOPE, undefined, 3, 10);
+
+      const [, dataParams] = dataSource.query.mock.calls[1];
+      expect(dataParams.slice(-2)).toEqual([10, 20]);
+    });
+
+    it('caps limit at MAX_PAGE_SIZE (100)', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([{ total: '0' }])
+        .mockResolvedValueOnce([]);
+
+      await repository.findAll({}, GLOBAL_SCOPE, undefined, 1, 999);
+
+      const [, dataParams] = dataSource.query.mock.calls[1];
+      expect(dataParams.slice(-2)[0]).toBe(100);
+    });
+
+    it('normalizes page <1 to 1', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([{ total: '0' }])
+        .mockResolvedValueOnce([]);
+
+      await repository.findAll({}, GLOBAL_SCOPE, undefined, 0, 20);
+
+      const [, dataParams] = dataSource.query.mock.calls[1];
+      expect(dataParams.slice(-2)).toEqual([20, 0]);
     });
   });
 

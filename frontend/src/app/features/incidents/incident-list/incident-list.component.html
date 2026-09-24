@@ -3,35 +3,28 @@
   title="Incidencias"
   [subtitle]="rangeText()"
 >
-  <div page-header-actions class="flex items-center gap-2">
-    <!-- Assignment toolbar button — RBAC: ASSIGN permission required -->
-    @if (hasAssignPermission()) {
-      <button
-        type="button"
-        class="btn btn-primary"
-        (click)="openAssignmentModal()"
-        data-testid="toolbar-assign"
-        title="Asignar incidencia a operador"
-      >
-        <ui-icon name="user-plus" [size]="16" />
-        Asignar
-      </button>
-    }
-
-    <button
-      type="button"
-      class="btn btn-secondary"
-      (click)="onClearFilters()"
-      [disabled]="!hasActiveFilters()"
-      data-testid="clear-filters"
-    >
-      <ui-icon name="filter-x" [size]="16" />
-      Limpiar filtros
-    </button>
-  </div>
+  <button
+    page-header-actions
+    type="button"
+    class="btn btn-secondary"
+    (click)="onClearFilters()"
+    [disabled]="!hasActiveFilters()"
+    data-testid="clear-filters"
+  >
+    <ui-icon name="filter-x" [size]="16" />
+    Limpiar filtros
+  </button>
 </ui-page-header>
 
-<!-- Barra de filtros -->
+<!-- Barra de filtros (mock 02-01) — F3 (sc-303) C1 (ronda 4) -->
+<!--
+  Alcance reducido: el backend `incidents.controller.ts:findAll` sólo
+  acepta `status`. La búsqueda por texto, el filtro de prioridad
+  y la paginación real llegan cuando un change de backend extienda
+  `findAll` (ver `IncidentListFilters` en `incident.model.ts`). El
+  filtro de categoría (D9) es componente compartido con F4.
+  Mientras tanto, sólo `status` filtra de verdad.
+-->
 <ui-card class="block mb-6">
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="filter-bar">
     <div>
@@ -55,7 +48,7 @@
 <!-- Tabla / skeleton / empty state -->
 <ui-card>
   @if (loading()) {
-    <app-table-skeleton [rows]="6" [cols]="6" />
+    <app-table-skeleton [rows]="6" [cols]="5" />
   } @else if (incidents().length === 0) {
     <app-empty-state
       icon="inbox"
@@ -131,21 +124,21 @@
   }
 </ui-card>
 
-<!-- Paginación (oculta hasta que el backend soporte paginación real) -->
 @if (shouldShowPagination()) {
   <div class="mt-4">
     <app-pagination
       [totalItems]="total()"
       [currentPage]="currentPage()"
-      [pageSize]="10"
+      [pageSize]="pageSize()"
       [itemNameSingular]="'incidencia'"
       [itemNamePlural]="'incidencias'"
       (pageChange)="onPageChange($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
     />
   </div>
 }
 
-<!-- Tarjetas de contexto (F3.2.8 / D8) -->
+<!-- Tarjetas de contexto (F3.2.8 / D8) — guion cuando indisponible, nunca 0 -->
 <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6" data-testid="context-cards">
   <ui-kpi-card
     label="Cobertura territorial"
@@ -165,17 +158,15 @@
 @if (assignmentModalOpen()) {
   <app-assignment-modal
     [preSelectedIncidentId]="preSelectedIncidentId()"
-    (closed)="closeAssignmentModal()"
-    (assigned)="onAssignmentCompleted($event)"
-    data-testid="assignment-modal"
+    (completed)="onAssignmentCompleted($event)"
+    (close)="closeAssignmentModal()"
   />
 }
 
 <!-- Tracking Panel side panel -->
-@if (trackingPanelOpen() && trackingIncidentId()) {
+@if (trackingPanelOpen()) {
   <app-tracking-panel
     [incidentId]="trackingIncidentId()!"
-    (closed)="closeTracking()"
-    data-testid="tracking-panel"
+    (close)="closeTracking()"
   />
 }

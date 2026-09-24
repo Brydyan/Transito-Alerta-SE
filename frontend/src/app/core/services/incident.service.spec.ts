@@ -66,13 +66,10 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
 
   afterEach(() => http.verify());
 
-  // ───── F3.1.3 + F3.1.4 — typed filters reach the wire as snake_case query params
-  //
-  // F3 (sc-303) C1 (ronda 4) — el backend `incidents.controller.ts:findAll`
-  // sólo acepta `status` (los demás filtros llegan pero los ignora
-  // en silencio). El test ahora verifica el alcance reducido:
-  // sólo `status` se manda en la URL.
-  it('getIncidents forwards status to /incidents as a query param (C1 reduced scope)', (done) => {
+  // ───── sc-339 — backend now whitelists ONLY zone_id, status, page, limit
+  // Any extra param (search, priority, per_page, category_id) 400s due to
+  // `forbidNonWhitelisted: true`. Tests assert exactly the whitelist.
+  it('getIncidents forwards status to /incidents as a query param (whitelisted)', (done) => {
     service
       .getIncidents({ status: 'in_progress' })
       .subscribe(() => done());
@@ -82,16 +79,42 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
     );
     const params = req.request.params;
     expect(params.get('status')).toBe('in_progress');
-    // Los demás campos NO se mandan: el backend los ignoraría y
-    // mandarlos en silencio es un no-op visible. Cuando un
-    // change de backend los soporte, este aserto se actualiza
-    // y los `toQueryParams` vuelven a incluirlos.
     expect(params.has('search')).toBe(false);
     expect(params.has('priority')).toBe(false);
-    expect(params.has('page')).toBe(false);
-    expect(params.has('limit')).toBe(false);
+    expect(params.has('per_page')).toBe(false);
     expect(params.has('category_id')).toBe(false);
-    req.flush([fixtureIncident]);
+    expect(params.has('incident_category_id')).toBe(false);
+    req.flush({ items: [fixtureIncident], total: 1 });
+  });
+
+  it('getIncidents forwards zone_id, page, limit when provided', (done) => {
+    service
+      .getIncidents({ zone_id: 'zone-99', status: 'pending', page: 2, limit: 20 })
+      .subscribe(() => done());
+
+    const req = http.expectOne((r) => r.url === `${base}/incidents`);
+    const params = req.request.params;
+    expect(params.get('zone_id')).toBe('zone-99');
+    expect(params.get('status')).toBe('pending');
+    expect(params.get('page')).toBe('2');
+    expect(params.get('limit')).toBe('20');
+    expect(params.has('priority')).toBe(false);
+    expect(params.has('per_page')).toBe(false);
+    req.flush({ items: [], total: 0 });
+  });
+
+  it('getIncidents drops non-whitelisted params (priority, per_page, incident_category_id) — would 400', (done) => {
+    service
+      .getIncidents({ status: 'pending', priority: 'high' as IncidentPriority, per_page: 10, incident_category_id: 'cat-1' } as unknown as Record<string, unknown> as never)
+      .subscribe(() => done());
+
+    const req = http.expectOne((r) => r.url === `${base}/incidents`);
+    const params = req.request.params;
+    expect(params.get('status')).toBe('pending');
+    expect(params.has('priority')).toBe(false);
+    expect(params.has('per_page')).toBe(false);
+    expect(params.has('incident_category_id')).toBe(false);
+    req.flush({ items: [fixtureIncident], total: 1 });
   });
 
   it('getIncidents with no filters sends no query params', (done) => {
@@ -100,41 +123,36 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
     const req = http.expectOne((r) => r.url === `${base}/incidents`);
     const params = req.request.params;
     expect(params.keys().length).toBe(0);
-    req.flush([fixtureIncident]);
+    req.flush({ items: [fixtureIncident], total: 1 });
   });
 
-  // ───── F3.1.1 — the service passes through every wire field, including the
-  // sc-315 additions (closed_reason, approved_by, resolution_date, …).
-  it('getIncidents returns the wire shape unchanged (F3.1.1 contract)', (done) => {
+  // ───── sc-339 — envelope {items, total} is unwrapped; page/limit come from filters (defaults 1/20)
+  it('getIncidents unwraps {items, total} envelope and maps page/limit from filters', (done) => {
     const closed: Incident = {
       ...fixtureIncident,
       status: 'closed',
       closed_reason: 'duplicate of inc-0',
     };
-    service.getIncidents({ status: 'closed' }).subscribe((result) => {
-      // The result decodes the wire shape — `closed_reason` travels
-      // from the response into the typed model without a manual
-      // mapping step. If the wire adds a field, this is the test
-      // that fails first, by the F3.1.4 principle.
+    service.getIncidents({ status: 'closed', page: 2, limit: 10 }).subscribe((result) => {
       expect(result.items).toHaveLength(1);
       expect(result.items[0].status).toBe('closed');
       expect(result.items[0].closed_reason).toBe('duplicate of inc-0');
+      expect(result.total).toBe(42);
+      expect(result.page).toBe(2);
+      expect(result.limit).toBe(10);
       done();
     });
 
     const req = http.expectOne((r) => r.url === `${base}/incidents`);
-    req.flush([closed]);
+    req.flush({ items: [closed], total: 42 });
   });
 
-  it('getIncidents wraps the array in an IncidentListResult envelope (F3.2.6 prep)', (done) => {
-    // F3 (sc-303) C1 (ronda 4) — el backend no pagina, así que
-    // `total === items.length` y el envelope tiene `page: 1`. Cuando
-    // el backend agregue paginación real, este aserto refleja
-    // `page`/`limit` desde la query string.
+  it('getIncidents returns defaults page 1 / limit 20 when not provided', (done) => {
     service.getIncidents({ status: 'pending' }).subscribe((result) => {
       expect(result).toEqual(
         expect.objectContaining({
           page: 1,
+          limit: 20,
           total: 1,
         }),
       );
@@ -143,7 +161,7 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
     });
 
     const req = http.expectOne((r) => r.url === `${base}/incidents`);
-    req.flush([fixtureIncident]);
+    req.flush({ items: [fixtureIncident], total: 1 });
   });
 
   it('getIncident hits /incidents/:id and returns the wire fields', (done) => {
@@ -225,7 +243,7 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
   it('deleteIncident DELETEs /incidents/:id and drops from cache', (done) => {
     // Seed the cache.
     service.getIncidents({}).subscribe();
-    http.expectOne((r) => r.url === `${base}/incidents`).flush([fixtureIncident]);
+    http.expectOne((r) => r.url === `${base}/incidents`).flush({ items: [fixtureIncident], total: 1 });
 
     service.deleteIncident('inc-1').subscribe(() => done());
     const req = http.expectOne(`${base}/incidents/inc-1`);
@@ -241,7 +259,7 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
   it('claimIncident POSTs /incidents/:id/claim with {} and updates cache partially (ronda 6)', (done) => {
     // Seed the cache with a full fixture incident.
     service.getIncidents({}).subscribe();
-    http.expectOne((r) => r.url === `${base}/incidents`).flush([fixtureIncident]);
+    http.expectOne((r) => r.url === `${base}/incidents`).flush({ items: [fixtureIncident], total: 1 });
 
     // Wire real (7 campos snake_case, mismo DTO que release).
     const slimResponse = {
@@ -302,7 +320,7 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
   it('releaseIncident POSTs /incidents/:id/release with {} and updates cache partially (C2)', (done) => {
     // Seed the cache with a full fixture incident
     service.getIncidents({}).subscribe();
-    http.expectOne((r) => r.url === `${base}/incidents`).flush([fixtureIncident]);
+    http.expectOne((r) => r.url === `${base}/incidents`).flush({ items: [fixtureIncident], total: 1 });
 
     const slimResponse = {
       id: 'inc-1',
