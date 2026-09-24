@@ -1,0 +1,1 @@
+{"version":3,"file":"storage-provider.factory.js","sourceRoot":"","sources":["../../../../src/core/storage/storage-provider.factory.ts"],"names":[],"mappings":";;AAYA,oDAEC;AAZD,+DAA0D;AAC1D,uEAAkE;AASlE,SAAgB,oBAAoB,CAAC,IAAmB;IACtD,OAAO,IAAI,CAAC,QAAQ,KAAK,UAAU,CAAC,CAAC,CAAC,IAAI,+CAAqB,CAAC,IAAI,CAAC,CAAC,CAAC,CAAC,IAAI,uCAAiB,EAAE,CAAC;AAClG,CAAC"}

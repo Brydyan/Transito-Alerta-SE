@@ -4,6 +4,7 @@ import {
   computed,
   EventEmitter,
   inject,
+  Input,
   OnInit,
   Output,
   signal,
@@ -353,6 +354,13 @@ export class AssignmentModalComponent implements OnInit {
   private readonly assignmentService = inject(AssignmentService);
   private readonly toastService = inject(ToastService);
 
+  /**
+   * Pre-selected incident ID from row "Asignar" action.
+   * If set, the modal will auto-fill this incident on init.
+   * If null, the user must select an incident manually.
+   */
+  @Input() preSelectedIncidentId: string | null = null;
+
   // ── State signals (design.md — State Management) ────────────────────
   readonly selectedOperatorId = signal<string | null>(null);
   readonly selectedIncidentId = signal<string | null>(null);
@@ -374,6 +382,11 @@ export class AssignmentModalComponent implements OnInit {
   @Output() readonly assigned = new EventEmitter<{ incidentId: string; operatorId: string }>();
 
   ngOnInit(): void {
+    // If a pre-selected incident was passed in (row "Asignar" action),
+    // auto-fill it in the modal (Design D1: row-level pre-selection).
+    if (this.preSelectedIncidentId) {
+      this.selectedIncidentId.set(this.preSelectedIncidentId);
+    }
     this.loadOperators();
   }
 

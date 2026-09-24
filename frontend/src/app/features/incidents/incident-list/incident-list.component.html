@@ -164,6 +164,7 @@
 <!-- Assignment Modal overlay -->
 @if (assignmentModalOpen()) {
   <app-assignment-modal
+    [preSelectedIncidentId]="preSelectedIncidentId()"
     (closed)="closeAssignmentModal()"
     (assigned)="onAssignmentCompleted($event)"
     data-testid="assignment-modal"

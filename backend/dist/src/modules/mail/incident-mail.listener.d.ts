@@ -1,0 +1,32 @@
+import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import type Redis from 'ioredis';
+import { DataSource, Repository } from 'typeorm';
+import { UserEntity } from '../../entities/user.entity';
+import { MailService } from './mail.service';
+export declare const INCIDENT_MAIL_CONSUMER_GROUP = "mail";
+export declare const RETRY_BACKOFF_MS = 1000;
+export declare class IncidentMailListener implements OnModuleInit, OnModuleDestroy {
+    private readonly redis;
+    private readonly mailService;
+    private readonly userRepo;
+    private readonly dataSource;
+    private readonly logger;
+    private readonly consumerName;
+    private running;
+    private adminCache;
+    constructor(redis: Redis, mailService: MailService, userRepo: Repository<UserEntity>, dataSource: DataSource);
+    onModuleInit(): Promise<void>;
+    onModuleDestroy(): Promise<void>;
+    private loop;
+    private sleep;
+    processResponse(response: [string, [string, string[]][]][]): Promise<void>;
+    private route;
+    private handleIncidentCreated;
+    private handleIncidentAssigned;
+    private handleStatusChanged;
+    private handleCommentCreated;
+    private enqueueToUsers;
+    private enqueueToEmails;
+    private subjectFor;
+    private getAdminEmails;
+}
