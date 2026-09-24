@@ -1,6 +1,6 @@
 import { ApplicationConfig, ErrorHandler, isDevMode, importProvidersFrom } from '@angular/core';
 import * as Sentry from '@sentry/angular';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideServiceWorker } from '@angular/service-worker';
@@ -108,7 +108,11 @@ const LUCIDE_ICONS = {
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideRouter(routes, withComponentInputBinding()),
+    provideRouter(
+      routes,
+      withComponentInputBinding(),
+      withInMemoryScrolling({ scrollPositionRestoration: 'enabled', anchorScrolling: 'enabled' }),
+    ),
     provideAnimations(),
     provideHttpClient(withInterceptors([authInterceptor, errorInterceptor, spinnerInterceptor])),
     provideServiceWorker('ngsw-worker.js', {

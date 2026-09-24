@@ -13,6 +13,7 @@ import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 import { IncidentService } from '../../../core/services/incident.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { ScrollRestorationService } from '../../../core/services/scroll-restoration.service';
 import {
   Incident,
   IncidentListFilters,
@@ -110,9 +111,13 @@ export class IncidentListComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly scrollRestoration = inject(ScrollRestorationService);
 
   /** D9 — localStorage key for filter persistence. */
   private static readonly STORAGE_KEY = 'incidents-filters';
+
+  /** D14 — localStorage key for scroll position backup (critical list). */
+  private static readonly SCROLL_KEY = 'scroll-incidents';
 
   // ── Filter signals (D2) ─────────────────────────────────────────────
   // Las señales se derivan de la URL al montar. La mutación
@@ -237,6 +242,11 @@ export class IncidentListComponent implements OnInit {
       });
 
     this.fetch();
+
+    // D14 — Restore scroll position from localStorage backup (critical list).
+    // Angular's withInMemoryScrolling handles router back navigation, but this
+    // manual fallback covers direct navigations and modal dismissals.
+    this.scrollRestoration.restorePosition(IncidentListComponent.SCROLL_KEY);
   }
 
   /** Traduce `IncidentStatus` (wire) → `UiBadgeStatus` (F0). */
@@ -411,6 +421,8 @@ export class IncidentListComponent implements OnInit {
 
   // ── Row navigation ────────────────────────────────────────────────
   goToDetail(incident: Incident): void {
+    // D14 — Save scroll position before leaving the list (localStorage backup).
+    this.scrollRestoration.saveCurrentPosition(IncidentListComponent.SCROLL_KEY);
     this.router.navigate(['/app/incidencias', incident.id]);
   }
 
