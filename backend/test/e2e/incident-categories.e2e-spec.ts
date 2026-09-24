@@ -38,7 +38,7 @@ describe('IncidentCategories e2e (T3.7)', () => {
   }
 
   function createCategory(
-    body: { name: string; parent_id?: string },
+    body: { name: string; parent_id?: string; priority?: string },
     asUser: ProvisionedUser = admin,
   ): request.Test {
     return request(env.httpServer)
@@ -70,6 +70,7 @@ describe('IncidentCategories e2e (T3.7)', () => {
     const child = await createCategory({
       name: 'Accident',
       parent_id: root.body.id as string,
+      priority: 'high',
     }).expect(201);
 
     expect(child.body.parent_id).toBe(root.body.id);
@@ -87,8 +88,8 @@ describe('IncidentCategories e2e (T3.7)', () => {
   // TS-3: Reject Cycle on Create (via re-parent chain set up, then PATCH)
   it('rejects a circular parent_id on create/update — re-parenting an ancestor to its own descendant (TS-3)', async () => {
     const a = await createCategory({ name: 'A' }).expect(201);
-    const b = await createCategory({ name: 'B', parent_id: a.body.id as string }).expect(201);
-    const c = await createCategory({ name: 'C', parent_id: b.body.id as string }).expect(201);
+    const b = await createCategory({ name: 'B', parent_id: a.body.id as string, priority: 'high' }).expect(201);
+    const c = await createCategory({ name: 'C', parent_id: b.body.id as string, priority: 'high' }).expect(201);
 
     const response = await request(env.httpServer)
       .patch(`/api/incident-categories/${a.body.id as string}`)
@@ -105,11 +106,13 @@ describe('IncidentCategories e2e (T3.7)', () => {
     const child1 = await createCategory({
       name: 'Child1',
       parent_id: root.body.id as string,
+      priority: 'high',
     }).expect(201);
-    await createCategory({ name: 'Child2', parent_id: root.body.id as string }).expect(201);
+    await createCategory({ name: 'Child2', parent_id: root.body.id as string, priority: 'high' }).expect(201);
     await createCategory({
       name: 'GrandChild1',
       parent_id: child1.body.id as string,
+      priority: 'medium',
     }).expect(201);
 
     const tree = await request(env.httpServer)
@@ -130,7 +133,7 @@ describe('IncidentCategories e2e (T3.7)', () => {
   it('paginates and filters the flat list by search + parent_id (TS-5)', async () => {
     const root = await createCategory({ name: 'Parent' }).expect(201);
     for (let i = 0; i < 3; i += 1) {
-      await createCategory({ name: `Incident${i}`, parent_id: root.body.id as string }).expect(
+      await createCategory({ name: `Incident${i}`, parent_id: root.body.id as string, priority: 'high' }).expect(
         201,
       );
     }
@@ -152,8 +155,8 @@ describe('IncidentCategories e2e (T3.7)', () => {
   // TS-6: Reject Descendant Re-parent on Update
   it('rejects re-parenting a category to one of its own descendants (TS-6)', async () => {
     const a = await createCategory({ name: 'A' }).expect(201);
-    const b = await createCategory({ name: 'B', parent_id: a.body.id as string }).expect(201);
-    const c = await createCategory({ name: 'C', parent_id: b.body.id as string }).expect(201);
+    const b = await createCategory({ name: 'B', parent_id: a.body.id as string, priority: 'high' }).expect(201);
+    const c = await createCategory({ name: 'C', parent_id: b.body.id as string, priority: 'high' }).expect(201);
 
     const response = await request(env.httpServer)
       .patch(`/api/incident-categories/${a.body.id as string}`)
@@ -175,6 +178,7 @@ describe('IncidentCategories e2e (T3.7)', () => {
     const child = await createCategory({
       name: 'Child',
       parent_id: root.body.id as string,
+      priority: 'high',
     }).expect(201);
 
     await request(env.httpServer)
@@ -325,5 +329,47 @@ describe('IncidentCategories e2e (T3.7)', () => {
       .expect(400);
 
     expect(updated.body.message).toMatch(/parent/i);
+  });
+
+  // TS-13: 2026-09-22-sc-subcategory-priority-assignment (W2 HTTP response)
+  // Verify that the priority field appears in HTTP responses for sub-categories
+  // and is null for root categories.
+  it('includes priority field in HTTP response: null for root, enum value for sub (TS-13 - W2)', async () => {
+    const root = await createCategory({ name: 'Root Category' }).expect(201);
+    expect(root.body).toHaveProperty('priority');
+    expect(root.body.priority).toBeNull();
+
+    // Create a sub-category with a specific priority
+    const sub = await request(env.httpServer)
+      .post('/api/incident-categories')
+      .set(authHeader(admin))
+      .send({
+        name: 'Sub Category',
+        parent_id: root.body.id as string,
+        priority: 'high',
+      })
+      .expect(201);
+
+    expect(sub.body).toHaveProperty('priority');
+    expect(sub.body.priority).toBe('high');
+
+    // GET also returns priority in response
+    const fetched = await request(env.httpServer)
+      .get(`/api/incident-categories/${sub.body.id as string}`)
+      .set(authHeader(reader))
+      .expect(200);
+
+    expect(fetched.body).toHaveProperty('priority');
+    expect(fetched.body.priority).toBe('high');
+
+    // PATCH also returns updated priority in response
+    const patched = await request(env.httpServer)
+      .patch(`/api/incident-categories/${sub.body.id as string}`)
+      .set(authHeader(admin))
+      .send({ priority: 'critical' })
+      .expect(200);
+
+    expect(patched.body).toHaveProperty('priority');
+    expect(patched.body.priority).toBe('critical');
   });
 });

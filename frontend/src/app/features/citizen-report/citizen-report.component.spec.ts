@@ -147,4 +147,45 @@ describe('CitizenReportComponent — category priority pre-fill', () => {
       fixture.detectChanges();
     }).not.toThrow();
   });
+
+  // Scenario 11 (W1) — Citizen selects different category after changing priority:
+  // When a citizen changes priority, then selects a sub-category with a DIFFERENT
+  // priority, the pre-fill from the category should apply (current-priority-wins
+  // behavior, which is consistent with the category tree being the source of truth).
+  it('updates priority when citizen selects a sub-category with a different priority (Scenario 11 - W1)', async () => {
+    mockCategoryService.getById.mockReturnValue(
+      of({
+        id: 'sub-2',
+        name: 'Debris on Road',
+        description: 'Rocks/obstacles in roadway',
+        parent_id: 'root-1',
+        priority: 'high',
+        created_at: '',
+        updated_at: '',
+      }),
+    );
+
+    const { fixture } = await renderReport();
+    const component = fixture.componentInstance;
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Citizen starts with default 'medium'
+    expect(component.form.get('priority')?.value).toBe('medium');
+
+    // Citizen changes it to 'low'
+    component.form.patchValue({ priority: 'low' });
+    expect(component.form.get('priority')?.value).toBe('low');
+
+    // Citizen then selects a category with priority='high'
+    component.form.patchValue({ categoryId: 'sub-2' });
+    fixture.detectChanges();
+
+    // The category pre-fill should update priority to 'high'
+    // (category is authoritative for priority assignment)
+    await waitFor(() => {
+      expect(component.form.get('priority')?.value).toBe('high');
+    });
+  });
 });
