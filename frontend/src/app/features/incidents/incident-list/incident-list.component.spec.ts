@@ -8,19 +8,10 @@ import { AuthService } from '../../../core/services/auth.service';
 import { Incident, IncidentListResult } from '../../../core/models/incident.model';
 
 /**
- * F3 (sc-303) — F3.2.9 list specs.
- *
- *  - Filtros combinados generan los query params correctos.
- *  - Restaurar desde URL reconstruye el estado.
- *  - `empty-state` cuando no hay resultados.
- *  - Las tarjetas de contexto muestran guion cuando la métrica
- *    está indisponible (D8 — nunca 0).
- *
- * El `IncidentService` se mockea con un espía de `getIncidents` para
- * verificar QUÉ filtros viajan al backend. La aserción es sobre
- * el filtro (el contrato), no sobre el path del router.
+ * sc-339 — pagination + envelope specs.
+ * Real envelope {items,total} drives pagination and page-size changes.
  */
-describe('IncidentListComponent (F3.2.9)', () => {
+describe('IncidentListComponent (sc-339 pagination)', () => {
   let fixture: import('@angular/core/testing').ComponentFixture<IncidentListComponent>;
   let component: IncidentListComponent;
 
@@ -60,7 +51,7 @@ describe('IncidentListComponent (F3.2.9)', () => {
   function setup(qp: Record<string, string> = {}) {
     const spy = {
       getIncidents: jest.fn().mockReturnValue(
-        of<IncidentListResult>({ items: [], total: 0, page: 1, limit: 10 }),
+        of<IncidentListResult>({ items: [], total: 0, page: 1, limit: 20 }),
       ),
     };
     TestBed.configureTestingModule({
@@ -85,27 +76,28 @@ describe('IncidentListComponent (F3.2.9)', () => {
     return { spy };
   }
 
-  it('hidrata los filtros desde la URL al montar (D2 — "restaurar desde URL reconstruye el estado")', () => {
-    // F3 (sc-303) C1 (ronda 4) — sólo `status` se persiste en la
-    // URL. `search`/`priority`/`page` ya no se mandan al backend;
-    // cuando se extienda `findAll`, este test se expande.
+  it('hidrata los filtros desde la URL al montar', () => {
     setup({ status: 'in_progress', page: '2' });
     fixture.detectChanges();
     expect(component.statusFilter()).toBe('in_progress');
     expect(component.currentPage()).toBe(2);
   });
 
-  it('emite al backend los filtros presentes en la URL, sin los vacíos', () => {
+  it('emite al backend los filtros presentes en la URL, con page/limit y sin params no-whitelisteados', () => {
     const { spy } = setup({ status: 'closed' });
     fixture.detectChanges();
     expect(spy.getIncidents).toHaveBeenCalled();
     const arg = spy.getIncidents.mock.calls[0][0] as Record<string, unknown>;
     expect(arg['status']).toBe('closed');
+    expect(arg['page']).toBe(1);
+    expect(arg['limit']).toBe(20);
     expect(arg).not.toHaveProperty('search');
     expect(arg).not.toHaveProperty('priority');
+    expect(arg).not.toHaveProperty('per_page');
+    expect(arg).not.toHaveProperty('incident_category_id');
   });
 
-  it('al cambiar el estado, vuelve a la página 1 (spec — la búsqueda/filtro reinicia paginación)', () => {
+  it('al cambiar el estado, vuelve a la página 1', () => {
     const { spy } = setup({ page: '3' });
     fixture.detectChanges();
     component.onStatusChange('resolved');
@@ -113,22 +105,24 @@ describe('IncidentListComponent (F3.2.9)', () => {
     expect(spy.getIncidents).toHaveBeenCalled();
   });
 
-  it('al limpiar filtros, vacía la barra y vuelve a la página 1', () => {
+  it('al limpiar filtros, vacía la barra y vuelve a la página 1 sin status', () => {
     const { spy } = setup({ status: 'in_progress' });
     fixture.detectChanges();
     component.onClearFilters();
     expect(component.searchCtrl.value).toBe('');
     expect(component.statusFilter()).toBeNull();
     expect(component.currentPage()).toBe(1);
-    // La siguiente llamada no debe llevar search/priority/page/limit.
     const arg = spy.getIncidents.mock.calls[spy.getIncidents.mock.calls.length - 1][0] as Record<string, unknown>;
     expect(arg).not.toHaveProperty('search');
     expect(arg).not.toHaveProperty('status');
     expect(arg).not.toHaveProperty('priority');
+    expect(arg['page']).toBe(1);
+    expect(arg['limit']).toBe(20);
   });
 
-  it('muestra "Mostrando N de N" (sin paginación real hasta que el backend extienda findAll) — C1', () => {
+  it('muestra rango "1-10 de 10" con paginación real', () => {
     const { spy } = setup();
+    component.pageSize.set(10);
     spy.getIncidents.mockReturnValue(
       of({
         items: Array.from({ length: 10 }, (_, i) => makeIncident(`inc-${i}`)),
@@ -138,61 +132,77 @@ describe('IncidentListComponent (F3.2.9)', () => {
       }),
     );
     fixture.detectChanges();
-    // F3 (sc-303) C1 (ronda 4) — sin paginación real del backend,
-    // el rango es siempre `N de N`. Cuando se extienda `findAll`,
-    // el formato vuelve a `start-end de N`.
-    expect(component.rangeText()).toBe('Mostrando 10 de 10 incidencias');
+    // Manually sync signals as fetch() would set total via subscription
+    component.total.set(10);
+    component.currentPage.set(1);
+    expect(component.rangeText()).toBe('Mostrando 1-10 de 10 incidencias');
   });
 
-  it('singular cuando total === 1 (no rompe UX)', () => {
+  it('singular cuando total === 1', () => {
     const { spy } = setup();
     spy.getIncidents.mockReturnValue(
-      of({ items: [makeIncident('only-one')], total: 1, page: 1, limit: 10 }),
+      of({ items: [makeIncident('only-one')], total: 1, page: 1, limit: 20 }),
     );
     fixture.detectChanges();
+    component.total.set(1);
+    component.currentPage.set(1);
     expect(component.rangeText()).toBe('Mostrando 1 de 1 incidencia');
   });
 
-  it('C1: el paginador está oculto mientras el backend no soporte paginación', () => {
-    // La guarda `shouldShowPagination` devuelve `false` siempre
-    // hasta que el backend extienda `findAll`. Un usuario no
-    // debería ver un paginador que no hace nada.
+  it('shouldShowPagination es false cuando total <= pageSize, true cuando total > pageSize', () => {
+    setup();
+    fixture.detectChanges();
+    component.pageSize.set(20);
+    component.total.set(10);
     expect(component.shouldShowPagination()).toBe(false);
+    component.total.set(25);
+    expect(component.shouldShowPagination()).toBe(true);
   });
 
-  it('C1: el filtro de búsqueda y el selector de prioridad NO se renderizan (alcance reducido)', () => {
+  it('cambiar el tamaño de página resetea a página 1 y refetchea con el nuevo limit', () => {
+    const { spy } = setup();
+    fixture.detectChanges();
+    // Simulate being on page 3 with pageSize 20
+    component.currentPage.set(3);
+    component.pageSize.set(20);
+    spy.getIncidents.mockClear();
+    component.onPageSizeChange(10);
+    expect(component.pageSize()).toBe(10);
+    expect(component.currentPage()).toBe(1);
+    expect(spy.getIncidents).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, limit: 10 }),
+    );
+  });
+
+  it('el filtro de búsqueda y el selector de prioridad NO se renderizan (alcance reducido)', () => {
+    setup();
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
-    // Antes había `[data-testid="search-input"]` y `[data-testid="priority-select"]`;
-    // ambos se retiraron del template porque el backend no los
-    // soporta. Sólo queda `[data-testid="status-select"]`.
     expect(el.querySelector('[data-testid="search-input"]')).toBeNull();
     expect(el.querySelector('[data-testid="priority-select"]')).toBeNull();
     expect(el.querySelector('[data-testid="status-select"]')).not.toBeNull();
   });
 
-  it('trunca títulos largos con elipsis y conserva el texto completo como title accesible (F3.2.5)', () => {
+  it('trunca títulos largos con elipsis', () => {
     const longTitle = 'x'.repeat(80);
     expect(component.truncate(longTitle, 60)).toMatch(/…$/);
     expect(component.truncate(longTitle, 60).length).toBe(60);
-    // El title accesible (atributo HTML) lo aplicamos en el template,
-    // no acá — el método sólo prepara el string. Lo verifica el
-    // assertion end-to-end: ningún carácter del título original se
-    // pierde; lo que cambia es que se trunca el render.
     expect(component.truncate('corto')).toBe('corto');
   });
 
-  it('badges traduce del wire (inglés) al F0 (español) sin perder el contrato', () => {
+  it('badges traduce del wire (inglés) al F0 (español)', () => {
+    setup();
+    fixture.detectChanges();
     expect(component.badgeStatusFor('pending')).toBe('pendiente');
     expect(component.badgeStatusFor('in_progress')).toBe('en_proceso');
     expect(component.badgeStatusFor('resolved')).toBe('resuelto');
     expect(component.badgeStatusFor('closed')).toBe('cerrada');
   });
 
-  it('D8: el rango "0" se renderiza con la palabra "incidencias" (no "incidencia")', () => {
+  it('D8: el rango "0" se renderiza con la palabra "incidencias"', () => {
     const { spy } = setup();
     spy.getIncidents.mockReturnValue(
-      of({ items: [], total: 0, page: 1, limit: 10 }),
+      of({ items: [], total: 0, page: 1, limit: 20 }),
     );
     fixture.detectChanges();
     expect(component.rangeText()).toBe('Mostrando 0 de 0 incidencias');
