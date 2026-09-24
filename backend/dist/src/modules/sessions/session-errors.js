@@ -1,0 +1,9 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SESSION_RETRY_UNAVAILABLE = exports.SESSION_USER_MISMATCH = exports.SESSION_REUSE_DETECTED = exports.SESSION_REVOKED = exports.SESSION_REQUIRED = void 0;
+exports.SESSION_REQUIRED = 'SESSION_REQUIRED';
+exports.SESSION_REVOKED = 'SESSION_REVOKED';
+exports.SESSION_REUSE_DETECTED = 'SESSION_REUSE_DETECTED';
+exports.SESSION_USER_MISMATCH = 'SESSION_USER_MISMATCH';
+exports.SESSION_RETRY_UNAVAILABLE = 'SESSION_RETRY_UNAVAILABLE';
+//# sourceMappingURL=session-errors.js.map

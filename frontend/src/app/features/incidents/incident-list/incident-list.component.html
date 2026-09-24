@@ -3,28 +3,35 @@
   title="Incidencias"
   [subtitle]="rangeText()"
 >
-  <button
-    page-header-actions
-    type="button"
-    class="btn btn-secondary"
-    (click)="onClearFilters()"
-    [disabled]="!hasActiveFilters()"
-    data-testid="clear-filters"
-  >
-    <ui-icon name="filter-x" [size]="16" />
-    Limpiar filtros
-  </button>
+  <div page-header-actions class="flex items-center gap-2">
+    <!-- Assignment toolbar button — RBAC: ASSIGN permission required -->
+    @if (hasAssignPermission()) {
+      <button
+        type="button"
+        class="btn btn-primary"
+        (click)="openAssignmentModal()"
+        data-testid="toolbar-assign"
+        title="Asignar incidencia a operador"
+      >
+        <ui-icon name="user-plus" [size]="16" />
+        Asignar
+      </button>
+    }
+
+    <button
+      type="button"
+      class="btn btn-secondary"
+      (click)="onClearFilters()"
+      [disabled]="!hasActiveFilters()"
+      data-testid="clear-filters"
+    >
+      <ui-icon name="filter-x" [size]="16" />
+      Limpiar filtros
+    </button>
+  </div>
 </ui-page-header>
 
-<!-- Barra de filtros (mock 02-01) — F3 (sc-303) C1 (ronda 4) -->
-<!--
-  Alcance reducido: el backend `incidents.controller.ts:findAll` sólo
-  acepta `status`. La búsqueda por texto, el filtro de prioridad
-  y la paginación real llegan cuando un change de backend extienda
-  `findAll` (ver `IncidentListFilters` en `incident.model.ts`). El
-  filtro de categoría (D9) es componente compartido con F4.
-  Mientras tanto, sólo `status` filtra de verdad.
--->
+<!-- Barra de filtros -->
 <ui-card class="block mb-6">
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="filter-bar">
     <div>
@@ -48,7 +55,7 @@
 <!-- Tabla / skeleton / empty state -->
 <ui-card>
   @if (loading()) {
-    <app-table-skeleton [rows]="6" [cols]="5" />
+    <app-table-skeleton [rows]="6" [cols]="6" />
   } @else if (incidents().length === 0) {
     <app-empty-state
       icon="inbox"
@@ -107,9 +114,14 @@
               </div>
             </td>
             <td class="ui-table-cell-actions" (click)="$event.stopPropagation()">
-              <app-view-action-btn
-                [ariaLabel]="'Ver detalle de ' + row.title"
+              <!-- Three-dot dropdown (D2 — replaces single "Ver" button) -->
+              <app-actions-dropdown
+                [incidentId]="row.id"
+                [hasAssignPermission]="hasAssignPermission()"
                 (view)="goToDetail(row)"
+                (assign)="openAssignmentModal($event)"
+                (tracking)="openTracking($event)"
+                [attr.data-testid]="'actions-' + row.id"
               />
             </td>
           </tr>
@@ -119,16 +131,7 @@
   }
 </ui-card>
 
-<!-- Paginación (F3.2.6) — F3 (sc-303) C1 (ronda 4) -->
-<!--
-  Oculta hasta que el backend soporte paginación real. Hoy
-  `getIncidents` recibe hasta 1000 filas de una sola vez; el
-  `total` devuelto por el service es `items.length` y el
-  paginador prometería una funcionalidad que no existe.
-  Cuando se extienda `incidents.controller.ts:findAll` para
-  aceptar `page`/`limit` y devolver un envelope con `total`
-  real, este `@if` se vuelve a abrir.
--->
+<!-- Paginación (oculta hasta que el backend soporte paginación real) -->
 @if (shouldShowPagination()) {
   <div class="mt-4">
     <app-pagination
@@ -142,7 +145,7 @@
   </div>
 }
 
-<!-- Tarjetas de contexto (F3.2.8 / D8) — guion cuando indisponible, nunca 0 -->
+<!-- Tarjetas de contexto (F3.2.8 / D8) -->
 <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6" data-testid="context-cards">
   <ui-kpi-card
     label="Cobertura territorial"
@@ -157,3 +160,22 @@
     [value]="avgResponseTime() ?? '—'"
   />
 </section>
+
+<!-- Assignment Modal overlay -->
+@if (assignmentModalOpen()) {
+  <app-assignment-modal
+    [preSelectedIncidentId]="preSelectedIncidentId()"
+    (closed)="closeAssignmentModal()"
+    (assigned)="onAssignmentCompleted($event)"
+    data-testid="assignment-modal"
+  />
+}
+
+<!-- Tracking Panel side panel -->
+@if (trackingPanelOpen() && trackingIncidentId()) {
+  <app-tracking-panel
+    [incidentId]="trackingIncidentId()!"
+    (closed)="closeTracking()"
+    data-testid="tracking-panel"
+  />
+}
