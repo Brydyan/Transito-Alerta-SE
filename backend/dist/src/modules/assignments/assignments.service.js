@@ -67,22 +67,6 @@ let AssignmentsService = class AssignmentsService {
             existing.role = dto.role;
         return this.assignmentRepo.save(existing);
     }
-    /**
-     * GET /assignments/operator/:operatorId/count
-     *
-     * Returns the count of active (non-soft-deleted) assignments for
-     * a given operator. Used by the assignment modal to display operator
-     * workload alongside the available incidents.
-     *
-     * Design decision D4: dedicated COUNT(*) endpoint to avoid N+1
-     * queries when rendering operator workload in the modal.
-     */
-    async countByOperator(operatorId) {
-        const count = await this.assignmentRepo.count({
-            where: { operatorId, deletedAt: (0, typeorm_2.IsNull)() },
-        });
-        return { count, operatorId };
-    }
 };
 exports.AssignmentsService = AssignmentsService;
 exports.AssignmentsService = AssignmentsService = __decorate([

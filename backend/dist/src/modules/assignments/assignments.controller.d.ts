@@ -10,8 +10,4 @@ export declare class AssignmentsController {
     release(id: string): Promise<void>;
     list(incidentId: string, req: AuthenticatedRequest): Promise<AssignmentEntity[]>;
     update(id: string, dto: UpdateAssignmentDto): Promise<AssignmentEntity>;
-    countByOperator(operatorId: string): Promise<{
-        count: number;
-        operatorId: string;
-    }>;
 }

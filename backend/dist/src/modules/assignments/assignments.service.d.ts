@@ -17,8 +17,4 @@ export declare class AssignmentsService {
         operator_id?: string;
         role?: string;
     }): Promise<AssignmentEntity>;
-    countByOperator(operatorId: string): Promise<{
-        count: number;
-        operatorId: string;
-    }>;
 }

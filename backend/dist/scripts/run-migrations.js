@@ -64,7 +64,8 @@ async function validateMigrations(client) {
             continue;
         }
         const storedChecksum = result.rows[0].checksum;
-        if (storedChecksum.trim() === 'backfill') {
+        const literal = storedChecksum.trim();
+        if (literal === 'backfill' || literal === 'manual') {
             continue;
         }
         const actualChecksum = (0, migration_files_1.checksumOf)(migration);
@@ -86,18 +87,22 @@ async function validateMigrations(client) {
 }
 async function printStatus(client) {
     const migrations = (0, migration_files_1.listMigrations)();
-    const applied = await client.query('SELECT version, name, applied_at FROM schema_migrations ORDER BY version');
-    const appliedMap = new Map(applied.rows.map((r) => [r.version, r.applied_at]));
+    const applied = await client.query('SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version');
+    const appliedMap = new Map(applied.rows.map((r) => [r.version, r]));
     console.log('Version  Name                             Status           Applied At\n' +
         '-------  -------------------------------- ---------------  --------------------');
     for (const m of migrations) {
-        const timestamp = appliedMap.get(m.version);
-        const status = timestamp
-            ? timestamp === 'backfill'
+        const row = appliedMap.get(m.version);
+        const status = row
+            ? row.checksum.trim() === 'backfill'
                 ? '[backfill]'
                 : '✅ applied'
             : '⏳ pending';
-        const appliedAt = timestamp && timestamp !== 'backfill' ? timestamp.substring(0, 19) : 'N/A';
+        const appliedAt = row
+            ? row.checksum.trim() === 'backfill'
+                ? 'N/A'
+                : new Date(row.applied_at).toISOString().substring(0, 19).replace('T', ' ')
+            : 'N/A';
         console.log(`${m.version}  ${m.name.padEnd(32)}  ${status.padEnd(14)}  ${appliedAt}`);
     }
 }
@@ -131,7 +136,7 @@ async function rolldownMigrations(client, targetVersion) {
     }
     console.log(`Rolling back ${toRollback.length} migration(s)...`);
     for (const migration of toRollback) {
-        const downFile = (0, path_1.resolve)(__dirname, '..', 'database', 'rollback', `${migration.version}_${migration.name}.DOWN.sql`);
+        const downFile = (0, path_1.resolve)(__dirname, '../..', 'database', 'rollback', `${migration.version}_${migration.name}.DOWN.sql`);
         if (!(0, fs_1.existsSync)(downFile)) {
             throw new Error(`Rollback file not found: ${downFile}`);
         }

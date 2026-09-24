@@ -36,16 +36,6 @@ let AssignmentsController = class AssignmentsController {
     update(id, dto) {
         return this.assignmentsService.update(id, dto);
     }
-    /**
-     * GET /assignments/operator/:operatorId/count
-     *
-     * Returns active (non-soft-deleted) assignment count for an operator.
-     * Used by the assignment modal to display operator workload.
-     * Auth: ASSIGN permission required (same guard as other endpoints).
-     */
-    countByOperator(operatorId) {
-        return this.assignmentsService.countByOperator(operatorId);
-    }
 };
 exports.AssignmentsController = AssignmentsController;
 __decorate([
@@ -83,14 +73,6 @@ __decorate([
     __metadata("design:paramtypes", [String, update_assignment_dto_1.UpdateAssignmentDto]),
     __metadata("design:returntype", Promise)
 ], AssignmentsController.prototype, "update", null);
-__decorate([
-    (0, common_1.Get)('operator/:operatorId/count'),
-    (0, require_permission_decorator_1.RequirePermission)('ASSIGN'),
-    __param(0, (0, common_1.Param)('operatorId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", Promise)
-], AssignmentsController.prototype, "countByOperator", null);
 exports.AssignmentsController = AssignmentsController = __decorate([
     (0, common_1.Controller)('assignments'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permission_guard_1.PermissionGuard),
