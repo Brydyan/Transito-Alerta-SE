@@ -263,6 +263,13 @@ export class RolesComponent implements OnInit {
     this.loadRoles();
   }
 
+  /** Cambia el tamaño de página — resetea a página 1 y recarga. */
+  onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.currentPage.set(1);
+    this.loadRoles();
+  }
+
   /** Reset a página 1 + recarga — usado por `onSearch` para que
    *  un filtro nuevo no deje al usuario en una página vacía. */
   private refetch(): void {

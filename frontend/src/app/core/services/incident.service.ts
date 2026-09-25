@@ -32,37 +32,31 @@ export class IncidentService {
   constructor(private httpService: HttpService) {}
 
   /**
-   * GET /api/incidents?search=&status=&priority=&page=&limit=&category_id=
+   * GET /api/incidents?zone_id=&status=&page=&limit=
    *
-   * Backend returns a plain `Incident[]` today (no envelope). The
-   * method wraps it in `IncidentListResult` so callers (the listing
-   * page, F3.2) can switch to a paginated envelope later without
-   * changing consumers — the projection lives in one place.
+   * sc-339 (2026-09-23) — backend now returns `{items, total}` and
+   * enforces `forbidNonWhitelisted: true` (IncidentListQueryDto).
+   * Only `zone_id`, `status`, `page`, `limit` are whitelisted.
+   * The envelope is unwrapped into `IncidentListResult` with real
+   * `total`/`page`/`limit` (no more fake `total = items.length`).
    */
   getIncidents(filters: IncidentListFilters = {}): Observable<IncidentListResult> {
-    const params = this.toQueryParams(filters);
+    const params = this.toListQueryParams(filters);
     return this.httpService
-      .get<Incident[]>('/incidents', params)
+      .get<{ items: Incident[]; total: number }>('/incidents', params)
       .pipe(
-        map((items) => ({
-          items,
-          // F3 (sc-303) C1 (ronda 4) — el backend actual NO pagina;
-          // devuelve hasta 1000 filas. `total` iguala `items.length`
-          // porque la "página" es toda la respuesta. Cuando el
-          // backend agregue paginación real (con `OFFSET`/`LIMIT`),
-          // este campo viene del header `X-Total-Count` o de un
-          // envelope. Mientras tanto, el paginador del frontend
-          // se oculta (ver `IncidentListComponent.shouldShowPagination`).
-          total: items.length,
-          page: 1,
-          limit: items.length,
+        map((res) => ({
+          items: res.items,
+          total: res.total,
+          page: filters.page ?? 1,
+          limit: filters.limit ?? 20,
         })),
         tap((result) => this.incidents$.next(result.items)),
       );
   }
 
   getFeed(filters: IncidentListFilters = {}): Observable<IncidentFeedResponse> {
-    const params = this.toQueryParams(filters);
+    const params = this.toFeedQueryParams(filters);
     return this.httpService.get<IncidentFeedResponse>('/incidents/feed', params);
   }
 
@@ -181,21 +175,38 @@ export class IncidentService {
   }
 
   /**
-   * F3.1.3 / F3.2.3 (D2) — typed filter object → URLSearchParams.
-   * The frontend never constructs a URL string manually; the
-   * spec asserts on the returned `HttpParams` (stable across
-   * test runs, not order-sensitive in practice because each
-   * key is added in one place).
-   *
-   * Pagination (feed): `GET /api/incidents/feed` now supports
-   * `status`, `priority`, `page`, `per_page`, `incident_category_id`.
-   * Only defined values are emitted — no `undefined` in the query
-   * string (missing → defaults on the backend). `GET /api/incidents`
-   * still only honors `status`; extra params are silently ignored
-   * there but are required for the feed path.
+   * sc-339 — list query: ONLY `zone_id`, `status`, `page`, `limit`
+   * are forwarded to `GET /api/incidents`. Anything else (search,
+   * priority, per_page, category) would 400 due to
+   * `forbidNonWhitelisted: true`.
    */
-  private toQueryParams(filters: IncidentListFilters): Record<string, string> {
+  private toListQueryParams(filters: IncidentListFilters): Record<string, string> {
     const out: Record<string, string> = {};
+    if (filters.zone_id) {
+      out['zone_id'] = filters.zone_id;
+    }
+    if (filters.status) {
+      out['status'] = filters.status;
+    }
+    if (filters.page !== undefined && filters.page !== null) {
+      out['page'] = String(filters.page);
+    }
+    if (filters.limit !== undefined && filters.limit !== null) {
+      out['limit'] = String(filters.limit);
+    }
+    return out;
+  }
+
+  /**
+   * Feed query: `GET /api/incidents/feed` (FeedQueryDto) supports
+   * `status`, `priority`, `page`, `per_page`, `incident_category_id`,
+   * `zone_id`, `bbox`, `zoom`. Only feed-relevant keys are emitted.
+   */
+  private toFeedQueryParams(filters: IncidentListFilters): Record<string, string> {
+    const out: Record<string, string> = {};
+    if ((filters as Record<string, unknown>)['zone_id']) {
+      out['zone_id'] = String((filters as Record<string, unknown>)['zone_id']);
+    }
     if (filters.status) {
       out['status'] = filters.status;
     }
@@ -208,9 +219,19 @@ export class IncidentService {
     if (filters.per_page !== undefined && filters.per_page !== null) {
       out['per_page'] = String(filters.per_page);
     }
+    if (filters.limit !== undefined && filters.limit !== null) {
+      // `limit` is the list DTO name; feed DTO uses `per_page`. If a
+      // caller passed `limit`, map it to `per_page` for feed compat.
+      if (!out['per_page']) out['per_page'] = String(filters.limit);
+    }
     if (filters.incident_category_id) {
       out['incident_category_id'] = filters.incident_category_id;
     }
     return out;
+  }
+
+  /** @deprecated use toListQueryParams / toFeedQueryParams */
+  private toQueryParams(filters: IncidentListFilters): Record<string, string> {
+    return this.toListQueryParams(filters);
   }
 }

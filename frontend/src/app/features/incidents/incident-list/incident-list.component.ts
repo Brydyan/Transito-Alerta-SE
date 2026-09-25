@@ -120,17 +120,14 @@ export class IncidentListComponent implements OnInit {
   private static readonly SCROLL_KEY = 'scroll-incidents';
 
   // ── Filter signals (D2) ─────────────────────────────────────────────
-  // Las señales se derivan de la URL al montar. La mutación
-  // posterior navega (router.navigate) — el ciclo se cierra vía
-  // ActivatedRoute.queryParams.
-  //
-  // F3 (sc-303) C1 (ronda 4) — sólo `statusFilter` se persiste en
-  // la URL. `priorityFilter` y `searchCtrl` se mantienen como
-  // estado en memoria (no se mandan al backend hoy) hasta que
-  // un change de backend extienda `findAll`.
+  // sc-339 — filters now map to `GET /api/incidents?zone_id=&status=&page=&limit=`.
+  // Only `status` is exposed in the UI today; `zone_id` is supported by
+  // the model/service but has no selector yet (future zone dropdown).
+  // `search`/`priority` are NOT sent — they would 400 (forbidNonWhitelisted).
   readonly searchCtrl = new FormControl<string>('', { nonNullable: true });
   readonly statusFilter = signal<IncidentStatus | null>(null);
   readonly currentPage = signal<number>(1);
+  readonly pageSize = signal<number>(20);
 
   // ── Data signals ───────────────────────────────────────────────────
   readonly loading = signal<boolean>(true);
@@ -266,28 +263,30 @@ export class IncidentListComponent implements OnInit {
     return p;
   }
 
-  /** Construye los query params actuales. */
+  /** Construye los query params actuales (sc-339: zone_id, status, page, limit). */
   private currentFilters(): IncidentListFilters {
     const f: IncidentListFilters = {};
     if (this.statusFilter()) f.status = this.statusFilter()!;
-    // F3 (sc-303) C1 (ronda 4) — sólo `status` se persiste en
-    // la URL hasta que el backend extienda `findAll`. Los
-    // demás campos viven en memoria o en el paginator interno.
+    f.page = this.currentPage();
+    f.limit = this.pageSize();
     return f;
   }
 
   /** Empuja el estado actual de los filtros a la URL (D2). */
   navigateWithFilters(): void {
-    const f = this.currentFilters();
+    const f: IncidentListFilters = {};
+    if (this.statusFilter()) f.status = this.statusFilter()!;
+    // Page is not persisted to keep URL shareable without coupling to pagination
+    // offset; the list always opens on page 1 when navigated via URL.
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: f,
+      queryParams: f.status ? { status: f.status } : { status: null },
       queryParamsHandling: 'merge',
-      replaceUrl: false, // cada cambio queda en el history; back funciona
+      replaceUrl: false,
     });
   }
 
-  /** Carga la página actual con los filtros en la URL. */
+  /** Carga la página actual con los filtros en la URL (replaces items). */
   private fetch(): void {
     this.loading.set(true);
     const f = this.currentFilters();
@@ -296,7 +295,6 @@ export class IncidentListComponent implements OnInit {
         this.incidents.set(result.items);
         this.total.set(result.total);
         this.loading.set(false);
-        // FIX-16 — prefetch location names for visible rows.
         result.items.forEach((inc) => this.ensureLocationName(inc));
       },
       error: () => {
@@ -419,6 +417,13 @@ export class IncidentListComponent implements OnInit {
     this.fetch();
   }
 
+  /** Cambia el tamaño de página — resetea a página 1 y recarga. */
+  onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.currentPage.set(1);
+    this.fetch();
+  }
+
   // ── Row navigation ────────────────────────────────────────────────
   goToDetail(incident: Incident): void {
     // D14 — Save scroll position before leaving the list (localStorage backup).
@@ -471,29 +476,18 @@ export class IncidentListComponent implements OnInit {
   }
 
   // ── Derived UI helpers ────────────────────────────────────────────
-  // F3 (sc-303) C1 (ronda 4) — `hasActiveFilters` considera sólo
-  // `status` hasta que el backend extienda `findAll`. La búsqueda
-  // libre se mantiene en memoria (FormControl) pero no se cuenta
-  // como "filtro activo" hasta que el backend la respete.
   readonly hasActiveFilters = computed(() => this.statusFilter() !== null);
+
+  readonly shouldShowPagination = computed(() => this.total() > this.pageSize());
 
   readonly rangeText = computed(() => {
     const total = this.total();
     if (total === 0) return 'Mostrando 0 de 0 incidencias';
-    // F3 (sc-303) C1 (ronda 4) — sin paginación real del backend,
-    // el rango siempre es `N de N`. Cuando se extienda `findAll`,
-    // el template vuelve a `start-end de N`.
-    return `Mostrando ${total} de ${total} incidencia${total === 1 ? '' : 's'}`;
+    const from = (this.currentPage() - 1) * this.pageSize() + 1;
+    const to = Math.min(this.currentPage() * this.pageSize(), total);
+    if (from === to) return `Mostrando ${from} de ${total} incidencia${total === 1 ? '' : 's'}`;
+    return `Mostrando ${from}-${to} de ${total} incidencia${total === 1 ? '' : 's'}`;
   });
-
-  /**
-   * F3 (sc-303) C1 (ronda 4) — el backend no pagina. Mostrar el
-   * paginador cuando hay un solo "page" real sería prometer una
-   * navegación que no existe. Cuando el backend extienda `findAll`
-   * con `page`/`limit` y un envelope con `total` real, esta guarda
-   * se sustituye por `total() > pageSize`.
-   */
-  readonly shouldShowPagination = computed(() => false);
 
   /** Trunca el título a N chars con elipsis (F3.2.5). */
   truncate(title: string, max: number = 60): string {

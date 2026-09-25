@@ -80,15 +80,26 @@ describe('IncidentsController', () => {
     expect(result).toEqual({ id: 'inc-1' });
   });
 
-  it('GET / delegates to service.findAll with query filters and the caller scope', async () => {
-    service.findAll.mockResolvedValue([]);
+  it('GET / delegates to service.findAll with query filters, pagination and the caller scope', async () => {
+    service.findAll.mockResolvedValue({ items: [], total: 0 });
     const req = {
       user: { userId: 'user-1', permissions: [], scope: GLOBAL_SCOPE },
     } as unknown as AuthenticatedRequest;
 
-    await controller.findAll(req, 'zone-1', 'pending');
+    await controller.findAll(req, { zone_id: 'zone-1', status: 'pending' } as any);
 
-    expect(service.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1', status: 'pending' }, GLOBAL_SCOPE, 'user-1');
+    expect(service.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1', status: 'pending' }, GLOBAL_SCOPE, 'user-1', 1, 20);
+  });
+
+  it('GET / forwards page/limit from query DTO to service', async () => {
+    service.findAll.mockResolvedValue({ items: [], total: 0 });
+    const req = {
+      user: { userId: 'user-1', permissions: [], scope: GLOBAL_SCOPE },
+    } as unknown as AuthenticatedRequest;
+
+    await controller.findAll(req, { zone_id: 'zone-1', status: 'pending', page: 2, limit: 10 } as any);
+
+    expect(service.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1', status: 'pending' }, GLOBAL_SCOPE, 'user-1', 2, 10);
   });
 
   it('GET /:id delegates to service.findOne with the caller scope', async () => {

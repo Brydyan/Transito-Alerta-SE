@@ -50,7 +50,8 @@ describe('E2E regressions — one test per shipped defect (T4.1a step 2, Part A)
       .set('Authorization', `Bearer ${operator.accessToken}`)
       .expect(200);
 
-    expect(Array.isArray(response.body)).toBe(true);
+    // sc-339 — GET /api/incidents returns the `{items, total}` envelope.
+    expect(Array.isArray(response.body.items)).toBe(true);
   });
 
   // --- 2. EventsGateway identity (71dc3d6) --------------------------------
@@ -253,7 +254,8 @@ describe('E2E regressions — one test per shipped defect (T4.1a step 2, Part A)
     // cache key now carries a scope discriminator so org A's cached array
     // can never be served to org B. This operator holds no seeded role
     // (role_id IS NULL, D2), so it resolves to `public` scope -> `:p`.
-    const listingKey = `incidents:list:${SANTA_ELENA_ZONE_ID}:pending:p`;
+    // sc-339 — cache key now carries page:limit (default page 1, limit 20).
+    const listingKey = `incidents:list:${SANTA_ELENA_ZONE_ID}:pending:p:1:20`;
     expect(await env.redisCache.get(listingKey)).not.toBeNull();
 
     await request(env.httpServer)
@@ -387,7 +389,8 @@ describe('E2E security — input validation and HTTP headers (T4.3a/T4.3b)', () 
       .set('Authorization', `Bearer ${operator.accessToken}`)
       .expect(200);
 
-    expect(Array.isArray(check.body)).toBe(true);
+    // sc-339 — envelope `{items, total}`.
+    expect(Array.isArray(check.body.items)).toBe(true);
   });
 
   // T4.3b Test 2 — XSS payload round-trips as a literal string.
@@ -408,7 +411,7 @@ describe('E2E security — input validation and HTTP headers (T4.3a/T4.3b)', () 
         .set('Authorization', `Bearer ${operator.accessToken}`)
         .expect(200);
 
-      const found = (incidents.body as Array<{ id: string; title: string }>)
+      const found = (incidents.body.items as Array<{ id: string; title: string }>)
         .find((i) => i.id === created.body.id);
       // El string debe ser literal, no parseado/ejecutado
       expect(found?.title).toBe(xssTitle);

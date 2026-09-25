@@ -214,26 +214,27 @@ describe('IncidentsService', () => {
   });
 
   describe('findAll', () => {
-    it('returns the cached list on a hit without querying the repository', async () => {
+    it('returns the cached envelope on a hit without querying the repository', async () => {
       const row = makeRow();
-      cache.get.mockResolvedValue([row]);
+      const cached = { items: [row], total: 1 };
+      cache.get.mockResolvedValue(cached);
 
       const result = await service.findAll({ zoneId: 'zone-1' }, GLOBAL_SCOPE);
 
-      expect(result).toEqual([row]);
+      expect(result).toEqual(cached);
       expect(repo.findAll).not.toHaveBeenCalled();
     });
 
-    it('queries and caches the list by zone+scope on a miss', async () => {
+    it('queries and caches the envelope by zone+scope on a miss', async () => {
       const row = makeRow();
       cache.get.mockResolvedValue(undefined);
-      repo.findAll.mockResolvedValue([row]);
+      repo.findAll.mockResolvedValue({ items: [row], total: 1 });
 
       const result = await service.findAll({ zoneId: 'zone-1' }, GLOBAL_SCOPE);
 
-      expect(repo.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1' }, GLOBAL_SCOPE, undefined);
+      expect(repo.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1' }, GLOBAL_SCOPE, undefined, 1, 20);
       expect(cache.set).toHaveBeenCalled();
-      expect(result).toEqual([row]);
+      expect(result).toEqual({ items: [row], total: 1 });
     });
 
     // Design "Scope-blind list cache" risk: threading scope into the
@@ -241,13 +242,36 @@ describe('IncidentsService', () => {
     // the cache KEY itself must carry the scope discriminator.
     it('caches org and global scope under DISTINCT keys for the same zone/status', async () => {
       cache.get.mockResolvedValue(undefined);
-      repo.findAll.mockResolvedValue([]);
+      repo.findAll.mockResolvedValue({ items: [], total: 0 });
 
       await service.findAll({ zoneId: 'zone-1' }, GLOBAL_SCOPE);
       await service.findAll({ zoneId: 'zone-1' }, ORG_A_SCOPE);
 
       const keysUsed = cache.set.mock.calls.map((call) => call[0]);
       expect(new Set(keysUsed).size).toBe(2);
+    });
+
+    it('includes page and limit in the cache key', async () => {
+      cache.get.mockResolvedValue(undefined);
+      repo.findAll.mockResolvedValue({ items: [], total: 0 });
+
+      await service.findAll({ zoneId: 'zone-1' }, GLOBAL_SCOPE, undefined, 1, 20);
+      await service.findAll({ zoneId: 'zone-1' }, GLOBAL_SCOPE, undefined, 2, 20);
+
+      const keysUsed = cache.set.mock.calls.map((call) => call[0]);
+      expect(new Set(keysUsed).size).toBe(2);
+      expect(keysUsed[0]).toContain(':1:20');
+      expect(keysUsed[1]).toContain(':2:20');
+    });
+
+    it('caps limit at 100 and normalizes page <1', async () => {
+      cache.get.mockResolvedValue(undefined);
+      repo.findAll.mockResolvedValue({ items: [], total: 0 });
+
+      await service.findAll({ zoneId: 'zone-1' }, GLOBAL_SCOPE, undefined, 0, 999);
+
+      expect(repo.findAll).toHaveBeenCalledWith({ zoneId: 'zone-1' }, GLOBAL_SCOPE, undefined, 1, 100);
+      expect(cache.set.mock.calls[0][0]).toContain(':1:100');
     });
   });
 
