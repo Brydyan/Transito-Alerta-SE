@@ -14,6 +14,14 @@ import { ConfirmDialogService } from '../../../shared/components/confirm-dialog/
  * búsqueda, la resiliencia a errores (D5: la falla de una
  * fuente no aborta la otra) y la integración con
  * `StatsCardsComponent`.
+ *
+ * sc-340 (R6): el fixture refleja el contrato vigente — nombres
+ * canónicos post-0040 (`0040_rename_roles`: `admin_sistema` →
+ * `master`, `admin_organizacion` → `admin_org`,
+ * `operador_organizacion` → `operador_org`; `reporter` ya existía
+ * desde `0009`) e identificadores UUID string post-0051. El fixture
+ * anterior afirmaba nombres legacy con `rolId` numérico, un contrato
+ * que el código ya no cumple.
  */
 describe('RolesComponent (F6 rediseño)', () => {
   let component: RolesComponent;
@@ -26,11 +34,11 @@ describe('RolesComponent (F6 rediseño)', () => {
   let mockConfirmDialogService: { confirm: jest.Mock };
 
   const fixtureRoles = [
-    { rolId: 1, nombre: 'admin_sistema', isSystemRole: true, permissionCount: 48 },
-    { rolId: 2, nombre: 'operador_sistema', isSystemRole: true, permissionCount: 32 },
-    { rolId: 3, nombre: 'admin_organizacion', isSystemRole: false, permissionCount: 24 },
-    { rolId: 4, nombre: 'operador_organizacion', isSystemRole: false, permissionCount: 18 },
-    { rolId: 5, nombre: 'usuario', isSystemRole: false, permissionCount: 8 },
+    { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-111111111111', nombre: 'master', isSystemRole: true, permissionCount: 48 },
+    { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-222222222222', nombre: 'operador_sistema', isSystemRole: true, permissionCount: 32 },
+    { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-333333333333', nombre: 'admin_org', isSystemRole: false, permissionCount: 24 },
+    { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-444444444444', nombre: 'operador_org', isSystemRole: false, permissionCount: 18 },
+    { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-555555555555', nombre: 'reporter', isSystemRole: false, permissionCount: 8 },
   ];
 
   const fixtureStats = {
@@ -82,7 +90,7 @@ describe('RolesComponent (F6 rediseño)', () => {
     expect(component.visibleRoles().length).toBe(2);
     expect(component.visibleRoles().map((r) => r.nombre)).toEqual([
       'operador_sistema',
-      'operador_organizacion',
+      'operador_org',
     ]);
   });
 
@@ -127,13 +135,15 @@ describe('RolesComponent (F6 rediseño)', () => {
 
   it('delete llama al service y recarga cuando el confirm devuelve true', () => {
     mockConfirmDialogService.confirm.mockReturnValue(of(true));
-    component.onDelete(5);
-    expect(mockRolesService.deleteRole).toHaveBeenCalledWith(5);
+    component.onDelete('a1b2c3d4-e5f6-4a7b-8c9d-555555555555');
+    expect(mockRolesService.deleteRole).toHaveBeenCalledWith(
+      'a1b2c3d4-e5f6-4a7b-8c9d-555555555555',
+    );
   });
 
   it('delete NO llama al service cuando el confirm devuelve false', () => {
     mockConfirmDialogService.confirm.mockReturnValue(of(false));
-    component.onDelete(5);
+    component.onDelete('a1b2c3d4-e5f6-4a7b-8c9d-555555555555');
     expect(mockRolesService.deleteRole).not.toHaveBeenCalled();
   });
 
@@ -164,7 +174,7 @@ describe('RolesComponent (F6 rediseño)', () => {
 
   it('S3: un rol sin permissionCount muestra "—" (D5: cero es un valor, no un placeholder)', () => {
     mockRolesService.getRoles.mockReturnValue(of([
-      { rolId: 99, nombre: 'sin_permisos' /* sin permissionCount */ },
+      { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-999999999999', nombre: 'sin_permisos' /* sin permissionCount */ },
     ]));
     (component as unknown as { loadRoles: () => void }).loadRoles();
     fixture.detectChanges();
