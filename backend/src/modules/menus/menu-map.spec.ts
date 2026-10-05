@@ -33,7 +33,7 @@ import { MENU_MAP } from './menu-map';
  * combinaciones reales no tienen colisiones de segmentos entre
  * rutas no relacionadas.
  *
- * ## Para agregar una ruta
+ * ## Para agregar una ruta:
  *
  *  1. Agregar la entrada en `MENU_MAP` (con su `requires` y su
  *     `group`/`order`).

@@ -179,6 +179,11 @@ export class NewUserFormComponent implements OnInit {
    * D-frontend-5 — al seleccionar un rol, fetchea sus permisos y
    * computa `access` (4 primeros) y `noAccess` (permisos del
    * catálogo que el rol NO tiene, slice 0-2).
+   *
+   * sc-340 (R2): `getRolePermissions` already resolves the role's
+   * permission UUIDs (post-0051 wire) to `"<action> <resource>"`
+   * labels against the catalog, so both lists render legibly and the
+   * `noAccess` set-difference below compares label to label.
    */
   onRoleChange(roleId: string | null): void {
     this.formData.update((d) => ({ ...d, roleId }));

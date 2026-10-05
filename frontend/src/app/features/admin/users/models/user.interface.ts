@@ -20,14 +20,22 @@ export interface RolePermission {
 }
 
 /**
- * F6 fix: `permisos` es `string[]` (el wire real del backend es
+ * `permisos` es `string[]` (el wire real del backend es
  * `permissions: string[]` desde `GET /api/roles/:id`). Antes
  * estaba tipado como `RolePermission[]` con campos estructurados
  * (`permisoId, nombre, recurso, accion, …`) que el backend NO
- * devuelve — el template sólo necesita contar los permisos y el
- * form los itera como strings. Mantener la forma vieja hacía
- * que el `map` del service no encajara con el tipo y el código
- * no compilara.
+ * devuelve. Mantener la forma vieja hacía que el `map` del service
+ * no encajara con el tipo y el código no compilara.
+ *
+ * sc-340 — qué contienen esos strings, corregido: desde
+ * `0051_roles_permissions_uuid_format.sql` son **UUIDs**, no
+ * etiquetas `"ACTION resource"`. El tipo sigue siendo `string[]`
+ * (un UUID es un string), pero el contenido NO es legible por sí
+ * solo. Por eso `UserFormComponent.loadRolePermissions` los
+ * resuelve contra el catálogo (`resolveRolePermissionLabels`) antes
+ * de guardarlos en `rolePermissions()`: ese signal ya contiene
+ * etiquetas, no ids. Un id suelto que llega hasta el template se
+ * renderiza crudo — el resolvedor es la única barrera.
  */
 export interface RoleDetail extends Role {
   permisos: string[];
@@ -43,6 +51,95 @@ export interface PermissionItem {
   descripcion: string;
   recurso: string;
   accion: string;
+}
+
+/**
+ * sc-340 (R3, R4) — real wire shape of `GET /api/permissions`.
+ * The endpoint returns a flat array of `PermissionEntity`
+ * (`{ id, resource, action, ... }`); single-word keys pass through
+ * the global `SnakeCaseResponseInterceptor` untouched. There is no
+ * `nombre` column and no `{ data, meta }` envelope on this endpoint,
+ * so every field the backend does not send stays optional here.
+ * Optional `nombre` / `descripcion` are read defensively to mirror
+ * the reference resolver in `roles.service.ts`.
+ */
+export interface PermissionWireItem {
+  id?: string;
+  resource?: string;
+  action?: string;
+  nombre?: string;
+  descripcion?: string;
+  deleted_at?: string | null;
+}
+
+/**
+ * sc-340 (R4) — both shapes the permissions endpoint may return:
+ * the real flat array, or a `{ data, meta }` envelope. Declared as
+ * a union so callers normalize instead of casting.
+ */
+export type PermissionsWireResponse =
+  | PermissionWireItem[]
+  | { data: PermissionWireItem[]; meta?: unknown };
+
+/**
+ * sc-340 (R2, Scenario 5) — explicit marker shown when a role
+ * permission UUID has no entry in the permissions catalog. Rendered
+ * as-is; never `undefined`, never throws.
+ */
+export const UNKNOWN_PERMISSION_LABEL = 'permiso no encontrado';
+
+/**
+ * sc-340 (R2, R3) — single place that decides a permission label.
+ * Explicit `nombre` wins; otherwise `"<action> <resource>"`;
+ * otherwise an empty string. Never returns `undefined`.
+ */
+export function permissionLabel(p: {
+  action?: string | null;
+  resource?: string | null;
+  nombre?: string | null;
+}): string {
+  const explicit = p.nombre?.trim();
+  if (explicit) return explicit;
+  const action = p.action?.trim() ?? '';
+  const resource = p.resource?.trim() ?? '';
+  return `${action} ${resource}`.trim();
+}
+
+/**
+ * sc-340 (R2, R3, R5) — projects one wire-or-model entry onto the
+ * `PermissionItem` shape the templates already consume
+ * (`permisoId`, `nombre`, `recurso`, `accion`), so the rename never
+ * propagates to the views. Idempotent: entries that already carry
+ * the model fields keep them; entries in raw wire shape
+ * (`id` / `resource` / `action`) are filled in. Empty-string fields
+ * fall through to the wire value on purpose: an empty `nombre` is
+ * not an explicit label, it is a missing one.
+ */
+export function toPermissionItem(
+  p: Partial<PermissionItem & PermissionWireItem>,
+): PermissionItem {
+  const action = p.accion || p.action || '';
+  const resource = p.recurso || p.resource || '';
+  return {
+    permisoId: p.permisoId || p.id || '',
+    nombre: p.nombre || permissionLabel({ action, resource }),
+    descripcion: p.descripcion ?? '',
+    recurso: resource,
+    accion: action,
+  };
+}
+
+/**
+ * sc-340 (R2) — resolves role permission UUIDs (post-0051 wire)
+ * against an already-projected catalog. Unknown UUIDs degrade to
+ * `UNKNOWN_PERMISSION_LABEL`, never `undefined`, never throws.
+ */
+export function resolveRolePermissionLabels(
+  permissionIds: ReadonlyArray<string>,
+  catalog: ReadonlyArray<PermissionItem>,
+): string[] {
+  const byId = new Map(catalog.map((item) => [item.permisoId, item.nombre]));
+  return permissionIds.map((id) => byId.get(id) ?? UNKNOWN_PERMISSION_LABEL);
 }
 
 export interface DirectPermission {
