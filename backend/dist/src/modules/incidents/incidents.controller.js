@@ -23,6 +23,7 @@ const update_incident_dto_1 = require("./dto/update-incident.dto");
 const update_incident_status_dto_1 = require("./dto/update-incident-status.dto");
 const stats_query_dto_1 = require("./dto/stats-query.dto");
 const weekly_stats_query_dto_1 = require("./dto/weekly-stats-query.dto");
+const incident_list_query_dto_1 = require("./dto/incident-list-query.dto");
 const reveal_incident_dto_1 = require("./dto/reveal-incident.dto");
 const reveal_service_1 = require("./reveal.service");
 const feed_query_dto_1 = require("./dto/feed-query.dto");
@@ -46,8 +47,10 @@ let IncidentsController = class IncidentsController {
     create(dto, req) {
         return this.incidentsService.create(dto, req.user.userId);
     }
-    findAll(req, zoneId, status) {
-        return this.incidentsService.findAll({ zoneId, status }, req.user.scope, req.user.userId);
+    findAll(req, query) {
+        const page = query.page ?? 1;
+        const limit = query.limit ?? 20;
+        return this.incidentsService.findAll({ zoneId: query.zone_id, status: query.status }, req.user.scope, req.user.userId, page, limit);
     }
     async getStats(query, req) {
         return this.analyticsService.getStats(query, req.user);
@@ -134,10 +137,9 @@ __decorate([
     (0, common_1.Get)(),
     (0, require_permission_decorator_1.RequirePermission)('READ'),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Query)('zone_id')),
-    __param(2, (0, common_1.Query)('status')),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:paramtypes", [Object, incident_list_query_dto_1.IncidentListQueryDto]),
     __metadata("design:returntype", Promise)
 ], IncidentsController.prototype, "findAll", null);
 __decorate([

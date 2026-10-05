@@ -40,25 +40,25 @@ describe('ActionsDropdownComponent', () => {
   });
 
   it('dropdown is initially closed', () => {
-    expect(component.isOpen()).toBeFalse();
+    expect(component.isOpen()).toBe(false);
   });
 
   it('clicking the trigger opens the dropdown', () => {
     const trigger = fixture.debugElement.query(By.css('[data-testid="actions-trigger"]'));
     trigger.nativeElement.click();
     fixture.detectChanges();
-    expect(component.isOpen()).toBeTrue();
+    expect(component.isOpen()).toBe(true);
   });
 
   it('toggle() flips isOpen state', () => {
     component.toggle();
-    expect(component.isOpen()).toBeTrue();
+    expect(component.isOpen()).toBe(true);
     component.toggle();
-    expect(component.isOpen()).toBeFalse();
+    expect(component.isOpen()).toBe(false);
   });
 
   it('"Ver" action emits view event with incidentId', () => {
-    const viewSpy = jasmine.createSpy('view');
+    const viewSpy = jest.fn();
     component.view.subscribe(viewSpy);
 
     component.isOpen.set(true);
@@ -68,11 +68,11 @@ describe('ActionsDropdownComponent', () => {
     verBtn.nativeElement.click();
 
     expect(viewSpy).toHaveBeenCalledWith('inc-1');
-    expect(component.isOpen()).toBeFalse();
+    expect(component.isOpen()).toBe(false);
   });
 
   it('"Asignar" action emits assign event with incidentId', () => {
-    const assignSpy = jasmine.createSpy('assign');
+    const assignSpy = jest.fn();
     component.assign.subscribe(assignSpy);
 
     component.isOpen.set(true);
@@ -86,7 +86,7 @@ describe('ActionsDropdownComponent', () => {
   });
 
   it('"Seguimiento" action emits tracking event', () => {
-    const trackSpy = jasmine.createSpy('tracking');
+    const trackSpy = jest.fn();
     component.tracking.subscribe(trackSpy);
 
     component.isOpen.set(true);
@@ -110,6 +110,6 @@ describe('ActionsDropdownComponent', () => {
   it('close() closes the dropdown', () => {
     component.isOpen.set(true);
     component.close();
-    expect(component.isOpen()).toBeFalse();
+    expect(component.isOpen()).toBe(false);
   });
 });

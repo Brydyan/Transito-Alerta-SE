@@ -193,6 +193,28 @@ Also updated `createCategory()` test helper type signature to accept optional `p
 
 ---
 
+## Specification Compliance Matrix
+
+| Scenario | Descripción | Criterio de Aceptación | Evidencia de Verificación | Estado |
+|---|---|---|---|---|
+| **S1** | Crear categoría raíz sin prioridad | Fieldset oculto; submit sin priority | `category-form.component.html:197` `@if (isSub())`<br>`category-form.component.spec.ts:291` | ✅ PASS |
+| **S2** | Crear sub-categoría muestra prioridad | Radios visibles, 4 opciones, default "Medio" | `category-form.component.html:197-250`<br>`category-form.component.spec.ts:309` | ✅ PASS |
+| **S3** | Crear sub-categoría con prioridad default | Persiste 'medium' en DB y API response | `category-form.component.ts:92`<br>`incident-categories.service.spec.ts:240` | ✅ PASS |
+| **S4** | Crear sub-categoría con prioridad personalizada | Persiste valor seleccionado ('critical', 'high', etc.) | `category-form.component.spec.ts:335`<br>`category-priority.e2e.ts:31` | ✅ PASS |
+| **S5** | Editar sub-categoría pre-carga prioridad | Formulario muestra prioridad existente | `category-form.component.ts:260`<br>`category-form.component.spec.ts:403` | ✅ PASS |
+| **S6** | Editar sub-categoría cambia prioridad | Actualización persistida correctamente | `incident-categories.service.ts:84-91`<br>`incident-categories.service.spec.ts:288` | ✅ PASS |
+| **S7** | Respuesta de API incluye priority | Payload incluye priority (null en raíz, enum en sub) | `incident-category.entity.ts:49-50`<br>`incident-categories.e2e-spec.ts:337` (TS-13) | ✅ PASS |
+| **S8** | Categoría raíz siempre priority = null | DB y API devuelven null para categoría raíz | `incident-categories.service.ts:52`<br>`incident-categories.service.spec.ts:272`<br>`incident-categories.e2e-spec.ts:337` (TS-13) | ✅ PASS |
+| **S9** | Reporte ciudadano pre-rellena prioridad | Al elegir sub-categoría con prioridad, form auto-actualiza | `citizen-report.component.ts:101-116`<br>`citizen-report.component.spec.ts:76` | ✅ PASS |
+| **S10** | Sin cambio en prioridad con categoría raíz | Si categoría tiene priority null, prioridad queda intacta | `citizen-report.component.ts:108`<br>`citizen-report.component.spec.ts:110` | ✅ PASS |
+| **S11** | Override de prioridad por ciudadano | Categoría pre-rellena de forma autoritativa si se selecciona sub | `citizen-report.component.spec.ts:155` (W1 resolved) | ✅ PASS |
+| **S12** | Publicación sin categoría | Funciona como antes si no se selecciona categoría | `citizen-report.component.ts:60` default 'medium' | ✅ PASS |
+| **NR1** | Vista de listado de categorías | No añade columnas ni altera renderizado | `category-tree-list` intacto | ✅ PASS |
+| **NR2** | Eliminación de sub-categoría con prioridad | Soft-delete preserva integridad referencial | `incident-categories.service.spec.ts:155-183` | ✅ PASS |
+| **NR3** | Datos existentes / compatibilidad hacia atrás | Columna NULLable, filas preexistentes compatibles | `0065_incident_category_priority.sql:24` | ✅ PASS |
+
+---
+
 ## Edge Cases Verified
 
 1. ✅ **Root category gets priority: null** regardless of what client sends (service enforces)

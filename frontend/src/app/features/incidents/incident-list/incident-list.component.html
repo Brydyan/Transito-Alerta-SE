@@ -158,8 +158,8 @@
 @if (assignmentModalOpen()) {
   <app-assignment-modal
     [preSelectedIncidentId]="preSelectedIncidentId()"
-    (completed)="onAssignmentCompleted($event)"
-    (close)="closeAssignmentModal()"
+    (assigned)="onAssignmentCompleted($event)"
+    (closed)="closeAssignmentModal()"
   />
 }
 

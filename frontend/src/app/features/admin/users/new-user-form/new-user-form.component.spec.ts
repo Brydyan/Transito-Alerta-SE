@@ -31,7 +31,6 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
     createUserJson: jest.Mock;
     uploadAvatar: jest.Mock;
     getRolePermissions: jest.Mock;
-    getRoleMenuAccess: jest.Mock;
     getPermissionsCatalog: jest.Mock;
   };
   let mockInvitationsService: { invite: jest.Mock };
@@ -59,10 +58,6 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
       createUserJson: jest.fn().mockReturnValue(of({ id: 'u-new', email: 'juan@x.y' })),
       uploadAvatar: jest.fn().mockReturnValue(of({ id: 'u-new' })),
       getRolePermissions: jest.fn().mockReturnValue(of(['READ dashboard', 'READ incidents'])),
-      getRoleMenuAccess: jest.fn().mockReturnValue(of([
-        { menuOptionId: 'm1', name: 'Incidentes', canRead: true, canWrite: false },
-        { menuOptionId: 'm2', name: 'Mapa', canRead: true, canWrite: true },
-      ])),
       getPermissionsCatalog: jest
         .fn()
         .mockReturnValue(of(['READ dashboard', 'READ incidents', 'UPDATE roles', 'READ audit'])),
@@ -197,31 +192,31 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
   // Role preview (N.4)
   // -------------------------------------------------------------------
   describe('N.4 — onRoleChange / selectedRolePermissions', () => {
-    it('S4.1: seleccionar rol dispara getRoleMenuAccess y llena access con nombres de menú', fakeAsync(() => {
+    it('S4.1: seleccionar rol dispara getRolePermissions y llena access/noAccess', fakeAsync(() => {
       init();
       component.onRoleChange('r-admin');
       tick();
-      expect(mockUsersService.getRoleMenuAccess).toHaveBeenCalledWith('r-admin');
+      expect(mockUsersService.getRolePermissions).toHaveBeenCalledWith('r-admin');
       const view: RolePermissionsView = component.selectedRolePermissions();
-      // El mock devuelve 2 menús: Incidentes, Mapa. Mostramos nombres.
-      expect(view.access).toEqual(['Incidentes', 'Mapa']);
-      // SIN ACCESO queda vacío (ahora sólo mostramos acceso, no lo que NO tienen)
-      expect(view.noAccess).toEqual([]);
+      expect(view.access).toEqual(['READ dashboard', 'READ incidents']);
+      // permissionsCatalog tiene 4 perms; el rol tiene 2 → noAccess = 2.
+      expect(view.noAccess).toEqual(['UPDATE roles', 'READ audit']);
     }));
 
     it('S4.2: rol null limpia el preview', () => {
       init();
       component.onRoleChange(null);
       expect(component.selectedRolePermissions()).toEqual({ access: [], noAccess: [] });
-      expect(mockUsersService.getRoleMenuAccess).not.toHaveBeenCalled();
+      expect(mockUsersService.getRolePermissions).not.toHaveBeenCalled();
     });
 
-    it('S4.3: rol sin acceso a menús muestra access vacío', fakeAsync(() => {
-      mockUsersService.getRoleMenuAccess.mockReturnValueOnce(of([]));
+    it('S4.3: si el rol tiene todos los permisos del catálogo, noAccess queda vacío', fakeAsync(() => {
+      mockUsersService.getRolePermissions.mockReturnValueOnce(
+        of(['READ dashboard', 'READ incidents', 'UPDATE roles', 'READ audit']),
+      );
       init();
       component.onRoleChange('r-admin');
       tick();
-      expect(component.selectedRolePermissions().access).toEqual([]);
       expect(component.selectedRolePermissions().noAccess).toEqual([]);
     }));
   });

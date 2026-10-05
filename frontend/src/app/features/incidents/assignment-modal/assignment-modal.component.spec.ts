@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { of, throwError } from 'rxjs';
 import { AssignmentModalComponent } from './assignment-modal.component';
 import { AssignmentService, AvailableOperator, AssignmentResult } from '../../../core/services/assignment.service';
@@ -20,8 +20,16 @@ import { HttpService } from '../../../core/services/http.service';
 describe('AssignmentModalComponent', () => {
   let component: AssignmentModalComponent;
   let fixture: ComponentFixture<AssignmentModalComponent>;
-  let assignmentService: jasmine.SpyObj<AssignmentService>;
-  let toastService: jasmine.SpyObj<ToastService>;
+  let assignmentService: {
+    assign: jest.Mock;
+    getAvailableOperators: jest.Mock;
+    getOperatorWorkload: jest.Mock;
+  };
+  let toastService: {
+    success: jest.Mock;
+    error: jest.Mock;
+    warning: jest.Mock;
+  };
 
   const fixtureOperator: AvailableOperator = {
     user_id: 'op-1',
@@ -42,15 +50,16 @@ describe('AssignmentModalComponent', () => {
   };
 
   beforeEach(async () => {
-    assignmentService = jasmine.createSpyObj('AssignmentService', [
-      'assign',
-      'getAvailableOperators',
-      'getOperatorWorkload',
-    ]);
-    toastService = jasmine.createSpyObj('ToastService', ['success', 'error']);
-
-    assignmentService.getAvailableOperators.and.returnValue(of([fixtureOperator]));
-    assignmentService.getOperatorWorkload.and.returnValue(of({ count: 2, operator_id: 'op-1' }));
+    assignmentService = {
+      assign: jest.fn(),
+      getAvailableOperators: jest.fn().mockReturnValue(of([fixtureOperator])),
+      getOperatorWorkload: jest.fn().mockReturnValue(of({ count: 2, operator_id: 'op-1' })),
+    };
+    toastService = {
+      success: jest.fn(),
+      error: jest.fn(),
+      warning: jest.fn(),
+    };
 
     await TestBed.configureTestingModule({
       imports: [AssignmentModalComponent, HttpClientTestingModule],
@@ -82,22 +91,22 @@ describe('AssignmentModalComponent', () => {
 
   it('canAssign returns false when operator not selected', () => {
     component.selectIncident('inc-1');
-    expect(component.canAssign()).toBeFalse();
+    expect(component.canAssign()).toBe(false);
   });
 
   it('canAssign returns false when incident not selected', () => {
     component.selectOperator('op-1');
-    expect(component.canAssign()).toBeFalse();
+    expect(component.canAssign()).toBe(false);
   });
 
   it('canAssign returns true when both operator and incident are selected', () => {
     component.selectOperator('op-1');
     component.selectIncident('inc-1');
-    expect(component.canAssign()).toBeTrue();
+    expect(component.canAssign()).toBe(true);
   });
 
   it('submit() calls assign service with correct ids and shows success toast', () => {
-    assignmentService.assign.and.returnValue(of(fixtureAssignment));
+    assignmentService.assign.mockReturnValue(of(fixtureAssignment));
     component.selectOperator('op-1');
     component.selectIncident('inc-1');
 
@@ -108,7 +117,7 @@ describe('AssignmentModalComponent', () => {
   });
 
   it('submit() on 409 shows error toast and keeps modal open', () => {
-    assignmentService.assign.and.returnValue(
+    assignmentService.assign.mockReturnValue(
       throwError(() => ({ status: 409, error: { message: 'Already assigned' } }))
     );
     component.selectOperator('op-1');
@@ -118,13 +127,13 @@ describe('AssignmentModalComponent', () => {
 
     expect(toastService.error).toHaveBeenCalled();
     // isAssigning must be reset to false after error
-    expect(component.isAssigning()).toBeFalse();
+    expect(component.isAssigning()).toBe(false);
   });
 
   it('submit() sets isAssigning to true during request to prevent double-submit', () => {
     // Observe isAssigning while service is called
     let capturedDuringCall = false;
-    assignmentService.assign.and.callFake(() => {
+    assignmentService.assign.mockImplementation(() => {
       capturedDuringCall = component.isAssigning();
       return of(fixtureAssignment);
     });
@@ -133,8 +142,8 @@ describe('AssignmentModalComponent', () => {
 
     component.submit();
 
-    expect(capturedDuringCall).toBeTrue();
-    expect(component.isAssigning()).toBeFalse(); // reset after success
+    expect(capturedDuringCall).toBe(true);
+    expect(component.isAssigning()).toBe(false); // reset after success
   });
 
   it('preSelectIncident() pre-fills selectedIncidentId', () => {
@@ -143,7 +152,7 @@ describe('AssignmentModalComponent', () => {
   });
 
   it('close() emits closed event and resets state', () => {
-    const closedSpy = jasmine.createSpy('closed');
+    const closedSpy = jest.fn();
     component.closed.subscribe(closedSpy);
 
     component.selectOperator('op-1');

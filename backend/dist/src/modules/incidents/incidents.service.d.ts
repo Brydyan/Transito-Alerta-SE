@@ -10,6 +10,8 @@ import { SubjectScope } from '../../common/authz/subject-scope';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { IncidentRow, IncidentsRepository } from './incidents.repository';
 export declare const INCIDENTS_STREAM_KEY = "incidents:events";
+export declare const DEFAULT_PAGE_SIZE = 20;
+export declare const MAX_PAGE_SIZE = 100;
 export { ALL_ZONES_TAG };
 export declare class IncidentsService {
     private readonly incidentsRepository;
@@ -26,7 +28,10 @@ export declare class IncidentsService {
     findAll(filters: {
         zoneId?: string;
         status?: IncidentStatus;
-    }, scope: SubjectScope, actorId?: string): Promise<IncidentRow[]>;
+    }, scope: SubjectScope, actorId?: string, page?: number, limit?: number): Promise<{
+        items: IncidentRow[];
+        total: number;
+    }>;
     findOne(id: string, scope: SubjectScope, actorId?: string): Promise<IncidentRow>;
     private publish;
     private listCacheKey;

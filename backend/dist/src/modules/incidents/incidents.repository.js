@@ -12,12 +12,14 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.IncidentsRepository = exports.getSelectColumns = void 0;
+exports.IncidentsRepository = exports.getSelectColumns = exports.MAX_PAGE_SIZE = exports.DEFAULT_PAGE_SIZE = void 0;
 exports.unwrapReturningRows = unwrapReturningRows;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const scope_sql_1 = require("../../common/authz/scope-sql");
+exports.DEFAULT_PAGE_SIZE = 20;
+exports.MAX_PAGE_SIZE = 100;
 const getSelectColumns = (actorId) => `
   id, title, description, status, priority,
   citizen_id, is_anonymous,
@@ -57,7 +59,7 @@ let IncidentsRepository = class IncidentsRepository {
         ]);
         return rows[0];
     }
-    async findAll(filters, scope, actorId) {
+    async findAll(filters, scope, actorId, page = 1, limit = 20) {
         const conditions = [];
         const params = [];
         if (filters.zoneId) {
@@ -73,7 +75,17 @@ let IncidentsRepository = class IncidentsRepository {
         params.push(...scopeSql.params);
         conditions.push('deleted_at IS NULL');
         const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-        return this.dataSource.query(`SELECT ${(0, exports.getSelectColumns)(actorId)} FROM incidents ${where} ORDER BY created_at DESC LIMIT 1000`, params);
+        const countParams = [...params];
+        const countRows = await this.dataSource.query(`SELECT COUNT(*) AS total FROM incidents ${where}`, countParams);
+        const total = Number(countRows[0]?.total ?? countRows[0]?.count ?? 0);
+        const take = Math.min(Math.max(limit, 1), exports.MAX_PAGE_SIZE);
+        const safePage = Math.max(page, 1);
+        const offset = (safePage - 1) * take;
+        const dataParams = [...params, take, offset];
+        const limitIdx = dataParams.length - 1;
+        const offsetIdx = dataParams.length;
+        const items = await this.dataSource.query(`SELECT ${(0, exports.getSelectColumns)(actorId)} FROM incidents ${where} ORDER BY created_at DESC LIMIT $${limitIdx} OFFSET $${offsetIdx}`, dataParams);
+        return { items, total };
     }
     async findOne(id, scope, actorId) {
         const scopeSql = (0, scope_sql_1.scopeToSql)(scope, { table: 'incidents', paramOffset: 2 });

@@ -48,8 +48,8 @@ let UsersService = class UsersService {
         const roles = await this.roleRepo.find({
             select: ['id', 'name'],
             where: isSystemAdmin
-                ? {}
-                : { name: (0, typeorm_2.Not)((0, typeorm_2.In)(role_exclusions_constants_1.SYSTEM_ONLY_ROLES)) },
+                ? { deletedAt: (0, typeorm_2.IsNull)() }
+                : { deletedAt: (0, typeorm_2.IsNull)(), name: (0, typeorm_2.Not)((0, typeorm_2.In)(role_exclusions_constants_1.SYSTEM_ONLY_ROLES)) },
             order: { name: 'ASC' },
         });
         const organizations = isSystemAdmin

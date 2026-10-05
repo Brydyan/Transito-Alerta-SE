@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.IncidentsService = exports.ALL_ZONES_TAG = exports.INCIDENTS_STREAM_KEY = void 0;
+exports.IncidentsService = exports.ALL_ZONES_TAG = exports.MAX_PAGE_SIZE = exports.DEFAULT_PAGE_SIZE = exports.INCIDENTS_STREAM_KEY = void 0;
 const common_1 = require("@nestjs/common");
 const cache_manager_1 = require("@nestjs/cache-manager");
 const config_1 = require("@nestjs/config");
@@ -28,6 +28,8 @@ const incident_state_machine_1 = require("./incident-state-machine");
 const incidents_repository_1 = require("./incidents.repository");
 exports.INCIDENTS_STREAM_KEY = 'incidents:events';
 const INCIDENTS_LIST_CACHE_TTL_MS = 30_000;
+exports.DEFAULT_PAGE_SIZE = 20;
+exports.MAX_PAGE_SIZE = 100;
 const PG_CHECK_VIOLATION = '23514';
 function isLeafCategoryViolation(error) {
     return (typeof error === 'object' &&
@@ -105,19 +107,21 @@ let IncidentsService = class IncidentsService {
         }
         return id;
     }
-    async findAll(filters, scope, actorId) {
-        const key = this.listCacheKey(filters.zoneId, filters.status, scope);
+    async findAll(filters, scope, actorId, page = 1, limit = exports.DEFAULT_PAGE_SIZE) {
+        const take = Math.min(Math.max(limit, 1), exports.MAX_PAGE_SIZE);
+        const safePage = Math.max(page, 1);
+        const key = this.listCacheKey(filters.zoneId, filters.status, scope, safePage, take);
         const cached = await this.cache.get(key);
         if (cached) {
             return cached;
         }
-        const rows = await this.incidentsRepository.findAll(filters, scope, actorId);
-        await this.cache.set(key, rows, INCIDENTS_LIST_CACHE_TTL_MS);
+        const result = await this.incidentsRepository.findAll(filters, scope, actorId, safePage, take);
+        await this.cache.set(key, result, INCIDENTS_LIST_CACHE_TTL_MS);
         if (filters.zoneId) {
             await this.geofencingService.tagCacheKey(filters.zoneId, key);
         }
         await this.geofencingService.tagCacheKey(geofencing_service_1.ALL_ZONES_TAG, key);
-        return rows;
+        return result;
     }
     async findOne(id, scope, actorId) {
         const row = await this.incidentsRepository.findOne(id, scope, actorId);
@@ -130,8 +134,8 @@ let IncidentsService = class IncidentsService {
         this.eventEmitter.emit(type, data);
         await this.redis.xadd(exports.INCIDENTS_STREAM_KEY, '*', 'type', type, 'data', JSON.stringify(data));
     }
-    listCacheKey(zoneId, status, scope) {
-        return `incidents:list:${zoneId ?? 'all'}:${status ?? 'all'}:${(0, scope_sql_1.scopeCacheKey)(scope)}`;
+    listCacheKey(zoneId, status, scope, page, limit) {
+        return `incidents:list:${zoneId ?? 'all'}:${status ?? 'all'}:${(0, scope_sql_1.scopeCacheKey)(scope)}:${page}:${limit}`;
     }
     async purgeListCaches(zoneId) {
         await this.geofencingService.purgeZoneCache(zoneId);

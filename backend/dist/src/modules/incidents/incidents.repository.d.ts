@@ -46,6 +46,8 @@ export interface CreateIncidentInput {
     categoryId?: string | null;
     isAnonymous: boolean;
 }
+export declare const DEFAULT_PAGE_SIZE = 20;
+export declare const MAX_PAGE_SIZE = 100;
 export declare const getSelectColumns: (actorId?: string) => string;
 export declare class IncidentsRepository {
     private readonly dataSource;
@@ -54,7 +56,10 @@ export declare class IncidentsRepository {
     findAll(filters: {
         zoneId?: string;
         status?: IncidentStatus;
-    }, scope: SubjectScope, actorId?: string): Promise<IncidentRow[]>;
+    }, scope: SubjectScope, actorId?: string, page?: number, limit?: number): Promise<{
+        items: IncidentRow[];
+        total: number;
+    }>;
     findOne(id: string, scope: SubjectScope, actorId?: string): Promise<IncidentRow | null>;
     update(id: string, values: {
         title: string;

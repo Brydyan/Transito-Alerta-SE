@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed, fakeAsync, tick, discardPeriodicTasks } from '@angular/core/testing';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
-import { of, throwError } from 'rxjs';
+import { of } from 'rxjs';
 import { TrackingPanelComponent } from './tracking-panel.component';
 import { AssignmentService, Assignment } from '../../../core/services/assignment.service';
 import { IncidentService } from '../../../core/services/incident.service';
@@ -20,8 +20,8 @@ import { Incident } from '../../../core/models/incident.model';
 describe('TrackingPanelComponent', () => {
   let component: TrackingPanelComponent;
   let fixture: ComponentFixture<TrackingPanelComponent>;
-  let assignmentService: jasmine.SpyObj<AssignmentService>;
-  let incidentService: jasmine.SpyObj<IncidentService>;
+  let assignmentService: { getLatestAssignment: jest.Mock };
+  let incidentService: { getIncident: jest.Mock };
 
   const now = new Date('2026-09-23T12:00:00Z');
   const createdAt = new Date('2026-09-23T10:00:00Z'); // 2 hours ago
@@ -71,11 +71,12 @@ describe('TrackingPanelComponent', () => {
   };
 
   beforeEach(async () => {
-    assignmentService = jasmine.createSpyObj('AssignmentService', ['getLatestAssignment']);
-    incidentService = jasmine.createSpyObj('IncidentService', ['getIncident']);
-
-    assignmentService.getLatestAssignment.and.returnValue(of(fixtureAssignment));
-    incidentService.getIncident.and.returnValue(of(fixtureIncident));
+    assignmentService = {
+      getLatestAssignment: jest.fn().mockReturnValue(of(fixtureAssignment)),
+    };
+    incidentService = {
+      getIncident: jest.fn().mockReturnValue(of(fixtureIncident)),
+    };
 
     await TestBed.configureTestingModule({
       imports: [TrackingPanelComponent, HttpClientTestingModule],
@@ -92,7 +93,7 @@ describe('TrackingPanelComponent', () => {
   });
 
   afterEach(() => {
-    // Ensure timers are cleaned up even if the component didn't destroy
+    jest.restoreAllMocks();
     component.ngOnDestroy();
   });
 
@@ -112,43 +113,41 @@ describe('TrackingPanelComponent', () => {
   }));
 
   it('formats elapsed time correctly for 2 hours', fakeAsync(() => {
-    jasmine.clock().mockDate(now);
+    jest.spyOn(Date, 'now').mockReturnValue(now.getTime());
     fixture.detectChanges();
     tick(0);
 
     // 2 hours = 7200s → "2 h 0 min"
     expect(component.elapsedSinceCreation()).toContain('2 h');
 
-    jasmine.clock().uninstall();
     discardPeriodicTasks();
   }));
 
   it('formats elapsed time correctly for 30 minutes', fakeAsync(() => {
-    jasmine.clock().mockDate(now);
+    jest.spyOn(Date, 'now').mockReturnValue(now.getTime());
     fixture.detectChanges();
     tick(0);
 
     // 30 min → "30 min"
     expect(component.elapsedSinceAssignment()).toContain('30 min');
 
-    jasmine.clock().uninstall();
     discardPeriodicTasks();
   }));
 
   it('timer updates elapsedSinceCreation each second', fakeAsync(() => {
-    jasmine.clock().mockDate(now);
+    let currentTime = now.getTime();
+    jest.spyOn(Date, 'now').mockImplementation(() => currentTime);
     fixture.detectChanges();
     tick(0);
 
     const before = component.elapsedSinceCreation();
-    jasmine.clock().tick(60_000); // advance 1 minute
+    currentTime += 60_000;
     tick(1000);
 
     const after = component.elapsedSinceCreation();
     // elapsed increased
     expect(after).not.toEqual(before);
 
-    jasmine.clock().uninstall();
     discardPeriodicTasks();
   }));
 
@@ -156,7 +155,7 @@ describe('TrackingPanelComponent', () => {
     fixture.detectChanges();
     tick(0);
 
-    const clearSpy = spyOn(window, 'clearInterval').and.callThrough();
+    const clearSpy = jest.spyOn(window, 'clearInterval');
     component.ngOnDestroy();
 
     expect(clearSpy).toHaveBeenCalled();
@@ -164,7 +163,7 @@ describe('TrackingPanelComponent', () => {
   }));
 
   it('shows "Sin asignación" when no assignment exists', fakeAsync(() => {
-    assignmentService.getLatestAssignment.and.returnValue(of(null));
+    assignmentService.getLatestAssignment.mockReturnValue(of(null));
     fixture.detectChanges();
     tick(0);
     fixture.detectChanges();
@@ -175,7 +174,7 @@ describe('TrackingPanelComponent', () => {
 
   it('emits closed event on close()', () => {
     fixture.detectChanges();
-    const closedSpy = jasmine.createSpy('closed');
+    const closedSpy = jest.fn();
     component.closed.subscribe(closedSpy);
 
     component.close();

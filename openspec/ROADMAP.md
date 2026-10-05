@@ -103,14 +103,14 @@ propia revisión de texto. Sin dueño asignado.
 ## Orden de ejecución
 
 ```
-F0 ──┬──► F1 ──┬──► F2 ──┬──► F3 ──► F4 ──► F7
-     │         │        │      ▲      ▲      ▲
-     │         │        └──────┤      │      │
-     │         └──► F5         │      │      │
-     │                    315 ─┘      │      │
-     └──► F6 ◄── F2                   │      │
-                                      │      │
-   REG ──► ANON ──► AUD ──────────────┴──────┘
+F0 ✅ ─┬──► F1 ✅ ─┬──► F2 ✅ ─┬──► F3 ✅ ──► F4 ✅ ──► F7
+      │          │         │              ▲      ▲
+      │          │         └──────────────┤      │
+      │          └──► F5 ✅                  │      │
+      │                              315 ✅┘      │
+      └──► F6 ✅ ◄── F2                          │
+                                                 │
+   REG ✅ ──► ANON ✅ ──► AUD ✅ ─────────────────┘
 ```
 
 La cadena **REG → ANON → AUD** es independiente de F1–F3: sólo toca backend, esquema y
@@ -125,8 +125,8 @@ internamente — ver «Ciudadano» más abajo.
 | — | **315** Fix máquina de estados ✅ | [315](https://app.shortcut.com/upse/story/315) | 3 | Habilita `closed`, declara la máquina. **Completada y archivada 2026-09-03** |
 | — | **T7** Schema parity ✅ | — | 8 | Migraciones 0030–0039, 0041–0045: soft delete, threading, permisos, auditoría. **Completada** (T7.1–T7.9.B: 4 apply batches, 14 specs e2e, 54 migraciones totales) |
 | — | **backend-nestjs-modules** ✅ | — | — | 22 módulos de dominio con DI, verificado contra spec. **Completada** (11/11 tasks, 183 tests verde) |
-| 3 | **F2** Catálogos | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones |
-| 4 | **F3** Incidencias | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow |
+| 3 | **F2** Catálogos ✅ | [304](https://app.shortcut.com/upse/story/304) | 8 | Ubicaciones, Categorías, Organizaciones — **completada y archivada 2026-09-06** (F2.1–F2.3, 3 pasadas de `sdd-verify`, 0 CRITICAL / 0 WARNING / 4 SUGGESTION, 406/406 tests PASS) |
+| 4 | **F3** Incidencias ✅ | [305](https://app.shortcut.com/upse/story/305) | 8 | Listado, detalle, comentarios, workflow — **completada y archivada 2026-09-07** (8 rondas de `sdd-verify`, 0 CRITICAL / 0 WARNING / 0 SUGGESTION, 419/419 tests PASS) |
 | — | **REG** Auto-registro ✅ | [325](https://app.shortcut.com/upse/story/325) | 5 | El ciudadano se registra, verifica su correo y publica — **completada y archivada 2026-09-05**, tras 10 rondas de verify y dos archivados revertidos |
 | — | **ANON** Cerrar sin sesión ✅ | [326](https://app.shortcut.com/upse/story/326) | 3 | El login anónimo devuelve 401; el techo de permisos queda vacío — **completada y archivada 2026-09-05** |
 | — | **AUD** Auditoría y revelación ✅ | [327](https://app.shortcut.com/upse/story/327) | 8 | Autoría sellada, `REVEAL` sólo `master`, auditoría — **completada y archivada 2026-09-06**, tras 3 rondas de verify y un archivado prematuro revertido |
@@ -138,7 +138,7 @@ internamente — ver «Ciudadano» más abajo.
 | — | **sc-209 image upload** 🔲 | — | — | Supabase storage completa. **Parcial** (Supabase impl real para comments/avatar con signed URLs; IncidentImageStorageService sigue siendo stub con URLs falsas, no inyecta IStorageClient) |
 | — | **t8-database-cutover** 🔲 | — | — | Artefactos de cutover y monitoreo. **Parcial** (runbook, queries, script de rehearsal creados; tests con Testcontainers/Docker bloqueados, rehearsal real contra staging no ejecutado) |
 | 6 | **F7** Emergencias | [316](https://app.shortcut.com/upse/story/316) | 8 | Telegram + carga + aislamiento org |
-| 7 | **F5** Menús dinámicos | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura |
+| 7 | **F5** Menús dinámicos ✅ | [307](https://app.shortcut.com/upse/story/307) | 13 | Menús en BD, matriz rol×lectura/escritura — **completada y archivada 2026-09-14** (3 tramos: F5.1-2 backend, F5.3-5 CRUD, F5.6 frontend; **1110/1110 tests backend + 656/656 tests frontend PASS**). Follow-ups cerrados: F5.6.6 (hydration assigned endpoints), F5.6.7 (seed `/controles`). |
 | 8 | **F6** Rediseño ✅ | [308](https://app.shortcut.com/upse/story/308) | 5 | Dashboard, Usuarios, Roles, Perfil — **completada y archivada 2026-09-08**, sin verificación en BD real. Bugs encontrados post-archivo: listado de usuarios/roles vacío por mismatch formato API/frontend |
 | — | **sc-323 Bridge token retirement** 🔲 | — | — | Retirar alias de puente `brand-navy/hivis` + status tokens legacy. **En SDD** (proposal, spec, design, tasks listos; ready para sdd-apply) |
 
@@ -201,18 +201,58 @@ exige motivo al cerrar sin resolver, reconcilia `incident-approval.service.ts`.
 **Decisión ratificada D5.1**: `reject()` ya no revierte estado. Es una marca de aprobación
 sobre una incidencia que sigue donde estaba; quien decida moverla usa una transición explícita.
 
-### F2 — Catálogos · `front/2026-08-29-f2-catalogs-crud/`
-Tres módulos con backend completo y cero frontend. Orden interno: Categorías (fija el
-patrón) → Organizaciones (lo copia) → Ubicaciones (árbol de 4 niveles).
+### F2 — Catálogos ✅ · `archive/2026-08-29-f2-catalogs-crud/`
+Tres catálogos de administración contra backend real: Ubicaciones (árbol de 4 niveles
+`Provincia|Cantón|Parroquia|Zona`), Categorías (árbol de 2 niveles), Organizaciones
+(con `zone_id` + `parent_id`). Orden interno: Categorías (fija el patrón) → Organizaciones
+(lo copia) → Ubicaciones (sustantivo: jerarquía).
 
-Entrega además `*hasPermission` y `permissionGuard`, que F3 y F6 reutilizan.
+**Completada y archivada** (2026-09-06, 3 pasadas de `sdd-verify`, 0 CRITICAL / 0 WARNING
+/ 4 SUGGESTION en ronda 3, **406/406 tests PASS** / 59/59 suites en frontend). Spec
+canónico en `openspec/specs/frontend-catalogs/spec.md`.
 
-### F3 — Incidencias · `front/2026-08-29-f3-incidents-module/`
-El dominio central sin una sola pantalla. Listado con filtros en URL, filtro jerárquico
-de categorías, detalle con historial, galería, mini-mapa y comentarios.
+Entrega además `*hasPermission` y `permissionGuard` (F2.5.3: el guard espera a que
+`/auth/me` resuelva antes de decidir, evitando rebotes en refresh), que **F3 y F6 reutilizan**.
 
-**Primera tarea, antes de maquetar: revalidar contratos.** `incident.service.ts` y
-`comment.service.ts` existen sin consumidor; su mapeo nunca tocó el wire real.
+**Pieza crítica**: `tree.util.ts` — `buildTree()` en dos pasadas (vincula por `parent_id`,
+luego calcula `depth` desde las raíces). Sin el segundo recorrido, la profundidad falla
+cuando los hijos llegan antes que los padres en datos reales.
+
+**Deuda que dejó abierta, con dueño:**
+
+| Qué | Dónde se cierra |
+|---|---|
+| Tree endpoint de geo-zones no proyecta `code`; `findAll` no accesible sin geometría | `2026-09-05-geo-zones-catalog-contract` · parcial |
+| `ui-table` no encapsula: los consumidores deben recordar helper classes | sin asignar |
+
+### F3 — Incidencias ✅ · `archive/2026-09-06-2026-08-29-f3-incidents-module/`
+El dominio central con sus pantallas. Listado con filtros en URL + filtro jerárquico de
+categorías, detalle con historial + galería + mini-mapa, hilo de comentarios, acciones
+(asignar / reclamar / cerrar), panel de seguimiento, máquina de estados.
+
+**Completada y archivada** (2026-09-07, 8 rondas de `sdd-verify`, 0 CRITICAL / 0 WARNING
+/ 0 SUGGESTION en ronda 8, **419/419 tests PASS** / 60/60 suites en frontend). Spec canónico
+en `openspec/specs/frontend-incidents/spec.md`.
+
+**Componentes** (`frontend/src/app/features/incidents/`):
+
+- `incident-list` (77 symbols) — listado con filtros en URL.
+- `incident-detail` (48 symbols) — detalle + galería + mini-mapa.
+- `components/comment-thread` (33 symbols) — hilo de comentarios.
+- `actions-dropdown` + `assignment-modal` + `tracking-panel` — acciones de flujo.
+- `workflow.util.ts` — máquina de estados derivada del grafo declarado en 315.
+
+**Decisión documentada** (F3.5 — backend): `PATCH /:id/status` se conserva para
+`resolve` y `close`; `claim` tiene ruta dedicada (`POST /:id/claim`) que escribe
+`claimed_by` + `claimed_at` en una sola operación. Garantiza consistencia atómica del
+sello de propiedad.
+
+**Deuda que dejó abierta, con dueño:**
+
+| Qué | Dónde se cierra |
+|---|---|
+| `sc-209 image upload` parcial: `IncidentImageStorageService` sigue siendo stub con URLs falsas; no inyecta `IStorageClient` | `front/2026-08-28-sc-209-frontend-image-upload-full/` · parcial |
+| Reclamar sin assignee actual: el backend permite `claim` si `claimed_by IS NULL`, pero el e2e no cubre el path 409 cuando ya hay dueño | sin asignar |
 
 ### Ciudadano — la cadena REG → ANON → AUD · añadida 2026-09-02
 
@@ -313,11 +353,51 @@ Dos bloques independientes.
 - **B**: Telegram avisa al `admin_org` ante `critical`; recordatorio cada 5 min mientras
   siga en `pending`, escalado a los 30 min, corte a la hora
 
-### F5 — Menús dinámicos · `back/2026-08-29-f5-dynamic-menus/`
-Sustituye `MENU_MAP` por 4 tablas: jerarquía, matriz rol×lectura/escritura, endpoints
-asociados, más la pantalla de administración (mock 05-01).
-
+### F5 — Menús dinámicos ✅ · `archive/2026-09-14-2026-08-29-f5-dynamic-menus/`
+Sustituye `MENU_MAP` por 4 tablas: jerarquía (`menu_options` self-ref), matriz
+rol×acceso (`menu_option_roles`), endpoints asociados (`menu_option_endpoints`),
+catálogo de endpoints (`api_endpoints`), más la pantalla de administración (mock 05-01).
 Va al final porque F1 ya dejó la navegación funcionando: aquí no hay urgencia operativa.
+
+**Completada y archivada** (2026-09-14, 3 tramos aplicados en orden — F5.1–F5.4 schema/data,
+F5.5 CRUD + validaciones, F5.6 frontend). Spec canónico en
+`openspec/specs/dynamic-menus/spec.md`.
+
+**Tests finales** (suite completa al cierre):
+- Backend: **118 suites / 1110 tests PASS**
+- Frontend: **93 suites / 656 tests PASS**
+
+**Piezas entregadas** (verificadas con `codegraph`):
+
+- Backend (`backend/src/modules/menus/`, 13 archivos): `menu-option.entity.ts`,
+  `menu-option-role.entity.ts`, `menu-option-endpoint.entity.ts`, `api-endpoint.entity.ts`,
+  `menu-options.controller.ts` (36 symbols) con `GET /:id/endpoints` + `PUT /:id/endpoints`,
+  `menu-options.service.ts` (35 symbols), `menus.controller.ts` (11 symbols) con
+  `GET /menus/my` cacheado por usuario, `menu-map.ts` **conservado como rollback path** (D7).
+- Frontend (`frontend/src/app/features/admin/menu-options/`, 7 archivos):
+  `menu-options.component.ts` (48 symbols), `menu-tree` (19 symbols, jerárquico editable),
+  `role-matrix` (12 symbols), `endpoint-picker` (21 symbols, dual disponibles/asignados).
+
+**Decisiones cerradas**:
+- D5: `roles.scope` (`platform | organization | public`) — antes era bug de scope,
+  cerrado por 0054 (`CHECK + UPDATEs` para 5 roles).
+- D6: PKs compuestas + physical delete en `menu_option_roles` (vs soft delete
+  inconsistente con el resto).
+- D7: `menu-map.ts` se conserva como rollback path (nunca se borró).
+- D8: `MenuService.formatRoutes` antepone `/app` y resuelve contra `app.routes.ts`
+  (1 fila cierres vía 0058 — `route='/admin/controles'` corrige el 404 que veía el sidebar).
+
+**Follow-ups cerrados tras archive**:
+- F5.6.6 — `EndpointPickerComponent` hidrata assigned endpoints vía `GET /:id/endpoints`
+  (controller línea 126, frontend `assignedEndpoints` signal línea 92 del componente).
+- F5.6.7 — fila `Controles` en seed, vía migración `0057_dynamic_menus_controles.sql`.
+
+**Deuda que dejó abierta, con dueño:**
+
+| Qué | Dónde se cierra |
+|---|---|
+| `back/2026-09-23-sc-menu-matrix-4-permisos` extiende la matriz con 4 permisos adicionales | en curso (`changes/back/`) |
+| `menu-map.ts` legacy sigue compilando (rollback path); nadie lo borra hasta tener >30 días sin incidente | sin asignar |
 
 ### F6 — Rediseño · `front/2026-08-29-f6-redesign-existing-screens/`
 Las 4 pantallas preexistentes quedaron con paleta nueva y maquetación vieja. Orden:

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { ActivatedRoute } from '@angular/router';
+import { signal } from '@angular/core';
 import { of } from 'rxjs';
 import { IncidentListComponent } from './incident-list.component';
 import { IncidentService } from '../../../core/services/incident.service';
@@ -22,8 +23,9 @@ import { Incident } from '../../../core/models/incident.model';
 describe('IncidentListComponent — Assignment integration', () => {
   let component: IncidentListComponent;
   let fixture: ComponentFixture<IncidentListComponent>;
-  let incidentService: jasmine.SpyObj<IncidentService>;
-  let authService: jasmine.SpyObj<AuthService>;
+  let incidentService: { getIncidents: jest.Mock };
+  let userSignal: ReturnType<typeof signal<{ permissions: string[] } | null>>;
+  let authService: { user: typeof userSignal };
 
   const fixtureIncident: Incident = {
     id: 'inc-1',
@@ -57,24 +59,17 @@ describe('IncidentListComponent — Assignment integration', () => {
     deleted_at: null,
   };
 
-  const createAuthService = (permissions: string[]) => {
-    const svc = jasmine.createSpyObj('AuthService', [], {
-      user: jasmine.createSpy('user').and.returnValue({ permissions }),
-    });
-    // Make user a signal mock
-    Object.defineProperty(svc, 'user', {
-      value: () => ({ permissions }),
-    });
-    return svc;
-  };
-
   beforeEach(async () => {
-    incidentService = jasmine.createSpyObj('IncidentService', ['getIncidents']);
-    incidentService.getIncidents.and.returnValue(
-      of({ items: [fixtureIncident], total: 1, page: 1, limit: 1 })
-    );
+    incidentService = {
+      getIncidents: jest.fn().mockReturnValue(
+        of({ items: [fixtureIncident], total: 1, page: 1, limit: 1 })
+      ),
+    };
 
-    authService = createAuthService(['ASSIGN assignments', 'READ incidents']) as jasmine.SpyObj<AuthService>;
+    userSignal = signal<{ permissions: string[] } | null>({
+      permissions: ['ASSIGN assignments', 'READ incidents'],
+    });
+    authService = { user: userSignal };
 
     await TestBed.configureTestingModule({
       imports: [IncidentListComponent, HttpClientTestingModule],
@@ -102,14 +97,12 @@ describe('IncidentListComponent — Assignment integration', () => {
   });
 
   it('hasAssignPermission returns true for user with ASSIGN permission', () => {
-    expect(component.hasAssignPermission()).toBeTrue();
+    expect(component.hasAssignPermission()).toBe(true);
   });
 
   it('hasAssignPermission returns false for user without ASSIGN permission', async () => {
-    (authService as jasmine.SpyObj<AuthService> & { user: () => { permissions: string[] } })
-      .user = () => ({ permissions: ['READ incidents'] });
-    // Re-evaluate the computed
-    expect(component.hasAssignPermission()).toBeFalse();
+    userSignal.set({ permissions: ['READ incidents'] });
+    expect(component.hasAssignPermission()).toBe(false);
   });
 
   it('openDropdown() sets dropdownOpenId to the given incidentId', () => {
@@ -131,7 +124,7 @@ describe('IncidentListComponent — Assignment integration', () => {
 
   it('openAssignmentModal() sets assignmentModalOpen to true', () => {
     component.openAssignmentModal();
-    expect(component.assignmentModalOpen()).toBeTrue();
+    expect(component.assignmentModalOpen()).toBe(true);
   });
 
   it('openAssignmentModal(incidentId) sets preSelectedIncidentId', () => {
@@ -142,20 +135,20 @@ describe('IncidentListComponent — Assignment integration', () => {
   it('closeAssignmentModal() resets modal state', () => {
     component.openAssignmentModal('inc-1');
     component.closeAssignmentModal();
-    expect(component.assignmentModalOpen()).toBeFalse();
+    expect(component.assignmentModalOpen()).toBe(false);
     expect(component.preSelectedIncidentId()).toBeNull();
   });
 
   it('openTracking() sets trackingPanelOpen and trackingIncidentId', () => {
     component.openTracking('inc-1');
-    expect(component.trackingPanelOpen()).toBeTrue();
+    expect(component.trackingPanelOpen()).toBe(true);
     expect(component.trackingIncidentId()).toBe('inc-1');
   });
 
   it('closeTracking() resets tracking panel state', () => {
     component.openTracking('inc-1');
     component.closeTracking();
-    expect(component.trackingPanelOpen()).toBeFalse();
+    expect(component.trackingPanelOpen()).toBe(false);
     expect(component.trackingIncidentId()).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import { UpdateIncidentDto } from './dto/update-incident.dto';
 import { UpdateIncidentStatusDto } from './dto/update-incident-status.dto';
 import { StatsQueryDto } from './dto/stats-query.dto';
 import { WeeklyStatsQueryDto } from './dto/weekly-stats-query.dto';
+import { IncidentListQueryDto } from './dto/incident-list-query.dto';
 import { RevealIncidentDto } from './dto/reveal-incident.dto';
 import { RevealService } from './reveal.service';
 import { FeedQueryDto } from './dto/feed-query.dto';
@@ -28,7 +29,10 @@ export declare class IncidentsController {
     private readonly revealService;
     constructor(incidentsService: IncidentsService, analyticsService: IncidentAnalyticsService, feedService: IncidentFeedService, exportService: IncidentExportService, feedRecoveryService: FeedRecoveryService, workflow: IncidentWorkflowService, revealService: RevealService);
     create(dto: CreateIncidentDto, req: AuthenticatedRequest): Promise<IncidentRow>;
-    findAll(req: AuthenticatedRequest, zoneId?: string, status?: IncidentStatus): Promise<IncidentRow[]>;
+    findAll(req: AuthenticatedRequest, query: IncidentListQueryDto): Promise<{
+        items: IncidentRow[];
+        total: number;
+    }>;
     getStats(query: StatsQueryDto, req: AuthenticatedRequest): Promise<import("./dto/stats-response.dto").IncidentStatsResponseDto>;
     getWeeklyStats(query: WeeklyStatsQueryDto, req: AuthenticatedRequest): Promise<import("./dto/stats-response.dto").WeeklyStatsResponseDto>;
     getFeed(query: FeedQueryDto, req: AuthenticatedRequest): Promise<import("./dto/stats-response.dto").FeedResponseDto>;
