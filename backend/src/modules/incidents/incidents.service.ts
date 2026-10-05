@@ -287,12 +287,18 @@ export class IncidentsService {
       throw new NotFoundException(`Incident ${id} not found`);
     }
     try {
-      return await this.incidentsRepository.update(id, {
+      const updated = await this.incidentsRepository.update(id, {
         title: dto.title ?? incident.title,
         description: dto.description !== undefined ? dto.description : incident.description,
         categoryId:
           dto.categoryId !== undefined ? dto.categoryId : incident.category_id,
       });
+      // sc-338 — an edit changes what `findAll` cached for this zone's
+      // listings, so the write must purge like `create` does. Without
+      // this the PATCH persists but the UI keeps serving the old
+      // title/description/category until the 30s TTL expires.
+      await this.purgeListCaches(incident.zone_id);
+      return updated;
     } catch (error) {
       // T7.7.B3 — check_is_leaf_category() (0036) rejects non-leaf
       // categories with ERRCODE 23514; translate to a domain 400.
@@ -315,6 +321,11 @@ export class IncidentsService {
       throw new NotFoundException(`Incident ${id} not found`);
     }
     await this.incidentsRepository.softDelete(id);
+    // sc-338 — soft delete hides the row from every listing that filters
+    // `AND deleted_at IS NULL`, so every cached variant of this zone's
+    // lists (plus the unzoned ones) is stale and must be purged. Same
+    // write→purge convention as `create`/`update`.
+    await this.purgeListCaches(incident.zone_id);
   }
 
   /**
