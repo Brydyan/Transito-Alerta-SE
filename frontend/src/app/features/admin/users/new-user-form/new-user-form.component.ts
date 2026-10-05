@@ -176,9 +176,14 @@ export class NewUserFormComponent implements OnInit {
   // ---- Handlers -----------------------------------------------------
 
   /**
-   * F6 fix — al seleccionar un rol, fetchea sus nombres de menú accesibles
-   * y los muestra en ACCESO A. Si SIN ACCESO A estaba mostrado permisos,
-   * aquí también muestra solo menús accesibles.
+   * D-frontend-5 — al seleccionar un rol, fetchea sus permisos y
+   * computa `access` (4 primeros) y `noAccess` (permisos del
+   * catálogo que el rol NO tiene, slice 0-2).
+   *
+   * sc-340 (R2): `getRolePermissions` already resolves the role's
+   * permission UUIDs (post-0051 wire) to `"<action> <resource>"`
+   * labels against the catalog, so both lists render legibly and the
+   * `noAccess` set-difference below compares label to label.
    */
   onRoleChange(roleId: string | null): void {
     this.formData.update((d) => ({ ...d, roleId }));
@@ -187,22 +192,20 @@ export class NewUserFormComponent implements OnInit {
       return;
     }
     this.usersService
-      .getRoleMenuAccess(roleId)
+      .getRolePermissions(roleId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (menuAccess) => {
-          // Extrae solo los nombres de los menús a los que tiene acceso
-          const accessNames = menuAccess.map((m) => m.name).slice(0, 4);
-          // Para SIN ACCESO, simplemente mostramos los primeros 2 que NO están en la lista
-          const accessSet = new Set(menuAccess.map((m) => m.menuOptionId));
-          // Si quisieras mostrar todos los menús disponibles vs. los accesibles,
-          // aquí iría la lógica. Por ahora, mostramos solo los que tiene acceso.
-          this.selectedRolePermissions.set({ access: accessNames, noAccess: [] });
+        next: (perms) => {
+          const access = perms.slice(0, 4);
+          const catalog = this.permissionsCatalog();
+          const roleHas = new Set(perms);
+          const noAccess = catalog.filter((p) => !roleHas.has(p)).slice(0, 2);
+          this.selectedRolePermissions.set({ access, noAccess });
         },
         error: () => {
           this.selectedRolePermissions.set({ access: [], noAccess: [] });
           this.toastService.warning(
-            'No se pudieron cargar los menús del rol.',
+            'No se pudieron cargar los permisos del rol.',
             'Aviso',
           );
         },

@@ -11,10 +11,16 @@ import {
   Role,
   RoleDetail,
   PermissionItem,
+  PermissionWireItem,
+  PermissionsWireResponse,
+  UNKNOWN_PERMISSION_LABEL,
   CreateUserPayload,
   CreateUserJsonPayload,
   UpdateUserPayload,
   Organization,
+  permissionLabel,
+  resolveRolePermissionLabels,
+  toPermissionItem,
 } from '../models/user.interface';
 
 @Injectable({
@@ -243,15 +249,31 @@ export class UsersService {
   }
 
   /**
-   * F6 (D-frontend-5) — `GET /api/roles/:id/permissions` (R6,
-   * `RolesController.listPermissions`). Devuelve un array de strings
-   * con los permisos del rol (formato "ACTION resource", p. ej.
-   * "READ dashboard"). On-demand al seleccionar el rol.
+   * sc-340 (D-frontend-5, R2) — `GET /api/roles/:id/permissions`
+   * (`RolesController.listPermissions`). Since `0051` the endpoint
+   * returns the role's permission UUIDs, not `"ACTION resource"`
+   * strings, so each id is resolved against the permissions catalog
+   * (reusing `getPermissions()`). Unknown UUIDs degrade to
+   * `UNKNOWN_PERMISSION_LABEL` — never a raw UUID, never `undefined`.
+   * On-demand when a role is selected; roles without permissions skip
+   * the catalog fetch, and a catalog failure (e.g. 403 without `READ
+   * permissions`) marks every entry instead of throwing.
    */
   getRolePermissions(id: string): Observable<ReadonlyArray<string>> {
     return this.http
-      .get<string[]>(`${this.rolesUrl}/${id}/permissions`, { withCredentials: true })
-      .pipe(map((res) => (Array.isArray(res) ? res : [])));
+      .get<string[] | { data: string[] }>(`${this.rolesUrl}/${id}/permissions`, {
+        withCredentials: true,
+      })
+      .pipe(
+        map((res) => (Array.isArray(res) ? res : (res.data ?? []))),
+        switchMap((permissionIds) => {
+          if (permissionIds.length === 0) return of([] as string[]);
+          return this.getPermissions().pipe(
+            map((catalog) => resolveRolePermissionLabels(permissionIds, catalog)),
+            catchError(() => of(permissionIds.map(() => UNKNOWN_PERMISSION_LABEL))),
+          );
+        }),
+      );
   }
 
   /**
@@ -271,16 +293,19 @@ export class UsersService {
   }
 
   /**
-   * F6 (D-frontend-5.a) — `GET /api/permissions?limit=100`. Se usa
-   * para derivar la lista "SIN ACCESO" del role preview (permisos del
-   * catálogo que el rol NO tiene, slice 0-2). El backend devuelve un
-   * envelope `{ data, meta }` con objetos `PermissionItem`; acá
-   * proyectamos a `string[]` con el formato `"ACTION resource"`.
+   * sc-340 (D-frontend-5.a, R3, R4) — `GET /api/permissions?limit=100`.
+   * Feeds the role preview "SIN ACCESO" list (catalog entries the role
+   * does NOT have, slice 0-2). The backend returns a FLAT ARRAY of
+   * `PermissionEntity` (`{ id, resource, action }` — single-word keys
+   * are untouched by the snake_case interceptor), never the Spanish
+   * `accion`/`recurso` fields and never a `{ data, meta }` envelope.
+   * Projection mirrors the proven `roles.service.ts` resolver: an
+   * explicit `nombre` wins, otherwise `"<action> <resource>"`.
    */
   getPermissionsCatalog(): Observable<ReadonlyArray<string>> {
     const params = new HttpParams().set('limit', '100');
     return this.http
-      .get<PermissionItem[] | { data: PermissionItem[] }>(this.permissionsUrl, {
+      .get<PermissionsWireResponse>(this.permissionsUrl, {
         params,
         withCredentials: true,
       })
@@ -289,12 +314,10 @@ export class UsersService {
         // preview). Si el rol actual no tiene `READ permissions`, el
         // endpoint 403 y la lista debe quedar vacía sin spamear al
         // usuario con un toast de "permisos insuficientes".
-        catchError(() => of([] as PermissionItem[])),
+        catchError(() => of([] as PermissionWireItem[])),
         map((res) => {
           const items = Array.isArray(res) ? res : (res.data ?? []);
-          return items
-            .map((p) => `${p.accion} ${p.recurso}`.trim())
-            .filter((s) => s.length > 0);
+          return items.map((p) => permissionLabel(p)).filter((s) => s.length > 0);
         }),
       );
   }
@@ -438,11 +461,24 @@ export class UsersService {
       );
   }
 
-  getPermissions(): Observable<PermissionItem[] | { data: PermissionItem[] }> {
+  /**
+   * sc-340 (R4, R5) — `GET /api/permissions?limit=100` projected onto
+   * the `PermissionItem` model the edit form consumes (`permisoId`,
+   * `nombre`, `recurso`, `accion`). Same wire truth as
+   * `getPermissionsCatalog`: flat array of `{ id, resource, action }`.
+   * Normalization mirrors `roles.service.ts`: a flat array is the
+   * whole list, otherwise `res.data ?? []`.
+   */
+  getPermissions(): Observable<PermissionItem[]> {
     const params = new HttpParams().set('limit', '100');
-    return this.http.get<PermissionItem[] | { data: PermissionItem[] }>(this.permissionsUrl, {
+    return this.http.get<PermissionsWireResponse>(this.permissionsUrl, {
       params,
       withCredentials: true,
-    });
+    }).pipe(
+      map((res) => {
+        const items = Array.isArray(res) ? res : (res.data ?? []);
+        return items.map(toPermissionItem);
+      }),
+    );
   }
 }

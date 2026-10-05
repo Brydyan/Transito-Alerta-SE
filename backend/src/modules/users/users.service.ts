@@ -60,6 +60,15 @@ export class UsersService {
    * T5.4 — reference data for user-management forms.
    * System admins see every role and every org. Everyone else gets the
    * system-only roles filtered out and only their own organization.
+   *
+   * sc-340 (R1) — `deletedAt: IsNull()` is now applied in BOTH branches.
+   * `RolesService.findAll` has always filtered soft-deleted roles, so before
+   * this the two endpoints disagreed about the same table: the roles listing
+   * hid a role that the form dropdown still offered. `0059_sanitize_roles_matrix.sql`
+   * soft-deleted the pre-0040 legacy names (`admin_organizacion`,
+   * `operador_organizacion`, ...) locally, which is what made the divergence
+   * visible to an admin picking a role. The filter is composed with the
+   * system-only name exclusion, not substituted for it.
    */
   async getFormData(currentUser: AuthContext): Promise<FormDataResponseDto> {
     const isSystemAdmin = currentUser.roleName === SYSTEM_ADMIN_ROLE_NAME;
@@ -67,8 +76,8 @@ export class UsersService {
     const roles = await this.roleRepo.find({
       select: ['id', 'name'],
       where: isSystemAdmin
-        ? {}
-        : { name: Not(In(SYSTEM_ONLY_ROLES as unknown as string[])) },
+        ? { deletedAt: IsNull() }
+        : { deletedAt: IsNull(), name: Not(In(SYSTEM_ONLY_ROLES as unknown as string[])) },
       order: { name: 'ASC' },
     });
 

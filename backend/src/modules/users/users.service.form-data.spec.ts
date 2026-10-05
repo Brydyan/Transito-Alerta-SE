@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { FindOperator } from 'typeorm';
 
 import { UserEntity } from '../../entities/user.entity';
 import { RoleEntity } from '../../entities/role.entity';
@@ -88,10 +89,18 @@ describe('UsersService.getFormData (T5.4)', () => {
 
     expect(res.roles).toHaveLength(3);
     expect(res.organizations).toHaveLength(2);
-    // System admin's role query MUST carry an empty `where` (no exclusion).
+    // sc-340: a system admin's role query carries NO name exclusion — but it
+    // DOES carry the soft-delete filter. This assertion used to require
+    // `where: {}`, which locked the sc-340 defect in place: the dropdown
+    // offered soft-deleted roles that the roles listing hid. An empty `where`
+    // is no longer the correct criterion for "no exclusion".
     expect(roleRepo.find).toHaveBeenCalledWith(
-      expect.objectContaining({ select: ['id', 'name'], where: {} }),
+      expect.objectContaining({ select: ['id', 'name'] }),
     );
+    const roleArgs = roleRepo.find.mock.calls[0][0];
+    expect(roleArgs.where).not.toHaveProperty('name');
+    expect(roleArgs.where.deletedAt).toBeInstanceOf(FindOperator);
+    expect(roleArgs.where.deletedAt.type).toBe('isNull');
     expect(orgRepo.find).toHaveBeenCalledWith(
       expect.objectContaining({ select: ['id', 'name'] }),
     );
@@ -141,5 +150,41 @@ describe('UsersService.getFormData (T5.4)', () => {
     expect(orgRepo.find).toHaveBeenCalledWith(
       expect.objectContaining({ order: { name: 'ASC' } }),
     );
+  });
+
+  /**
+   * sc-340 (R1) — soft-deleted roles must never reach the form dropdown.
+   *
+   * `RolesService.findAll` has always filtered `deletedAt: IsNull()`; this
+   * method did not, so the dropdown offered roles that the roles listing
+   * hides. `0059_sanitize_roles_matrix.sql` soft-deleted the pre-0040 legacy
+   * names locally, which is what made the divergence visible.
+   *
+   * Asserting `toBeDefined()` here would pass on any object, so the operator
+   * is checked by type as well: a soft-delete filter is `isNull`, nothing else.
+   */
+  it('sc-340: role query filters soft-deleted roles for a system admin', async () => {
+    roleRepo.find.mockResolvedValueOnce([{ id: 'r1', name: 'master' }] as never);
+    orgRepo.find.mockResolvedValueOnce([] as never);
+
+    await service.getFormData(SYSTEM_ADMIN_ACTOR);
+
+    const roleArgs = roleRepo.find.mock.calls[0][0];
+    expect(roleArgs.where.deletedAt).toBeInstanceOf(FindOperator);
+    expect(roleArgs.where.deletedAt.type).toBe('isNull');
+  });
+
+  it('sc-340: role query filters soft-deleted roles AND system-only names for a non-system admin', async () => {
+    roleRepo.find.mockResolvedValueOnce([{ id: 'r3', name: 'reporter' }] as never);
+    orgRepo.find.mockResolvedValueOnce([{ id: 'org-A', name: 'Org A' }] as never);
+
+    await service.getFormData(ORG_ADMIN_ACTOR);
+
+    const roleArgs = roleRepo.find.mock.calls[0][0];
+    // The name exclusion survives...
+    expect(roleArgs.where.name).toBeDefined();
+    // ...and the soft-delete filter is composed alongside it, not replaced by it.
+    expect(roleArgs.where.deletedAt).toBeInstanceOf(FindOperator);
+    expect(roleArgs.where.deletedAt.type).toBe('isNull');
   });
 });
