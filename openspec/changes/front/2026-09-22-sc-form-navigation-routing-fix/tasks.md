@@ -1,165 +1,68 @@
-# Tasks: Form Navigation Routing Fix
+# Tasks: Canonical Absolute Routing for Catalog Forms & Lists
 
 **Change**: `2026-09-22-sc-form-navigation-routing-fix`  
-**Total Effort**: ~30 min  
-**Phase**: Single (Bug Fix)
+**Total Effort**: ~45 min  
+**Status**: READY FOR APPROVAL  
 
 ---
 
-## Phase 1: Fix & Verify (30 min)
+## Phase 1: Catalog Form Components (`goBack()`) (15 min)
 
-### 1.1 Update CategoryFormComponent
-
-- [ ] Open `frontend/src/app/features/catalogs/incident-categories/category-form/category-form.component.ts`
-- [ ] Locate `goBack()` method (line ~233)
-- [ ] Change `navigate(['../../'], ...)` to `navigate(['../'], ...)`
-- [ ] Save file
-
-**Acceptance**: Method signature matches design D1; no other changes to the component.
-
----
-
-### 1.2 Update LocationFormComponent
-
-- [ ] Open `frontend/src/app/features/catalogs/locations/location-form/location-form.component.ts`
-- [ ] Find `goBack()` method
-- [ ] Change `navigate(['../../'], ...)` to `navigate(['../'], ...)`
-- [ ] Save file
-
-**Acceptance**: Method signature matches design D1.
+- [ ] 1.1 Update `OrganizationFormComponent` (`frontend/src/app/features/catalogs/organizations/organization-form/organization-form.component.ts`):
+  - Change `goBack()` to: `this.router.navigate(['/app/admin/organizaciones']);`
+- [ ] 1.2 Update `DepartmentFormComponent` (`frontend/src/app/features/catalogs/departments/department-form/department-form.component.ts`):
+  - Change `goBack()` to: `this.router.navigate(['/app/admin/departamentos']);`
+- [ ] 1.3 Update `CategoryFormComponent` (`frontend/src/app/features/catalogs/incident-categories/category-form/category-form.component.ts`):
+  - Change `goBack()` to: `this.router.navigate(['/app/categorias']);`
+- [ ] 1.4 Update `LocationFormComponent` (`frontend/src/app/features/catalogs/locations/location-form/location-form.component.ts`):
+  - Change `goBack()` to: `this.router.navigate(['/app/ubicaciones']);`
 
 ---
 
-### 1.3 Update DepartmentFormComponent
+## Phase 2: Catalog List Components (`navigateToCreate` & `navigateToEdit`) (15 min)
 
-- [ ] Open `frontend/src/app/features/catalogs/departments/department-form/department-form.component.ts`
-- [ ] Find `goBack()` method
-- [ ] Change `navigate(['../../'], ...)` to `navigate(['../'], ...)`
-- [ ] Save file
-
-**Acceptance**: Method signature matches design D1.
-
----
-
-### 1.4 Update OrganizationFormComponent
-
-- [ ] Open `frontend/src/app/features/catalogs/organizations/organization-form/organization-form.component.ts`
-- [ ] Find `goBack()` method
-- [ ] Change `navigate(['../../'], ...)` to `navigate(['../'], ...)`
-- [ ] Save file
-
-**Acceptance**: Method signature matches design D1.
+- [ ] 2.1 Update `OrganizationListComponent` (`frontend/src/app/features/catalogs/organizations/organization-list/organization-list.component.ts`):
+  - Change `navigateToCreate()` to: `this.router.navigate(['/app/admin/organizaciones/new']);`
+  - Change `navigateToEdit(organization)` to: `this.router.navigate(['/app/admin/organizaciones', organization.id, 'edit']);`
+- [ ] 2.2 Update `DepartmentListComponent` (`frontend/src/app/features/catalogs/departments/department-list/department-list.component.ts`):
+  - Change `navigateToCreate()` to: `this.router.navigate(['/app/admin/departamentos/new']);`
+  - Change `navigateToEdit(dept)` to: `this.router.navigate(['/app/admin/departamentos', dept.id, 'edit']);`
+- [ ] 2.3 Update `CategoryListComponent` (`frontend/src/app/features/catalogs/incident-categories/category-list/category-list.component.ts`):
+  - Change `navigateToCreate()` to: `this.router.navigate(['/app/categorias/new']);`
+  - Change `navigateToEdit(category)` to: `this.router.navigate(['/app/categorias', category.id, 'edit']);`
+- [ ] 2.4 Update `LocationListComponent` (`frontend/src/app/features/catalogs/locations/location-list/location-list.component.ts`):
+  - Change `navigateToCreate()` to: `this.router.navigate(['/app/ubicaciones/new']);`
+  - Change `navigateToEdit(location)` to: `this.router.navigate(['/app/ubicaciones', location.id, 'edit']);`
 
 ---
 
-### 1.5 Verify No Other Navigation Patterns in Codebase
+## Phase 3: Template Link Repair (5 min)
 
-- [ ] Run: `grep -r "navigate\(\[.*\.\.\/" frontend/src --include="*.ts" | grep -v node_modules`
-- [ ] For each match, verify it's either:
-  - (a) One of the 4 updated components above (expected)
-  - (b) A different routing context where `../../` is correct
-- [ ] If found a pattern that looks wrong, open a follow-up ticket
-
-**Acceptance**: Grep returns only the 4 expected files, or additional findings are documented as follow-up tickets.
+- [ ] 3.1 Update `UsersListComponent` template (`frontend/src/app/features/admin/users/users-list/users-list.component.html:142`):
+  - Change `[routerLink]="['/app/organizaciones']"` to `[routerLink]="['/app/admin/organizaciones']"`
 
 ---
 
-### 1.6 Run Frontend Linting
+## Phase 4: Unit Test Coverage (15 min)
 
-- [ ] Run: `cd frontend && npm run lint`
-- [ ] Verify no new linting errors introduced by the changes
-- [ ] If errors: fix and re-run
-
-**Acceptance**: `npm run lint` exits with code 0 (no errors).
-
----
-
-### 1.7 Manual E2E Test: Category Create → Redirect
-
-- [ ] Start dev server: `docker compose up -d`
-- [ ] Navigate to `http://localhost:8083/app/categorias/new`
-- [ ] Fill form: Name = "Test Category", Description = "Test"
-- [ ] Click "Guardar"
-- [ ] **Assert**: Browser URL changes to `http://localhost:8083/app/categorias`
-- [ ] **Assert**: Category list is displayed
-- [ ] **Assert**: Toast "Categoría creada correctamente" appears
-
-**Acceptance**: All 3 assertions pass.
+- [ ] 4.1 Update / add tests in `organization-form.component.spec.ts` & `organization-list.component.spec.ts`:
+  - Assert `goBack()` navigates to `['/app/admin/organizaciones']`.
+  - Assert `navigateToCreate()` and `navigateToEdit()` navigate to canonical absolute routes.
+- [ ] 4.2 Update / add tests in `department-form.component.spec.ts` & `department-list.component.spec.ts`:
+  - Assert `goBack()` navigates to `['/app/admin/departamentos']`.
+  - Assert `navigateToCreate()` and `navigateToEdit()` navigate to canonical absolute routes.
+- [ ] 4.3 Update / add tests in `category-form.component.spec.ts` & `category-list.component.spec.ts`:
+  - Assert `goBack()` navigates to `['/app/categorias']`.
+  - Assert `navigateToCreate()` and `navigateToEdit()` navigate to canonical absolute routes.
+- [ ] 4.4 Update / add tests in `location-form.component.spec.ts` & `location-list.component.spec.ts`:
+  - Assert `goBack()` navigates to `['/app/ubicaciones']`.
+  - Assert `navigateToCreate()` and `navigateToEdit()` navigate to canonical absolute routes.
+- [ ] 4.5 Assert `users-list.component.spec.ts` verifies the organizations card routerLink.
 
 ---
 
-### 1.8 Manual E2E Test: Category Edit → Redirect
+## Phase 5: Verification & CI Gates (10 min)
 
-- [ ] From list view, click Edit on any category
-- [ ] Modify the name field
-- [ ] Click "Guardar"
-- [ ] **Assert**: Browser URL is `http://localhost:8083/app/categorias`
-- [ ] **Assert**: Category list is displayed with updated data
-- [ ] **Assert**: Toast "Categoría actualizada correctamente" appears
-
-**Acceptance**: All 3 assertions pass.
-
----
-
-### 1.9 Manual E2E Test: Location Create → Redirect
-
-- [ ] Navigate to `http://localhost:8083/app/ubicaciones/new`
-- [ ] Fill form: Name = "Test Location"
-- [ ] Click "Guardar"
-- [ ] **Assert**: Browser URL changes to `http://localhost:8083/app/ubicaciones`
-- [ ] **Assert**: Location list is displayed
-
-**Acceptance**: All assertions pass.
-
----
-
-### 1.10 Manual E2E Test: Department Create → Redirect
-
-- [ ] Navigate to `http://localhost:8083/app/departamentos/new`
-- [ ] Fill form: Name = "Test Department"
-- [ ] Click "Guardar"
-- [ ] **Assert**: Browser URL changes to `http://localhost:8083/app/departamentos`
-- [ ] **Assert**: Department list is displayed
-
-**Acceptance**: All assertions pass.
-
----
-
-### 1.11 Manual E2E Test: Organization Create → Redirect
-
-- [ ] Navigate to `http://localhost:8083/app/organizaciones/new`
-- [ ] Fill form: Name = "Test Org"
-- [ ] Click "Guardar"
-- [ ] **Assert**: Browser URL changes to `http://localhost:8083/app/organizaciones`
-- [ ] **Assert**: Organization list is displayed
-
-**Acceptance**: All assertions pass.
-
----
-
-### 1.12 Run Existing E2E Test Suite
-
-- [ ] Run: `cd frontend && npm run test:e2e 2>&1 | grep -E "(PASS|FAIL|✓|✗)"`
-- [ ] **Assert**: No new failures related to routing or navigation
-- [ ] **Assert**: All existing e2e tests still pass
-
-**Acceptance**: Test suite exits with code 0; no new failures.
-
----
-
-### 1.13 Run Full Frontend Test Suite
-
-- [ ] Run: `cd frontend && npm test`
-- [ ] **Assert**: All unit tests pass
-- [ ] **Assert**: No new failures
-
-**Acceptance**: Test suite exits with code 0.
-
----
-
-## Summary
-
-**Total Manual Steps**: 13  
-**Automation**: Covered by linting + existing test suite  
-**Risk**: Low (1-line change, well-tested path)  
-**Rollback**: Single commit revert
+- [ ] 5.1 Run full frontend test suite: `pnpm test` (all tests pass).
+- [ ] 5.2 Run frontend production build: `pnpm run build` (exit code 0).
+- [ ] 5.3 Verify git status clean of unexpected edits.
