@@ -4,7 +4,7 @@ import type { Cache } from 'cache-manager';
 import type { Redis } from 'ioredis';
 import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService, INCIDENTS_STREAM_KEY } from './incidents.service';
-import { GeofencingService } from '../geofencing/geofencing.service';
+import { GeofencingService, ALL_ZONES_TAG } from '../geofencing/geofencing.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SubjectScope } from '../../common/authz/subject-scope';
 
@@ -293,6 +293,51 @@ describe('IncidentsService', () => {
     });
   });
 
+  describe('update', () => {
+    it('purges the zone cache and ALL_ZONES_TAG on successful write', async () => {
+      const row = makeRow({ zone_id: 'zone-1' });
+      repo.findOne.mockResolvedValue(row);
+      repo.update.mockResolvedValue({ ...row, title: 'Edited' });
+
+      await service.update('inc-1', { title: 'Edited' });
+
+      expect(repo.update).toHaveBeenCalled();
+      expect(geofencing.purgeZoneCache).toHaveBeenCalledWith('zone-1');
+      expect(geofencing.purgeZoneCache).toHaveBeenCalledWith(ALL_ZONES_TAG);
+    });
+
+    it('does not purge the cache when the repository write rejects', async () => {
+      repo.findOne.mockResolvedValue(makeRow());
+      repo.update.mockRejectedValue(new Error('DB Error'));
+
+      await expect(service.update('inc-1', { title: 'Edited' })).rejects.toThrow('DB Error');
+
+      expect(geofencing.purgeZoneCache).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('softDelete', () => {
+    it('purges the zone cache and ALL_ZONES_TAG on successful write', async () => {
+      const row = makeRow({ zone_id: 'zone-99' });
+      repo.findOne.mockResolvedValue(row);
+      repo.softDelete.mockResolvedValue(undefined);
+
+      await service.softDelete('inc-1');
+
+      expect(repo.softDelete).toHaveBeenCalledWith('inc-1');
+      expect(geofencing.purgeZoneCache).toHaveBeenCalledWith('zone-99');
+      expect(geofencing.purgeZoneCache).toHaveBeenCalledWith(ALL_ZONES_TAG);
+    });
+
+    it('does not purge the cache when the repository write rejects', async () => {
+      repo.findOne.mockResolvedValue(makeRow());
+      repo.softDelete.mockRejectedValue(new Error('DB Error'));
+
+      await expect(service.softDelete('inc-1')).rejects.toThrow('DB Error');
+
+      expect(geofencing.purgeZoneCache).not.toHaveBeenCalled();
+    });
+  });
 
   // sc-315 C2 (ronda 2) — la única ruta HTTP real que entrega el
   // catálogo de estados (`GET /incidents/statuses` y `GET /estados`)
