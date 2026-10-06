@@ -245,11 +245,11 @@ export class LocationListComponent implements OnInit, OnDestroy {
   }
 
   navigateToCreate(): void {
-    this.router.navigate(['new'], { relativeTo: this.route });
+    this.router.navigate(['/app/ubicaciones/new']);
   }
 
   navigateToEdit(location: IGeoZone): void {
-    this.router.navigate([location.id, 'edit'], { relativeTo: this.route });
+    this.router.navigate(['/app/ubicaciones', location.id, 'edit']);
   }
 
   deleteLocation(location: IGeoZone): void {

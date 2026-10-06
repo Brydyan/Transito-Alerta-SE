@@ -211,4 +211,46 @@ describe('OrganizationFormComponent', () => {
       expect(fixture.componentInstance.form.value.parent_id).toBe('org-madre');
     });
   });
+
+  // ── 2026-09-22-sc-form-navigation-routing-fix ─────────────────────
+  // D1 (design.md) — goBack() must use canonical absolute path.
+  // Current implementation uses `['../']` which works by coincidence
+  // because both /new and /:id/edit live at the same depth; standardize.
+
+  describe('navigation — goBack()', () => {
+    it('navigates to /app/admin/organizaciones (absolute, not relative)', async () => {
+      // Stub service calls invoked by ngOnInit so they don't crash.
+      mockOrganizationService.listAll.mockReturnValue(of([]));
+      mockOrganizationService.getById.mockReturnValue(of({
+        id: 'org-1',
+        name: 'Test Org',
+        zone_id: null,
+        parent_id: null,
+        incident_category_id: null,
+        max_active_claims: 0,
+        created_at: '2026-09-01',
+      }));
+
+      const { fixture } = await render(OrganizationFormComponent, {
+        imports: [ReactiveFormsModule],
+        providers: [
+          { provide: OrganizationService, useValue: mockOrganizationService },
+          { provide: GeoZoneService, useValue: mockZoneService },
+          { provide: IncidentCategoryService, useValue: mockCategoryService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.goBack();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith([
+        '/app/admin/organizaciones',
+      ]);
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
+    });
+  });
 });

@@ -322,7 +322,7 @@ export class DepartmentFormComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['../'], { relativeTo: this.route });
+    this.router.navigate(['/app/admin/departamentos']);
   }
 
   private loadDepartment(id: string): void {

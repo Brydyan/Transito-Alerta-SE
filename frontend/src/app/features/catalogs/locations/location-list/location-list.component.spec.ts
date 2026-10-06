@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/angular';
 import { of } from 'rxjs';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { LocationListComponent } from './location-list.component';
 import { GeoZoneService } from '../services/geo-zone.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
@@ -236,6 +236,61 @@ describe('LocationListComponent', () => {
 
       // toggleExpand was not called for the leaf.
       expect(toggleSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── 2026-09-22-sc-form-navigation-routing-fix ─────────────────────
+  // D2 (design.md) — list navigation must use canonical absolute paths.
+
+  describe('navigation', () => {
+    let mockRouter: { navigate: jest.Mock };
+
+    beforeEach(() => {
+      mockRouter = { navigate: jest.fn() };
+    });
+
+    const renderListWithRouter = (items: IGeoZone[] = []) =>
+      render(LocationListComponent, {
+        providers: [
+          { provide: GeoZoneService, useValue: mockGeoZoneService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+
+    it('navigateToCreate navigates to /app/ubicaciones/new (absolute)', async () => {
+      const { fixture } = await renderListWithRouter();
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.navigateToCreate();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/app/ubicaciones/new']);
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
+    });
+
+    it('navigateToEdit navigates to /app/ubicaciones/{id}/edit (absolute)', async () => {
+      const { fixture } = await renderListWithRouter();
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.navigateToEdit({
+        id: 'loc-xyz',
+        name: 'Test',
+        code: null,
+        level: 'provincia',
+        parent_id: null,
+        active: true,
+        created_at: '2026-09-01T00:00:00Z',
+      });
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith([
+        '/app/ubicaciones',
+        'loc-xyz',
+        'edit',
+      ]);
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
     });
   });
 });

@@ -237,4 +237,41 @@ describe('CategoryListComponent (T7.4 — tree view)', () => {
       expect(toggleSpy).not.toHaveBeenCalled();
     });
   });
+
+  // ── 2026-09-22-sc-form-navigation-routing-fix ─────────────────────
+  // D2 (design.md) — list navigation must use canonical absolute paths,
+  // not relative navigation from the empty-path `''` route.
+
+  describe('navigation', () => {
+    it('navigateToCreate navigates to /app/categorias/new (absolute)', async () => {
+      const { fixture } = await renderList();
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.navigateToCreate();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/app/categorias/new']);
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
+    });
+
+    it('navigateToEdit navigates to /app/categorias/{id}/edit (absolute)', async () => {
+      const { fixture } = await renderList();
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.navigateToEdit({
+        id: 'cat-xyz',
+        name: 'Test',
+        parent_id: null,
+        created_at: '',
+        updated_at: '',
+        description: null,
+      });
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith([
+        '/app/categorias',
+        'cat-xyz',
+        'edit',
+      ]);
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
+    });
+  });
 });

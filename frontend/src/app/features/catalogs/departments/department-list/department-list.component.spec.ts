@@ -5,7 +5,7 @@ import { ToastService } from '../../../../shared/components/toast/toast.service'
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { of, throwError } from 'rxjs';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { IDepartment } from '../interfaces/idepartment.interface';
 
 describe('DepartmentListComponent', () => {
@@ -233,5 +233,61 @@ describe('DepartmentListComponent', () => {
     expect(mockDepartmentService.list).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, per_page: 20 }),
     );
+  });
+
+  // ── 2026-09-22-sc-form-navigation-routing-fix ─────────────────────
+  // D2 (design.md) — list navigation must use canonical absolute paths.
+
+  describe('navigation', () => {
+    let mockRouter: { navigate: jest.Mock };
+
+    beforeEach(() => {
+      mockRouter = { navigate: jest.fn() };
+    });
+
+    const renderListWithRouter = () =>
+      render(DepartmentListComponent, {
+        providers: [
+          { provide: DepartmentService, useValue: mockDepartmentService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+
+    it('navigateToCreate navigates to /app/admin/departamentos/new (absolute)', async () => {
+      const { fixture } = await renderListWithRouter();
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.navigateToCreate();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith([
+        '/app/admin/departamentos/new',
+      ]);
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
+    });
+
+    it('navigateToEdit navigates to /app/admin/departamentos/{id}/edit (absolute)', async () => {
+      const { fixture } = await renderListWithRouter();
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.navigateToEdit({
+        id: 'dept-xyz',
+        name: 'Dept',
+        organization_id: 'org-1',
+        description: null,
+        user_count: 0,
+        created_at: '2026-09-01',
+      });
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith([
+        '/app/admin/departamentos',
+        'dept-xyz',
+        'edit',
+      ]);
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
+    });
   });
 });

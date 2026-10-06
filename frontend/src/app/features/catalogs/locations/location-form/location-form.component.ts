@@ -295,7 +295,7 @@ export class LocationFormComponent implements OnInit, OnDestroy {
   }
 
   goBack(): void {
-    this.router.navigate(['../../'], { relativeTo: this.route });
+    this.router.navigate(['/app/ubicaciones']);
   }
 
   /** sc-334 — inline import (right panel). */

@@ -1,7 +1,8 @@
 import { render, waitFor, screen, fireEvent } from '@testing-library/angular';
+import { ReactiveFormsModule } from '@angular/forms';
 import { of, throwError, Subject } from 'rxjs';
 import { HttpEvent, HttpEventType } from '@angular/common/http';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { LocationFormComponent } from './location-form.component';
 import { GeoZoneService } from '../services/geo-zone.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
@@ -324,6 +325,39 @@ describe('LocationFormComponent', () => {
 
       const [, params] = mockGeoZoneService.importShapefile.mock.calls[0];
       expect(params.auto_parent).toBe(false);
+    });
+  });
+
+  // ── 2026-09-22-sc-form-navigation-routing-fix ─────────────────────
+  // D1 (design.md) — goBack() must use the canonical absolute path.
+
+  describe('navigation — goBack()', () => {
+    let mockRouter: { navigate: jest.Mock };
+
+    beforeEach(() => {
+      mockRouter = { navigate: jest.fn() };
+    });
+
+    it('navigates to /app/ubicaciones (absolute, not relative)', async () => {
+      mockGeoZoneService.listAll.mockReturnValue(of([]));
+
+      const { fixture } = await render(LocationFormComponent, {
+        imports: [ReactiveFormsModule],
+        providers: [
+          { provide: GeoZoneService, useValue: mockGeoZoneService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.goBack();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/app/ubicaciones']);
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
     });
   });
 });
