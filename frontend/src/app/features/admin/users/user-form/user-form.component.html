@@ -252,10 +252,10 @@
                             Seleccione un rol para ver sus permisos
                           </p>
                         } @else {
-                          <!-- F6 fix: `rolePermissions` es `string[]` (formato
-                               "ACTION resource" desde `GET /api/roles/:id`),
-                               no objetos con `permisoId`/`nombre`/`accion`.
-                               Renderizamos el string literal. -->
+                          <!-- sc-340: `rolePermissions` holds labels resolved
+                               against the permissions catalog
+                               (`"<action> <resource>"`, or the explicit
+                               unknown-permission marker) — never raw UUIDs. -->
                           @for (perm of filteredRolePerms(); track perm) {
                             <div
                               class="form-check flex items-center gap-3 py-2 border-b border-slate-100 last:border-0"

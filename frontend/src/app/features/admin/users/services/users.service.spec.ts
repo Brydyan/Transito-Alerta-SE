@@ -3,6 +3,12 @@ import { HttpClientTestingModule, HttpTestingController } from '@angular/common/
 
 import { UsersService } from './users.service';
 import { environment } from '../../../../../environments/environment';
+import {
+  UNKNOWN_PERMISSION_LABEL,
+  permissionLabel,
+  resolveRolePermissionLabels,
+  type PermissionItem,
+} from '../models/user.interface';
 
 /**
  * F6 (`2026-09-08-f6-new-user-form`) — contrato del `UsersService`
@@ -98,14 +104,29 @@ describe('UsersService (F6 new-user-form)', () => {
     req.flush({ id: 'user-id' });
   });
 
-  it('getRolePermissions — GET /api/roles/:id/permissions devuelve string[]', () => {
+  // sc-340: post-0051 `GET /api/roles/:id/permissions` returns UUIDs,
+  // and `getRolePermissions` resolves them against the catalog (R2).
+  // The pre-0051 expectation (endpoint returns "ACTION resource"
+  // strings verbatim) asserted a contract the backend no longer keeps.
+  it('getRolePermissions — GET /api/roles/:id/permissions resolves UUIDs to labels', () => {
+    let result: ReadonlyArray<string> = [];
     service.getRolePermissions('r1').subscribe((perms) => {
-      expect(perms).toEqual(['READ dashboard', 'READ incidents']);
+      result = perms;
     });
     const req = http.expectOne(`${environment.apiUrl}/roles/r1/permissions`);
     expect(req.request.method).toBe('GET');
     expect(req.request.withCredentials).toBe(true);
-    req.flush(['READ dashboard', 'READ incidents']);
+    req.flush(['perm-uuid-1', 'perm-uuid-2']);
+    const catalogReq = http.expectOne(
+      (r) =>
+        r.url === `${environment.apiUrl}/permissions` &&
+        r.params.get('limit') === '100',
+    );
+    catalogReq.flush([
+      { id: 'perm-uuid-1', resource: 'dashboard', action: 'READ' },
+      { id: 'perm-uuid-2', resource: 'incidents', action: 'READ' },
+    ]);
+    expect(result).toEqual(['READ dashboard', 'READ incidents']);
   });
 
   it('getPermissionsCatalog — GET /api/permissions?limit=100 y devuelve string[]', () => {
@@ -119,5 +140,158 @@ describe('UsersService (F6 new-user-form)', () => {
     );
     expect(req.request.method).toBe('GET');
     req.flush(['READ dashboard', 'UPDATE roles']);
+  });
+
+  // -------------------------------------------------------------------
+  // sc-340 — permissions catalog aligned to the real wire (R2, R3, R4).
+  //
+  // NOTE on assertion style: `expect` calls placed INSIDE `.subscribe()`
+  // do NOT fail this suite — RxJS 7 reports throws in `next` handlers
+  // via `onUnhandledError` (async), so the test passes vacuously
+  // (verified empirically with an absurd expectation that still passed).
+  // Every sc-340 service test below captures the emission and asserts
+  // OUTSIDE the subscription, so RED is genuine.
+  // -------------------------------------------------------------------
+  describe('sc-340 T5 permissionLabel (pure resolver)', () => {
+    it('prefers an explicit nombre when present', () => {
+      expect(
+        permissionLabel({ nombre: 'Custom label', action: 'READ', resource: 'dashboard' }),
+      ).toBe('Custom label');
+    });
+
+    it('falls back to "action resource" from the wire fields', () => {
+      expect(permissionLabel({ action: 'READ', resource: 'dashboard' })).toBe(
+        'READ dashboard',
+      );
+    });
+
+    it('returns an empty string — never undefined — when nothing is present', () => {
+      expect(permissionLabel({})).toBe('');
+      expect(permissionLabel({ action: null, resource: null, nombre: null })).toBe('');
+      expect(permissionLabel({ action: '  ', resource: '' })).toBe('');
+    });
+  });
+
+  describe('sc-340 T6/R3 getPermissionsCatalog projection', () => {
+    it('a catalog entry with only id/resource/action never yields the string "undefined"', () => {
+      let result: ReadonlyArray<string> = [];
+      service.getPermissionsCatalog().subscribe((labels) => {
+        result = labels;
+      });
+      const req = http.expectOne(
+        (r) =>
+          r.url === `${environment.apiUrl}/permissions` &&
+          r.params.get('limit') === '100',
+      );
+      req.flush([{ id: 'perm-1', resource: 'dashboard', action: 'READ' }]);
+      expect(result).toEqual(['READ dashboard']);
+      expect(result.join(' ')).not.toContain('undefined');
+    });
+  });
+
+  describe('sc-340 T10/R2 getRolePermissions label resolution', () => {
+    const flushRoleAndCatalog = (rolePerms: string[], catalog: object[]) => {
+      const roleReq = http.expectOne(
+        `${environment.apiUrl}/roles/role-1/permissions`,
+      );
+      roleReq.flush(rolePerms);
+      const catalogReq = http.expectOne(
+        (r) =>
+          r.url === `${environment.apiUrl}/permissions` &&
+          r.params.get('limit') === '100',
+      );
+      catalogReq.flush(catalog);
+    };
+
+    it('UUID role permissions resolve to "{action} {resource}" labels via the catalog', () => {
+      let result: ReadonlyArray<string> = [];
+      service.getRolePermissions('role-1').subscribe((labels) => {
+        result = labels;
+      });
+      flushRoleAndCatalog(
+        ['perm-uuid-1', 'perm-uuid-2'],
+        [
+          { id: 'perm-uuid-1', resource: 'dashboard', action: 'READ' },
+          { id: 'perm-uuid-2', resource: 'incidents', action: 'UPDATE' },
+        ],
+      );
+      expect(result).toEqual(['READ dashboard', 'UPDATE incidents']);
+      expect(result.join(' ')).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/i);
+    });
+
+    it('a UUID absent from the catalog yields an explicit marker, not undefined and no throw', () => {
+      let result: ReadonlyArray<string> = [];
+      let error: unknown = null;
+      service.getRolePermissions('role-1').subscribe({
+        next: (labels) => {
+          result = labels;
+        },
+        error: (err) => {
+          error = err;
+        },
+      });
+      flushRoleAndCatalog(
+        ['perm-uuid-orphan'],
+        [{ id: 'perm-uuid-other', resource: 'dashboard', action: 'READ' }],
+      );
+      expect(error).toBeNull();
+      expect(result).toEqual([UNKNOWN_PERMISSION_LABEL]);
+      expect(result).not.toContain(undefined);
+      expect(result.join(' ')).not.toContain('undefined');
+    });
+
+    it('resolveRolePermissionLabels maps known UUIDs and marks unknown ones', () => {
+      const catalog: PermissionItem[] = [
+        {
+          permisoId: 'perm-uuid-1',
+          nombre: 'READ dashboard',
+          descripcion: '',
+          recurso: 'dashboard',
+          accion: 'READ',
+        },
+      ];
+      expect(
+        resolveRolePermissionLabels(['perm-uuid-1', 'perm-uuid-ghost'], catalog),
+      ).toEqual(['READ dashboard', UNKNOWN_PERMISSION_LABEL]);
+      expect(resolveRolePermissionLabels([], catalog)).toEqual([]);
+    });
+  });
+
+  describe('sc-340 T8/R4 flat-array wire tolerance', () => {
+    const expectCatalog = (url: string) =>
+      http.expectOne(
+        (r) => r.url === url && r.params.get('limit') === '100',
+      );
+
+    it('getPermissionsCatalog consumes the flat array (no envelope)', () => {
+      let result: ReadonlyArray<string> = [];
+      service.getPermissionsCatalog().subscribe((labels) => {
+        result = labels;
+      });
+      const req = expectCatalog(`${environment.apiUrl}/permissions`);
+      req.flush([
+        { id: 'perm-1', resource: 'dashboard', action: 'READ' },
+        { id: 'perm-2', resource: 'roles', action: 'UPDATE' },
+      ]);
+      expect(result).toEqual(['READ dashboard', 'UPDATE roles']);
+    });
+
+    it('getPermissions maps the flat array onto the PermissionItem model', () => {
+      let result: PermissionItem[] = [];
+      service.getPermissions().subscribe((items) => {
+        result = items;
+      });
+      const req = expectCatalog(`${environment.apiUrl}/permissions`);
+      req.flush([{ id: 'perm-1', resource: 'dashboard', action: 'READ' }]);
+      expect(result).toEqual([
+        {
+          permisoId: 'perm-1',
+          nombre: 'READ dashboard',
+          descripcion: '',
+          recurso: 'dashboard',
+          accion: 'READ',
+        },
+      ]);
+    });
   });
 });

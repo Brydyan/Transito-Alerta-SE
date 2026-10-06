@@ -222,6 +222,52 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
   });
 
   // -------------------------------------------------------------------
+  // sc-340 T17/R2 — role with UUID permissions renders labels.
+  // Post-0051 the role carries permission UUIDs (opaque to this
+  // component); `UsersService.getRolePermissions` (T10/T11) resolves
+  // them against the catalog, so the preview below only ever sees
+  // labels — or the explicit unknown-permission marker.
+  // -------------------------------------------------------------------
+  describe('sc-340 T17/R2 — UUID role permissions render as labels', () => {
+    it('access pills show resolved labels, never raw UUIDs', fakeAsync(() => {
+      init();
+      mockUsersService.getRolePermissions.mockReturnValueOnce(
+        of(['READ dashboard', 'READ incidents']),
+      );
+      component.onRoleChange('r-admin');
+      tick();
+      const view: RolePermissionsView = component.selectedRolePermissions();
+      expect(view.access).toEqual(['READ dashboard', 'READ incidents']);
+      expect(view.access.some((l) => /^[0-9a-f-]{36}$/i.test(l))).toBe(false);
+      fixture.detectChanges();
+      const pills = Array.from(
+        fixture.nativeElement.querySelectorAll(
+          '[data-testid="role-access"] .permission-pill',
+        ) as NodeListOf<HTMLElement>,
+      ).map((el) => el.textContent?.trim() ?? '');
+      expect(pills).toEqual(['READ dashboard', 'READ incidents']);
+    }));
+
+    it('an orphan UUID degrades to the explicit marker in the preview', fakeAsync(() => {
+      init();
+      mockUsersService.getRolePermissions.mockReturnValueOnce(
+        of(['permiso no encontrado']),
+      );
+      component.onRoleChange('r-admin');
+      tick();
+      expect(component.selectedRolePermissions().access).toEqual([
+        'permiso no encontrado',
+      ]);
+      fixture.detectChanges();
+      const body =
+        fixture.nativeElement.querySelector('[data-testid="role-access"]')
+          ?.textContent ?? '';
+      expect(body).toContain('permiso no encontrado');
+      expect(body).not.toContain('undefined');
+    }));
+  });
+
+  // -------------------------------------------------------------------
   // Avatar upload (N.5)
   // -------------------------------------------------------------------
   describe('N.5 — onAvatarSelect', () => {

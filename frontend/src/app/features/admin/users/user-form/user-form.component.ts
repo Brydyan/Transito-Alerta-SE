@@ -20,7 +20,6 @@ import {
 } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { forkJoin, of, Subscription } from 'rxjs';
-import { map } from 'rxjs/operators';
 import { UsersService } from '../services/users.service';
 import {
   Role,
@@ -28,6 +27,8 @@ import {
   DirectPermission,
   UserDetail,
   Organization,
+  resolveRolePermissionLabels,
+  toPermissionItem,
 } from '../models/user.interface';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { AuthService } from '../../../../core/services/auth.service';
@@ -106,22 +107,27 @@ export class UserFormComponent implements OnInit, OnDestroy {
   readonly filteredRolePerms = computed(() => {
     const term = this.roleSearch().toLowerCase().trim();
     if (!term) return this.rolePermissions();
-    // F6 fix: `rolePermissions` es `string[]` (formato "ACTION
-    // resource" desde `GET /api/roles/:id`). Filtramos por
-    // substring del string completo — antes el filter buscaba
-    // campos `nombre`/`recurso`/`accion` que el wire no
-    // devuelve.
+    // sc-340: `rolePermissions` holds labels resolved against the
+    // permissions catalog (`"<action> <resource>"`, or the explicit
+    // unknown-permission marker) — filter over the rendered text.
     return this.rolePermissions().filter((p) => p.toLowerCase().includes(term));
   });
 
+  /**
+   * sc-340 (R5): null-safe search over the user permissions panel.
+   * Entries may lack a legible name (pre-sc-340 the service passed
+   * the raw wire through), so every field falls back to `''` before
+   * `.toLowerCase()` — the filter never throws `TypeError` and a
+   * search with no matches yields an empty list.
+   */
   readonly filteredAllPerms = computed(() => {
     const term = this.userPermSearch().toLowerCase().trim();
     if (!term) return this.allPermissions();
     return this.allPermissions().filter(
       (p) =>
-        p.nombre.toLowerCase().includes(term) ||
-        p.recurso.toLowerCase().includes(term) ||
-        p.accion.toLowerCase().includes(term),
+        (p.nombre ?? '').toLowerCase().includes(term) ||
+        (p.recurso ?? '').toLowerCase().includes(term) ||
+        (p.accion ?? '').toLowerCase().includes(term),
     );
   });
 
@@ -146,8 +152,11 @@ export class UserFormComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.isLoading.set(true);
 
+    // sc-340 (R4): `getPermissions()` already normalizes the wire
+    // (flat array or envelope) onto `PermissionItem[]`, so the raw
+    // `.data` unwrapping is gone from here.
     const permissionsReq = this.isAdminOrSuperadmin()
-      ? this.usersService.getPermissions().pipe(map((res) => (Array.isArray(res) ? res : res.data)))
+      ? this.usersService.getPermissions()
       : of([] as PermissionItem[]);
 
     const userReq = this.isEditing()
@@ -167,7 +176,12 @@ export class UserFormComponent implements OnInit, OnDestroy {
     ]).subscribe({
       next: ([roles, permissions, user, organizations]) => {
         this.roles.set(roles);
-        this.allPermissions.set(permissions);
+        // sc-340 (R5): normalize the intake onto the aligned
+        // `PermissionItem` model. Idempotent for service-mapped
+        // entries; fills `permisoId`/`nombre`/`recurso`/`accion`
+        // for raw wire entries (`id`/`resource`/`action`) so the
+        // panel below binds real identifiers and legible labels.
+        this.allPermissions.set(permissions.map(toPermissionItem));
         this.organizations.set(organizations);
 
         if (user) {
@@ -231,10 +245,19 @@ export class UserFormComponent implements OnInit, OnDestroy {
     this.subscriptions.unsubscribe();
   }
 
+  /**
+   * sc-340 (R2): `GET /api/roles/:id` carries permission UUIDs
+   * (post-0051), not display strings. Resolve them against the
+   * already-loaded `allPermissions` catalog so the role panel renders
+   * `"<action> <resource>"` labels; orphan UUIDs show the explicit
+   * unknown-permission marker instead of a raw id.
+   */
   private loadRolePermissions(rolId: string): void {
     const sub = this.usersService.getRoleById(rolId).subscribe({
       next: (role) => {
-        this.rolePermissions.set(role.permisos ?? []);
+        this.rolePermissions.set(
+          resolveRolePermissionLabels(role.permisos ?? [], this.allPermissions()),
+        );
       },
       error: (err) => {
         console.error('Error loading role permissions:', err);
