@@ -22,9 +22,6 @@ async function login(page: Page, user: string, password: string): Promise<void> 
   await page.waitForURL(/\/app\/dashboard/, { timeout: 15_000 });
 }
 
-function rowByName(page: Page, name: string) {
-  return page.locator('tbody tr', { hasText: name }).first();
-}
 
 test.describe('2026-09-22 — doble-click en catálogos (categorías y ubicaciones)', () => {
   test.beforeEach(async ({ page }) => {

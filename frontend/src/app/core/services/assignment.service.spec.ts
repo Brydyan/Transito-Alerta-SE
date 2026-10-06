@@ -74,7 +74,7 @@ describe('AssignmentService', () => {
 
   it('assign() propagates 409 ConflictException from backend', (done) => {
     service.assign('inc-1', 'op-1').subscribe({
-      next: () => fail('should have errored'),
+      next: () => done(new Error('should have errored')),
       error: (err) => {
         expect(err.status).toBe(409);
         done();

@@ -12,7 +12,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 
-import { AssignmentService, AvailableOperator, OperatorWorkload } from '../../../core/services/assignment.service';
+import { AssignmentService, AvailableOperator } from '../../../core/services/assignment.service';
 import { ToastService } from '../../../shared/components/toast/toast.service';
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 

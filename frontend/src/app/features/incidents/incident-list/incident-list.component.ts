@@ -241,7 +241,7 @@ export class IncidentListComponent implements OnInit {
     this.preSelectedIncidentId.set(null);
   }
 
-  onAssignmentCompleted(event: { incidentId: string; operatorId: string }): void {
+  onAssignmentCompleted(_event: { incidentId: string; operatorId: string }): void {
     // Refresh the incident list to reflect the new assignment status
     this.fetch();
     this.closeAssignmentModal();

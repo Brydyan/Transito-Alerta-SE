@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/angular';
+import { render, screen } from '@testing-library/angular';
 import { of } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 import { LocationListComponent } from './location-list.component';
