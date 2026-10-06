@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, DestroyRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
@@ -10,6 +10,7 @@ import { IncidentCategoryService } from '../catalogs/incident-categories/service
 import { IncidentCategoryTreeNode } from '../catalogs/incident-categories/interfaces/iincident-category.interface';
 import { MapPickerComponent } from '../../shared/components';
 import { lastValueFrom, Subscription } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ANONYMOUS_DISCLOSURE_NOTICE } from '../../core/constants/anonymous-disclosure-notice.constant';
 import { UiCardComponent } from '../../shared/components/ui-card/ui-card.component';
 import { UiPageHeaderComponent } from '../../shared/components/ui-page-header/ui-page-header.component';
@@ -24,6 +25,8 @@ import { AuthService } from '../../core/services/auth.service';
   templateUrl: './citizen-report.component.html'
 })
 export class CitizenReportComponent implements OnInit, OnDestroy {
+  private readonly destroyRef = inject(DestroyRef);
+
   currentStep = 1;
   form: FormGroup;
   selectedPhotos: Blob[] = [];
@@ -90,6 +93,27 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
     this.formSub = this.form.valueChanges.subscribe(() => {
       this.saveDraft();
     });
+
+    // 2026-09-22-sc-subcategory-priority-assignment (D7) — when the
+    // citizen picks a sub-category, pre-fill the incident priority
+    // from the category's priority. Subscribed BEFORE any patchValue
+    // of categoryId so the first selection also fires it.
+    this.form
+      .get('categoryId')
+      ?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((categoryId) => {
+        if (!categoryId) return;
+        this.categoryService.getById(categoryId as string).subscribe({
+          next: (cat) => {
+            if (cat.priority) {
+              this.form.patchValue({ priority: cat.priority });
+            }
+          },
+          error: () => {
+            // No-op: if the lookup fails we keep whatever the user picked.
+          },
+        });
+      });
   }
   
   ngOnDestroy() {

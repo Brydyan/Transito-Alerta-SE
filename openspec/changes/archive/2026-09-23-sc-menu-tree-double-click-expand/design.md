@@ -100,13 +100,18 @@ li {
 
 ---
 
-## D5: Event Propagation — No stopPropagation
+## D5: Event Propagation — Defensive stopPropagation
 
-**Decision**: Allow event to propagate. No `event.stopPropagation()` call.
+**Decision**: Call `event.stopPropagation()` on dblclick to prevent event bubbling to parent handlers.
 
 **Why**: 
-- No other elements on row listen to dblclick
-- Clean separation: dblclick only triggers `toggleExpand()`
+- The row element itself has `(click)="selectNode(id)"` — without stopPropagation, dblclick triggers two click events that bubble up
+- Future parent containers may add dblclick listeners (e.g., if the tree is nested inside a clickable card)
+- Defensive measure: prevents unexpected behavior from parent event handlers that may be added later
+- User-facing behavior is unchanged — stopPropagation is invisible to end users
+- The spec (scenarios 1-6) does not require or forbid this; it only specifies user-visible outcomes
+
+**Alternative Rejected**: Allow propagation (original D5). Risk: if parent handlers are added in future, dblclick causes unintended side effects.
 
 ---
 

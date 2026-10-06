@@ -30,6 +30,9 @@ import { PaginationComponent } from '../../../shared/components/pagination/pagin
 import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.component';
 import { UiKpiCardComponent } from '../../../shared/components/ui-kpi-card/ui-kpi-card.component';
 import { UiTableComponent } from '../../../shared/components/ui-table/ui-table.component';
+import { ActionsDropdownComponent } from '../actions-dropdown/actions-dropdown.component';
+import { AssignmentModalComponent } from '../assignment-modal/assignment-modal.component';
+import { TrackingPanelComponent } from '../tracking-panel/tracking-panel.component';
 
 // FIX-16 — reverse geocode cache (same approach as feed incident-card).
 // Duplicated locally to avoid coupling feed ↔ list; both share Nominatim
@@ -90,6 +93,9 @@ function extractPlaceName(data: { address?: Record<string, string>; display_name
     UiCardComponent,
     UiKpiCardComponent,
     UiTableComponent,
+    ActionsDropdownComponent,
+    AssignmentModalComponent,
+    TrackingPanelComponent,
   ],
   templateUrl: './incident-list.component.html',
   styleUrl: './incident-list.component.css',
@@ -129,6 +135,29 @@ export class IncidentListComponent implements OnInit {
   readonly permissions = computed<string[]>(
     () => this.authService.user()?.permissions ?? [],
   );
+
+  /**
+   * True when the current user has the ASSIGN permission on assignments.
+   * Format matches backend `RequirePermission('ASSIGN')` → resolved by the
+   * permission guard as `'ASSIGN assignments'` (verb + resource).
+   * Controls visibility of: toolbar "Asignar" button, row "Asignar" option.
+   */
+  readonly hasAssignPermission = computed<boolean>(() =>
+    this.permissions().includes('ASSIGN assignments'),
+  );
+
+  // ── Assignment modal state ─────────────────────────────────────────
+  readonly assignmentModalOpen = signal<boolean>(false);
+  /** Incident pre-selected when modal is opened from a row action. */
+  readonly preSelectedIncidentId = signal<string | null>(null);
+
+  // ── Row dropdown state ─────────────────────────────────────────────
+  /** ID of the incident whose dropdown is currently open. null = none. */
+  readonly dropdownOpenId = signal<string | null>(null);
+
+  // ── Tracking panel state ───────────────────────────────────────────
+  readonly trackingPanelOpen = signal<boolean>(false);
+  readonly trackingIncidentId = signal<string | null>(null);
 
   // ── Catálogos de filtros (mock 02-01) ──────────────────────────────
   // Los valores `pendiente`/`en_proceso`/`resuelto`/`cerrada` son
@@ -192,6 +221,53 @@ export class IncidentListComponent implements OnInit {
   /** Traduce `IncidentPriority` (wire) → `UiBadgePriority` (F0). */
   badgePriorityFor(p: IncidentPriority): UiBadgePriority {
     return p;
+  }
+
+  // ── Assignment modal ────────────────────────────────────────────────
+
+  /**
+   * Opens the assignment modal.
+   * Optional `incidentId` pre-selects an incident (row "Asignar" action).
+   * No argument = opens for manual selection (toolbar button).
+   */
+  openAssignmentModal(incidentId?: string): void {
+    this.preSelectedIncidentId.set(incidentId ?? null);
+    this.assignmentModalOpen.set(true);
+    this.closeDropdown();
+  }
+
+  closeAssignmentModal(): void {
+    this.assignmentModalOpen.set(false);
+    this.preSelectedIncidentId.set(null);
+  }
+
+  onAssignmentCompleted(_event: { incidentId: string; operatorId: string }): void {
+    // Refresh the incident list to reflect the new assignment status
+    this.fetch();
+    this.closeAssignmentModal();
+  }
+
+  // ── Row dropdown ────────────────────────────────────────────────────
+
+  openDropdown(incidentId: string): void {
+    this.dropdownOpenId.set(incidentId);
+  }
+
+  closeDropdown(): void {
+    this.dropdownOpenId.set(null);
+  }
+
+  // ── Tracking panel ──────────────────────────────────────────────────
+
+  openTracking(incidentId: string): void {
+    this.trackingIncidentId.set(incidentId);
+    this.trackingPanelOpen.set(true);
+    this.closeDropdown();
+  }
+
+  closeTracking(): void {
+    this.trackingPanelOpen.set(false);
+    this.trackingIncidentId.set(null);
   }
 
   /** Construye los query params actuales (sc-339: zone_id, status, page, limit). */

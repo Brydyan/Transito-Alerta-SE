@@ -160,7 +160,7 @@ describe('CategoryFormComponent', () => {
     fixture.detectChanges();
 
     expect(form.isSub()).toBe(true);
-    expect(form.parentIdControl.hasValidator).toBeTruthy?.();
+    expect(form.parentIdControl.hasValidator).toBeTruthy();
     // The parent_id control now requires a value.
     expect(form.parentIdControl.errors?.['required']).toBeTruthy();
     // The select is now in the DOM.
@@ -207,6 +207,8 @@ describe('CategoryFormComponent', () => {
       name: 'Sub A',
       description: 'desc',
       parent_id: 'root-1',
+      // 2026-09-22 — form default is 'medium'; user didn't change it.
+      priority: 'medium',
     });
     expect(mockToastService.success).toHaveBeenCalledWith(
       'Sub-categoría creada correctamente',
@@ -229,10 +231,13 @@ describe('CategoryFormComponent', () => {
     form.form.patchValue({ name: 'Root X', description: '' });
     form.onSubmit();
 
+    // 2026-09-22 — payload now carries `priority: undefined` for root
+    // categories so the backend ignores it (server enforces NULL on roots).
     expect(mockCategoryService.create).toHaveBeenCalledWith({
       name: 'Root X',
       description: null,
       parent_id: null,
+      priority: undefined,
     });
     expect(mockToastService.success).toHaveBeenCalledWith(
       'Categoría creada correctamente',
@@ -275,5 +280,160 @@ describe('CategoryFormComponent', () => {
     expect(screen.queryByTestId('category-type-sub')).toBeNull();
     // Description field is pre-filled from the loaded category.
     expect(form.descriptionControl.value).toBe('preloaded');
+  });
+
+  // ── 2026-09-22-sc-subcategory-priority-assignment ─────────────────────
+  // D1/D5/D6 (design.md) — priority radio buttons render only when
+  // mode='sub', default to 'medium', and are included in the create
+  // payload only when isSub() is true.
+
+  describe('priority field', () => {
+    it('is hidden in root mode (CREATE)', async () => {
+      const { fixture } = await render(CategoryFormComponent, {
+        imports: [ReactiveFormsModule],
+        providers: [
+          { provide: IncidentCategoryService, useValue: mockCategoryService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+
+      fixture.detectChanges();
+
+      // The fieldset legend is the visible marker of the priority group.
+      expect(screen.queryByText(/^Prioridad$/)).toBeNull();
+    });
+
+    it('is visible in sub mode (CREATE) with default value "medium"', async () => {
+      mockCategoryService.getTree.mockReturnValue(
+        of([{ id: 'root-1', name: 'Root A', children: [] }]),
+      );
+
+      const { fixture } = await render(CategoryFormComponent, {
+        imports: [ReactiveFormsModule],
+        providers: [
+          { provide: IncidentCategoryService, useValue: mockCategoryService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+
+      const form = fixture.componentInstance;
+      form.setMode('sub');
+      fixture.detectChanges();
+
+      // Fieldset legend visible.
+      expect(screen.queryByText(/^Prioridad$/)).not.toBeNull();
+      // Default value in the form control is 'medium'.
+      expect(form.form.get('priority')?.value).toBe('medium');
+    });
+
+    it('includes priority in the payload when creating a sub-category', async () => {
+      mockCategoryService.getTree.mockReturnValue(
+        of([{ id: 'root-1', name: 'Root A', children: [] }]),
+      );
+      mockCategoryService.create.mockReturnValue(
+        of({
+          id: 'new-id',
+          name: 'Sub A',
+          description: null,
+          parent_id: 'root-1',
+          priority: 'high',
+          created_at: '',
+          updated_at: '',
+        }),
+      );
+
+      const { fixture } = await render(CategoryFormComponent, {
+        imports: [ReactiveFormsModule],
+        providers: [
+          { provide: IncidentCategoryService, useValue: mockCategoryService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+
+      const form = fixture.componentInstance;
+      form.setMode('sub');
+      fixture.detectChanges();
+      form.form.patchValue({
+        name: 'Sub A',
+        parent_id: 'root-1',
+        priority: 'high',
+      });
+      form.onSubmit();
+
+      expect(mockCategoryService.create).toHaveBeenCalledWith({
+        name: 'Sub A',
+        description: null,
+        parent_id: 'root-1',
+        priority: 'high',
+      });
+    });
+
+    it('does NOT include priority in the payload when creating a root category', async () => {
+      const { fixture } = await render(CategoryFormComponent, {
+        imports: [ReactiveFormsModule],
+        providers: [
+          { provide: IncidentCategoryService, useValue: mockCategoryService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+
+      const form = fixture.componentInstance;
+      form.form.patchValue({ name: 'Root X', description: '' });
+      form.onSubmit();
+
+      // The form control has a value but the payload sends it as
+      // `undefined` so the backend ignores it (server forces NULL on roots).
+      const payload = mockCategoryService.create.mock.calls[0][0];
+      expect(payload.priority).toBeUndefined();
+      expect(payload.parent_id).toBeNull();
+    });
+
+    it('patches the existing priority when loading a sub-category for edit', async () => {
+      mockActivatedRoute = {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        snapshot: { paramMap: { get: ((k: string) => (k === 'id' ? 'sub-99' : null)) as any } },
+      };
+      mockCategoryService.getById.mockReturnValue(
+        of({
+          id: 'sub-99',
+          name: 'Existing sub',
+          description: 'preloaded',
+          parent_id: 'root-1',
+          priority: 'critical',
+          created_at: '',
+          updated_at: '',
+        }),
+      );
+
+      const { fixture } = await render(CategoryFormComponent, {
+        imports: [ReactiveFormsModule],
+        providers: [
+          { provide: IncidentCategoryService, useValue: mockCategoryService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+
+      // Wait for the async getById to resolve and patch the form.
+      await new Promise((r) => setTimeout(r, 0));
+      fixture.detectChanges();
+
+      const form = fixture.componentInstance;
+      expect(form.form.get('priority')?.value).toBe('critical');
+    });
   });
 });

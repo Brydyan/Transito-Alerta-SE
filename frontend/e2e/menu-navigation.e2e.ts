@@ -144,3 +144,60 @@ test.describe('F1.6.2 — operador_org ve un subconjunto navegable', () => {
     }
   });
 });
+
+/**
+ * 2026-09-22-sc-menu-tree-double-click-expand
+ * Verifica el gesto de doble-click en filas del árbol de menú
+ * (MenuTreeComponent) en /app/admin/controles.
+ *
+ * El árbol renderiza cada item como `div.tree-node`. Los items con
+ * hijos llevan un `button.expand-btn.chevron-btn`. El nuevo gesto:
+ * doble-click en la fila = toggle expand/collapse.
+ */
+test.describe('2026-09-22 — doble-click en MenuTreeComponent', () => {
+  function rowByName(page: Page, name: string) {
+    return page
+      .locator('div.tree-node')
+      .filter({ has: page.locator('span.text-sm', { hasText: new RegExp(`^${name}$`) }) })
+      .first();
+  }
+
+  function chevronOf(row: ReturnType<typeof rowByName>) {
+    return row.locator('button.expand-btn.chevron-btn');
+  }
+
+  test.beforeEach(async ({ page }) => {
+    const creds = resolveE2eAdminCredentials();
+    if (creds.skip) {
+      test.skip(creds.skip, creds.reason);
+      return;
+    }
+    await login(page, creds.user, creds.password);
+    await page.goto('/app/admin/controles');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('div.tree-node', { timeout: 10_000 });
+  });
+
+  test('doble-click en fila con hijos expande', async ({ page }) => {
+    const row = rowByName(page, 'Incidencias');
+    const chevron = chevronOf(row);
+    await expect(chevron).not.toHaveClass(/chevron-expanded/);
+
+    await row.dblclick();
+
+    await expect(chevron).toHaveClass(/chevron-expanded/, { timeout: 2_000 });
+  });
+
+  test('doble-click en fila expandida colapsa', async ({ page }) => {
+    const row = rowByName(page, 'Incidencias');
+    const chevron = chevronOf(row);
+
+    // Precondición: expandir primero
+    await row.dblclick();
+    await expect(chevron).toHaveClass(/chevron-expanded/);
+
+    // Segundo dblclick colapsa
+    await row.dblclick();
+    await expect(chevron).not.toHaveClass(/chevron-expanded/, { timeout: 2_000 });
+  });
+});

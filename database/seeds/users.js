@@ -32,7 +32,9 @@
  */
 'use strict';
 
-require('dotenv').config({ path: require('path').resolve(__dirname, '../../backend/.env') });
+try {
+  require('dotenv').config({ path: require('path').resolve(__dirname, '../../backend/.env') });
+} catch (_) {}
 
 const { Client, bcrypt } = require('./lib/deps');
 const { enforce } = require('./lib/guard');

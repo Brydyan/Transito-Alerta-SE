@@ -4,6 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RoleEntity } from '../../entities/role.entity';
 import { UserEntity } from '../../entities/user.entity';
 import { PermissionEntity } from '../../entities/permission.entity';
+import { MenuOptionRoleEntity } from '../menus/entities/menu-option-role.entity';
+import { MenuOptionEntity } from '../menus/entities/menu-option.entity';
 import { RoleRankAudit } from '../../common/authz/role-rank.audit';
 import { AuthModule } from '../auth/auth.module';
 import { RolesController } from './roles.controller';
@@ -17,7 +19,10 @@ import { RolesService } from './roles.service';
  * entry; `RoleEntity` is already registered here.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([RoleEntity, UserEntity, PermissionEntity]), AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([RoleEntity, UserEntity, PermissionEntity, MenuOptionRoleEntity, MenuOptionEntity]),
+    AuthModule,
+  ],
   controllers: [RolesController],
   providers: [RolesService, RoleRankAudit],
   exports: [RolesService],

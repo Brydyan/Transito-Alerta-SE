@@ -121,6 +121,54 @@ describe('MenuTreeComponent', () => {
     expect(rendered).toContain('Leaf');
   });
 
+  // ── 2026-09-22-sc-menu-tree-double-click-expand ─────────────────────
+  // Doble-click en fila con hijos = toggle. Doble-click en hoja = no-op.
+
+  describe('double-click on row', () => {
+    function findNodeRow(name: string): HTMLElement | undefined {
+      return (
+        Array.from(
+          fixture.nativeElement.querySelectorAll('div.tree-node'),
+        ) as HTMLElement[]
+      ).find((node) => node.querySelector('span.text-sm')?.textContent?.trim() === name);
+    }
+
+    function dispatchDblClick(el: HTMLElement): void {
+      el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    }
+
+    it('toggles expand/collapse when double-clicking a row that has children', () => {
+      const row = findNodeRow('Incidencias');
+      expect(row).toBeTruthy();
+      expect(component.isExpanded('a2')).toBe(false);
+
+      dispatchDblClick(row!);
+      fixture.detectChanges();
+
+      expect(component.isExpanded('a2')).toBe(true);
+    });
+
+    it('does NOT call toggleExpand when double-clicking a leaf row (no children)', () => {
+      const row = findNodeRow('Dashboard');
+      expect(row).toBeTruthy();
+
+      const toggleSpy = jest.spyOn(component, 'toggleExpand');
+
+      dispatchDblClick(row!);
+      fixture.detectChanges();
+
+      expect(toggleSpy).not.toHaveBeenCalled();
+    });
+
+    it('applies the has-children class only to rows that have children', () => {
+      const withChildren = findNodeRow('Incidencias');
+      const leaf = findNodeRow('Dashboard');
+
+      expect(withChildren!.classList.contains('has-children')).toBe(true);
+      expect(leaf!.classList.contains('has-children')).toBe(false);
+    });
+  });
+
   // ── sc-334 admin-controles-enhancements Phase 3 (D3/R3) — chevron ──
 
   describe('chevron indicator', () => {

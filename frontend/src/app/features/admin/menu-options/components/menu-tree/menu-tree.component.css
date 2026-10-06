@@ -14,6 +14,15 @@
   user-select: none;
 }
 
+/* 2026-09-22-sc-menu-tree-double-click-expand — cursor + user-select
+ * redundante para filas con hijos (señal de interactividad; evita
+ * selección de texto al doble-click).
+ */
+.tree-node.has-children {
+  cursor: pointer;
+  user-select: none;
+}
+
 /* sc-334 admin-controles-enhancements Phase 3 (D3/R3) — chevron
  * indicators on nodes with children. Single icon, CSS rotation on
  * expand for a smooth visual transition.
