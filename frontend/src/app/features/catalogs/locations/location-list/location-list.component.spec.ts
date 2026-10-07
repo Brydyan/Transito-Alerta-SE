@@ -249,7 +249,7 @@ describe('LocationListComponent', () => {
       mockRouter = { navigate: jest.fn() };
     });
 
-    const renderListWithRouter = (items: IGeoZone[] = []) =>
+    const renderListWithRouter = () =>
       render(LocationListComponent, {
         providers: [
           { provide: GeoZoneService, useValue: mockGeoZoneService },
