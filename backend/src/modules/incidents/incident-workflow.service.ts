@@ -33,6 +33,8 @@ import {
 import { unwrapReturningRows, IncidentRow } from './incidents.repository';
 import { AvailableOperatorDto } from './dto/available-operator.dto';
 import { ClaimReleaseResponseDto } from './dto/claim-release-response.dto';
+import { hasPermission } from '../../common/guards/permission.guard';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 
 // Shape of the row returned by the CAS UPDATE statements; we cast and then
 // re-project into ClaimReleaseResponseDto at the controller boundary. The
@@ -75,6 +77,10 @@ export class IncidentWorkflowService {
     private readonly geofencingService: GeofencingService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // F6 fix (post-0051): las perms del user viven como UUIDs; para
+    // verificar `CLOSE incidents` hay que traducir la (action, resource)
+    // a UUID vía el resolver — `includes('CLOSE incidents')` NO funciona.
+    private readonly permissionLookup: PermissionLookupService,
   ) {}
 
   /**
@@ -289,7 +295,13 @@ export class IncidentWorkflowService {
             message: 'closing an incident requires a non-empty reason',
           });
         }
-        if (!actorPermissions.includes('CLOSE incidents')) {
+        const canClose = await hasPermission(
+          [...actorPermissions],
+          'CLOSE',
+          'incidents',
+          this.permissionLookup,
+        );
+        if (!canClose) {
           throw new ForbiddenException({
             code: 'INCIDENT_CLOSE_PERMISSION_REQUIRED',
             message: 'closing an incident requires the CLOSE incidents permission',

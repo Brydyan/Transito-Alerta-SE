@@ -13,6 +13,7 @@ import { DataSource, Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { REDIS_CLIENT } from '../../core/core.module';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { GeofencingService } from '../geofencing/geofencing.service';
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { IncidentWorkflowService } from './incident-workflow.service';
@@ -43,6 +44,16 @@ const SIDE_EFFECT_DOUBLES = [
   },
   { provide: EventEmitter2, useValue: { emit: jest.fn() } },
   { provide: REDIS_CLIENT, useValue: { xadd: jest.fn().mockResolvedValue('1-0') } },
+  // F6 fix (post-0051): `changeStatus()` traduce (action, resource) → UUID
+  // vía el resolver antes de comparar (las perms del user ahora son UUIDs).
+  // Stub devuelve `"ACTION resource"` —el string formateado que los tests
+  // usan en `actorPermissions`— para mantener los asserts de auth exactos.
+  {
+    provide: PermissionLookupService,
+    useValue: {
+      getUuid: jest.fn(async (action: string, resource: string) => `${action} ${resource}`),
+    },
+  },
 ];
 
 // ---------- helpers ----------------------------------------------------------
