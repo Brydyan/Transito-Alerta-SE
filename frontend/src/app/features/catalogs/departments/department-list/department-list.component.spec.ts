@@ -280,6 +280,8 @@ describe('DepartmentListComponent', () => {
         description: null,
         user_count: 0,
         created_at: '2026-09-01',
+        updated_at: '2026-09-01',
+        deleted_at: null,
       });
 
       expect(mockRouter.navigate).toHaveBeenCalledWith([

@@ -3,7 +3,7 @@ import * as L from 'leaflet';
 import { MapComponent, ZONE_STYLES } from './map.component';
 import { MapDataService } from './services/map-data.service';
 import { GeoZoneService } from '../../catalogs/locations/services/geo-zone.service';
-import { IGeoZone } from '../../catalogs/locations/interfaces/igeo-zone.interface';
+import { IGeoZone, IGeoJsonPolygon } from '../../catalogs/locations/interfaces/igeo-zone.interface';
 import { of } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { ActivatedRoute } from '@angular/router';
@@ -226,8 +226,8 @@ describe('MapComponent', () => {
       } as unknown as ReturnType<typeof L.geoJSON>);
 
       const corruptedZones = [
-        makeZone({ id: 'bad-1', polygon: '{not valid json' }),
-        makeZone({ id: 'bad-2', polygon: null as unknown as object }),
+        makeZone({ id: 'bad-1', polygon: '{not valid json' as unknown as IGeoJsonPolygon }),
+        makeZone({ id: 'bad-2', polygon: null as unknown as IGeoJsonPolygon }),
         makeZone({ id: 'bad-3', polygon: undefined }),
       ];
 
