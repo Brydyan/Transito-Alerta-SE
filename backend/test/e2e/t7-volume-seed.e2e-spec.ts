@@ -23,9 +23,17 @@ import { MigrationHarness } from '../support/migration-harness';
  *  - `resolution_date` sólo si status ∈ {resolved, closed}.
  *  - `notifications.type` ∈ {5 valores del CHECK 0022}.
  *  - `comments` con profundidad ≤ 2 (R9.2, enforced en JS, no en DB).
- *  - **El paso de aprobación a `closed` NO escribe fila en status_history**
- *    (motivo: chk_status_history_new_status — ver tasks.md T7.9.D10). El
- *    test lo enforza con un assert explícito.
+ *  - **El seeder no emite la transición a `closed` en status_history.**
+ *    Antes de 0068 esto era forzoso: `chk_status_history_new_status` sólo
+ *    admitía `('pending','in_progress','resolved')` y una fila con
+ *    `new_status='closed'` violaba la constraint. 0068
+ *    (`status_history_status_checks.sql`) amplió el dominio al de la
+ *    máquina de estados — porque `IncidentWorkflowService.changeStatus()`
+ *    escribe `closed` en producción y el cierre era imposible. Desde 0068
+ *    el seeder PODRÍA emitirla y no lo hace por decisión propia: este
+ *    assert documenta esa elección del seeder, no una limitación de la base.
+ *    La cobertura del dominio nuevo vive en
+ *    `test/migrations/status-history-status-checks.e2e-spec.ts`.
  */
 describe('T7.9.D9 — database/seeds/volume-incidents.js (1000 incidentes, ciclo completo)', () => {
   const REPO_ROOT = resolve(__dirname, '../../..');
@@ -107,16 +115,18 @@ describe('T7.9.D9 — database/seeds/volume-incidents.js (1000 incidentes, ciclo
   });
 
   it('cada incidente sigue un ciclo de vida válido y consistente', async () => {
-    // status_history: una fila por transición VÁLIDA — la transición
-    // "resuelto -> cerrado" NO se registra (ver D9 / T7.9.D10). Por cada
-    // incidente con status != pending esperamos exactamente N-1 filas,
-    // donde N es el número de transiciones del ciclo resuelto.
+    // status_history: el seeder escribe una fila por cada transición que
+    // ELIGE escribir, y no escribe ni la fila de nacimiento `created`
+    // (la siembra `IncidentsService.create()` es cosa del runtime, no del
+    // seeder) ni la transición a `closed`. Por cada incidente esperamos
+    // exactamente las filas que el seeder emite:
     //
     // pending    → 0 filas
     // in_progress → 1 fila (pending->in_progress)
     // resolved   → 2 filas (pending->in_progress, in_progress->resolved)
-    // closed     → 2 filas (NO se agrega la de approved→closed por la
-    //             constraint chk_status_history_new_status; ver T7.9.D10)
+    // closed     → 2 filas (el seeder no emite la transición a `closed`;
+    //             desde 0068 la base la admitiría, así que esto ya no es
+    //             una limitación del CHECK — ver la cabecera del spec)
     const rows = await db.rows<{
       status: string;
       history_count: string;
@@ -212,12 +222,20 @@ describe('T7.9.D9 — database/seeds/volume-incidents.js (1000 incidentes, ciclo
     expect(deep).toEqual([]);
   });
 
-  it('la transición de aprobación a `closed` NO escribe fila en status_history', async () => {
-    // Assert explícito que documenta el "no arreglar esto" de T7.9.D10:
-    // chk_status_history_new_status sólo permite pending/in_progress/resolved
-    // — un row con new_status='closed' violaría la constraint. El
-    // IncidenteApprovalService.approve tampoco emite ese evento en
-    // producción. El seeder es fiel a ese comportamiento.
+  it('el seeder sólo escribe transiciones pending/in_progress/resolved en status_history', async () => {
+    // Este assert solía justificarse como "no arreglar esto" de T7.9.D10:
+    // chk_status_history_new_status sólo permitiera pending/in_progress/
+    // resolved, así que una fila con new_status='closed' era imposible.
+    // 0068 amplió el dominio, de modo que ahora la consulta ya no está
+    // probando una restricción de la base: está probando lo que el SEEDER
+    // decide escribir. Sigue siendo un assert válido —el seeder es fiel a
+    // ese comportamiento y no emite la transición a `closed`—, pero su
+    // razón cambió, y un assert que pasa por el motivo equivocado es peor
+    // que uno roto: invita a "arreglar" la fila cuando el problema real
+    // está en otro lado (acá: que IncidentsService.create() sí escribe
+    // `created` y changeStatus() sí escribe `closed` en producción).
+    // La cobertura del dominio real está en
+    // test/migrations/status-history-status-checks.e2e-spec.ts.
     const offenders = await db.rows<{ incident_id: string; new_status: string }>(
       `SELECT sh.incident_id, sh.new_status
          FROM status_history sh
