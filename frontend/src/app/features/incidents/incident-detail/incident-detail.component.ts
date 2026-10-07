@@ -4,7 +4,12 @@ import {
   computed,
   inject,
   OnInit,
+  OnDestroy,
+  ViewChild,
+  ElementRef,
   signal,
+  effect,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -35,6 +40,8 @@ import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.comp
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { CommentThreadComponent } from '../components/comment-thread/comment-thread.component';
+import { IncidentImagesComponent } from '../../../shared/components/incident-images/incident-images.component';
+import * as L from 'leaflet';
 
 /**
  * F3 (sc-303) — F3.4 Detalle de Incidencia.
@@ -74,12 +81,13 @@ import { CommentThreadComponent } from '../components/comment-thread/comment-thr
     UiIconComponent,
     EmptyStateComponent,
     CommentThreadComponent,
+    IncidentImagesComponent,
   ],
   templateUrl: './incident-detail.component.html',
   styleUrl: './incident-detail.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class IncidentDetailComponent implements OnInit {
+export class IncidentDetailComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly incidentService = inject(IncidentService);
@@ -114,6 +122,28 @@ export class IncidentDetailComponent implements OnInit {
     const inc = this.incident();
     return !!inc && Number.isFinite(inc.lat) && Number.isFinite(inc.lng);
   });
+
+  // ── Map State ─────────────────────────────────────────────────────
+  readonly mapContainer = viewChild<ElementRef<HTMLElement>>('mapContainer');
+  private mapInstance: L.Map | null = null;
+
+  constructor() {
+    effect(() => {
+      const el = this.mapContainer();
+      const inc = this.incident();
+      if (el && inc && this.hasCoordinates()) {
+        if (!this.mapInstance) {
+          this.mapInstance = L.map(el.nativeElement).setView([inc.lat, inc.lng], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+          }).addTo(this.mapInstance);
+          L.marker([inc.lat, inc.lng]).addTo(this.mapInstance);
+        } else {
+          this.mapInstance.setView([inc.lat, inc.lng], 15);
+        }
+      }
+    });
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -318,6 +348,13 @@ export class IncidentDetailComponent implements OnInit {
 
   onCommentsChanged(comments: Comment[]): void {
     this.comments.set(comments);
+  }
+
+  ngOnDestroy(): void {
+    if (this.mapInstance) {
+      this.mapInstance.remove();
+      this.mapInstance = null;
+    }
   }
 
   goBack(): void {
