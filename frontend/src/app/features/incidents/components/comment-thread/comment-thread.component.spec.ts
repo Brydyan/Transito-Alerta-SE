@@ -117,4 +117,29 @@ describe('CommentThreadComponent (F3.5.7)', () => {
     expect(component.attachments().length).toBe(1);
     expect(component.attachments()[0].name).toBe('b.png');
   });
+
+  it('T6 — publicación transiciona localmente por signals sin requerir recarga', async () => {
+    const { component, fixture } = setup(['CREATE comments']);
+    const commentService = TestBed.inject(CommentService);
+    const newComment = { ...baseComment, id: 'c-2', content: 'nuevo comentario' };
+    
+    // Mock the createComment method using jest spy
+    const { of } = require('rxjs');
+    jest.spyOn(commentService, 'createComment').mockReturnValue(of(newComment));
+    
+    let emittedComments: Comment[] | undefined;
+    component.commentsChanged.subscribe(comments => {
+      emittedComments = comments;
+    });
+
+    component.toggleComposer();
+    component.composerCtrl.setValue('nuevo comentario');
+    await component.submit();
+
+    // Verification: It should emit the new comment PREPENDED to the existing array.
+    expect(commentService.createComment).toHaveBeenCalled();
+    expect(emittedComments).toBeDefined();
+    expect(emittedComments!.length).toBe(2);
+    expect(emittedComments![0].id).toBe('c-2');
+  });
 });
