@@ -167,6 +167,6 @@
 @if (trackingPanelOpen()) {
   <app-tracking-panel
     [incidentId]="trackingIncidentId()!"
-    (close)="closeTracking()"
+    (closed)="closeTracking()"
   />
 }
