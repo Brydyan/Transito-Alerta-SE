@@ -189,4 +189,114 @@ describe('IncidentFeedService', () => {
       expect(selectSql).toContain('i.status');
     });
   });
+
+  // ── 2026-10-05-map-polygon-and-feed-filters-fix ─────────────────────
+  // D3 (design.md) — parity between getStaffFeed and getCitizenFeed.
+  // getCitizenFeed MUST filter on `priority` and `incident_category_id`
+  // in both the Redis-cache branch and the Postgres-fallback branch.
+
+  describe('getCitizenFeed — priority & incident_category_id parity', () => {
+    const cachedItem = (over: Record<string, unknown> = {}) => ({
+      id: 'r-1',
+      status: 'pending',
+      priority: 'medium',
+      incident_category_id: 'cat-1',
+      location_id: null,
+      ...over,
+    });
+
+    it('cache: filters by priority', async () => {
+      cache.get.mockResolvedValue([
+        cachedItem({ id: 'r-1', priority: 'high' }),
+        cachedItem({ id: 'r-2', priority: 'low' }),
+        cachedItem({ id: 'r-3', priority: 'high' }),
+      ]);
+
+      const result = await service.getCitizenFeed({
+        priority: 'high',
+        page: 1,
+        per_page: 10,
+      } as Filters);
+
+      expect(result.data.map((d) => d.id)).toEqual(['r-1', 'r-3']);
+      expect(result.meta.total).toBe(2);
+    });
+
+    it('cache: filters by incident_category_id', async () => {
+      cache.get.mockResolvedValue([
+        cachedItem({ id: 'r-1', incident_category_id: 'cat-A' }),
+        cachedItem({ id: 'r-2', incident_category_id: 'cat-B' }),
+        cachedItem({ id: 'r-3', incident_category_id: 'cat-A' }),
+      ]);
+
+      const result = await service.getCitizenFeed({
+        incident_category_id: 'cat-A',
+        page: 1,
+        per_page: 10,
+      } as Filters);
+
+      expect(result.data.map((d) => d.id)).toEqual(['r-1', 'r-3']);
+    });
+
+    it('cache: combined priority + category + zone filters compose correctly', async () => {
+      cache.get.mockResolvedValue([
+        cachedItem({
+          id: 'r-1',
+          priority: 'high',
+          incident_category_id: 'cat-A',
+          location_id: 'cant-1',
+        }),
+        cachedItem({
+          id: 'r-2',
+          priority: 'high',
+          incident_category_id: 'cat-A',
+          location_id: 'other-zone',
+        }),
+        cachedItem({
+          id: 'r-3',
+          priority: 'low',
+          incident_category_id: 'cat-A',
+          location_id: 'cant-1',
+        }),
+      ]);
+
+      // resolveZoneHierarchy mock returns only cant-1 for zone prov-1.
+      ds.query.mockResolvedValue([{ id: 'cant-1' }]);
+
+      const result = await service.getCitizenFeed({
+        priority: 'high',
+        incident_category_id: 'cat-A',
+        zone_id: 'prov-1',
+        page: 1,
+        per_page: 10,
+      } as Filters);
+
+      // Only r-1 matches all three filters.
+      expect(result.data.map((d) => d.id)).toEqual(['r-1']);
+    });
+
+    it('fallback: SQL includes i.priority and i.category_id clauses', async () => {
+      cache.get.mockResolvedValue(undefined);
+
+      // No zone_id provided, so resolveZoneHierarchy is skipped.
+      ds.query
+        .mockResolvedValueOnce([]) // SELECT (call 0)
+        .mockResolvedValueOnce([{ count: '0' }]); // COUNT (call 1)
+
+      await service.getCitizenFeed({
+        priority: 'critical',
+        incident_category_id: 'cat-X',
+        page: 1,
+        per_page: 10,
+      } as Filters);
+
+      const selectSql = (ds.query.mock.calls[0] as [string, unknown[]])[0];
+      const selectParams = (ds.query.mock.calls[0] as [string, unknown[]])[1];
+
+      expect(selectSql).toContain('i.priority = $');
+      expect(selectSql).toContain('i.category_id = $');
+      expect(selectParams).toContain('critical');
+      expect(selectParams).toContain('cat-X');
+    });
+  });
 });

@@ -180,6 +180,11 @@ export class IncidentFeedService {
     if (cached) {
       let items = cached;
       if (query.status) items = items.filter((i) => i.status === query.status);
+      // 2026-10-05-map-polygon-and-feed-filters-fix D3 — parity with
+      // getStaffFeed: apply priority and incident_category_id to the
+      // cached feed as well.
+      if (query.priority) items = items.filter((i) => i.priority === query.priority);
+      if (query.incident_category_id) items = items.filter((i) => i.incident_category_id === query.incident_category_id);
       if (query.zone_id) {
         // Fix: resolve zone hierarchy to include all child zones
         const zoneIds = await this.resolveZoneHierarchy(query.zone_id);
@@ -198,6 +203,11 @@ export class IncidentFeedService {
     const params: unknown[] = [];
     const conditions: string[] = ['1=1'];
     if (query.status) { params.push(query.status); conditions.push(`i.status = $${params.length}`); }
+    // 2026-10-05-map-polygon-and-feed-filters-fix D3 — parity with
+    // getStaffFeed: apply priority and incident_category_id to the
+    // SQL fallback too.
+    if (query.priority) { params.push(query.priority); conditions.push(`i.priority = $${params.length}`); }
+    if (query.incident_category_id) { params.push(query.incident_category_id); conditions.push(`i.category_id = $${params.length}`); }
     if (query.zone_id) {
       // Fix: resolve zone hierarchy to include all child zones
       const zoneIds = await this.resolveZoneHierarchy(query.zone_id);

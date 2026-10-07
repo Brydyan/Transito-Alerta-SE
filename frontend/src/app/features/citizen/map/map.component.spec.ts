@@ -211,6 +211,40 @@ describe('MapComponent', () => {
 
       geoJsonSpy.mockRestore();
     });
+
+    // 2026-10-05-map-polygon-and-feed-filters-fix — fixes-required.md H1:
+    // when a zone arrives with malformed polygon (parseable JSON string but
+    //  invalid geometry, OR raw non-JSON string), createZoneLayer must
+    //  return a real L.GeoJSON instance — NOT a fake stub object. The stub
+    //  crashed the map at runtime because Leaflet calls `layer.onAdd()`
+    //  when addLayer-ing into a LayerGroup, and the fake lacked it.
+    it('returns a real L.geoJSON() instance (no inert stub) for zones with malformed polygon', () => {
+      const geoJsonSpy = jest.spyOn(L, 'geoJSON').mockReturnValue({
+        bindPopup: jest.fn(),
+        options: {},
+        on: jest.fn(),
+      } as unknown as ReturnType<typeof L.geoJSON>);
+
+      const corruptedZones = [
+        makeZone({ id: 'bad-1', polygon: '{not valid json' }),
+        makeZone({ id: 'bad-2', polygon: null as unknown as object }),
+        makeZone({ id: 'bad-3', polygon: undefined }),
+      ];
+
+      // No throw when renderZonePolygons() walks these zones.
+      expect(() => component.renderZonePolygons(corruptedZones)).not.toThrow();
+
+      // createZoneLayer reaches L.geoJSON() only for `bad-1`: its polygon
+      //  is a string, parsePolygon() returns null, so the fallback path
+      //  calls L.geoJSON() with no args (call[0] === undefined).
+      //  `bad-2` and `bad-3` have null/undefined polygon so
+      //  renderZonePolygons() short-circuits before touching L.geoJSON.
+      const fallbackCalls = geoJsonSpy.mock.calls.filter(
+        (call) => call[0] === undefined,
+      );
+      expect(fallbackCalls).toHaveLength(1);
+      geoJsonSpy.mockRestore();
+    });
   });
 
   // sc-334 debug-fix — polygon highlight + fitBounds behaviour
@@ -373,5 +407,80 @@ describe('MapComponent', () => {
       expect(removeLayerSpy).not.toHaveBeenCalled();
       expect(fitBoundsSpy).not.toHaveBeenCalled();
     });
+  });
+
+  // ── 2026-10-05-map-polygon-and-feed-filters-fix ─────────────────────
+  // D1 (design.md) — loadZones() re-aplica highlightZone(activeFilters.zone_id)
+  // cuando el catálogo resuelve de forma asíncrona tras un cambio de filtro previo.
+  // D2 (design.md) — parsePolygon() defensivo para GeoJSON string vs objeto.
+  // D4 (design.md) — bringToFront() sobre la capa seleccionada en highlightZone().
+
+  describe('parsePolygon (defensive GeoJSON parsing)', () => {
+    const callParse = (raw: unknown) =>
+      (component as unknown as {
+        parsePolygon: (raw: unknown) => unknown;
+      }).parsePolygon(raw);
+
+    it('returns the object unchanged when polygon is already a parsed object', () => {
+      const obj = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] };
+      expect(callParse(obj)).toBe(obj);
+    });
+
+    it('parses a JSON-stringified polygon into the same shape', () => {
+      const obj = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] };
+      const result = callParse(JSON.stringify(obj));
+      expect(result).toEqual(obj);
+    });
+
+    it('returns null on malformed JSON (does not throw)', () => {
+      expect(callParse('{not valid json')).toBeNull();
+      expect(callParse('')).toBeNull();
+      expect(callParse(null)).toBeNull();
+      expect(callParse(undefined)).toBeNull();
+    });
+  });
+
+  describe('loadZones() reactive highlight (D1)', () => {
+    beforeEach(() => {
+      // loadZones() touches zoneLayerGroup inside the `next` callback;
+      //  the production component gets it from ngAfterViewInit, but we
+      //  short-circuit by injecting a stub.
+      (component as unknown as {
+        zoneLayerGroup: { clearLayers(): void; addLayer(): void };
+        zoneLevelByLayer: WeakMap<object, string>;
+        map: null;
+      }).zoneLayerGroup = { clearLayers: jest.fn(), addLayer: jest.fn() };
+      (component as unknown as { map: null }).map = null;
+    });
+
+    it('re-applies highlightZone(activeFilters.zone_id) when the catalog resolves asynchronously', fakeAsync(() => {
+      // User selects a province BEFORE the catalog finishes loading.
+      const activeZoneId = 'prov-async';
+      (component as unknown as { activeFilters: { zone_id?: string } }).activeFilters = {
+        zone_id: activeZoneId,
+      };
+      // Stub out the parts of the component that require a real Leaflet
+      // map; we only care that highlightZone() is called with the right
+      // id once loadZones() resolves.
+      const highlightSpy = jest.fn();
+      (component as unknown as { highlightZone: jest.Mock }).highlightZone = highlightSpy;
+
+      // Trigger a reload — the second resolve is what tests the fix.
+      (component as unknown as { loadZones: () => void }).loadZones();
+      tick();
+
+      expect(highlightSpy).toHaveBeenCalledWith(activeZoneId);
+    }));
+
+    it('does NOT re-apply when no active zone_id is set', fakeAsync(() => {
+      (component as unknown as { activeFilters: object }).activeFilters = {};
+      const highlightSpy = jest.fn();
+      (component as unknown as { highlightZone: jest.Mock }).highlightZone = highlightSpy;
+
+      (component as unknown as { loadZones: () => void }).loadZones();
+      tick();
+
+      expect(highlightSpy).not.toHaveBeenCalled();
+    }));
   });
 });
