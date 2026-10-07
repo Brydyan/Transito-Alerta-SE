@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { CommentService } from '../../../../core/services/comment.service';
 import { ImageCompressorService } from '../../../../core/services/image-compressor.service';
@@ -62,6 +62,11 @@ export class CommentThreadComponent implements OnChanges {
     nonNullable: true,
     validators: [Validators.required, Validators.minLength(1)],
   });
+
+  /** F3.5.2 — FormGroup para que (ngSubmit) no haga submit nativo del
+   *  browser (recarga). El control vive en `composerCtrl`, el grupo lo
+   *  envuelve para bindearse al formulario. */
+  readonly composerForm = new FormGroup({ content: this.composerCtrl });
   readonly attachments = signal<File[]>([]);
   readonly submitting = signal<boolean>(false);
   readonly lastError = signal<string | null>(null);

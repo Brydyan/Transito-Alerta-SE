@@ -77,12 +77,12 @@
         Agregar comentario
       </button>
     } @else {
-      <form (ngSubmit)="submit()" data-testid="composer">
+      <form [formGroup]="composerForm" (ngSubmit)="submit()" data-testid="composer">
         <textarea
           class="form-textarea w-full"
           rows="3"
           placeholder="Escribí un comentario…"
-          [formControl]="composerCtrl"
+          formControlName="content"
           data-testid="composer-textarea"
         ></textarea>
 
