@@ -379,10 +379,32 @@ describe('IncidentDetailComponent (F3.4)', () => {
     expect(component['mapInstance']).toBeNull();
   });
 
-  it('T5 — renderiza la galería de imágenes inyectando el incidentId', () => {
-    const { fixture } = setup({ incident: baseIncident });
-    const el = fixture.nativeElement as HTMLElement;
-    const galleryContainer = el.querySelector('app-incident-images');
-    expect(galleryContainer).not.toBeNull();
+  it('T5 — botón "Abrir en Google Maps" abre la URL armada con lat/lng', () => {
+    const { component, fixture } = setup({ incident: baseIncident });
+    const openSpy = jest
+      .spyOn(window, 'open')
+      .mockImplementation(() => null);
+
+    const btn = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="open-google-maps"]',
+    );
+    expect(btn).not.toBeNull();
+
+    component.openInGoogleMaps();
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://www.google.com/maps?q=-2.2,-80.8',
+      '_blank',
+      'noopener,noreferrer',
+    );
+    openSpy.mockRestore();
+  });
+
+  it('T5 — sin coordenadas el botón de Google Maps no aparece', () => {
+    const inc: Incident = { ...baseIncident, lat: NaN, lng: NaN };
+    const { fixture } = setup({ incident: inc });
+    const btn = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="open-google-maps"]',
+    );
+    expect(btn).toBeNull();
   });
 });

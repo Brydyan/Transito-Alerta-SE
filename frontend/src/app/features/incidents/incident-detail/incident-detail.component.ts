@@ -350,6 +350,19 @@ export class IncidentDetailComponent implements OnInit, OnDestroy {
     this.comments.set(comments);
   }
 
+  /**
+   * Usabilidad del operador — el mini-mapa Leaflet es una vista previa;
+   * un toque en "Abrir en Google Maps" delega la navegación real a
+   * Google Maps con la URL armada desde lat/lng (evita mantener un
+   * cliente de mapas pesado embebido).
+   */
+  openInGoogleMaps(): void {
+    const inc = this.incident();
+    if (!inc || !this.hasCoordinates()) return;
+    const url = `https://www.google.com/maps?q=${inc.lat},${inc.lng}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
   ngOnDestroy(): void {
     if (this.mapInstance) {
       this.mapInstance.remove();

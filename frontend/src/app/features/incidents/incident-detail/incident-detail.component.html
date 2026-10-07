@@ -79,24 +79,34 @@
     </p>
   </ui-card>
 
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-    <!-- Datos y ubicación -->
+  <div class="grid grid-cols-1 lg:grid-cols-1 gap-4 mt-4">
+    <!-- Datos y ubicación — el mapa es la vista previa; el botón delega
+         la navegación a Google Maps (usabilidad del operador). -->
     @if (hasCoordinates()) {
       <ui-card title="Ubicación">
         <div class="text-sm text-slate-700 space-y-2">
           <p class="font-medium flex items-center gap-1">
-            <ui-icon name="map-pin" [size]="14" />
+            <ui-icon name="map-pin" [size]="16" />
             {{ inc.geo_zone?.name || 'Zona no disponible' }}
           </p>
           <p class="text-xs text-slate-500">
             Lat {{ inc.lat.toFixed(5) }}, Lng {{ inc.lng.toFixed(5) }}
           </p>
           <div #mapContainer class="h-48 w-full mt-3 rounded border border-slate-200"></div>
+          <button
+            type="button"
+            class="btn btn-secondary w-full mt-2"
+            data-testid="open-google-maps"
+            (click)="openInGoogleMaps()"
+          >
+            <ui-icon name="external-link" [size]="16" />
+            Abrir en Google Maps
+          </button>
         </div>
       </ui-card>
     }
 
-    <!-- Status-timeline (F3.4.5) -->
+    <!-- Status-timeline (F3.4.5)
     <ui-card title="Historial">
       @if (history().length === 0) {
         <p class="text-sm text-slate-500 italic">Sin cambios de estado registrados.</p>
@@ -126,12 +136,12 @@
           }
         </ol>
       }
-    </ui-card>
+    </ui-card> -->
 
     <!-- Galería -->
-    <ui-card title="Galería">
+    <!-- <ui-card title="Galería">
       <app-incident-images [incidentId]="inc.id" />
-    </ui-card>
+    </ui-card> -->
   </div>
 
   <!-- F3.4.7 — el hilo de comentarios se carga en paralelo (F3.4.2) -->
