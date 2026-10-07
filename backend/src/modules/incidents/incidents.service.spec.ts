@@ -110,6 +110,9 @@ describe('IncidentsService', () => {
           citizenId: 'user-1',
           organizationId: 'org-A',
         }),
+        // sc-405 (R-historia): create() corre en transacción — el
+        // segundo argumento es el manager (S.5.1).
+        expect.anything(),
       );
       expect(geofencing.purgeZoneCache).toHaveBeenCalledWith('zone-1');
       expect(eventEmitter.emit).toHaveBeenCalledWith('incident.created', expect.any(Object));
@@ -137,6 +140,7 @@ describe('IncidentsService', () => {
       expect(organizations.findNotifiedFor).toHaveBeenCalledWith(null, null);
       expect(repo.create).toHaveBeenCalledWith(
         expect.objectContaining({ zoneId: null, geofenceMatched: false, organizationId: null }),
+        expect.anything(),
       );
       expect(result.geofence_matched).toBe(false);
     });
@@ -151,7 +155,10 @@ describe('IncidentsService', () => {
         'user-1',
       );
 
-      expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ organizationId: null }));
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: null }),
+        expect.anything(),
+      );
     });
 
     // sc-315 W2 (ronda 2) — D9 del design: una incidencia con
@@ -209,6 +216,7 @@ describe('IncidentsService', () => {
 
       expect(repo.create).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: 'org-primary' }),
+        expect.anything(),
       );
     });
   });
