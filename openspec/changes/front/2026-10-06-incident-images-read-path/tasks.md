@@ -14,7 +14,7 @@ Total tasks: 10
 
 ## Phase 1: Database & Storage Migration
 
-- [ ] 1. DB migration: Create new file `database/migrations/0067_incident_images_drop_url_cleanup.sql`. DROP COLUMN `url` and DELETE the 2 dead `incident_images` rows. Note: schema syncing or running migrations via script.
+- [ ] 1. DB migration: Create new file `database/migrations/0068_incident_images_drop_url_cleanup.sql`. DROP COLUMN `url` and DELETE the 2 dead `incident_images` rows. Note: schema syncing or running migrations via script.
   - RED -> GREEN: Verify migration syntax by running `backend/scripts/apply-pending-migrations.sh`. The DB schema should successfully update.
   - Focused test command: `backend/scripts/apply-pending-migrations.sh`
   - Runtime harness: Verify DB schema reflects dropped column via `psql` or `pgAdmin`.
