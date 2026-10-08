@@ -8,6 +8,9 @@ import Redis from 'ioredis';
 import request from 'supertest';
 import type { Cache } from 'cache-manager';
 import type { RedisStore } from 'cache-manager-redis-yet';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 import { AppModule } from '../../src/app.module';
 import { SnakeCaseResponseInterceptor } from '../../src/common/interceptors/snake-case-response.interceptor';
@@ -22,6 +25,8 @@ import {
   SESSION_REDIS_CLIENT,
 } from '../../src/core/core.module';
 import { applyMigrations } from './run-migrations';
+
+const E2E_SHARED_ENV_FILE = path.join(os.tmpdir(), 'tase-e2e-shared.json');
 
 export interface ProvisionedUser {
   userId: string;
@@ -67,14 +72,12 @@ const ANONYMOUS_PERMISSIONS_JSON =
  * ship in Phases 1-2.
  *
  * One instance per spec file: call `TestEnvironment.start()` in
- * `beforeAll`, `env.stop()` in `afterAll`. Each file pays its own
- * container-startup cost — there is no cross-file container reuse.
- * Testcontainers' Ryuk reaper ties container lifetime to the Node process
- * that started them, and Jest gives each spec file its own worker process;
- * sharing one set of containers across files would need a
- * globalSetup/globalTeardown split with Ryuk disabled plus a hand-rolled
- * coordination file. Not worth the complexity for the handful of e2e files
- * Phase 4 will add — revisit if that assumption stops holding.
+ * `beforeAll`, `env.stop()` in `afterAll`. The public API is unchanged
+ * whether running standalone (per-spec containers) or in shared mode
+ * (containers started once in globalSetup, kept alive across all specs).
+ * Shared mode is detected automatically via the temp file written by
+ * `global-setup.ts`; standalone mode is the fallback for running a single
+ * spec file in isolation without `jest --config jest-e2e.json`.
  */
 export class TestEnvironment {
   private constructor(
@@ -85,48 +88,73 @@ export class TestEnvironment {
     readonly redisCache: Redis,
     /** Streams DB (0) — same logical database `incidents:events` lives on. */
     readonly redisStreams: Redis,
-    private readonly postgresContainer: StartedTestContainer,
-    private readonly redisContainer: StartedTestContainer,
+    private readonly postgresContainer: StartedTestContainer | null,
+    private readonly redisContainer: StartedTestContainer | null,
     private readonly appRedisClient: Redis,
     private readonly cacheManager: Cache<RedisStore>,
     private readonly mailBlockingClient: Redis,
     private readonly mailEventsBlockingClient: Redis,
     private readonly sessionRedisClient: Redis,
+    private readonly sharedMode: boolean = false,
   ) {}
 
   static async start(): Promise<TestEnvironment> {
-    const postgresContainer = await new GenericContainer('postgis/postgis:16-3.4')
-      .withExposedPorts(5432)
-      .withEnvironment({
-        POSTGRES_DB: 'transito_alerta_test',
-        POSTGRES_USER: 'postgres',
-        POSTGRES_PASSWORD: 'postgres',
-      })
-      .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
-      .withStartupTimeout(60_000)
-      .start();
+    // Shared mode: globalSetup already started containers and ran migrations.
+    // Connect to those existing containers instead of booting new ones.
+    const sharedMode = fs.existsSync(E2E_SHARED_ENV_FILE);
 
-    const redisContainer = await new GenericContainer('redis:7-alpine')
-      .withExposedPorts(6379)
-      .withWaitStrategy(Wait.forLogMessage(/Ready to accept connections/))
-      .withStartupTimeout(30_000)
-      .start();
+    let dbHost: string;
+    let dbPort: number;
+    let redisHost: string;
+    let redisPort: number;
+    let postgresContainer: StartedTestContainer | null = null;
+    let redisContainer: StartedTestContainer | null = null;
 
-    const dbHost = postgresContainer.getHost();
-    const dbPort = postgresContainer.getMappedPort(5432);
-    const redisHost = redisContainer.getHost();
-    const redisPort = redisContainer.getMappedPort(6379);
+    if (sharedMode) {
+      const shared = JSON.parse(fs.readFileSync(E2E_SHARED_ENV_FILE, 'utf8')) as {
+        dbHost: string;
+        dbPort: number;
+        redisHost: string;
+        redisPort: number;
+      };
+      dbHost = shared.dbHost;
+      dbPort = shared.dbPort;
+      redisHost = shared.redisHost;
+      redisPort = shared.redisPort;
+    } else {
+      postgresContainer = await new GenericContainer('postgis/postgis:16-3.4')
+        .withExposedPorts(5432)
+        .withEnvironment({
+          POSTGRES_DB: 'transito_alerta_test',
+          POSTGRES_USER: 'postgres',
+          POSTGRES_PASSWORD: 'postgres',
+        })
+        .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
+        .withStartupTimeout(60_000)
+        .start();
 
-    const migrationClient = new Client({
-      host: dbHost,
-      port: dbPort,
-      user: 'postgres',
-      password: 'postgres',
-      database: 'transito_alerta_test',
-    });
-    await migrationClient.connect();
-    await applyMigrations(migrationClient);
-    await migrationClient.end();
+      redisContainer = await new GenericContainer('redis:7-alpine')
+        .withExposedPorts(6379)
+        .withWaitStrategy(Wait.forLogMessage(/Ready to accept connections/))
+        .withStartupTimeout(30_000)
+        .start();
+
+      dbHost = postgresContainer.getHost();
+      dbPort = postgresContainer.getMappedPort(5432);
+      redisHost = redisContainer.getHost();
+      redisPort = redisContainer.getMappedPort(6379);
+
+      const migrationClient = new Client({
+        host: dbHost,
+        port: dbPort,
+        user: 'postgres',
+        password: 'postgres',
+        database: 'transito_alerta_test',
+      });
+      await migrationClient.connect();
+      await applyMigrations(migrationClient);
+      await migrationClient.end();
+    }
 
     // CoreModule's registerAs factories (database/auth/cache config) read
     // process.env when Nest instantiates them below — they must be set
@@ -318,6 +346,7 @@ export class TestEnvironment {
       mailBlockingClient,
       mailEventsBlockingClient,
       sessionRedisClient,
+      sharedMode,
     );
   }
 
@@ -603,6 +632,12 @@ export class TestEnvironment {
   }
 
   async stop(): Promise<void> {
+    // In shared mode: reset DB state for the next spec, then close only the Nest app.
+    // Containers stay alive — globalTeardown stops them after all specs finish.
+    if (this.sharedMode) {
+      await this.reset();
+    }
+
     // AuthService.login + MailOutboxConsumer/IncidentMailListener sweep timers emit
     // fire-and-forget — they are not awaited — so listeners can still be mid-write
     // when the HTTP response returns. MailOutboxConsumer.sweep runs every 300ms in
@@ -642,7 +677,10 @@ export class TestEnvironment {
     this.mailEventsBlockingClient.disconnect();
     this.sessionRedisClient.disconnect();
 
-    await this.redisContainer.stop();
-    await this.postgresContainer.stop();
+    // Only stop containers when NOT in shared mode (standalone run without globalSetup).
+    if (!this.sharedMode) {
+      await this.redisContainer!.stop();
+      await this.postgresContainer!.stop();
+    }
   }
 }

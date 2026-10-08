@@ -7,5 +7,7 @@
   },
   "testEnvironment": "node",
   "testTimeout": 120000,
-  "maxWorkers": 1
+  "maxWorkers": 1,
+  "globalSetup": "./support/global-setup.ts",
+  "globalTeardown": "./support/global-teardown.ts"
 }
