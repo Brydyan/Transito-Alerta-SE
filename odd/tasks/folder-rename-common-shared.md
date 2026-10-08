@@ -1,7 +1,7 @@
 # Feature: rename `common/` → `shared/` (refactor paso 3)
 
 - Feature: folder-rename-common-shared (Shortcut sc-410)
-- Status: en progreso
+- Status: implementación completa — commit `e97cf01c76e72696a2d053955c227da693e46709`
 - Branch: `carlos_fp/sc-410/refactor-rename-common-to-shared-`
 - Delivery: chained-pr / stacked-to-main — PR único (solo imports, muy bajo de 400 líneas), mergea a `develop` en orden después de #109
 
@@ -15,20 +15,20 @@ Renombrar mecánicamente `backend/src/common/` → `backend/src/shared/` para qu
 
 ## Checklist
 
-- [ ] T1: rama desde `develop` (`carlos_fp/sc-410/refactor-rename-common-to-shared-`)
-- [ ] T2: `git mv backend/src/common backend/src/shared`
-- [ ] T3: reescribir los 150 imports externos → `shared/` (86 archivos: src, specs, test support, entities, infra, main)
-- [ ] T4: `pnpm exec tsc --noEmit -p backend/tsconfig.json` exit 0
-- [ ] T5: suite jest backend completa — 127 suites / 1340 passed / 11 skipped (baseline idéntico)
-- [ ] T6: work-unit commit conventional + registrar hash en este doc
+- [x] T1: rama desde `develop` (`carlos_fp/sc-410/refactor-rename-common-to-shared-`)
+- [x] T2: `git mv backend/src/common backend/src/shared` (41 archivos R100)
+- [x] T3: reescribir los imports externos → `shared/`: 156 refs relativas en 88 archivos + 8 refs `src/common/` en e2e/test support (el patrón `../../src/common/` no lo cubría el regex inicial)
+- [x] T4: `pnpm exec tsc --noEmit -p backend/tsconfig.json` exit 0
+- [x] T5: suite jest backend completa — 127 suites / 1340 passed / 11 skipped (baseline idéntico)
+- [x] T6: work-unit commit conventional → `e97cf01` (136 files: 41 renames R100 + 95 con imports) + `TECH_STACK.md` actualizado (el árbol mencionaba `common/` con subdirs inexistentes: `dto/`, `filters/`, `types/`)
 
 ## Evidencia de verificación
 
 | Check | Comando | Resultado |
 |---|---|---|
-| typecheck | `pnpm exec tsc --noEmit -p backend/tsconfig.json` | pendiente |
-| tests | `pnpm exec jest --silent` | pendiente |
-| commit | `git rev-parse HEAD` | pendiente |
+| typecheck | `pnpm exec tsc --noEmit -p backend/tsconfig.json` | exit 0 |
+| tests | `pnpm exec jest --silent` | 127 suites / 1340 passed / 11 skipped |
+| commit | `git rev-parse HEAD` | `e97cf01c76e72696a2d053955c227da693e46709` |
 
 ## Decisiones / rationale
 
