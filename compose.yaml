@@ -190,6 +190,63 @@ services:
       retries: 3
       start_period: 10s
 
+  # ── MinIO (S3-compatible object storage for staging/local) ─────────────────
+  # infra/2026-10-07-minio-object-storage (design D1). Replaces the
+  # `file://` URL problem of NoopStorageClient without depending on the
+  # Supabase free-tier quotas. Two services: `minio` (the server, ports
+  # 9000 API + 9001 console) and `minio-init` (one-shot bucket bootstrap
+  # that creates `uploads` with a public-download policy).
+  minio:
+    image: minio/minio:latest
+    container_name: tase-minio
+    # Mismo techo de log que el resto de servicios.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - '${MINIO_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      # MinIO expone `/minio/health/live` (HTTP nativo, 200 cuando el server
+      # está listo). La imagen `minio/minio` trae `curl` preinstalado
+      # específicamente para este healthcheck — el cliente `mc` vive en la
+      # imagen `minio/mc`, NO acá (el server no incluye el binario).
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    # Contenedor one-shot: crea el bucket y aplica la política pública de
+    # descarga. `restart: 'no'` para que un fallo quede visible y no entre
+    # en bucle silencioso.
+    image: minio/mc:latest
+    container_name: tase-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      until /usr/bin/mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin123} > /dev/null 2>&1; do
+        echo 'Esperando a MinIO...';
+        sleep 2;
+      done;
+      /usr/bin/mc mb --ignore-existing local/${STORAGE_MINIO_BUCKET:-uploads};
+      /usr/bin/mc anonymous set download local/${STORAGE_MINIO_BUCKET:-uploads};
+      echo 'Bucket de MinIO configurado con éxito.';
+      exit 0;
+      "
+
 volumes:
   postgres-data:
   redis-data:
+  minio-data:
