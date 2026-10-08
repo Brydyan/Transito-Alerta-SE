@@ -1,8 +1,8 @@
 # Feature: rename `core/` → `infra/` (refactor paso 2)
 
-- Feature: folder-rename-core-infra
+- Feature: folder-rename-core-infra (Shortcut sc-409)
 - Status: implementación completa — commit `6c7c0788ea03fb5970261e7e2f11c5e93d3e792b`
-- Branch: `carlos_fp/sc-407/refactor-paso-2-core-infra`
+- Branch: `carlos_fp/sc-409/refactor-rename-core-to-infra-sc-`
 - Delivery: chained-pr / stacked-to-main — PR único (≈24 refs, muy bajo de 400 líneas), mergea a `develop` en orden después de #108
 
 ## Objetivo
@@ -15,7 +15,7 @@ Renombrar mecánicamente `backend/src/core/` → `backend/src/infra/` para que e
 
 ## Checklist
 
-- [x] T1: rama desde `develop` (`carlos_fp/sc-407/refactor-paso-2-core-infra`)
+- [x] T1: rama desde `develop` (inicial `carlos_fp/sc-407/refactor-paso-2-core-infra`; renombrada a `carlos_fp/sc-409/refactor-rename-core-to-infra-sc-` tras crear la story sc-409 en Shortcut para trazabilidad propia del rename)
 - [x] T2: `git mv backend/src/core backend/src/infra`
 - [x] T3: reescribir los 24 imports externos → `infra/` (15 archivos) + 17 refs en specs/test support (censo inicial excluía specs; typecheck los detectó)
 - [x] T4: `npx tsc --noEmit -p backend/tsconfig.json` exit 0
