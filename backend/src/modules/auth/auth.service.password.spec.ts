@@ -5,6 +5,7 @@ import type { Cache } from 'cache-manager';
 import type { DataSource, Repository } from 'typeorm';
 
 import { AuthService } from './auth.service';
+import { AuthUserRepository } from './auth-user.repository';
 import { UserEntity } from '../../entities/user.entity';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { GraceBuffer } from '../sessions/grace-buffer';
@@ -88,11 +89,13 @@ describe('AuthService — password identity (T3.6)', () => {
     permissionLookup = makePermissionLookup();
     passwordHasher = { hash: jest.fn(), verify: jest.fn() };
     service = new AuthService(
-      userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
+      new AuthUserRepository(
+        userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
+        dataSource as unknown as DataSource,
+      ),
       jwtService as unknown as JwtService,
       cache as unknown as jest.Mocked<Cache>,
       configService,
-      dataSource as unknown as DataSource,
       sessionsRepository as unknown as SessionsRepository,
       revocationCache as unknown as RevocationCache,
       graceBuffer as unknown as GraceBuffer,

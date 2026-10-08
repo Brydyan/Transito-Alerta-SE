@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Cache } from 'cache-manager';
 import type { DataSource, Repository } from 'typeorm';
 import { AuthService, PERMISSION_CACHE_PREFIX } from './auth.service';
+import { AuthUserRepository } from './auth-user.repository';
 import { UserEntity } from '../../entities/user.entity';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { GraceBuffer } from '../sessions/grace-buffer';
@@ -102,11 +103,13 @@ describe('AuthService', () => {
     graceBuffer = makeGraceBuffer();
     permissionLookup = makePermissionLookup();
     service = new AuthService(
-      userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
+      new AuthUserRepository(
+        userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
+        dataSource as unknown as DataSource,
+      ),
       jwtService as unknown as JwtService,
       cache as unknown as jest.Mocked<Cache>,
       configService,
-      dataSource as unknown as DataSource,
       sessionsRepository as unknown as SessionsRepository,
       revocationCache as unknown as RevocationCache,
       graceBuffer as unknown as GraceBuffer,
@@ -550,11 +553,13 @@ describe('AuthService.invalidatePermissionCache', () => {
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
     service = new AuthService(
-      {} as unknown as jest.Mocked<Repository<UserEntity>>,
+      new AuthUserRepository(
+        {} as unknown as jest.Mocked<Repository<UserEntity>>,
+        makeDataSource() as unknown as DataSource,
+      ),
       { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
       cache as unknown as jest.Mocked<Cache>,
       { get: () => makeAuthConfig() } as unknown as ConfigService,
-      makeDataSource() as unknown as DataSource,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
@@ -583,11 +588,13 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
     cache = { get: jest.fn(), set: jest.fn() };
     dataSource = makeDataSource();
     service = new AuthService(
-      {} as unknown as jest.Mocked<Repository<UserEntity>>,
+      new AuthUserRepository(
+        {} as unknown as jest.Mocked<Repository<UserEntity>>,
+        dataSource as unknown as DataSource,
+      ),
       { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
       cache as unknown as jest.Mocked<Cache>,
       { get: () => makeAuthConfig() } as unknown as ConfigService,
-      dataSource as unknown as DataSource,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
@@ -799,11 +806,13 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
     cache = { get: jest.fn(), set: jest.fn() };
     dataSource = makeDataSource();
     service = new AuthService(
-      {} as unknown as jest.Mocked<Repository<UserEntity>>,
+      new AuthUserRepository(
+        {} as unknown as jest.Mocked<Repository<UserEntity>>,
+        dataSource as unknown as DataSource,
+      ),
       { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
       cache as unknown as jest.Mocked<Cache>,
       { get: () => makeAuthConfig() } as unknown as ConfigService,
-      dataSource as unknown as DataSource,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,

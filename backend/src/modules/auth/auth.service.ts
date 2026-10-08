@@ -2,10 +2,8 @@ import { randomUUID } from 'crypto';
 import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
-import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import type { Cache } from 'cache-manager';
-import { DataSource, Repository } from 'typeorm';
 
 import { UserEntity } from '../../entities/user.entity';
 import { AuthConfig } from '../../config/auth.config';
@@ -28,6 +26,7 @@ import { SessionsRepository } from '../sessions/sessions.repository';
 import { ANONYMOUS_IDENTITY_CLOSED, INVALID_CREDENTIALS } from './auth-errors';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { DUMMY_HASH, PasswordHasher } from './password-hasher';
+import { AuthUserRepository } from './auth-user.repository';
 
 /**
  * T3.9 design §3 [R4]: reshaped to `perm:v3:` — `AuthContext` gains
@@ -50,15 +49,6 @@ interface CachedAuthContext {
   organizationId: string | null;
   roleName: string | null;
   isAnonymous: boolean;
-}
-
-interface AuthContextRow {
-  permissions: string[] | null;
-  organization_id: string | null;
-  device_uuid: string;
-  role_name: string | null;
-  /** T7.2.C4 (R7.5) — non-null when the assigned role is soft-deleted. */
-  role_deleted_at?: Date | null;
 }
 
 export interface AuthTokens {
@@ -100,12 +90,10 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    @InjectRepository(UserEntity)
-    private readonly userRepo: Repository<UserEntity>,
+    private readonly authUserRepo: AuthUserRepository,
     private readonly jwtService: JwtService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly configService: ConfigService,
-    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly sessionsRepository: SessionsRepository,
     private readonly revocationCache: RevocationCache,
     private readonly graceBuffer: GraceBuffer,
@@ -157,10 +145,9 @@ export class AuthService {
       });
     }
 
-    let user = await this.userRepo.findOne({ where: { deviceUuid } });
+    let user = await this.authUserRepo.findByDeviceUuid(deviceUuid);
     if (!user) {
-      user = this.userRepo.create({ deviceUuid, permissions: [], isActive: true });
-      user = await this.userRepo.save(user);
+      user = await this.authUserRepo.createDeviceIdentity(deviceUuid);
     }
 
     const permissions = await this.getPermissions(deviceUuid);
@@ -180,7 +167,7 @@ export class AuthService {
     input: PasswordCredentialInput,
     meta: RequestMeta = { ip: null, userAgent: null },
   ): Promise<AuthTokens> {
-    const user = await this.userRepo.findOne({ where: { email: input.email } });
+    const user = await this.authUserRepo.findByEmail(input.email);
     const hashToCompare = user?.passwordHash ?? DUMMY_HASH;
     const passwordMatches = await this.passwordHasher!.verify(input.password, hashToCompare);
 
@@ -409,7 +396,7 @@ export class AuthService {
    * out everywhere".
    */
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
+    const user = await this.authUserRepo.findById(userId);
     if (!user) {
       throw invalidCredentialsError();
     }
@@ -420,7 +407,7 @@ export class AuthService {
     }
 
     const newHash = await this.passwordHasher!.hash(newPassword);
-    await this.userRepo.update(userId, { passwordHash: newHash });
+    await this.authUserRepo.updatePasswordHash(userId, newHash);
     await this.revokeAllForUser(userId);
   }
 
@@ -459,7 +446,7 @@ export class AuthService {
      *  `roleName === 'reporter' && emailVerified === false`. */
     role_name: string | null;
   }> {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
+    const user = await this.authUserRepo.findById(userId);
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
@@ -508,7 +495,7 @@ export class AuthService {
       return cached;
     }
 
-    const user = await this.userRepo.findOne({ where: { deviceUuid } });
+    const user = await this.authUserRepo.findByDeviceUuid(deviceUuid);
     if (!user) {
       // Do NOT cache a miss: pinning an unknown device to [] for the whole TTL
       // would keep a freshly-provisioned account 403ing until the entry expired.
@@ -579,21 +566,7 @@ export class AuthService {
       };
     }
 
-    const rows: AuthContextRow[] = await this.dataSource.query(
-      // T6.8.B3: exclude soft-deleted and inactive users so a deleted user
-      // cannot use a cached/unexpired JWT to authenticate.
-      // T7.2.C4 (R7.5): also surface the assigned role's own `deleted_at` —
-      // `users.permissions` is a denormalized snapshot (RolesService.assignRole)
-      // that does NOT get cleared when the role itself is later soft-deleted,
-      // so `role_deleted_at` must be checked here to zero it out live.
-      `SELECT u.permissions, u.organization_id, u.device_uuid, r.name AS role_name,
-              r.deleted_at AS role_deleted_at
-         FROM users u
-         LEFT JOIN roles r ON r.id = u.role_id
-        WHERE u.id = $1 AND u.deleted_at IS NULL AND u.is_active = TRUE`,
-      [userId],
-    );
-    const row = rows[0];
+    const row = await this.authUserRepo.findAuthContextRow(userId);
 
     if (!row) {
       // Do NOT cache a miss (same reasoning as getPermissions): pinning an
