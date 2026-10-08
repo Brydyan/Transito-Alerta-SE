@@ -88,6 +88,37 @@ describe('StatusHistory module e2e (T3.4)', () => {
     return res.body.id as string;
   }
 
+  /**
+   * Filas que `createIncident()` ya dejó escritas ANTES de cualquier
+   * transición: `IncidentsService.create()` siembra `created → pending` en la
+   * MISMA transacción que el INSERT de `incidents` (Fix R-historial de
+   * sc-405: "un cambio sin registro es peor que no haber cambiado").
+   *
+   * Antes de ese fix la línea base era 0 y este spec enteros estaba escrito
+   * sobre ella. Peor: la fila `created → pending` sólo empezó a poder
+   * escribirse con la migración 0068, que amplió
+   * `chk_status_history_previous_status` — hasta entonces `create()`
+   * reventaba el CHECK, devolvía 500, y estos tests morían en el
+   * `.expect(201)` de arriba sin llegar al assert. Corregir la línea base es,
+   * por tanto, parte de este fix y no un ajuste cosmético.
+   */
+  const BIRTH_ROWS = 1;
+
+  /** Filas del audit trail de una incidencia, en orden de escritura. */
+  async function historyRows(
+    pg = env.pg,
+    incidentId: string,
+  ): Promise<{ previous_status: string; new_status: string; changed_by_user_id: string | null }[]> {
+    const { rows } = await pg.query(
+      `SELECT previous_status, new_status, changed_by_user_id
+         FROM status_history
+        WHERE incident_id = $1
+        ORDER BY created_at, id`,
+      [incidentId],
+    );
+    return rows;
+  }
+
   async function historyCount(pg = env.pg, incidentId: string): Promise<number> {
     const { rows } = await pg.query('SELECT count(*)::int AS count FROM status_history WHERE incident_id = $1', [
       incidentId,
@@ -97,7 +128,7 @@ describe('StatusHistory module e2e (T3.4)', () => {
 
   // TS-1 / TS-2 -------------------------------------------------------------
 
-  it('TS-1/TS-2: a full pending -> in_progress -> resolved lifecycle writes exactly 2 ordered rows', async () => {
+  it('TS-1/TS-2: a full pending -> in_progress -> resolved lifecycle writes the birth row plus 2 ordered transitions', async () => {
     const operator = await env.provisionUser([
       'CREATE incidents',
       'READ incidents',
@@ -113,7 +144,9 @@ describe('StatusHistory module e2e (T3.4)', () => {
       .send({ status: 'in_progress' })
       .expect(200);
 
-    await waitUntil(async () => (await historyCount(env.pg, incidentId)) === 1);
+    // La fila de nacimiento ya está: al transicionar a in_progress el total
+    // es BIRTH_ROWS + 1, no 1.
+    await waitUntil(async () => (await historyCount(env.pg, incidentId)) === BIRTH_ROWS + 1);
 
     await request(env.httpServer)
       .patch(`/api/incidents/${incidentId}/status`)
@@ -121,21 +154,28 @@ describe('StatusHistory module e2e (T3.4)', () => {
       .send({ status: 'resolved' })
       .expect(200);
 
-    await waitUntil(async () => (await historyCount(env.pg, incidentId)) === 2);
+    await waitUntil(async () => (await historyCount(env.pg, incidentId)) === BIRTH_ROWS + 2);
 
     const response = await request(env.httpServer)
       .get(`/api/incidents/${incidentId}/status-history`)
       .set(auth)
       .expect(200);
 
-    expect(response.body.total).toBe(2);
-    expect(response.body.items).toHaveLength(2);
+    expect(response.body.total).toBe(BIRTH_ROWS + 2);
+    expect(response.body.items).toHaveLength(BIRTH_ROWS + 2);
+    // El nacimiento va primero, con el sentinel `created` que la máquina de
+    // estados no reconoce como estado: es "la incidencia nace aquí".
     expect(response.body.items[0]).toMatchObject({
+      previous_status: 'created',
+      new_status: 'pending',
+      changed_by_user_id: operator.userId,
+    });
+    expect(response.body.items[1]).toMatchObject({
       previous_status: 'pending',
       new_status: 'in_progress',
       changed_by_user_id: operator.userId,
     });
-    expect(response.body.items[1]).toMatchObject({
+    expect(response.body.items[2]).toMatchObject({
       previous_status: 'in_progress',
       new_status: 'resolved',
       changed_by_user_id: operator.userId,
@@ -144,16 +184,22 @@ describe('StatusHistory module e2e (T3.4)', () => {
 
   // TS-3 ----------------------------------------------------------------------
 
-  it('TS-3: creating an incident writes no row', async () => {
+  it('TS-3: creating an incident writes exactly the birth row, and nothing else', async () => {
     const operator = await env.provisionUser(['CREATE incidents', 'READ incidents', 'READ status-history']);
     const auth = authHeader(operator);
     const incidentId = await createIncident(auth);
 
-    // Bounded wait for "nothing happens" — give the listener a fair
-    // window to (wrongly) write a row, then assert it didn't.
+    // Lo que este test realmente vigila es que el listener de
+    // `incident.created` NO escriba una fila extra. Bounded wait for "nothing
+    // happens": se le da una ventana justa y después se comprueba que no
+    // apareció nada.
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    expect(await historyCount(env.pg, incidentId)).toBe(0);
+    expect(await historyCount(env.pg, incidentId)).toBe(BIRTH_ROWS);
+    const rows = await historyRows(env.pg, incidentId);
+    expect(rows).toEqual([
+      { previous_status: 'created', new_status: 'pending', changed_by_user_id: operator.userId },
+    ]);
   });
 
   // TS-4 ----------------------------------------------------------------------
@@ -179,7 +225,13 @@ describe('StatusHistory module e2e (T3.4)', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    expect(await historyCount(env.pg, incidentId)).toBe(0);
+    // El 409 no debe escribir NADA: el conteo sigue siendo el de la fila de
+    // nacimiento. Antes el assert era `toBe(0)` porque crear no dejaba
+    // rastro; ahora la pregunta sigue siendo la misma —¿la transición
+    // rechazada añadió una fila?— y la respuesta es que no.
+    expect(await historyCount(env.pg, incidentId)).toBe(BIRTH_ROWS);
+    const rows = await historyRows(env.pg, incidentId);
+    expect(rows.every((r) => r.new_status === 'pending')).toBe(true);
   });
 
   // TS-8 / TS-9 / TS-13 -------------------------------------------------------
@@ -226,15 +278,15 @@ describe('StatusHistory module e2e (T3.4)', () => {
       .send({ status: 'resolved' })
       .expect(200);
 
-    await waitUntil(async () => (await historyCount(env.pg, incidentId)) === 2);
+    await waitUntil(async () => (await historyCount(env.pg, incidentId)) === BIRTH_ROWS + 2);
 
     const response = await request(env.httpServer)
       .get(`/api/incidents/${incidentId}/status-history`)
       .set(auth)
       .expect(200);
 
-    expect(response.body).toMatchObject({ total: 2 });
-    expect(response.body.items).toHaveLength(2);
+    expect(response.body).toMatchObject({ total: BIRTH_ROWS + 2 });
+    expect(response.body.items).toHaveLength(BIRTH_ROWS + 2);
   });
 
   // TS-10 / TS-12 ---------------------------------------------------------------
@@ -354,7 +406,13 @@ describe('StatusHistory module e2e (T3.4)', () => {
 
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(0);
-    expect(await historyCount(env.pg, incidentId)).toBe(1);
+    // El segundo insert no añadió fila: el total es la de nacimiento más la
+    // única que `insert()` devolvió. Lo que se verifica aquí es que
+    // `uq_status_history_event_id` colapsa el reintento, no que el total sea
+    // 1 — por eso se cuenta contra la línea base y no con un literal.
+    expect(await historyCount(env.pg, incidentId)).toBe(BIRTH_ROWS + 1);
+    const rows = await historyRows(env.pg, incidentId);
+    expect(rows.filter((r) => r.new_status === 'in_progress')).toHaveLength(1);
   });
 
   // Regression --------------------------------------------------------------
