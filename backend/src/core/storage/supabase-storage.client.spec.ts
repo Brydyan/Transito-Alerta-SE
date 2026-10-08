@@ -20,6 +20,16 @@ const CONF = {
   supabaseUrl: 'https://project.supabase.co',
   supabaseServiceKey: 'service-key',
   supabaseBucket: 'test-bucket',
+  // infra/2026-10-07-minio-object-storage: StorageConfig now also
+  // carries the minio fields (even when the active provider is supabase).
+  // The supabase client constructor does not read them, so they are
+  // filled with placeholders here.
+  minioEndpoint: undefined,
+  minioPublicUrl: undefined,
+  minioAccessKey: undefined,
+  minioSecretKey: undefined,
+  minioBucket: 'uploads',
+  minioForcePathStyle: true,
 };
 
 describe('SupabaseStorageClient', () => {
@@ -35,6 +45,12 @@ describe('SupabaseStorageClient', () => {
           supabaseUrl: undefined,
           supabaseServiceKey: 'k',
           supabaseBucket: 'b',
+          minioEndpoint: undefined,
+          minioPublicUrl: undefined,
+          minioAccessKey: undefined,
+          minioSecretKey: undefined,
+          minioBucket: 'uploads',
+          minioForcePathStyle: true,
         }),
     ).toThrow(/STORAGE_SUPABASE_URL/);
 
@@ -45,6 +61,12 @@ describe('SupabaseStorageClient', () => {
           supabaseUrl: 'https://x.supabase.co',
           supabaseServiceKey: undefined,
           supabaseBucket: 'b',
+          minioEndpoint: undefined,
+          minioPublicUrl: undefined,
+          minioAccessKey: undefined,
+          minioSecretKey: undefined,
+          minioBucket: 'uploads',
+          minioForcePathStyle: true,
         }),
     ).toThrow(/STORAGE_SUPABASE_SERVICE_KEY/);
   });
