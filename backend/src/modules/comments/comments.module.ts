@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CommentEntity } from '../../entities/comment.entity';
 import { CommentImageEntity } from '../../entities/comment-image.entity';
-import { StorageModule } from '../../core/storage/storage.module';
+import { StorageModule } from '../../infra/storage/storage.module';
 import { IncidentsModule } from '../incidents/incidents.module';
 // REG (sc-325) — ver `incidents.module.ts` por la razón completa.
 // `EmailVerifiedGuard` necesita `UserEntity` para leer

@@ -4,7 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { GeofencingModule } from '../geofencing/geofencing.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { AuditModule } from '../audit/audit.module';
-import { StorageModule } from '../../core/storage/storage.module';
+import { StorageModule } from '../../infra/storage/storage.module';
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { IncidentImageEntity } from '../../entities/incident-image.entity';
 // REG (sc-325) — `EmailVerifiedGuard` consulta `email_verified_at`

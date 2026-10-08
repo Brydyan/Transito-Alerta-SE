@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import type Redis from 'ioredis';
 import { IsNull, Repository } from 'typeorm';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
 import { AssignmentEntity } from '../../entities/assignment.entity';
 import { SubjectScope } from '../../common/authz/subject-scope';
 import { IncidentsRepository } from '../incidents/incidents.repository';

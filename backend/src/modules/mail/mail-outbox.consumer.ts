@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nest
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 
-import { MAIL_BLOCKING_CLIENT } from '../../core/core.module';
+import { MAIL_BLOCKING_CLIENT } from '../../infra/core.module';
 import { MailConfig } from '../../config/mail.config';
 import { MAIL_DEAD_STREAM_KEY, MAIL_OUTBOX_STREAM_KEY, MailService } from './mail.service';
 import { TemplateName } from './templates/mail-templates';

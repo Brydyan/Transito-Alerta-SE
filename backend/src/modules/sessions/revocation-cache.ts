@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
 
-import { SESSION_REDIS_CLIENT } from '../../core/core.module';
+import { SESSION_REDIS_CLIENT } from '../../infra/core.module';
 
 function revokedKey(sid: string): string {
   return `sess:revoked:${sid}`;

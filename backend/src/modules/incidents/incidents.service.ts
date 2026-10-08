@@ -7,7 +7,7 @@ import type { Cache } from 'cache-manager';
 import type Redis from 'ioredis';
 import { DataSource } from 'typeorm';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
 import { AuthConfig } from '../../config/auth.config';
 import { IncidentStatus } from '../../entities/incident.entity';
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
