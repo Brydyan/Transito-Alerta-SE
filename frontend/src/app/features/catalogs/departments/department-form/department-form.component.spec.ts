@@ -520,4 +520,33 @@ describe('DepartmentFormComponent', () => {
       expect(router.navigate).not.toHaveBeenCalled();
     });
   });
+
+  // ── 2026-09-22-sc-form-navigation-routing-fix ─────────────────────
+  // D1 (design.md) — goBack() must use canonical absolute path.
+
+  describe('navigation — goBack()', () => {
+    it('navigates to /app/admin/departamentos (absolute, not relative)', async () => {
+      const fixtureParams = { snapshot: { paramMap: { get: () => null } } };
+      const { fixture } = await render(DepartmentFormComponent, {
+        providers: [
+          { provide: DepartmentService, useValue: mockDepartmentService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: ActivatedRoute, useValue: fixtureParams },
+        ],
+      });
+
+      const router = fixture.debugElement.injector.get(Router);
+      jest.spyOn(router, 'navigate');
+      fixture.componentInstance.goBack();
+
+      expect(router.navigate).toHaveBeenCalledWith([
+        '/app/admin/departamentos',
+      ]);
+      expect(
+        (router.navigate as jest.Mock).mock.calls[0][1],
+      ).toBeUndefined();
+    });
+  });
 });

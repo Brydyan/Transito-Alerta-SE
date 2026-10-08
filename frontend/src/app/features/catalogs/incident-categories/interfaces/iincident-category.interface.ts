@@ -1,3 +1,5 @@
+import type { IncidentPriority } from '../../../../core/models/incident.model';
+
 /**
  * Wire-format model for Incident Categories.
  *
@@ -10,6 +12,11 @@ export interface IIncidentCategory {
   name: string;
   description: string | null;
   parent_id: string | null;
+  /**
+   * 2026-09-22-sc-subcategory-priority-assignment. NULL on root
+   * categories; required on sub-categories (enforced server-side).
+   */
+  priority?: IncidentPriority | null;
   created_at: string;
   updated_at: string;
 }
@@ -18,12 +25,14 @@ export interface ICreateIncidentCategoryDto {
   name: string;
   description?: string | null;
   parent_id?: string | null;
+  priority?: IncidentPriority;
 }
 
 export interface IUpdateIncidentCategoryDto {
   name?: string;
   description?: string | null;
   parent_id?: string | null;
+  priority?: IncidentPriority | null;
 }
 
 export interface IIncidentCategoryListParams {

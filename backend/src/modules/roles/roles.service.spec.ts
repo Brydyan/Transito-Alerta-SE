@@ -28,7 +28,9 @@ describe('RolesService', () => {
   let roleRepo: { findOne: jest.Mock; find: jest.Mock; save: jest.Mock; create: jest.Mock };
   let userRepo: { findOne: jest.Mock; find: jest.Mock; save: jest.Mock; count: jest.Mock };
   let permissionRepo: { find: jest.Mock };
-  let dataSource: { transaction: jest.Mock };
+  let menuRoleRepo: { find: jest.Mock };
+  let menuOptionRepo: { find: jest.Mock };
+  let dataSource: { transaction: jest.Mock; query: jest.Mock };
   let authService: { invalidatePermissionCache: jest.Mock };
   let service: RolesService;
 
@@ -49,12 +51,16 @@ describe('RolesService', () => {
     };
     userRepo = { findOne: jest.fn(), find: jest.fn(async () => []), save: jest.fn(async (x) => x), count: jest.fn() };
     permissionRepo = { find: jest.fn(async () => []) };
-    dataSource = { transaction: jest.fn(async (cb) => cb({ getRepository: () => ({ save: async (x: unknown) => x }) })) };
+    menuRoleRepo = { find: jest.fn(async () => []) };
+    menuOptionRepo = { find: jest.fn(async () => []) };
+    dataSource = { transaction: jest.fn(async (cb) => cb({ getRepository: () => ({ save: async (x: unknown) => x }) })), query: jest.fn(async () => []) };
     authService = { invalidatePermissionCache: jest.fn() };
     service = new RolesService(
       roleRepo as unknown as jest.Mocked<Repository<RoleEntity>>,
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
       permissionRepo as unknown as jest.Mocked<Repository<PermissionEntity>>,
+      menuRoleRepo as unknown as jest.Mocked<any>,
+      menuOptionRepo as unknown as jest.Mocked<any>,
       dataSource as unknown as DataSource,
       authService as unknown as jest.Mocked<AuthService>,
     );

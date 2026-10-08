@@ -143,11 +143,11 @@ export class DepartmentListComponent implements OnInit, OnDestroy {
   }
 
   navigateToCreate(): void {
-    this.router.navigate(['new'], { relativeTo: this.route });
+    this.router.navigate(['/app/admin/departamentos/new']);
   }
 
   navigateToEdit(dept: IDepartment): void {
-    this.router.navigate([dept.id, 'edit'], { relativeTo: this.route });
+    this.router.navigate(['/app/admin/departamentos', dept.id, 'edit']);
   }
 
   deleteDepartment(dept: IDepartment): void {

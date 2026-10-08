@@ -5,6 +5,8 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
+import { IncidentPriority } from './incident.entity';
+
 /**
  * incident_categories table (T3.7 — 0012_incident_categories.sql).
  *
@@ -33,6 +35,19 @@ export class IncidentCategoryEntity {
 
   @Column({ name: 'parent_id', type: 'uuid', nullable: true })
   parentId!: string | null;
+
+  /**
+   * 2026-09-22-sc-subcategory-priority-assignment (0065). Default
+   * priority for incidents filed under this sub-category. NULL on root
+   * categories (service rejects sub-categories with NULL — see
+   * `IncidentCategoriesService` validation).
+   *
+   * Stored as `varchar(16)` to match the `IncidentPriority` union
+   * ('low' | 'medium' | 'high' | 'critical') without a PG enum, keeping
+   * the migration reversible and column drops painless.
+   */
+  @Column({ type: 'varchar', length: 16, nullable: true, default: null })
+  priority!: IncidentPriority | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

@@ -2,8 +2,9 @@ import { randomUUID } from 'crypto';
 import request from 'supertest';
 import { TestEnvironment } from '../support/test-environment';
 
-// Minimal JPEG header (SOI + APP0 marker) — recognized by most MIME sniffers.
-const FAKE_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+// Minimal valid 1×1 white JPEG produced by sharp (F7 — WebP compression now runs
+// on every upload; a truncated header stub is rejected by sharp as corrupt input).
+const FAKE_JPEG = Buffer.from([255,216,255,219,0,67,0,6,4,5,6,5,4,6,6,5,6,7,7,6,8,10,16,10,10,9,9,10,20,14,15,12,16,23,20,24,24,23,20,22,22,26,29,37,31,26,27,35,28,22,22,32,44,32,35,38,39,41,42,41,25,31,45,48,45,40,48,37,40,41,40,255,219,0,67,1,7,7,7,10,8,10,19,10,10,19,40,26,22,26,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,40,255,192,0,17,8,0,1,0,1,3,1,34,0,2,17,1,3,17,1,255,196,0,21,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,255,196,0,20,16,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,196,0,20,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,196,0,20,17,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,218,0,12,3,1,0,2,17,3,17,0,63,0,170,64,7,255,217]);
 const FAKE_PDF = Buffer.from('%PDF-1.4\n%EOF');
 
 describe('E2E comment images (T5.5)', () => {

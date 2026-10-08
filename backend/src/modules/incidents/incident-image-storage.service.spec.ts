@@ -1,3 +1,5 @@
+import { ImageCompressionService } from '../../core/image/image-compression.service';
+import { IStorageClient } from '../../core/storage/storage-client.interface';
 import {
   IncidentImageStorageService,
   MulterFile,
@@ -14,73 +16,170 @@ function makeFile(name = 'photo.jpg', mime = 'image/jpeg'): MulterFile {
   };
 }
 
+function makeClientMock(): jest.Mocked<IStorageClient> {
+  return {
+    upload: jest.fn(),
+    getSignedUrl: jest.fn(),
+    delete: jest.fn(),
+  };
+}
+
+function makeCompressionMock(): jest.Mocked<ImageCompressionService> {
+  return {
+    compress: jest.fn(),
+  } as unknown as jest.Mocked<ImageCompressionService>;
+}
+
 describe('IncidentImageStorageService', () => {
+  let client: jest.Mocked<IStorageClient>;
+  let imageCompression: jest.Mocked<ImageCompressionService>;
   let service: IncidentImageStorageService;
 
   beforeEach(() => {
-    service = new IncidentImageStorageService();
+    client = makeClientMock();
+    imageCompression = makeCompressionMock();
+    service = new IncidentImageStorageService(client, imageCompression);
   });
 
   describe('upload', () => {
-    it('generates a key with format incidents/{incidentId}/{uuid}-{sanitizedOriginalname}', async () => {
+    it('generates a key with format incidents/{incidentId}/{uuid}.webp (F7)', async () => {
+      imageCompression.compress.mockResolvedValue({
+        buffer: Buffer.from('webp-bytes'),
+        sizeKb: 5,
+        originalSizeKb: 1024,
+        ratio: 204.8,
+        mimetype: 'image/webp',
+      });
+      client.upload.mockResolvedValue({
+        key: 'incidents/inc-123/abc.webp',
+        url: 'https://real.example/incidents/inc-123/abc.webp',
+      });
+
       const result = await service.upload('inc-123', makeFile('photo.jpg'));
 
-      expect(result.key).toMatch(/^incidents\/inc-123\/.+-photo\.jpg$/);
+      expect(result.key).toMatch(/^incidents\/inc-123\/.+\.webp$/);
+      expect(result.url).toBe(
+        'https://real.example/incidents/inc-123/abc.webp',
+      );
     });
 
-    it('sanitizes non-alphanumeric characters in originalname', async () => {
-      const result = await service.upload('inc-123', makeFile('my photo (1).jpg'));
+    it('calls imageCompression.compress with the incident type', async () => {
+      imageCompression.compress.mockResolvedValue({
+        buffer: Buffer.from('webp-bytes'),
+        sizeKb: 5,
+        originalSizeKb: 1024,
+        ratio: 204.8,
+        mimetype: 'image/webp',
+      });
+      client.upload.mockResolvedValue({
+        key: 'incidents/inc-1/abc.webp',
+        url: 'https://real.example/incidents/inc-1/abc.webp',
+      });
 
-      expect(result.key).not.toContain(' ');
-      expect(result.key).not.toContain('(');
-      expect(result.key).not.toContain(')');
+      await service.upload('inc-1', makeFile('photo.jpg'));
+
+      expect(imageCompression.compress).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        'incident',
+        'image/jpeg',
+      );
     });
 
-    it('returns both key and a signed URL', async () => {
-      const result = await service.upload('inc-123', makeFile('photo.jpg'));
+    it('passes the WebP buffer and image/webp MIME to client.upload (R8)', async () => {
+      const webpBytes = Buffer.from('webp-bytes');
+      imageCompression.compress.mockResolvedValue({
+        buffer: webpBytes,
+        sizeKb: 5,
+        originalSizeKb: 1024,
+        ratio: 204.8,
+        mimetype: 'image/webp',
+      });
+      client.upload.mockResolvedValue({
+        key: 'incidents/inc-1/abc.webp',
+        url: 'https://real.example/incidents/inc-1/abc.webp',
+      });
 
-      expect(result.key).toBeDefined();
-      expect(result.url).toBeDefined();
-      expect(result.url).toContain('https://storage.example.com');
-      expect(result.url).toContain(result.key);
-      expect(result.url).toContain('sig=');
+      await service.upload('inc-1', makeFile('photo.jpg'));
+
+      const [, buffer, mimetype] = client.upload.mock.calls[0];
+      expect(buffer).toBe(webpBytes);
+      expect(mimetype).toBe('image/webp');
     });
 
     it('a different incidentId produces a differently scoped key', async () => {
+      imageCompression.compress.mockResolvedValue({
+        buffer: Buffer.from('webp-bytes'),
+        sizeKb: 5,
+        originalSizeKb: 1024,
+        ratio: 204.8,
+        mimetype: 'image/webp',
+      });
+      client.upload.mockResolvedValue({
+        key: 'incidents/inc-xyz/abc.webp',
+        url: 'https://real.example/incidents/inc-xyz/abc.webp',
+      });
+
       const result = await service.upload('inc-xyz', makeFile());
 
       expect(result.key).toMatch(/^incidents\/inc-xyz\//);
     });
 
     it('generates unique keys for the same incidentId and filename', async () => {
+      imageCompression.compress.mockResolvedValue({
+        buffer: Buffer.from('webp-bytes'),
+        sizeKb: 5,
+        originalSizeKb: 1024,
+        ratio: 204.8,
+        mimetype: 'image/webp',
+      });
+      client.upload.mockImplementation(async (key) => ({
+        key,
+        url: `https://real.example/${key}`,
+      }));
+
       const result1 = await service.upload('inc-123', makeFile('photo.jpg'));
       const result2 = await service.upload('inc-123', makeFile('photo.jpg'));
 
       expect(result1.key).not.toEqual(result2.key);
     });
+
+    it('propagates compress() errors so the upload never reaches the storage client', async () => {
+      const { CompressionSizeExceeded } = await import(
+        '../../core/image/compression-error.exception'
+      );
+      const err = new CompressionSizeExceeded('incident', 400, 300);
+      imageCompression.compress.mockRejectedValue(err);
+
+      await expect(
+        service.upload('inc-1', makeFile('huge.png', 'image/png')),
+      ).rejects.toBeInstanceOf(CompressionSizeExceeded);
+
+      expect(client.upload).not.toHaveBeenCalled();
+    });
   });
 
   describe('getSignedUrl', () => {
-    it('returns a signed URL with SHA-256 signature query parameter', () => {
-      const url = service.getSignedUrl('incidents/inc-1/uuid-photo.jpg');
+    it('delegates to the injected IStorageClient (D2 — no more SHA-256 stub)', async () => {
+      client.getSignedUrl.mockResolvedValue(
+        'https://real.example/signed-incident',
+      );
 
-      expect(url).toContain('https://storage.example.com');
-      expect(url).toContain('incidents/inc-1/uuid-photo.jpg');
-      expect(url).toMatch(/sig=[a-f0-9]{16}$/);
-    });
+      const url = await service.getSignedUrl('incidents/inc-1/abc.webp');
 
-    it('generates different signatures for different keys', () => {
-      const url1 = service.getSignedUrl('incidents/inc-1/uuid-photo.jpg');
-      const url2 = service.getSignedUrl('incidents/inc-2/uuid-photo.jpg');
-
-      expect(url1).not.toBe(url2);
+      expect(client.getSignedUrl).toHaveBeenCalledWith(
+        'incidents/inc-1/abc.webp',
+      );
+      expect(url).toBe('https://real.example/signed-incident');
     });
   });
 
   describe('delete', () => {
-    it('is a no-op stub', async () => {
-      await service.delete('incidents/inc-1/uuid-photo.jpg');
-      // No error thrown
+    it('delegates to the injected IStorageClient (D2 — no more no-op stub)', async () => {
+      client.delete.mockResolvedValue(undefined);
+
+      await service.delete('incidents/inc-1/abc.webp');
+
+      expect(client.delete).toHaveBeenCalledWith('incidents/inc-1/abc.webp');
     });
   });
 });

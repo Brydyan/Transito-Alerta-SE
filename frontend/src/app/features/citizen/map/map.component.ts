@@ -174,6 +174,14 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
               this.zoneLevelByLayer.set(l, zone.level);
             }
           });
+          // 2026-10-05-map-polygon-and-feed-filters-fix (D1) — if the
+          //  user picked a zone BEFORE the catalog resolved, the prior
+          //  highlightZone() call ran against an empty zoneLayerById and
+          //  no-op'd. Now that layers exist, re-apply the active filter
+          //  declaratively so the polygon is finally drawn and zoomed.
+          if (this.activeFilters.zone_id) {
+            this.highlightZone(this.activeFilters.zone_id);
+          }
         },
         error: (err) => console.error('Error loading zones:', err?.message ?? 'unknown')
       })
@@ -196,7 +204,21 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private createZoneLayer(zone: IGeoZone): L.Layer {
-    const layer = L.geoJSON(zone.polygon as GeoZonePolygon as unknown as Parameters<typeof L.geoJSON>[0], {
+    // 2026-10-05-map-polygon-and-feed-filters-fix (D2) — some payloads
+    // arrive with `polygon` as a JSON string (PostGIS wire quirk).
+    // parsePolygon() handles both safely; null means "skip this zone".
+    const parsed = this.parsePolygon(zone.polygon);
+    if (!parsed) {
+      // 2026-10-05-map-polygon-and-feed-filters-fix — fixes-required.md H1.
+      //  Return a real (empty) L.geoJSON instance so Leaflet's lifecycle
+      //  methods (onAdd, setStyle, bringToFront, getBounds) all exist.
+      //  The previous inert stub `{ bindPopup, on }` crashed the map at
+      //  runtime because Leaflet calls `layer.onAdd()` when adding to a
+      //  LayerGroup.
+      return L.geoJSON();
+    }
+
+    const layer = L.geoJSON(parsed as unknown as Parameters<typeof L.geoJSON>[0], {
       style: () => ZONE_STYLES[zone.level],
       interactive: false,
       bubblingMouseEvents: false,
@@ -435,9 +457,31 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
       ...HIGHLIGHT_OVERRIDES[level],
     });
 
+    // 2026-10-05-map-polygon-and-feed-filters-fix (D4) — bring the
+    //  highlighted layer above neighbours (markers, base shapes) so it
+    //  stays interactive.
+    (layer as L.GeoJSON).bringToFront?.();
+
     const bounds = (layer as L.GeoJSON).getBounds();
     if (bounds.isValid()) {
       this.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
     }
+  }
+
+  // 2026-10-05-map-polygon-and-feed-filters-fix (D2) — defensive
+  //  GeoJSON parser: some payloads arrive as stringified JSON.
+  private parsePolygon(raw: unknown): GeoZonePolygon | null {
+    if (raw === null || raw === undefined || raw === '') return null;
+    if (typeof raw === 'string') {
+      try {
+        return JSON.parse(raw) as GeoZonePolygon;
+      } catch {
+        return null;
+      }
+    }
+    if (typeof raw === 'object') {
+      return raw as GeoZonePolygon;
+    }
+    return null;
   }
 }

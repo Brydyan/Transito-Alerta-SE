@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/angular';
 import { of } from 'rxjs';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { By } from '@angular/platform-browser';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { OrganizationListComponent } from './organization-list.component';
 import { OrganizationService } from '../services/organization.service';
@@ -178,6 +178,75 @@ describe('OrganizationListComponent', () => {
       ]);
 
       expect(fixture.componentInstance.monthCount()).toBe(2);
+    });
+  });
+
+  // ── 2026-09-22-sc-form-navigation-routing-fix ─────────────────────
+  // D2 (design.md) — list navigation must use canonical absolute paths.
+
+  describe('navigation', () => {
+    let mockRouter: { navigate: jest.Mock };
+
+    beforeEach(() => {
+      mockRouter = { navigate: jest.fn() };
+    });
+
+    const setupWithRouter = (
+      items: IOrganization[],
+      zones: Array<{ id: string; name: string }> = [],
+    ) => {
+      mockOrganizationService.list.mockReturnValue(
+        of({ items, total: items.length }),
+      );
+      mockOrganizationService.listAll.mockReturnValue(of(items));
+      mockOrganizationService.formData.mockReturnValue(
+        of({ roles: [], geo_zones: zones }),
+      );
+
+      return render(OrganizationListComponent, {
+        providers: [
+          { provide: OrganizationService, useValue: mockOrganizationService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: AuthService, useValue: mockAuthService },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+    };
+
+    it('navigateToCreate navigates to /app/admin/organizaciones/new (absolute)', async () => {
+      const { fixture } = await setupWithRouter([]);
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.navigateToCreate();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith([
+        '/app/admin/organizaciones/new',
+      ]);
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
+    });
+
+    it('navigateToEdit navigates to /app/admin/organizaciones/{id}/edit (absolute)', async () => {
+      const { fixture } = await setupWithRouter([]);
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.navigateToEdit({
+        id: 'org-xyz',
+        name: 'Org',
+        zone_id: null,
+        parent_id: null,
+        incident_category_id: null,
+        max_active_claims: 0,
+        created_at: '2026-09-01',
+      });
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith([
+        '/app/admin/organizaciones',
+        'org-xyz',
+        'edit',
+      ]);
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
     });
   });
 });

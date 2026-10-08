@@ -116,6 +116,12 @@ docs/
 CLAUDE.md
 MEMORY.md
 .claude/
+AGENTS.md
+CLAUDE.md
+IA.md
+.atl
+.codegraph
+.rtk
 
 # Frontend build output (regenerated on deploy)
 frontend/dist/

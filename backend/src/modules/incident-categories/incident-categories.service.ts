@@ -47,10 +47,18 @@ export class IncidentCategoriesService {
     const parentId = dto.parent_id ?? null;
     await this.assertValidParent(null, parentId);
 
+    // 2026-09-22-sc-subcategory-priority-assignment (D4) — sub-categories
+    // must carry a priority; root categories always store NULL.
+    const priority = parentId ? dto.priority : null;
+    if (parentId && !priority) {
+      throw new BadRequestException('Sub-categories must have a priority');
+    }
+
     const entity = this.categoryRepo.create({
       name: dto.name,
       parentId,
       description: dto.description ?? null,
+      priority,
     });
     return this.categoryRepo.save(entity);
   }
@@ -67,6 +75,18 @@ export class IncidentCategoriesService {
     }
     if (dto.description !== undefined) {
       existing.description = dto.description;
+    }
+
+    // 2026-09-22-sc-subcategory-priority-assignment (D4) — explicit
+    // priority changes only. `undefined` leaves the current value
+    // untouched. `null` is an explicit "clear priority" — only valid
+    // when the resulting category is a root.
+    if (dto.priority !== undefined) {
+      const wouldBeSub = existing.parentId !== null;
+      if (wouldBeSub && !dto.priority) {
+        throw new BadRequestException('Sub-categories must have a priority');
+      }
+      existing.priority = wouldBeSub ? dto.priority : null;
     }
 
     return this.categoryRepo.save(existing);

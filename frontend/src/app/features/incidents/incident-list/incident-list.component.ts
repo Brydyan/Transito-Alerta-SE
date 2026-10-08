@@ -32,10 +32,18 @@ import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.comp
 import { UiKpiCardComponent } from '../../../shared/components/ui-kpi-card/ui-kpi-card.component';
 import { UiTableComponent } from '../../../shared/components/ui-table/ui-table.component';
 import { TableToCardComponent } from '../../../shared/components/table-to-card/table-to-card.component';
-import { ActionDropdownComponent, CardAction } from '../../../shared/components/action-dropdown/action-dropdown.component';
+
+// Componentes utilitarios para las cards (mobile)
+import { CardAction } from '../../../shared/components/action-dropdown/action-dropdown.component';
 import { INCIDENTS_CARD_FIELDS } from '../../../shared/components/table-to-card/card-fields';
 import { CardField } from '../../../shared/components/data-card/data-card.component';
+
+// Componente utilizado para las acciones en la lista de incidencias (desktop)
+import { ActionsDropdownComponent } from '../actions-dropdown/actions-dropdown.component';
+
 import { ConfirmDialogService } from '../../../shared/components/confirm-dialog/confirm-dialog.service';
+import { AssignmentModalComponent } from '../assignment-modal/assignment-modal.component';
+import { TrackingPanelComponent } from '../tracking-panel/tracking-panel.component';
 
 // FIX-16 — reverse geocode cache (same approach as feed incident-card).
 // Duplicated locally to avoid coupling feed ↔ list; both share Nominatim
@@ -100,6 +108,9 @@ function extractPlaceName(data: { address?: Record<string, string>; display_name
     UiKpiCardComponent,
     UiTableComponent,
     TableToCardComponent,
+    ActionsDropdownComponent,
+    AssignmentModalComponent,
+    TrackingPanelComponent,
   ],
   templateUrl: './incident-list.component.html',
   styleUrl: './incident-list.component.css',
@@ -174,8 +185,34 @@ export class IncidentListComponent implements OnInit {
       actions.push({ id: 'close', label: 'Cerrar' });
     }
 
+    if (this.hasAssignPermission()) {
+      actions.push({ id: 'assign', label: 'Asignar' });
+    }
+
     return actions;
   });
+  /**
+   * True when the current user has the ASSIGN permission on assignments.
+   * Format matches backend `RequirePermission('ASSIGN')` → resolved by the
+   * permission guard as `'ASSIGN assignments'` (verb + resource).
+   * Controls visibility of: toolbar "Asignar" button, row "Asignar" option.
+   */
+  readonly hasAssignPermission = computed<boolean>(() =>
+    this.permissions().includes('ASSIGN assignments'),
+  );
+
+  // ── Assignment modal state ─────────────────────────────────────────
+  readonly assignmentModalOpen = signal<boolean>(false);
+  /** Incident pre-selected when modal is opened from a row action. */
+  readonly preSelectedIncidentId = signal<string | null>(null);
+
+  // ── Row dropdown state ─────────────────────────────────────────────
+  /** ID of the incident whose dropdown is currently open. null = none. */
+  readonly dropdownOpenId = signal<string | null>(null);
+
+  // ── Tracking panel state ───────────────────────────────────────────
+  readonly trackingPanelOpen = signal<boolean>(false);
+  readonly trackingIncidentId = signal<string | null>(null);
 
   // ── Catálogos de filtros (mock 02-01) ──────────────────────────────
   // Los valores `pendiente`/`en_proceso`/`resuelto`/`cerrada` son
@@ -261,6 +298,53 @@ export class IncidentListComponent implements OnInit {
   /** Traduce `IncidentPriority` (wire) → `UiBadgePriority` (F0). */
   badgePriorityFor(p: IncidentPriority): UiBadgePriority {
     return p;
+  }
+
+  // ── Assignment modal ────────────────────────────────────────────────
+
+  /**
+   * Opens the assignment modal.
+   * Optional `incidentId` pre-selects an incident (row "Asignar" action).
+   * No argument = opens for manual selection (toolbar button).
+   */
+  openAssignmentModal(incidentId?: string): void {
+    this.preSelectedIncidentId.set(incidentId ?? null);
+    this.assignmentModalOpen.set(true);
+    this.closeDropdown();
+  }
+
+  closeAssignmentModal(): void {
+    this.assignmentModalOpen.set(false);
+    this.preSelectedIncidentId.set(null);
+  }
+
+  onAssignmentCompleted(_event: { incidentId: string; operatorId: string }): void {
+    // Refresh the incident list to reflect the new assignment status
+    this.fetch();
+    this.closeAssignmentModal();
+  }
+
+  // ── Row dropdown ────────────────────────────────────────────────────
+
+  openDropdown(incidentId: string): void {
+    this.dropdownOpenId.set(incidentId);
+  }
+
+  closeDropdown(): void {
+    this.dropdownOpenId.set(null);
+  }
+
+  // ── Tracking panel ──────────────────────────────────────────────────
+
+  openTracking(incidentId: string): void {
+    this.trackingIncidentId.set(incidentId);
+    this.trackingPanelOpen.set(true);
+    this.closeDropdown();
+  }
+
+  closeTracking(): void {
+    this.trackingPanelOpen.set(false);
+    this.trackingIncidentId.set(null);
   }
 
   /** Construye los query params actuales (sc-339: zone_id, status, page, limit). */
@@ -471,6 +555,9 @@ export class IncidentListComponent implements OnInit {
         break;
       case 'close':
         // TODO: wire to close service when available
+        break;
+      case 'assign':
+        this.openAssignmentModal(incident.id);
         break;
     }
   }

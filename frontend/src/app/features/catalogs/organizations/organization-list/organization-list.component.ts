@@ -274,11 +274,11 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
   }
 
   navigateToCreate(): void {
-    this.router.navigate(['new'], { relativeTo: this.route });
+    this.router.navigate(['/app/admin/organizaciones/new']);
   }
 
   navigateToEdit(organization: IOrganization): void {
-    this.router.navigate([organization.id, 'edit'], { relativeTo: this.route });
+    this.router.navigate(['/app/admin/organizaciones', organization.id, 'edit']);
   }
 
   /** Detail CTA on mobile card — navigates to edit as detail view. */

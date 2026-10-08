@@ -277,6 +277,22 @@ export class UsersService {
   }
 
   /**
+   * F6 fix — `GET /api/roles/:id/menu-access`. Devuelve nombres de menús
+   * a los que el rol tiene acceso (en lugar de UUIDs).
+   */
+  getRoleMenuAccess(id: string): Observable<ReadonlyArray<{ menuOptionId: string; name: string; canRead: boolean; canWrite: boolean }>> {
+    return this.http
+      .get<Array<{ menuOptionId: string; name: string; canRead: boolean; canWrite: boolean }>>(
+        `${this.rolesUrl}/${id}/menu-access`,
+        { withCredentials: true }
+      )
+      .pipe(
+        catchError(() => of([] as Array<{ menuOptionId: string; name: string; canRead: boolean; canWrite: boolean }>)),
+        map((res) => (Array.isArray(res) ? res : [])),
+      );
+  }
+
+  /**
    * sc-340 (D-frontend-5.a, R3, R4) — `GET /api/permissions?limit=100`.
    * Feeds the role preview "SIN ACCESO" list (catalog entries the role
    * does NOT have, slice 0-2). The backend returns a FLAT ARRAY of

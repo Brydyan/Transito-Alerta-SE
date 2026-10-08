@@ -114,9 +114,14 @@
               </div>
             </td>
             <td class="ui-table-cell-actions" (click)="$event.stopPropagation()">
-              <app-view-action-btn
-                [ariaLabel]="'Ver detalle de ' + row.title"
+              <!-- Three-dot dropdown (D2 — replaces single "Ver" button) -->
+              <app-actions-dropdown
+                [incidentId]="row.id"
+                [hasAssignPermission]="hasAssignPermission()"
                 (view)="goToDetail(row)"
+                (assign)="openAssignmentModal($event)"
+                (tracking)="openTracking($event)"
+                [attr.data-testid]="'actions-' + row.id"
               />
             </td>
           </tr>
@@ -156,3 +161,20 @@
     [value]="avgResponseTime() ?? '—'"
   />
 </section>
+
+<!-- Assignment Modal overlay -->
+@if (assignmentModalOpen()) {
+  <app-assignment-modal
+    [preSelectedIncidentId]="preSelectedIncidentId()"
+    (assigned)="onAssignmentCompleted($event)"
+    (closed)="closeAssignmentModal()"
+  />
+}
+
+<!-- Tracking Panel side panel -->
+@if (trackingPanelOpen()) {
+  <app-tracking-panel
+    [incidentId]="trackingIncidentId()!"
+    (close)="closeTracking()"
+  />
+}

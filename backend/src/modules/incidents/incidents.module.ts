@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { GeofencingModule } from '../geofencing/geofencing.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { AuditModule } from '../audit/audit.module';
+import { StorageModule } from '../../core/storage/storage.module';
 import { OrganizationEntity } from '../../entities/organization.entity';
 import { IncidentImageEntity } from '../../entities/incident-image.entity';
 // REG (sc-325) — `EmailVerifiedGuard` consulta `email_verified_at`
@@ -61,6 +62,7 @@ import { RevealService } from './reveal.service';
   imports: [
     GeofencingModule,
     OrganizationsModule,
+    StorageModule,
     // AUD (sc-327): el módulo importa `AuditModule` para registrar
     // eventos de auditoría desde la creación de la incidencia y
     // desde la revelación de autoría.
