@@ -1,7 +1,7 @@
 # Feature: rename `core/` → `infra/` (refactor paso 2)
 
 - Feature: folder-rename-core-infra
-- Status: en progreso
+- Status: implementación completa — commit `6c7c0788ea03fb5970261e7e2f11c5e93d3e792b`
 - Branch: `carlos_fp/sc-407/refactor-paso-2-core-infra`
 - Delivery: chained-pr / stacked-to-main — PR único (≈24 refs, muy bajo de 400 líneas), mergea a `develop` en orden después de #108
 
@@ -15,20 +15,20 @@ Renombrar mecánicamente `backend/src/core/` → `backend/src/infra/` para que e
 
 ## Checklist
 
-- [ ] T1: rama desde `develop` (`carlos_fp/sc-407/refactor-paso-2-core-infra`)
-- [ ] T2: `git mv backend/src/core backend/src/infra`
-- [ ] T3: reescribir los 24 imports externos → `infra/` (15 archivos)
-- [ ] T4: `npx tsc --noEmit -p backend/tsconfig.json` exit 0
-- [ ] T5: suite jest backend completa (baseline: 1340 passed / 11 skipped / 127 suites)
-- [ ] T6: work-unit commit conventional (`refactor(backend): rename core/ to infra/ ...`) + registrar hash en este doc
+- [x] T1: rama desde `develop` (`carlos_fp/sc-407/refactor-paso-2-core-infra`)
+- [x] T2: `git mv backend/src/core backend/src/infra`
+- [x] T3: reescribir los 24 imports externos → `infra/` (15 archivos) + 17 refs en specs/test support (censo inicial excluía specs; typecheck los detectó)
+- [x] T4: `npx tsc --noEmit -p backend/tsconfig.json` exit 0
+- [x] T5: suite jest backend completa — 127 suites / 1340 passed / 11 skipped (baseline idéntico)
+- [x] T6: work-unit commit conventional → `6c7c078` (46 files: 17 renames R100 + 28 con imports)
 
 ## Evidencia de verificación
 
 | Check | Comando | Resultado |
 |---|---|---|
-| typecheck | `npx tsc --noEmit -p backend/tsconfig.json` | pendiente |
-| tests | `pnpm --filter backend test` (o runner raíz de backend) | pendiente |
-| commit | `git rev-parse HEAD` | pendiente |
+| typecheck | `pnpm exec tsc --noEmit -p backend/tsconfig.json` | exit 0 |
+| tests | `pnpm exec jest --silent` | 127 suites / 1340 passed / 11 skipped |
+| commit | `git rev-parse HEAD` | `6c7c0788ea03fb5970261e7e2f11c5e93d3e792b` |
 
 ## Decisiones / rationale
 
