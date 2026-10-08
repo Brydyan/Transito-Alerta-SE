@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 
-import { IncidentPriority, IncidentStatus } from '../../entities/incident.entity';
+import { IncidentPriority, IncidentStatus } from './entities/incident.entity';
 import { SubjectScope } from '../../common/authz/subject-scope';
 import { scopeToSql } from '../../common/authz/scope-sql';
 

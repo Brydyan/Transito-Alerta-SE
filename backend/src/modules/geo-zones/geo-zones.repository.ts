@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, QueryRunner } from 'typeorm';
 
-import { GeoZoneLevel } from '../../entities/geo-zone.entity';
+import { GeoZoneLevel } from './entities/geo-zone.entity';
 
 export const MAX_DEPTH = 1000;
 

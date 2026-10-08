@@ -16,7 +16,7 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AssignmentEntity } from '../../entities/assignment.entity';
+import { AssignmentEntity } from './entities/assignment.entity';
 import { AssignIncidentDto } from './dto/assign-incident.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { AssignmentsService } from './assignments.service';

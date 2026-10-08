@@ -15,7 +15,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { REDIS_CLIENT } from '../../core/core.module';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { GeofencingService } from '../geofencing/geofencing.service';
-import { OrganizationEntity } from '../../entities/organization.entity';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
 import { IncidentWorkflowService } from './incident-workflow.service';
 
 import {

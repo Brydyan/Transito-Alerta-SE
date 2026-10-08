@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Repository } from 'typeorm';
 
-import { RoleEntity } from '../../entities/role.entity';
+import { RoleEntity } from '../../modules/roles/entities/role.entity';
 import { RoleRankAudit } from './role-rank.audit';
 
 describe('RoleRankAudit', () => {

@@ -9,7 +9,7 @@ import {
   PrimaryColumn,
 } from 'typeorm';
 
-import { UserEntity } from './user.entity';
+import { UserEntity } from '../../users/entities/user.entity';
 import { IncidentEntity } from './incident.entity';
 
 /**

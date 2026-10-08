@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 
-import { PermissionEntity } from '../../entities/permission.entity';
+import { PermissionEntity } from '../../modules/permissions/entities/permission.entity';
 
 /**
  * PermissionLookupService — singleton (`providedIn: 'root'`) que

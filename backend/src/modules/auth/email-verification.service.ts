@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { MailService } from '../mail/mail.service';
 import { EMAIL_ALREADY_VERIFIED, OTP_INVALID } from './auth-errors';
 

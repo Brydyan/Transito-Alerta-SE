@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { IncidentEntity } from '../../entities/incident.entity';
-import { StatusHistoryEntity } from '../../entities/status-history.entity';
+import { IncidentEntity } from '../incidents/entities/incident.entity';
+import { StatusHistoryEntity } from './entities/status-history.entity';
 import { StatusHistoryController } from './status-history.controller';
 import { StatusHistoryRepository } from './status-history.repository';
 import { StatusHistoryService } from './status-history.service';

@@ -2,7 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { RoleEntity } from '../../entities/role.entity';
+import { RoleEntity } from '../../modules/roles/entities/role.entity';
 import { ROLE_RANK } from './role-rank';
 
 /**

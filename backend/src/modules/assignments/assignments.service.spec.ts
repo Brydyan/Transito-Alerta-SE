@@ -3,7 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Repository } from 'typeorm';
 import type { Redis } from 'ioredis';
 import { AssignmentsService } from './assignments.service';
-import { AssignmentEntity } from '../../entities/assignment.entity';
+import { AssignmentEntity } from './entities/assignment.entity';
 import { IncidentsRepository } from '../incidents/incidents.repository';
 import { SubjectScope } from '../../common/authz/subject-scope';
 

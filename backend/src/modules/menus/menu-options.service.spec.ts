@@ -10,7 +10,7 @@ import { MenuOptionEntity } from './entities/menu-option.entity';
 import { MenuOptionRoleEntity } from './entities/menu-option-role.entity';
 import { ApiEndpointEntity } from './entities/api-endpoint.entity';
 import { MenuOptionEndpointEntity } from './entities/menu-option-endpoint.entity';
-import { RoleEntity } from '../../entities/role.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
 import { MenuOptionsService } from './menu-options.service';
 import { MenusService } from './menus.service';
 
