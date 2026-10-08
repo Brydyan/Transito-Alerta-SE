@@ -245,7 +245,7 @@ export class CategoryFormComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['../../'], { relativeTo: this.route });
+    this.router.navigate(['/app/categorias']);
   }
 
   private loadCategory(id: string): void {

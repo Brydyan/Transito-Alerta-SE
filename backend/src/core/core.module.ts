@@ -14,6 +14,7 @@ import mailConfig from '../config/mail.config';
 import storageConfig from '../config/storage.config';
 import { PermissionEntity } from '../entities/permission.entity';
 import { PermissionLookupService } from '../common/permissions/permission-lookup.service';
+import { ImageCompressionModule } from './image/image-compression.module';
 
 /**
  * DI token for the raw ioredis client — used where cache-manager's Cache
@@ -79,6 +80,11 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
 @Global()
 @Module({
   imports: [
+    // F7 (WebP image compression) — exposes `ImageCompressionService`
+    // globally to the three storage services (avatar, incident, comment).
+    // They get the service via this `@Global()` wiring and do NOT need to
+    // import `ImageCompressionModule` themselves (apply-progress.md §5).
+    ImageCompressionModule,
     ConfigModule.forRoot({
       isGlobal: true,
       load: [databaseConfig, authConfig, cacheConfig, mailConfig, storageConfig],
@@ -188,6 +194,7 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
     PermissionLookupService,
   ],
   exports: [
+    ImageCompressionModule,
     ConfigModule,
     TypeOrmModule,
     CacheModule,

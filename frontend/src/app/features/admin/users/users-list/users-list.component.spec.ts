@@ -137,4 +137,17 @@ describe('UsersListComponent (F6 rediseño)', () => {
     component.onDelete(1);
     expect(mockUsersService.deleteUser).toHaveBeenCalledWith(1);
   });
+
+  // ── 2026-09-22-sc-form-navigation-routing-fix ─────────────────────
+  // D3 (design.md) — the "Ver organizaciones..." card link in this
+  // template used to point at /app/organizaciones (404). Fixed to
+  // /app/admin/organizaciones when migration 0064 moved the route.
+
+  it('renders the "Ver organizaciones" card with routerLink to /app/admin/organizaciones', () => {
+    const link = fixture.nativeElement.querySelector(
+      'a[href="/app/admin/organizaciones"]',
+    );
+    expect(link).not.toBeNull();
+    expect(link.textContent).toContain('Ver organizaciones');
+  });
 });

@@ -164,11 +164,11 @@ export class OrganizationListComponent implements OnInit, OnDestroy {
   }
 
   navigateToCreate(): void {
-    this.router.navigate(['new'], { relativeTo: this.route });
+    this.router.navigate(['/app/admin/organizaciones/new']);
   }
 
   navigateToEdit(organization: IOrganization): void {
-    this.router.navigate([organization.id, 'edit'], { relativeTo: this.route });
+    this.router.navigate(['/app/admin/organizaciones', organization.id, 'edit']);
   }
 
   deleteOrganization(organization: IOrganization): void {

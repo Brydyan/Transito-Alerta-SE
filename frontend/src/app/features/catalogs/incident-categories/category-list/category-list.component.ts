@@ -140,11 +140,11 @@ export class CategoryListComponent implements OnInit, OnDestroy {
   }
 
   navigateToCreate(): void {
-    this.router.navigate(['new'], { relativeTo: this.route });
+    this.router.navigate(['/app/categorias/new']);
   }
 
   navigateToEdit(category: IIncidentCategory): void {
-    this.router.navigate([category.id, 'edit'], { relativeTo: this.route });
+    this.router.navigate(['/app/categorias', category.id, 'edit']);
   }
 
   deleteCategory(node: IncidentCategoryNode): void {
