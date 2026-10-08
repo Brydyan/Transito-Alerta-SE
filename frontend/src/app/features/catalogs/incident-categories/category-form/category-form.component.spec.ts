@@ -436,4 +436,33 @@ describe('CategoryFormComponent', () => {
       expect(form.form.get('priority')?.value).toBe('critical');
     });
   });
+
+  // ── 2026-09-22-sc-form-navigation-routing-fix ─────────────────────
+  // D1 (design.md) — goBack() must use the canonical absolute path,
+  // not relative navigation. The form sits at /app/categorias/new or
+  // /app/categorias/:id/edit; the relative pattern `['../../']` from
+  // /new climbs 2 levels and lands in /app/, which redirects to the
+  // dashboard instead of returning to the list.
+
+  describe('navigation — goBack()', () => {
+    it('navigates to the canonical absolute list path', async () => {
+      const { fixture } = await render(CategoryFormComponent, {
+        imports: [ReactiveFormsModule],
+        providers: [
+          { provide: IncidentCategoryService, useValue: mockCategoryService },
+          { provide: ToastService, useValue: mockToastService },
+          { provide: ConfirmDialogService, useValue: mockDialogService },
+          { provide: ActivatedRoute, useValue: mockActivatedRoute },
+          { provide: Router, useValue: mockRouter },
+        ],
+      });
+
+      mockRouter.navigate.mockClear();
+      fixture.componentInstance.goBack();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/app/categorias']);
+      // Must NOT pass relativeTo (would re-introduce the bug).
+      expect(mockRouter.navigate.mock.calls[0][1]).toBeUndefined();
+    });
+  });
 });
