@@ -370,7 +370,7 @@ describe('IncidentDetailComponent (F3.4)', () => {
   });
 
   it('T4 — inicializa el mapa Leaflet solo si hay coordenadas y lo limpia en OnDestroy', () => {
-    const { component, fixture } = setup({ incident: baseIncident });
+    const { component } = setup({ incident: baseIncident });
     // el effect de signals ya corrió con fixture.detectChanges() en setup()
     expect(component['mapInstance']).not.toBeNull();
     const removeSpy = jest.spyOn(component['mapInstance']!, 'remove');

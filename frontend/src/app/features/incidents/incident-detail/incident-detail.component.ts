@@ -5,7 +5,6 @@ import {
   inject,
   OnInit,
   OnDestroy,
-  ViewChild,
   ElementRef,
   signal,
   effect,

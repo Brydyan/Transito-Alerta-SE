@@ -119,7 +119,7 @@ describe('CommentThreadComponent (F3.5.7)', () => {
   });
 
   it('T6 — publicación transiciona localmente por signals sin requerir recarga', async () => {
-    const { component, fixture } = setup(['CREATE comments']);
+    const { component } = setup(['CREATE comments']);
     const commentService = TestBed.inject(CommentService);
     const newComment = { ...baseComment, id: 'c-2', content: 'nuevo comentario' };
     
