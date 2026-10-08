@@ -1,4 +1,4 @@
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { InvitationsController } from './invitations.controller';
 import { InvitationsService } from './invitations.service';
 import { AuthService } from '../auth/auth.service';

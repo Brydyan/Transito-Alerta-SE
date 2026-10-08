@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AuthConfig } from '../../config/auth.config';
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { SESSION_REQUIRED, SESSION_REVOKED } from '../sessions/session-errors';
 import { AuthService } from './auth.service';

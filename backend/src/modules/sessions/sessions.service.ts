@@ -1,9 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
-import { assertCanManage, assertVisible } from '../../common/authz/assert-can-manage';
-import { AuthContext } from '../../common/authz/subject-scope';
-import { hasPermission } from '../../common/guards/permission.guard';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { assertCanManage, assertVisible } from '../../shared/authz/assert-can-manage';
+import { AuthContext } from '../../shared/authz/subject-scope';
+import { hasPermission } from '../../shared/guards/permission.guard';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { SessionResponseDto, toSessionResponseDto } from './dto/session-response.dto';
 import { RevocationCache } from './revocation-cache';
 import { SessionsRepository } from './sessions.repository';

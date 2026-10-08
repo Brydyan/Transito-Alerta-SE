@@ -2,8 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
-import { scopeToSql } from '../../common/authz/scope-sql';
-import { SubjectScope } from '../../common/authz/subject-scope';
+import { scopeToSql } from '../../shared/authz/scope-sql';
+import { SubjectScope } from '../../shared/authz/subject-scope';
 import { StatusHistoryEntity } from './entities/status-history.entity';
 import { StatusHistoryRepository } from './status-history.repository';
 

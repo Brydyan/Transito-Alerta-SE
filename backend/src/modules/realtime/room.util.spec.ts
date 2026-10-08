@@ -1,5 +1,5 @@
 import { canJoinRoom, incidentRoom, orgRoom, resolveRoomsForEvent, userRoom, zoneRoom } from './room.util';
-import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
+import { AuthContext, SubjectScope } from '../../shared/authz/subject-scope';
 
 function ctx(scope: SubjectScope, overrides: Partial<AuthContext> = {}): AuthContext {
   return {

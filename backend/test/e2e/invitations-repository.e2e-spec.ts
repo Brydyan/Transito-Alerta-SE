@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 
-import { sha256Hex } from '../../src/common/crypto/session-hash';
-import { AuthContext } from '../../src/common/authz/subject-scope';
+import { sha256Hex } from '../../src/shared/crypto/session-hash';
+import { AuthContext } from '../../src/shared/authz/subject-scope';
 import { MailService } from '../../src/modules/mail/mail.service';
 import { generateToken } from '../../src/modules/auth/token-codec';
 import { PasswordResetService } from '../../src/modules/auth/password-reset.service';

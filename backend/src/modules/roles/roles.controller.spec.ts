@@ -1,8 +1,8 @@
 import { Reflector } from '@nestjs/core';
 import { RolesController } from './roles.controller';
 import { RolesService } from './roles.service';
-import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { REQUIRE_PERMISSION_KEY } from '../../shared/decorators/require-permission.decorator';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 
 const GLOBAL_SCOPE = { kind: 'global' as const };
 

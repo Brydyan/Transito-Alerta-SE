@@ -5,7 +5,7 @@ import { IncidentImagesService } from './incident-images.service';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
 import { IncidentImageEntity } from './entities/incident-image.entity';
 import { IncidentsRepository } from './incidents.repository';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 
 const makeFile = (mime = 'image/jpeg'): MulterFile => ({
   originalname: 'photo.jpg',

@@ -1,6 +1,6 @@
 import { DataSource } from 'typeorm';
 import { IncidentFeedService } from './incident-feed.service';
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 
 type MockCache = { get: jest.Mock; set: jest.Mock };
 type Filters = { bbox?: string; status?: string; priority?: string; zone_id?: string; per_page?: number; page?: number; incident_category_id?: string; zoom?: number };

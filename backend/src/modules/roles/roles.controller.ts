@@ -14,9 +14,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { PermissionGuard } from '../../common/guards/permission.guard';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserEntity } from '../users/entities/user.entity';
 import { RoleEntity } from './entities/role.entity';

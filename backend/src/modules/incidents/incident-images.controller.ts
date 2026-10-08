@@ -13,10 +13,10 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionGuard } from '../../common/guards/permission.guard';
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
 import { IncidentImageDto } from './dto/incident-image.dto';
 import { MulterFile } from './incident-image-storage.service';
 import { IncidentImagesService } from './incident-images.service';
