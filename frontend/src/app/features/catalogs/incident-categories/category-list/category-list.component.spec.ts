@@ -525,7 +525,7 @@ describe('CategoryListComponent — localStorage filter persistence (D9)', () =>
   it('saves filter state to localStorage on search (D9 key: categories-filters)', () => {
     const { fixture, component } = setupWithFilters();
     fixture.detectChanges();
-    const setItemSpy = jest.spyOn(Storage.prototype, 'setItem');
+    const setItemSpy = jest.spyOn(globalThis.Storage.prototype, 'setItem');
     const searchEvent = { target: { value: 'Baches' } } as unknown as Event;
     component.onSearchInput(searchEvent);
     expect(setItemSpy).toHaveBeenCalledWith(STORAGE_KEY, expect.any(String));

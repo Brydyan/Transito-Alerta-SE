@@ -514,7 +514,7 @@ describe('OrganizationListComponent — localStorage filter persistence (D9)', (
   it('saves filter state to localStorage on search (D9 key: organizations-filters)', () => {
     const { fixture, component } = setupWithFilters();
     fixture.detectChanges();
-    const setItemSpy = jest.spyOn(Storage.prototype, 'setItem');
+    const setItemSpy = jest.spyOn(globalThis.Storage.prototype, 'setItem');
     // Simulate search input change persistence path
     const searchEvent = { target: { value: 'Quito' } } as unknown as Event;
     component.onSearchInput(searchEvent);

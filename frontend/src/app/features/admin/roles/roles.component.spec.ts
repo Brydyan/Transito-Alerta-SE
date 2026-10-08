@@ -119,7 +119,7 @@ describe('RolesComponent (F6 rediseño)', () => {
     expect(component.cardItems().length).toBe(2);
     expect(component.cardItems().map((c) => c['nombre'])).toEqual([
       'operador_sistema',
-      'operador_organizacion',
+      'operador_org',
     ]);
   });
 
