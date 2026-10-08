@@ -101,14 +101,14 @@ describe('AssignmentService', () => {
 
   // ───── getAvailableOperators() ────────────────────────────────────
 
-  it('getAvailableOperators() calls /operators/locations to get available operators', (done) => {
+  it('getAvailableOperators() calls /operator/locations to get available operators', (done) => {
     const fixtureOps = [{ user_id: 'op-1', lat: 0, lng: 0, updated_at: '2026-09-23' }];
     service.getAvailableOperators().subscribe((ops) => {
       expect(Array.isArray(ops)).toBe(true);
       done();
     });
 
-    const req = http.expectOne(`${base}/operators/locations`);
+    const req = http.expectOne(`${base}/operator/locations`);
     expect(req.request.method).toBe('GET');
     req.flush({ operators: fixtureOps });
   });

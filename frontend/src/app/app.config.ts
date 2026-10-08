@@ -47,6 +47,7 @@ import {
   CirclePlus,
   Building2,
   Tag,
+  ExternalLink,
 } from 'lucide-angular';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
@@ -97,6 +98,7 @@ const LUCIDE_ICONS = {
   'chevron-right': ChevronRight,
   inbox: Inbox,
   'map-pin': MapPin,
+  'external-link': ExternalLink,
   'folder-open': FolderOpen,
   'layout-dashboard': LayoutDashboard,
   list: List,

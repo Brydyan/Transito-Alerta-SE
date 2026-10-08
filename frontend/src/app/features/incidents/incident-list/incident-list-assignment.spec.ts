@@ -39,6 +39,7 @@ describe('IncidentListComponent — Assignment integration', () => {
     geofence_matched: false,
     organization_id: null,
     citizen_id: 'user-1',
+    is_anonymous: false,
     assigned_to: null,
     category_id: null,
     claimed_by: null,

@@ -235,6 +235,14 @@ describe('IncidentsRepository', () => {
       expect(sql).toContain('WHERE id = $1 AND organization_id = $2');
       expect(params).toEqual(['inc-1', 'org-1']);
     });
+
+    it('returns geo_zone and citizen subqueries when not anonymous', async () => {
+      dataSource.query.mockResolvedValue([]);
+      await repository.findOne('inc-1', GLOBAL_SCOPE);
+      const [sql] = dataSource.query.mock.calls[0];
+      expect(sql).toContain("json_build_object('name', name) FROM geo_zones");
+      expect(sql).toContain("json_build_object('full_name', first_name || ' ' || last_name, 'email', email) FROM users");
+    });
   });
 
 

@@ -38,6 +38,7 @@ describe('IncidentDetailComponent (F3.4)', () => {
     geofence_matched: true,
     organization_id: 'org-A',
     citizen_id: 'user-1',
+    is_anonymous: false,
     assigned_to: null,
     category_id: null,
     claimed_by: null,
@@ -67,6 +68,7 @@ describe('IncidentDetailComponent (F3.4)', () => {
   } = {}) {
     const id = opts.id === undefined ? 'inc-1' : opts.id;
     const incidentSvc = {
+      getIncidentImages: jest.fn().mockReturnValue(of([])),
       getIncident: jest.fn(),
       updateIncidentStatus: jest.fn(),
       releaseIncident: jest.fn(),
@@ -315,5 +317,94 @@ describe('IncidentDetailComponent (F3.4)', () => {
     component.onAction('release');
 
     expect(toastSvc.show).toHaveBeenCalledWith('NOT_THE_CLAIMER', 'error');
+  });
+
+  // ── Nuevos Tests T2-T5 ────────────────────────────────────────────────
+
+  it('T2 — renderiza nombres legibles o fallbacks (Ciudadano no disponible)', () => {
+    const inc: Incident = {
+      ...baseIncident,
+      citizen_id: '123',
+      zone_id: '456',
+      citizen: { full_name: 'Juan Perez' },
+      geo_zone: { name: 'Centro' },
+    };
+    const { fixture } = setup({ incident: inc });
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Juan Perez');
+    expect(text).toContain('Centro');
+    expect(text).not.toContain('123');
+    expect(text).not.toContain('456');
+
+    // Test fallbacks
+    const incFallback: Incident = {
+      ...baseIncident,
+      citizen: undefined,
+      geo_zone: undefined,
+    };
+    TestBed.resetTestingModule();
+    const { fixture: fixtureFB } = setup({ incident: incFallback });
+    const textFB = (fixtureFB.nativeElement as HTMLElement).textContent ?? '';
+    expect(textFB).toContain('Ciudadano no disponible');
+    expect(textFB).toContain('Zona no disponible');
+  });
+
+  it('T2 — muestra "Autor anónimo" si is_anonymous es true', () => {
+    const inc: Incident = {
+      ...baseIncident,
+      is_anonymous: true,
+      citizen: undefined,
+    };
+    const { fixture } = setup({ incident: inc });
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Autor anónimo');
+    expect(text).not.toContain('Ciudadano no disponible');
+  });
+
+  it('T3 — oculta el contenedor de ubicación si no hay coordenadas', () => {
+    const inc: Incident = { ...baseIncident, lat: NaN, lng: NaN };
+    const { fixture } = setup({ incident: inc });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('ui-card[title="Ubicación"]')).toBeNull();
+    expect(el.textContent).not.toContain('Zona no disponible');
+  });
+
+  it('T4 — inicializa el mapa Leaflet solo si hay coordenadas y lo limpia en OnDestroy', () => {
+    const { component } = setup({ incident: baseIncident });
+    // el effect de signals ya corrió con fixture.detectChanges() en setup()
+    expect(component['mapInstance']).not.toBeNull();
+    const removeSpy = jest.spyOn(component['mapInstance']!, 'remove');
+    component.ngOnDestroy();
+    expect(removeSpy).toHaveBeenCalled();
+    expect(component['mapInstance']).toBeNull();
+  });
+
+  it('T5 — botón "Abrir en Google Maps" abre la URL armada con lat/lng', () => {
+    const { component, fixture } = setup({ incident: baseIncident });
+    const openSpy = jest
+      .spyOn(window, 'open')
+      .mockImplementation(() => null);
+
+    const btn = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="open-google-maps"]',
+    );
+    expect(btn).not.toBeNull();
+
+    component.openInGoogleMaps();
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://www.google.com/maps?q=-2.2,-80.8',
+      '_blank',
+      'noopener,noreferrer',
+    );
+    openSpy.mockRestore();
+  });
+
+  it('T5 — sin coordenadas el botón de Google Maps no aparece', () => {
+    const inc: Incident = { ...baseIncident, lat: NaN, lng: NaN };
+    const { fixture } = setup({ incident: inc });
+    const btn = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="open-google-maps"]',
+    );
+    expect(btn).toBeNull();
   });
 });

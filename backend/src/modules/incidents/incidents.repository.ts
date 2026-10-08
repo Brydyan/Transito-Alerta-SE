@@ -20,11 +20,13 @@ export interface IncidentRow {
    * migración 0046 y `IncidentReporterEntity`.
    */
   citizen_id: string;
+  citizen?: { full_name: string; email: string } | null;
   /** AUD (sc-327) D1 — `true` si la autoría se muestra sin
    * revelar al autor real. */
   is_anonymous: boolean;
   assigned_to: string | null;
   zone_id: string | null;
+  geo_zone?: { name: string } | null;
   geofence_matched: boolean;
   organization_id: string | null;
   category_id: string | null;
@@ -199,7 +201,10 @@ export class IncidentsRepository {
     const scopeSql = scopeToSql(scope, { table: 'incidents', paramOffset: 2 });
     const rows: IncidentRow[] = await this.dataSource.query(
       // T6.2: filter out soft-deleted incidents
-      `SELECT ${getSelectColumns(actorId)} FROM incidents WHERE id = $1 AND ${scopeSql.fragment} AND deleted_at IS NULL`,
+      `SELECT ${getSelectColumns(actorId)},
+        (SELECT json_build_object('name', name) FROM geo_zones WHERE id = incidents.zone_id) AS geo_zone,
+        CASE WHEN is_anonymous THEN NULL ELSE (SELECT json_build_object('full_name', first_name || ' ' || last_name, 'email', email) FROM users WHERE id = incidents.citizen_id) END AS citizen
+       FROM incidents WHERE id = $1 AND ${scopeSql.fragment} AND deleted_at IS NULL`,
       [id, ...scopeSql.params],
     );
     return rows[0] ?? null;

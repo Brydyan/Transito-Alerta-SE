@@ -29,13 +29,19 @@
  *                        D9), 1 assignment, 1 resolution_date,
  *                        approved_by+approved_at poblados
  *
- * ⚠️  El paso de aprobación a `closed` NO escribe fila de status_history.
- *     Motivo: chk_status_history_new_status (migración 0014) sólo admite
- *     `pending`/`in_progress`/`resolved` como `new_status` — nunca
- *     recibió `'closed'`, aunque 0020 lo agregó al CHECK de
- *     `incidents.status`. En producción
- *     `IncidentApprovalService.approve` tampoco emite ese evento.
- *     Omitir la fila es fiel al comportamiento real, no un atajo.
+ * ⚠️  El seeder NO escribe la transición a `closed` en status_history.
+ *     Antes de la migración 0068 (`status_history_status_checks.sql`) esto
+ *     era forzoso: chk_status_history_new_status (0014) sólo admitía
+ *     `pending`/`in_progress`/`resolved` como `new_status`, aunque 0020 ya
+ *     había agregado `'closed'` al CHECK de `incidents.status`. 0068
+ *     amplió el dominio al de la máquina de estados porque
+ *     `IncidentWorkflowService.changeStatus()` escribe `closed` en
+ *     producción y el cierre era imposible. Desde entonces omitir la fila
+ *     es una ELECCIÓN de este seeder, no una restricción de la base:
+ *     `IncidentApprovalService.approve` sigue sin emitir ese evento, así
+ *     que la fila se mantiene fiel al comportamiento real — pero si algún
+ *     día el flujo de aprobación empieza a emitirla, este seeder y sus
+ *     asserts deben moverse con él.
  *
  * Idempotencia:
  *   - Chequeo inicial: si la base ya tiene ≥ 1000 incidentes con prefijo
@@ -365,7 +371,8 @@ function buildStatusHistoryRows(incidents) {
         created_at: new Date(inc.created_at.getTime() + 60 * 60 * 1000),
       });
     }
-    // ⚠️ NO escribimos resolved/approved -> closed (chk_status_history_new_status).
+    // ⚠️ NO escribimos la transición a `closed` (decisión del seeder; el
+    // dominio lo admite desde 0068 — ver la nota de la cabecera).
   }
   return rows;
 }

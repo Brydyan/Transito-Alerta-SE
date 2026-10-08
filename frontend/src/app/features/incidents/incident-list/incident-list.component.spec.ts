@@ -27,6 +27,10 @@ describe('IncidentListComponent (sc-339 pagination)', () => {
     geofence_matched: true,
     organization_id: 'org-A',
     citizen_id: 'user-1',
+    // Presente en el literal base a propósito: el spread de `overrides` es
+    // `Partial<Incident>`, así que un campo ausente aquí quedaría tipado
+    // `boolean | undefined` y `Incident` lo exige `boolean`.
+    is_anonymous: false,
     assigned_to: null,
     category_id: null,
     claimed_by: null,

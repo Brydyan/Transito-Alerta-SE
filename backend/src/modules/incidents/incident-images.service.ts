@@ -40,6 +40,25 @@ export class IncidentImagesService {
     private readonly permissionLookup: PermissionLookupService,
   ) {}
 
+  async listForIncident(incidentId: string, scope: SubjectScope): Promise<IncidentImageDto[]> {
+    const incident = await this.incidentsRepository.findOne(incidentId, scope);
+    if (!incident) {
+      throw new NotFoundException(`Incident ${incidentId} not found or outside scope`);
+    }
+
+    const images = await this.imageRepo.find({
+      where: { incidentId },
+      order: { createdAt: 'ASC' },
+    });
+    return images.map((img) => ({
+      id: img.id,
+      url: img.url,
+      mime_type: img.mimeType,
+      file_size: img.fileSize,
+      created_at: img.createdAt,
+    }));
+  }
+
   async attachToIncident(
     incidentId: string,
     callerId: string,

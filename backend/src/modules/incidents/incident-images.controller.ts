@@ -1,6 +1,7 @@
 import {
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -14,6 +15,8 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionGuard } from '../../common/guards/permission.guard';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { IncidentImageDto } from './dto/incident-image.dto';
 import { MulterFile } from './incident-image-storage.service';
 import { IncidentImagesService } from './incident-images.service';
@@ -24,9 +27,19 @@ import { IncidentImagesService } from './incident-images.service';
  * DELETE /api/incidents/:id/images/:imageId — remove one image.
  */
 @Controller('incidents/:id/images')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 export class IncidentImagesController {
   constructor(private readonly incidentImagesService: IncidentImagesService) {}
+
+  @Get()
+  @RequirePermission('READ')
+  getImages(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<IncidentImageDto[]> {
+    const user = req.user!;
+    return this.incidentImagesService.listForIncident(id, user.scope);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

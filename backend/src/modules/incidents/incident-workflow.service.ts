@@ -33,6 +33,8 @@ import {
 import { unwrapReturningRows, IncidentRow } from './incidents.repository';
 import { AvailableOperatorDto } from './dto/available-operator.dto';
 import { ClaimReleaseResponseDto } from './dto/claim-release-response.dto';
+import { hasPermission } from '../../common/guards/permission.guard';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 
 // Shape of the row returned by the CAS UPDATE statements; we cast and then
 // re-project into ClaimReleaseResponseDto at the controller boundary. The
@@ -75,6 +77,10 @@ export class IncidentWorkflowService {
     private readonly geofencingService: GeofencingService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // F6 fix (post-0051): las perms del user viven como UUIDs; para
+    // verificar `CLOSE incidents` hay que traducir la (action, resource)
+    // a UUID vía el resolver — `includes('CLOSE incidents')` NO funciona.
+    private readonly permissionLookup: PermissionLookupService,
   ) {}
 
   /**
@@ -105,22 +111,79 @@ export class IncidentWorkflowService {
       }
     }
 
-    // 4) Atomic CAS — 0 rows = someone else already claimed it.
-    //    TypeORM's pg driver wraps UPDATE/DELETE RETURNING as [rows, count]
-    //    (regression 7284831), so we route through the shared unwrap helper.
-    const result = await this.dataSource.query(
-      // T6.3: also write claimed_at = NOW() when claiming
-      `UPDATE incidents
-         SET claimed_by = $1, claimed_at = NOW()
-       WHERE id = $2 AND claimed_by IS NULL
-       RETURNING id, title, status, priority, claimed_by, organization_id, updated_at`,
-      [operator.id, incidentId],
-    );
-    const rows = unwrapReturningRows<IncidentRow>(result);
-    if (rows.length === 0) {
-      throw new ConflictException(INCIDENT_ALREADY_CLAIMED);
-    }
-    return this.toResponse(rows[0]);
+    // 4) Transacción atómica (S.5.1): lock + verificación + UPDATE +
+    //    historial. Antes el claim era un UPDATE CAS suelto que NO
+    //    transicionaba el status — la incidencia quedaba `pending`
+    //    reclamada, por lo que `workflow.util.ts` (frontend) nunca
+    //    ofrecía release/resolve (requieren `in_progress`), y
+    //    `status_history` no registraba el reclamo.
+    const committed = await this.dataSource.transaction(async (manager) => {
+      // 4a) Bloquear la fila para serializar claimers concurrentes. El
+      //     `FOR UPDATE` hace que el segundo claimer espere al primero;
+      //     al despertar, lee `claimed_by` ya seteado y choca con 409.
+      const currentRows = await manager.query<IncidentRow[]>(
+        `SELECT id, title, status, priority, claimed_by, organization_id, updated_at
+           FROM incidents
+          WHERE id = $1
+          FOR UPDATE`,
+        [incidentId],
+      );
+      if (currentRows.length === 0) {
+        throw new NotFoundException(`Incident ${incidentId} not found`);
+      }
+      const current = currentRows[0];
+      const from = current.status;
+
+      // 4b) CAS: la fila debe estar sin claimer.
+      if (current.claimed_by !== null) {
+        throw new ConflictException(INCIDENT_ALREADY_CLAIMED);
+      }
+
+      // 4c) Legalidad de la transición. El claim produce la transición de
+      //     status `pending → in_progress` (máquina de estados y
+      //     `workflow.util.ts`); el re-claim de una fila liberada
+      //     (`in_progress` sin claimer, post-release) NO transiciona —
+      //     sólo asigna el operador. Cualquier otro estado es ilegal.
+      if (from !== 'pending' && from !== 'in_progress') {
+        throw new ConflictException({
+          code: INCIDENT_INVALID_TRANSITION,
+          message: `Illegal claim transition: ${from} -> in_progress`,
+          from,
+          to: 'in_progress',
+        });
+      }
+
+      // 4d) UPDATE con CAS por lock. `status` transiciona a `in_progress`
+      //     SOLO si la fila estaba `pending`; `claimed_at` siempre.
+      const result = await manager.query(
+        `UPDATE incidents
+            SET claimed_by = $1,
+                claimed_at = NOW(),
+                status = CASE WHEN status = 'pending' THEN 'in_progress' ELSE status END
+          WHERE id = $2
+        RETURNING id, title, status, priority, claimed_by, organization_id, updated_at`,
+        [operator.id, incidentId],
+      );
+      const updated = unwrapReturningRows<IncidentRow>(result)[0];
+      if (!updated) {
+        throw new NotFoundException(`Incident ${incidentId} not found`);
+      }
+
+      // 4e) Historial en la MISMA transacción — el re-claim no escribe
+      //     historial porque no hay transición de status que registrar.
+      if (from === 'pending') {
+        await manager.query(
+          `INSERT INTO status_history
+              (incident_id, changed_by_user_id, previous_status, new_status, notes, event_id)
+           VALUES ($1, $2, $3, $4, NULL, gen_random_uuid()::text)`,
+          [incidentId, operator.id, from, 'in_progress'],
+        );
+      }
+
+      return updated;
+    });
+
+    return this.toResponse(committed);
   }
 
   /**
@@ -289,7 +352,13 @@ export class IncidentWorkflowService {
             message: 'closing an incident requires a non-empty reason',
           });
         }
-        if (!actorPermissions.includes('CLOSE incidents')) {
+        const canClose = await hasPermission(
+          [...actorPermissions],
+          'CLOSE',
+          'incidents',
+          this.permissionLookup,
+        );
+        if (!canClose) {
           throw new ForbiddenException({
             code: 'INCIDENT_CLOSE_PERMISSION_REQUIRED',
             message: 'closing an incident requires the CLOSE incidents permission',

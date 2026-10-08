@@ -37,7 +37,7 @@
       <div class="min-w-0 flex-1">
         <p class="text-sm text-slate-500">
           <ui-icon name="user" [size]="14" />
-          Reportada por {{ inc.citizen_id }}
+          Reportada por {{ inc.is_anonymous ? 'Autor anónimo' : (inc.citizen?.full_name || 'Ciudadano no disponible') }}
         </p>
         <div class="mt-2 flex items-center gap-2 flex-wrap">
           <ui-badge [variant]="badgeStatusFor(inc.status)" />
@@ -79,32 +79,34 @@
     </p>
   </ui-card>
 
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-    <!-- Datos y ubicación -->
-    <ui-card title="Ubicación">
-      @if (hasCoordinates()) {
-        <div class="text-sm text-slate-700 space-y-1">
-          <p>
-            <ui-icon name="map-pin" [size]="14" />
+  <div class="grid grid-cols-1 lg:grid-cols-1 gap-4 mt-4">
+    <!-- Datos y ubicación — el mapa es la vista previa; el botón delega
+         la navegación a Google Maps (usabilidad del operador). -->
+    @if (hasCoordinates()) {
+      <ui-card title="Ubicación">
+        <div class="text-sm text-slate-700 space-y-2">
+          <p class="font-medium flex items-center gap-1">
+            <ui-icon name="map-pin" [size]="16" />
+            {{ inc.geo_zone?.name || 'Zona no disponible' }}
+          </p>
+          <p class="text-xs text-slate-500">
             Lat {{ inc.lat.toFixed(5) }}, Lng {{ inc.lng.toFixed(5) }}
           </p>
-          @if (inc.zone_id) {
-            <p class="text-xs text-slate-500">Zona: {{ inc.zone_id }}</p>
-          }
-          <!-- F3.4.3 — el mini-mapa con Leaflet es follow-up;
-               el bloque no se renderiza vacío. -->
-          <p class="mt-3 text-xs text-slate-500 italic">
-            Vista de mapa pendiente (Leaflet) — sigue F3.6.
-          </p>
+          <div #mapContainer class="h-48 w-full mt-3 rounded border border-slate-200"></div>
+          <button
+            type="button"
+            class="btn btn-secondary w-full mt-2"
+            data-testid="open-google-maps"
+            (click)="openInGoogleMaps()"
+          >
+            <ui-icon name="external-link" [size]="16" />
+            Abrir en Google Maps
+          </button>
         </div>
-      } @else {
-        <p class="text-sm text-slate-500 italic">
-          Sin coordenadas registradas.
-        </p>
-      }
-    </ui-card>
+      </ui-card>
+    }
 
-    <!-- Status-timeline (F3.4.5) -->
+    <!-- Status-timeline (F3.4.5)
     <ui-card title="Historial">
       @if (history().length === 0) {
         <p class="text-sm text-slate-500 italic">Sin cambios de estado registrados.</p>
@@ -134,14 +136,12 @@
           }
         </ol>
       }
-    </ui-card>
+    </ui-card> -->
 
-    <!-- Galería placeholder (F3.4.6 — pendiente) -->
-    <ui-card title="Galería">
-      <p class="text-sm text-slate-500 italic" data-testid="gallery-placeholder">
-        Vista de galería pendiente (endpoint incident-images). Sigue F3.6.
-      </p>
-    </ui-card>
+    <!-- Galería -->
+    <!-- <ui-card title="Galería">
+      <app-incident-images [incidentId]="inc.id" />
+    </ui-card> -->
   </div>
 
   <!-- F3.4.7 — el hilo de comentarios se carga en paralelo (F3.4.2) -->
