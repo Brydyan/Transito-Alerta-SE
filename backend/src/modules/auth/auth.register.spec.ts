@@ -3,8 +3,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 
 import { AuthRegisterService, RegistrationRateLimited, REGISTRATION_INDISTINGUISHABLE_MESSAGE } from './auth.register';
-import { UserEntity } from '../../entities/user.entity';
-import { RoleEntity } from '../../entities/role.entity';
+import { UserEntity } from '../users/entities/user.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
 import { PasswordHasher } from './password-hasher';
 import { EmailVerificationService } from './email-verification.service';
 

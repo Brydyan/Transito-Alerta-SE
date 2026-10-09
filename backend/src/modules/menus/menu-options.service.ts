@@ -11,7 +11,7 @@ import { MenuOptionEntity } from './entities/menu-option.entity';
 import { MenuOptionRoleEntity } from './entities/menu-option-role.entity';
 import { ApiEndpointEntity } from './entities/api-endpoint.entity';
 import { MenuOptionEndpointEntity } from './entities/menu-option-endpoint.entity';
-import { RoleEntity } from '../../entities/role.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
 import { MenusService } from './menus.service';
 import { CreateMenuOptionDto } from './dto/create-menu-option.dto';
 import { UpdateMenuOptionDto } from './dto/update-menu-option.dto';

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { IncidentImageEntity } from '../../entities/incident-image.entity';
+import { IncidentImageEntity } from './entities/incident-image.entity';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
 import { IncidentImageDto } from './dto/incident-image.dto';
 import { IncidentsRepository } from './incidents.repository';

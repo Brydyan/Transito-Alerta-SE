@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 
 import { scopeToSql } from '../../common/authz/scope-sql';
 import { SubjectScope } from '../../common/authz/subject-scope';
-import { StatusHistoryEntity } from '../../entities/status-history.entity';
+import { StatusHistoryEntity } from './entities/status-history.entity';
 import { StatusHistoryRepository } from './status-history.repository';
 
 export interface StatusHistoryListResult {

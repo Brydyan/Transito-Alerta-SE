@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { CommentEntity } from '../../entities/comment.entity';
-import { CommentImageEntity } from '../../entities/comment-image.entity';
+import { CommentEntity } from './entities/comment.entity';
+import { CommentImageEntity } from './entities/comment-image.entity';
 import { StorageModule } from '../../infra/storage/storage.module';
 import { IncidentsModule } from '../incidents/incidents.module';
 // REG (sc-325) — ver `incidents.module.ts` por la razón completa.
 // `EmailVerifiedGuard` necesita `UserEntity` para leer
 // `email_verified_at` directo de la BD; replicamos el forFeature
 // local en lugar de importar `AuthModule`/`UsersModule`.
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { CommentsController } from './comments.controller';
 import { CommentsService } from './comments.service';
 import { CommentImageStorageService } from './comment-image-storage.service';

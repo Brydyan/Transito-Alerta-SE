@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import { Redis } from 'ioredis';
 import { Notification, NotificationType } from './entities/notification.entity';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { REDIS_CLIENT } from '../../infra/core.module';
 
 @Injectable()

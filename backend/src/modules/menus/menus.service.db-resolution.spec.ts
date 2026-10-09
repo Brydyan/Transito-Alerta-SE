@@ -4,7 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { REDIS_CLIENT } from '../../infra/core.module';
 import { MenuOptionEntity } from './entities/menu-option.entity';
 import { MenuOptionRoleEntity } from './entities/menu-option-role.entity';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { AuthService } from '../auth/auth.service';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { MenusService } from './menus.service';

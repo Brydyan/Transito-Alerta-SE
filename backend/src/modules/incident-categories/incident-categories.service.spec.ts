@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 
-import { IncidentCategoryEntity } from '../../entities/incident-category.entity';
+import { IncidentCategoryEntity } from './entities/incident-category.entity';
 import { IncidentCategoriesRepository } from './incident-categories.repository';
 import { IncidentCategoriesService } from './incident-categories.service';
 

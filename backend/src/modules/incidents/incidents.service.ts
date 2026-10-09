@@ -9,7 +9,7 @@ import { DataSource } from 'typeorm';
 
 import { REDIS_CLIENT } from '../../infra/core.module';
 import { AuthConfig } from '../../config/auth.config';
-import { IncidentStatus } from '../../entities/incident.entity';
+import { IncidentStatus } from './entities/incident.entity';
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SubjectScope } from '../../common/authz/subject-scope';

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { AssignmentEntity } from '../../entities/assignment.entity';
+import { AssignmentEntity } from './entities/assignment.entity';
 import { IncidentsModule } from '../incidents/incidents.module';
 import { AssignmentsController } from './assignments.controller';
 import { AssignmentsService } from './assignments.service';

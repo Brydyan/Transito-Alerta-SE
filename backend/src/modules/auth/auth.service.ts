@@ -7,7 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { Cache } from 'cache-manager';
 import { DataSource, Repository } from 'typeorm';
 
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { AuthConfig } from '../../config/auth.config';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';

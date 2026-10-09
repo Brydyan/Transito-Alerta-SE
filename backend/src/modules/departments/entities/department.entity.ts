@@ -10,7 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-import { OrganizationEntity } from './organization.entity';
+import { OrganizationEntity } from '../../organizations/entities/organization.entity';
 
 /**
  * `departments` table — optional organizational subdivision (design D1).

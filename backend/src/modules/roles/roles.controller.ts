@@ -18,8 +18,8 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { UserEntity } from '../../entities/user.entity';
-import { RoleEntity } from '../../entities/role.entity';
+import { UserEntity } from '../users/entities/user.entity';
+import { RoleEntity } from './entities/role.entity';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { RoleStatsDto } from './dto/role-stats.dto';

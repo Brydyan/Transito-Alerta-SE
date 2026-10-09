@@ -12,7 +12,7 @@ import cacheConfig from '../config/cache.config';
 import { CacheConfig } from '../config/cache.config';
 import mailConfig from '../config/mail.config';
 import storageConfig from '../config/storage.config';
-import { PermissionEntity } from '../entities/permission.entity';
+import { PermissionEntity } from '../modules/permissions/entities/permission.entity';
 import { PermissionLookupService } from '../common/permissions/permission-lookup.service';
 import { ImageCompressionModule } from './image/image-compression.module';
 

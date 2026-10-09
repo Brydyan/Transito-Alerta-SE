@@ -4,7 +4,7 @@ import { IsNull, Repository } from 'typeorm';
 import Redis from 'ioredis';
 
 import { REDIS_CLIENT } from '../../infra/core.module';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { AuthService } from '../auth/auth.service';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { MenuOptionEntity } from './entities/menu-option.entity';
