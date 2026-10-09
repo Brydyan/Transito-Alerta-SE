@@ -3,7 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Cache } from 'cache-manager';
 import type { DataSource, Repository } from 'typeorm';
-import { AuthService, PERMISSION_CACHE_PREFIX } from './auth.service';
+import { AuthService } from './auth.service';
+import { AuthContextService, PERMISSION_CACHE_PREFIX } from './auth-context.service';
 import { AuthUserRepository } from './auth-user.repository';
 import { UserEntity } from '../../entities/user.entity';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
@@ -102,13 +103,14 @@ describe('AuthService', () => {
     revocationCache = makeRevocationCache();
     graceBuffer = makeGraceBuffer();
     permissionLookup = makePermissionLookup();
+    const authUserRepo = new AuthUserRepository(
+      userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
+      dataSource as unknown as DataSource,
+    );
     service = new AuthService(
-      new AuthUserRepository(
-        userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
-        dataSource as unknown as DataSource,
-      ),
+      authUserRepo,
       jwtService as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
+      new AuthContextService(cache as unknown as Cache, configService, authUserRepo),
       configService,
       sessionsRepository as unknown as SessionsRepository,
       revocationCache as unknown as RevocationCache,
@@ -552,13 +554,18 @@ describe('AuthService.invalidatePermissionCache', () => {
 
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+    const authUserRepo = new AuthUserRepository(
+      {} as unknown as jest.Mocked<Repository<UserEntity>>,
+      makeDataSource() as unknown as DataSource,
+    );
     service = new AuthService(
-      new AuthUserRepository(
-        {} as unknown as jest.Mocked<Repository<UserEntity>>,
-        makeDataSource() as unknown as DataSource,
-      ),
+      authUserRepo,
       { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
+      new AuthContextService(
+        cache as unknown as Cache,
+        { get: () => makeAuthConfig() } as unknown as ConfigService,
+        authUserRepo,
+      ),
       { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
@@ -587,13 +594,18 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn() };
     dataSource = makeDataSource();
+    const authUserRepo = new AuthUserRepository(
+      {} as unknown as jest.Mocked<Repository<UserEntity>>,
+      dataSource as unknown as DataSource,
+    );
     service = new AuthService(
-      new AuthUserRepository(
-        {} as unknown as jest.Mocked<Repository<UserEntity>>,
-        dataSource as unknown as DataSource,
-      ),
+      authUserRepo,
       { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
+      new AuthContextService(
+        cache as unknown as Cache,
+        { get: () => makeAuthConfig() } as unknown as ConfigService,
+        authUserRepo,
+      ),
       { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
@@ -805,13 +817,18 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn() };
     dataSource = makeDataSource();
+    const authUserRepo = new AuthUserRepository(
+      {} as unknown as jest.Mocked<Repository<UserEntity>>,
+      dataSource as unknown as DataSource,
+    );
     service = new AuthService(
-      new AuthUserRepository(
-        {} as unknown as jest.Mocked<Repository<UserEntity>>,
-        dataSource as unknown as DataSource,
-      ),
+      authUserRepo,
       { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
+      new AuthContextService(
+        cache as unknown as Cache,
+        { get: () => makeAuthConfig() } as unknown as ConfigService,
+        authUserRepo,
+      ),
       { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
