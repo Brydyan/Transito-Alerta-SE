@@ -1,9 +1,9 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { DataSource, IsNull, Not, type Repository } from 'typeorm';
 import { RolesService } from './roles.service';
-import { RoleEntity } from '../../entities/role.entity';
-import { UserEntity } from '../../entities/user.entity';
-import { PermissionEntity } from '../../entities/permission.entity';
+import { RoleEntity } from './entities/role.entity';
+import { UserEntity } from '../users/entities/user.entity';
+import { PermissionEntity } from '../permissions/entities/permission.entity';
 import { AuthService } from '../auth/auth.service';
 import { AuthContext } from '../../common/authz/subject-scope';
 

@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CommentEntity } from '../../entities/comment.entity';
-import { CommentImageEntity } from '../../entities/comment-image.entity';
+import { CommentEntity } from './entities/comment.entity';
+import { CommentImageEntity } from './entities/comment-image.entity';
 import { CommentImageStorageService, MulterFile } from './comment-image-storage.service';
 import { CommentImageDto } from './dto/comment-image.dto';
 import { hasPermission } from '../../common/guards/permission.guard';

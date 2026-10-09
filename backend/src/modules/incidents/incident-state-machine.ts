@@ -1,4 +1,4 @@
-import type { IncidentStatus } from '../../entities/incident.entity';
+import type { IncidentStatus } from './entities/incident.entity';
 
 /**
  * Máquina de estados de incidencias (sc-315 — `2026-08-29-fix-incident-state-machine`).

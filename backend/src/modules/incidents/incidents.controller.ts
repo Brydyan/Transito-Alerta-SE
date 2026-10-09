@@ -22,7 +22,7 @@ import { EmailVerifiedGuard } from '../../common/guards/email-verified.guard';
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { IncidentStatus } from '../../entities/incident.entity';
+import { IncidentStatus } from './entities/incident.entity';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { UpdateIncidentDto } from './dto/update-incident.dto';
 import { UpdateIncidentStatusDto } from './dto/update-incident-status.dto';

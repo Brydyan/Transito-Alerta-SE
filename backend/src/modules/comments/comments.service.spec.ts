@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Repository } from 'typeorm';
 import { CommentsService, sanitizeContent } from './comments.service';
-import { CommentEntity } from '../../entities/comment.entity';
+import { CommentEntity } from './entities/comment.entity';
 import { IncidentsRepository } from '../incidents/incidents.repository';
 import { SubjectScope } from '../../common/authz/subject-scope';
 

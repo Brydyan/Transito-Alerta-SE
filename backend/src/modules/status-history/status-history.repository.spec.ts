@@ -1,6 +1,6 @@
 import type { DataSource, Repository } from 'typeorm';
 
-import { StatusHistoryEntity } from '../../entities/status-history.entity';
+import { StatusHistoryEntity } from './entities/status-history.entity';
 import { StatusHistoryRepository } from './status-history.repository';
 
 describe('StatusHistoryRepository', () => {

@@ -3,7 +3,7 @@ import {
   TRANSITIONS,
   canTransition,
 } from './incident-state-machine';
-import type { IncidentStatus } from '../../entities/incident.entity';
+import type { IncidentStatus } from './entities/incident.entity';
 
 /**
  * F1 of `2026-08-29-fix-incident-state-machine` (story sc-315) — TDD

@@ -2,9 +2,9 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindManyOptions, In, IsNull, Not, Repository } from 'typeorm';
 
-import { UserEntity } from '../../entities/user.entity';
-import { RoleEntity } from '../../entities/role.entity';
-import { OrganizationEntity } from '../../entities/organization.entity';
+import { UserEntity } from './entities/user.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
 import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
 import { assertCanManage, assertVisible } from '../../common/authz/assert-can-manage';
 import { AuthService } from '../auth/auth.service';

@@ -8,7 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../../modules/users/entities/user.entity';
 import { EMAIL_VERIFICATION_REQUIRED } from '../../modules/auth/auth-errors';
 
 /**

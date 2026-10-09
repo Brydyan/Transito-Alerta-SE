@@ -4,7 +4,7 @@ import type Redis from 'ioredis';
 import { DataSource, Repository } from 'typeorm';
 
 import { MAIL_EVENTS_BLOCKING_CLIENT } from '../../core/core.module';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
 import { decodeStreamEntry } from '../realtime/stream-event.util';
 import { MailService } from './mail.service';

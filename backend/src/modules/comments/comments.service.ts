@@ -3,7 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 
-import { CommentEntity } from '../../entities/comment.entity';
+import { CommentEntity } from './entities/comment.entity';
 import { SubjectScope } from '../../common/authz/subject-scope';
 import { IncidentsRepository } from '../incidents/incidents.repository';
 import { CreateCommentDto } from './dto/create-comment.dto';
