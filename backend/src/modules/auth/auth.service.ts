@@ -1,15 +1,12 @@
 import { randomUUID } from 'crypto';
-import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import type { Cache } from 'cache-manager';
 
 import { UserEntity } from '../../entities/user.entity';
 import { AuthConfig } from '../../config/auth.config';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
-import { resolveSubjectScope } from '../../common/authz/resolve-subject-scope';
 import { sha256Hex, timingSafeEqualHex } from '../../common/crypto/session-hash';
 import { BufferedTokenPair, GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
@@ -27,28 +24,11 @@ import { ANONYMOUS_IDENTITY_CLOSED, INVALID_CREDENTIALS } from './auth-errors';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { DUMMY_HASH, PasswordHasher } from './password-hasher';
 import { AuthUserRepository } from './auth-user.repository';
-
-/**
- * T3.9 design §3 [R4]: reshaped to `perm:v3:` — `AuthContext` gains
- * `isAnonymous`, which is NOT derivable from the cached `{permissions,
- * organizationId, roleName}` triple (a real user may legitimately have
- * both null). A warm Redis under the old `perm:v2:` prefix would read
- * `cached.isAnonymous === undefined` (falsy) and 401 every anonymous
- * device for a full TTL — so `perm:v2:` keys are abandoned, not migrated,
- * exactly as `perm:` was abandoned for `perm:v2:` in T3.2.
- */
-export const PERMISSION_CACHE_PREFIX = 'perm:v3:';
+import { AuthContextService } from './auth-context.service';
 
 export interface RequestMeta {
   ip: string | null;
   userAgent: string | null;
-}
-
-interface CachedAuthContext {
-  permissions: string[];
-  organizationId: string | null;
-  roleName: string | null;
-  isAnonymous: boolean;
 }
 
 export interface AuthTokens {
@@ -92,20 +72,22 @@ export class AuthService {
   constructor(
     private readonly authUserRepo: AuthUserRepository,
     private readonly jwtService: JwtService,
-    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    // sc-413 (Slice B) — permission resolution + the Redis `perm:v3:` cache
+    // ahora viven en AuthContextService. Ocupa la posición donde estaba
+    // `cache`, así la aridad y las posiciones 4-9 del constructor no cambian.
+    private readonly authContext: AuthContextService,
     private readonly configService: ConfigService,
     private readonly sessionsRepository: SessionsRepository,
     private readonly revocationCache: RevocationCache,
     private readonly graceBuffer: GraceBuffer,
     // F5 fix — traduce UUIDs a "ACTION resource" para el wire de /auth/me.
-    // Opcional para no romper los specs existentes que construyen
-    // AuthService con args posicionales; en producción Nest siempre lo inyecta.
-    private readonly permissionLookup?: PermissionLookupService,
-    // T3.6 — optional so the pre-existing `auth.service.spec.ts` regression
-    // suite (which constructs AuthService with the original 8 positional
-    // args) keeps compiling and passing unmodified; Nest's DI container
-    // always supplies a real instance in production/e2e.
-    private readonly passwordHasher?: PasswordHasher,
+    // Requerido (sc-415, Slice C): `PermissionLookupService` es
+    // `providedIn: 'root'`, así que Nest siempre lo inyecta; los specs lo
+    // pasan explícitamente.
+    private readonly permissionLookup: PermissionLookupService,
+    // T3.6 — requerido (sc-415, Slice C). El spec construye AuthService con
+    // un mock; en producción Nest inyecta la instancia real.
+    private readonly passwordHasher: PasswordHasher,
   ) {}
 
   private get authConfig(): AuthConfig {
@@ -169,7 +151,7 @@ export class AuthService {
   ): Promise<AuthTokens> {
     const user = await this.authUserRepo.findByEmail(input.email);
     const hashToCompare = user?.passwordHash ?? DUMMY_HASH;
-    const passwordMatches = await this.passwordHasher!.verify(input.password, hashToCompare);
+    const passwordMatches = await this.passwordHasher.verify(input.password, hashToCompare);
 
     if (!user || !passwordMatches || user.isActive === false) {
       throw invalidCredentialsError();
@@ -401,12 +383,12 @@ export class AuthService {
       throw invalidCredentialsError();
     }
 
-    const matches = await this.passwordHasher!.verify(currentPassword, user.passwordHash ?? DUMMY_HASH);
+    const matches = await this.passwordHasher.verify(currentPassword, user.passwordHash ?? DUMMY_HASH);
     if (!matches) {
       throw invalidCredentialsError();
     }
 
-    const newHash = await this.passwordHasher!.hash(newPassword);
+    const newHash = await this.passwordHasher.hash(newPassword);
     await this.authUserRepo.updatePasswordHash(userId, newHash);
     await this.revokeAllForUser(userId);
   }
@@ -453,9 +435,9 @@ export class AuthService {
     const ctx = await this.getAuthContextByUserId(user.id);
     // F6 fix: Convert UUID permissions to "ACTION resource" strings so frontend
     // permissionGuard can validate with includes() directly.
-    const permissionStrings = this.permissionLookup
-      ? await this.permissionLookup.getDescriptionsByUuids(ctx.permissions)
-      : ctx.permissions;
+    const permissionStrings = await this.permissionLookup.getDescriptionsByUuids(
+      ctx.permissions,
+    );
     return {
       deviceUuid: user.deviceUuid,
       permissions: permissionStrings,
@@ -465,171 +447,30 @@ export class AuthService {
   }
 
   /**
-   * T3.6 D8 — `deviceUuid: null` returns `[]` immediately, no cache
-   * read/write. Password-only users never resolve permissions through this
-   * device-keyed method (see `getMe`/`loginWithPassword`, both of which use
-   * `getPermissionsByUserId` instead) — this guard exists purely so a
-   * caller that still has only a `null` device cannot accidentally read or
-   * poison the shared `perm:v3:null` key.
+   * Device-keyed permission resolution lives in {@link AuthContextService}
+   * (sc-413, Slice B). Kept as a public façade method so existing callers
+   * are unaffected.
    */
-  async getPermissions(deviceUuid: string | null): Promise<string[]> {
-    if (deviceUuid === null) {
-      return [];
-    }
+  getPermissions(deviceUuid: string | null): Promise<string[]> {
+    return this.authContext.getPermissions(deviceUuid);
+  }
 
-    // ANON (sc-326) — la rama `if (deviceUuid === anonymousDeviceUuid)`
-    // se eliminó: `AuthService.login` ya rechaza ese `deviceUuid`
-    // con 401 ANONYMOUS_IDENTITY_CLOSED ANTES de llegar a
-    // `getPermissions` (ver `auth.service.ts:132-152`). La rama
-    // anterior era inalcanzable; mantenerla como defensa en
-    // profundidad duplicaba una invariante que ahora vive
-    // en un solo lugar (la guard de `login`). Si en el futuro
-    // se quiere restaurar el acceso anónimo, lo correcto
-    // es quitar el rechazo en `login` — no reintroducir esta
-    // rama muerta.
-    const { permissionCacheTtlSeconds } = this.authConfig;
+  /** Uid-keyed permission resolution — delegates to {@link AuthContextService}. */
+  getPermissionsByUserId(userId: string): Promise<string[]> {
+    return this.authContext.getPermissionsByUserId(userId);
+  }
 
-    const key = `${PERMISSION_CACHE_PREFIX}${deviceUuid}`;
-    const cached = await this.cache.get<string[]>(key);
-    if (cached) {
-      return cached;
-    }
-
-    const user = await this.authUserRepo.findByDeviceUuid(deviceUuid);
-    if (!user) {
-      // Do NOT cache a miss: pinning an unknown device to [] for the whole TTL
-      // would keep a freshly-provisioned account 403ing until the entry expired.
-      return [];
-    }
-
-    const permissions = user.permissions ?? [];
-    await this.cache.set(key, permissions, permissionCacheTtlSeconds * 1000);
-    return permissions;
+  /** Full per-request {@link AuthContext} — delegates to {@link AuthContextService}. */
+  getAuthContextByUserId(userId: string): Promise<AuthContext> {
+    return this.authContext.getAuthContextByUserId(userId);
   }
 
   /**
-   * Resolves permissions from a user id (the JWT `sub` claim). Thin
-   * wrapper (T3.2 design D6) — {@link getAuthContextByUserId} is now the
-   * single source, so every existing caller of this method keeps working
-   * unchanged.
+   * Purges both cached permission keys (device-keyed and uid-keyed) after a
+   * role/org change — delegates to {@link AuthContextService}.
    */
-  async getPermissionsByUserId(userId: string): Promise<string[]> {
-    return (await this.getAuthContextByUserId(userId)).permissions;
-  }
-
-  /**
-   * F5 fix — traduce UUIDs a "ACTION resource" para el wire
-   * `permission_names` de `GET /auth/me`. Delega al
-   * `PermissionLookupService` que mantiene el índice inverso
-   * del catálogo; fallback a `[]` si el lookup no está inyectado
-   * (tests que construyen AuthService con args posicionales).
-   */
-  async getPermissionNames(uuids: string[]): Promise<string[]> {
-    if (!this.permissionLookup) {
-      return [];
-    }
-    return this.permissionLookup.getNamesByUuids(uuids);
-  }
-
-  /**
-   * Resolves the full per-request `AuthContext` (permissions +
-   * organizationId + roleName + derived scope + isAnonymous) from a user
-   * id in ONE query, cached under `perm:v3:uid:{userId}` (T3.2 design D6,
-   * T3.9 design §3 [R4]).
-   *
-   * `sessionId` is ALWAYS returned `null` here — it is NOT derivable from
-   * `userId` alone (a user can hold many sessions); `JwtStrategy.validate`
-   * attaches the real value from the JWT's own `sid` claim after this call
-   * returns (design §3).
-   *
-   * The anonymous branch CANNOT short-circuit before the query on the uid
-   * path — `userId` alone does not reveal the device. `device_uuid` is
-   * loaded, then checked: when it equals the configured anonymous device,
-   * `permissions` is replaced by `anonymousPermissions` and org/role are
-   * forced to `null`.
-   */
-  async getAuthContextByUserId(userId: string): Promise<AuthContext> {
-    const { anonymousDeviceUuid, anonymousPermissions, permissionCacheTtlSeconds } =
-      this.authConfig;
-
-    const key = `${PERMISSION_CACHE_PREFIX}uid:${userId}`;
-    const cached = await this.cache.get<CachedAuthContext>(key);
-    if (cached) {
-      return {
-        userId,
-        permissions: cached.permissions,
-        organizationId: cached.organizationId,
-        roleName: cached.roleName,
-        scope: resolveSubjectScope(cached.roleName, cached.organizationId, userId),
-        sessionId: null,
-        isAnonymous: cached.isAnonymous,
-      };
-    }
-
-    const row = await this.authUserRepo.findAuthContextRow(userId);
-
-    if (!row) {
-      // Do NOT cache a miss (same reasoning as getPermissions): pinning an
-      // unknown user id to public/[] for the whole TTL would keep a
-      // freshly-provisioned account 403ing until the entry expired.
-      return {
-        userId,
-        permissions: [],
-        organizationId: null,
-        roleName: null,
-        scope: resolveSubjectScope(null, null, userId),
-        sessionId: null,
-        isAnonymous: false,
-      };
-    }
-
-    const isAnonymous = row.device_uuid === anonymousDeviceUuid;
-    // R7.5 — a soft-deleted assigned role grants nothing, regardless of
-    // what's still denormalized onto `users.permissions`.
-    const roleDeleted = row.role_deleted_at != null;
-    const permissions = isAnonymous
-      ? anonymousPermissions
-      : roleDeleted
-        ? []
-        : (row.permissions ?? []);
-    const organizationId = isAnonymous ? null : row.organization_id;
-    const roleName = isAnonymous || roleDeleted ? null : row.role_name;
-
-    await this.cache.set(
-      key,
-      { permissions, organizationId, roleName, isAnonymous },
-      permissionCacheTtlSeconds * 1000,
-    );
-
-    return {
-      userId,
-      permissions,
-      organizationId,
-      roleName,
-      scope: resolveSubjectScope(roleName, organizationId, userId),
-      sessionId: null,
-      isAnonymous,
-    };
-  }
-
-  /**
-   * Invalidates a user's cached permission blob under BOTH keying schemes
-   * (design D2's `pv` bump). Called by RolesService.assignRole after a
-   * role reassignment writes new permissions to the user row, so the very
-   * next request rebuilds `perm:*` from the DB instead of serving the
-   * stale cached set for up to `permissionCacheTtlSeconds` more.
-   *
-   * T3.6 D8: `deviceUuid: null` skips the device-keyed `cache.del` — there
-   * is no `perm:v3:null` key to clean up, and issuing that delete would be
-   * a harmless-but-pointless no-op every place this is now called for a
-   * password-only user.
-   */
-  async invalidatePermissionCache(userId: string, deviceUuid: string | null): Promise<void> {
-    const deletes = [this.cache.del(`${PERMISSION_CACHE_PREFIX}uid:${userId}`)];
-    if (deviceUuid !== null) {
-      deletes.push(this.cache.del(`${PERMISSION_CACHE_PREFIX}${deviceUuid}`));
-    }
-    await Promise.all(deletes);
+  invalidatePermissionCache(userId: string, deviceUuid: string | null): Promise<void> {
+    return this.authContext.invalidatePermissionCache(userId, deviceUuid);
   }
 
   private signAccessToken(userId: string, sid?: string): string {
