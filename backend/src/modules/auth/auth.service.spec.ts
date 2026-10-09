@@ -8,6 +8,7 @@ import { AuthContextService, PERMISSION_CACHE_PREFIX } from './auth-context.serv
 import { AuthUserRepository } from './auth-user.repository';
 import { UserEntity } from '../../entities/user.entity';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { PasswordHasher } from './password-hasher';
 import { GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { SessionsRepository } from '../sessions/sessions.repository';
@@ -63,6 +64,10 @@ function makePermissionLookup() {
   };
 }
 
+function makePasswordHasher() {
+  return { hash: jest.fn(), verify: jest.fn() };
+}
+
 function makeSessionRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 'sid-1',
@@ -91,6 +96,7 @@ describe('AuthService', () => {
   let revocationCache: ReturnType<typeof makeRevocationCache>;
   let graceBuffer: ReturnType<typeof makeGraceBuffer>;
   let permissionLookup: ReturnType<typeof makePermissionLookup>;
+  let passwordHasher: ReturnType<typeof makePasswordHasher>;
   let service: AuthService;
 
   beforeEach(() => {
@@ -103,6 +109,7 @@ describe('AuthService', () => {
     revocationCache = makeRevocationCache();
     graceBuffer = makeGraceBuffer();
     permissionLookup = makePermissionLookup();
+    passwordHasher = makePasswordHasher();
     const authUserRepo = new AuthUserRepository(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
       dataSource as unknown as DataSource,
@@ -116,6 +123,7 @@ describe('AuthService', () => {
       revocationCache as unknown as RevocationCache,
       graceBuffer as unknown as GraceBuffer,
       permissionLookup as unknown as PermissionLookupService,
+      passwordHasher as unknown as PasswordHasher,
     );
   });
 
@@ -571,6 +579,7 @@ describe('AuthService.invalidatePermissionCache', () => {
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
       makePermissionLookup() as unknown as PermissionLookupService,
+      makePasswordHasher() as unknown as PasswordHasher,
     );
   });
 
@@ -611,6 +620,7 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
       makePermissionLookup() as unknown as PermissionLookupService,
+      makePasswordHasher() as unknown as PasswordHasher,
     );
   });
 
@@ -834,6 +844,7 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
       makePermissionLookup() as unknown as PermissionLookupService,
+      makePasswordHasher() as unknown as PasswordHasher,
     );
   });
 
