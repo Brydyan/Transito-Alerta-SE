@@ -16,8 +16,8 @@ import { DataSource, Repository } from 'typeorm';
 import { REDIS_CLIENT } from '../../core/core.module';
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
 import { INCIDENTS_STREAM_KEY } from './incidents.service';
-import { OrganizationEntity } from '../../entities/organization.entity';
-import { IncidentStatus } from '../../entities/incident.entity';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
+import { IncidentStatus } from './entities/incident.entity';
 import {
   ALLOWED_STATUSES,
   canTransition,

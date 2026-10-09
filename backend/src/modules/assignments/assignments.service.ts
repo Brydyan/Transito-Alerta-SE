@@ -5,7 +5,7 @@ import type Redis from 'ioredis';
 import { IsNull, Repository } from 'typeorm';
 
 import { REDIS_CLIENT } from '../../core/core.module';
-import { AssignmentEntity } from '../../entities/assignment.entity';
+import { AssignmentEntity } from './entities/assignment.entity';
 import { SubjectScope } from '../../common/authz/subject-scope';
 import { IncidentsRepository } from '../incidents/incidents.repository';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';

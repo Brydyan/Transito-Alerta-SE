@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 
 import { EmailVerifiedGuard } from './email-verified.guard';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../../modules/users/entities/user.entity';
 import { EMAIL_VERIFICATION_REQUIRED } from '../../modules/auth/auth-errors';
 
 /**

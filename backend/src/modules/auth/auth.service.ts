@@ -3,7 +3,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { AuthConfig } from '../../config/auth.config';
 import { AuthContext } from '../../common/authz/subject-scope';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';

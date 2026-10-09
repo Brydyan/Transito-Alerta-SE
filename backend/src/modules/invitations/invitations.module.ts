@@ -1,8 +1,8 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { OrganizationEntity } from '../../entities/organization.entity';
-import { RoleEntity } from '../../entities/role.entity';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
 import { AuthModule } from '../auth/auth.module';
 import { PasswordHasher } from '../auth/password-hasher';
 import { MailModule } from '../mail/mail.module';

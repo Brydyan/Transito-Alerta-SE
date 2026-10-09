@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { RoleEntity } from '../../entities/role.entity';
-import { UserEntity } from '../../entities/user.entity';
-import { PermissionEntity } from '../../entities/permission.entity';
+import { RoleEntity } from './entities/role.entity';
+import { UserEntity } from '../users/entities/user.entity';
+import { PermissionEntity } from '../permissions/entities/permission.entity';
 import { MenuOptionRoleEntity } from '../menus/entities/menu-option-role.entity';
 import { MenuOptionEntity } from '../menus/entities/menu-option.entity';
 import { RoleRankAudit } from '../../common/authz/role-rank.audit';

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
-import { StatusHistoryEntity } from '../../entities/status-history.entity';
+import { StatusHistoryEntity } from './entities/status-history.entity';
 
 export interface InsertStatusHistoryData {
   incidentId: string;

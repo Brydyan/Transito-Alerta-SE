@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import { HttpException, UnprocessableEntityException } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import { EmailVerificationService } from './email-verification.service';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { MailService } from '../mail/mail.service';
 
 function makeUser(overrides: Partial<UserEntity> = {}): UserEntity {

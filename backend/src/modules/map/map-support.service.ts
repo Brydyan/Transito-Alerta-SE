@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { IncidentCategoryEntity } from '../../entities/incident-category.entity';
+import { IncidentCategoryEntity } from '../incident-categories/entities/incident-category.entity';
 import { CategoryDto } from './dto/category.dto';
 import { MapFiltersResponseDto } from './dto/map-filters-response.dto';
 

@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { IncidentImagesService } from './incident-images.service';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
-import { IncidentImageEntity } from '../../entities/incident-image.entity';
+import { IncidentImageEntity } from './entities/incident-image.entity';
 import { IncidentsRepository } from './incidents.repository';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 
