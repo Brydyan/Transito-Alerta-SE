@@ -81,14 +81,13 @@ export class AuthService {
     private readonly revocationCache: RevocationCache,
     private readonly graceBuffer: GraceBuffer,
     // F5 fix — traduce UUIDs a "ACTION resource" para el wire de /auth/me.
-    // Opcional para no romper los specs existentes que construyen
-    // AuthService con args posicionales; en producción Nest siempre lo inyecta.
-    private readonly permissionLookup?: PermissionLookupService,
-    // T3.6 — optional so the pre-existing `auth.service.spec.ts` regression
-    // suite (which constructs AuthService with the original 8 positional
-    // args) keeps compiling and passing unmodified; Nest's DI container
-    // always supplies a real instance in production/e2e.
-    private readonly passwordHasher?: PasswordHasher,
+    // Requerido (sc-415, Slice C): `PermissionLookupService` es
+    // `providedIn: 'root'`, así que Nest siempre lo inyecta; los specs lo
+    // pasan explícitamente.
+    private readonly permissionLookup: PermissionLookupService,
+    // T3.6 — requerido (sc-415, Slice C). El spec construye AuthService con
+    // un mock; en producción Nest inyecta la instancia real.
+    private readonly passwordHasher: PasswordHasher,
   ) {}
 
   private get authConfig(): AuthConfig {
@@ -152,7 +151,7 @@ export class AuthService {
   ): Promise<AuthTokens> {
     const user = await this.authUserRepo.findByEmail(input.email);
     const hashToCompare = user?.passwordHash ?? DUMMY_HASH;
-    const passwordMatches = await this.passwordHasher!.verify(input.password, hashToCompare);
+    const passwordMatches = await this.passwordHasher.verify(input.password, hashToCompare);
 
     if (!user || !passwordMatches || user.isActive === false) {
       throw invalidCredentialsError();
@@ -384,12 +383,12 @@ export class AuthService {
       throw invalidCredentialsError();
     }
 
-    const matches = await this.passwordHasher!.verify(currentPassword, user.passwordHash ?? DUMMY_HASH);
+    const matches = await this.passwordHasher.verify(currentPassword, user.passwordHash ?? DUMMY_HASH);
     if (!matches) {
       throw invalidCredentialsError();
     }
 
-    const newHash = await this.passwordHasher!.hash(newPassword);
+    const newHash = await this.passwordHasher.hash(newPassword);
     await this.authUserRepo.updatePasswordHash(userId, newHash);
     await this.revokeAllForUser(userId);
   }
@@ -436,9 +435,9 @@ export class AuthService {
     const ctx = await this.getAuthContextByUserId(user.id);
     // F6 fix: Convert UUID permissions to "ACTION resource" strings so frontend
     // permissionGuard can validate with includes() directly.
-    const permissionStrings = this.permissionLookup
-      ? await this.permissionLookup.getDescriptionsByUuids(ctx.permissions)
-      : ctx.permissions;
+    const permissionStrings = await this.permissionLookup.getDescriptionsByUuids(
+      ctx.permissions,
+    );
     return {
       deviceUuid: user.deviceUuid,
       permissions: permissionStrings,
@@ -459,20 +458,6 @@ export class AuthService {
   /** Uid-keyed permission resolution — delegates to {@link AuthContextService}. */
   getPermissionsByUserId(userId: string): Promise<string[]> {
     return this.authContext.getPermissionsByUserId(userId);
-  }
-
-  /**
-   * F5 fix — traduce UUIDs a "ACTION resource" para el wire
-   * `permission_names` de `GET /auth/me`. Delega al
-   * `PermissionLookupService` que mantiene el índice inverso
-   * del catálogo; fallback a `[]` si el lookup no está inyectado
-   * (tests que construyen AuthService con args posicionales).
-   */
-  async getPermissionNames(uuids: string[]): Promise<string[]> {
-    if (!this.permissionLookup) {
-      return [];
-    }
-    return this.permissionLookup.getNamesByUuids(uuids);
   }
 
   /** Full per-request {@link AuthContext} — delegates to {@link AuthContextService}. */
