@@ -1,10 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { ImageCompressionService } from '../../core/image/image-compression.service';
+import { ImageCompressionService } from '../../infra/image/image-compression.service';
 import {
   IStorageClient,
   STORAGE_CLIENT,
-} from '../../core/storage/storage-client.interface';
+} from '../../infra/storage/storage-client.interface';
 
 export interface UploadedFile {
   buffer: Buffer;

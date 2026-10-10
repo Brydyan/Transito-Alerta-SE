@@ -13,7 +13,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import type Redis from 'ioredis';
 import { DataSource, Repository } from 'typeorm';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
 import { INCIDENTS_STREAM_KEY } from './incidents.service';
 import { OrganizationEntity } from '../organizations/entities/organization.entity';

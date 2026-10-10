@@ -1,5 +1,5 @@
-import { ImageCompressionService } from '../../core/image/image-compression.service';
-import { IStorageClient } from '../../core/storage/storage-client.interface';
+import { ImageCompressionService } from '../../infra/image/image-compression.service';
+import { IStorageClient } from '../../infra/storage/storage-client.interface';
 import {
   CommentImageStorageService,
   MulterFile,
@@ -129,7 +129,7 @@ describe('CommentImageStorageService', () => {
 
     it('propagates compress() errors (UnsupportedMimeType)', async () => {
       const { UnsupportedMimeType } = await import(
-        '../../core/image/compression-error.exception'
+        '../../infra/image/compression-error.exception'
       );
       const err = new UnsupportedMimeType('image/gif');
       imageCompression.compress.mockRejectedValue(err);
@@ -146,7 +146,7 @@ describe('CommentImageStorageService', () => {
 
     it('propagates compress() errors (CompressionFailed)', async () => {
       const { CompressionFailed } = await import(
-        '../../core/image/compression-error.exception'
+        '../../infra/image/compression-error.exception'
       );
       const err = new CompressionFailed(new Error('corrupt'));
       imageCompression.compress.mockRejectedValue(err);
