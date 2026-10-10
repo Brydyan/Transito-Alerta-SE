@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "f4d435e9-1631-490e-b1cc-9087ee31fe09",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/workflow-tase-flujo-proyecto-20261010-111500/candidate.json",
+  "output": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/workflow-tase-flujo-proyecto-20261010-111500/tase-flujo-proyecto.html",
+  "specification": {
+    "sha256": "dfcc8f52810fd9cfb543be9eca1a054d882e233dcc32fdc5406fec4a6c9b96b3",
+    "bytes": 6322
+  },
+  "artifact": {
+    "sha256": "b8ddf2c0eca277be4db67c7ba8ddc93b19d2ca65d9081c108c00f6c957087094",
+    "bytes": 763404
+  }
+}

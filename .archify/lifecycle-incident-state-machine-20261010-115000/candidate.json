@@ -1,0 +1,135 @@
+{
+  "schema_version": 2,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Ciclo de Vida de Incidencias - Transito-Alerta-SE",
+    "output": ".archify/lifecycle-incident-state-machine-20261010-115000/incident-state-machine.html",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Brydyan/Transito-Alerta-SE",
+      "revision": "ea71d353abaef60b5592e8b5abd48a3c9040506b"
+    }
+  },
+  "lanes": [
+    { "id": "main", "label": "Flujo Operativo de Atención" },
+    { "id": "terminal", "label": "Salida Alternativa / Descarte" }
+  ],
+  "states": [
+    {
+      "id": "created",
+      "type": "start",
+      "label": "Reporte Creado",
+      "sublabel": "ingestión inicial",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "tag": "ingestión"
+    },
+    {
+      "id": "pending",
+      "type": "waiting",
+      "label": "Pendiente",
+      "sublabel": "en cola de despacho",
+      "lane": "main",
+      "col": 1,
+      "step": "02",
+      "tag": "cola",
+      "sources": [
+        { "path": "backend/src/modules/incidents/incident-state-machine.ts", "line": 56 }
+      ]
+    },
+    {
+      "id": "in_progress",
+      "type": "active",
+      "label": "En Progreso",
+      "sublabel": "operador asignado",
+      "lane": "main",
+      "col": 2,
+      "step": "03",
+      "tag": "atención",
+      "sources": [
+        { "path": "backend/src/modules/incidents/incident-state-machine.ts", "line": 57 }
+      ]
+    },
+    {
+      "id": "resolved",
+      "type": "success",
+      "label": "Resuelta",
+      "sublabel": "atención exitosa",
+      "lane": "main",
+      "col": 3,
+      "step": "04",
+      "tag": "terminal-éxito",
+      "sources": [
+        { "path": "backend/src/modules/incidents/incident-state-machine.ts", "line": 58 }
+      ]
+    },
+    {
+      "id": "closed",
+      "type": "failure",
+      "label": "Cerrada",
+      "sublabel": "descarte o no resuelta",
+      "lane": "terminal",
+      "col": 2,
+      "tag": "terminal-baja",
+      "sources": [
+        { "path": "backend/src/modules/incidents/incident-state-machine.ts", "line": 59 }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "id": "created-to-pending",
+      "from": "created",
+      "to": "pending",
+      "label": "persistencia inicial"
+    },
+    {
+      "id": "pending-to-progress",
+      "from": "pending",
+      "to": "in_progress",
+      "label": "operador toma caso"
+    },
+    {
+      "id": "pending-to-closed",
+      "from": "pending",
+      "to": "closed",
+      "label": "falsa alarma / descarte",
+      "variant": "security"
+    },
+    {
+      "id": "progress-to-resolved",
+      "from": "in_progress",
+      "to": "resolved",
+      "label": "solución verificada"
+    },
+    {
+      "id": "progress-to-closed",
+      "from": "in_progress",
+      "to": "closed",
+      "label": "baja de caso",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Terminalidad Alternativa (sc-315)",
+      "items": [
+        "'resolved' y 'closed' son terminales independientes y mutuamente excluyentes",
+        "Una incidencia resuelta nunca puede pasar a closed",
+        "Evita sesgos y asegura consistencia estricta en analítica y auditoría"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Despacho y Gestión Operativa",
+      "items": [
+        "Todo nuevo reporte nace en estado 'pending' con SRID 4326 validado",
+        "El operador cambia el estado a 'in_progress' al comenzar el seguimiento",
+        "Descarte directo habilitado desde 'pending' sin inflar tiempos de atención"
+      ]
+    }
+  ]
+}
