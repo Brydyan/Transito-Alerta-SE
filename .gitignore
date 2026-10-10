@@ -119,9 +119,10 @@ MEMORY.md
 AGENTS.md
 CLAUDE.md
 IA.md
-.atl
-.codegraph
-.rtk
+.atl/
+.codegraph/
+.rtk/
+CHECKPOINTS.md
 
 # Frontend build output (regenerated on deploy)
 frontend/dist/

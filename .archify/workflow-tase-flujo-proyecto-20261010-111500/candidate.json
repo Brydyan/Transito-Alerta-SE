@@ -1,0 +1,201 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Flujo Operativo de Incidencias y Despacho - Transito-Alerta-SE",
+    "subtitle": "Ciclo de vida end-to-end: reporte ciudadano, geocodificación PostGIS, despacho por Telegram y cierre",
+    "animation": "none",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "output": ".archify/workflow-tase-flujo-proyecto-20261010-111500/tase-flujo-proyecto.html",
+    "repository": {
+      "url": "https://github.com/Brydyan/Transito-Alerta-SE",
+      "revision": "ea71d353abaef60b5592e8b5abd48a3c9040506b"
+    }
+  },
+  "lanes": [
+    { "id": "citizen", "label": "Ciudadanía (App / Web)" },
+    { "id": "backend", "label": "Backend & Motor Geoespacial (NestJS / PostGIS)" },
+    { "id": "admin", "label": "Administración Municipal (Admin Org)" },
+    { "id": "operator", "label": "Operación en Terreno (Operador Org)" }
+  ],
+  "phases": [
+    { "id": "intake", "label": "1. Ingesta & Georreferenciación", "fromCol": 0, "toCol": 2, "variant": "default" },
+    { "id": "dispatch", "label": "2. Alerta & Control de Carga", "fromCol": 3, "toCol": 4, "variant": "emphasis" },
+    { "id": "resolution", "label": "3. Respuesta & Cierre", "fromCol": 5, "toCol": 5, "variant": "security" }
+  ],
+  "groups": [
+    { "id": "geoprocess", "label": "Geocodificación Automática", "lane": "backend", "fromCol": 1, "toCol": 2, "variant": "emphasis" },
+    { "id": "dispatch_circuit", "label": "Gestión de Despacho", "lane": "admin", "fromCol": 3, "toCol": 3, "variant": "security" },
+    { "id": "operation", "label": "Respuesta Operativa", "lane": "operator", "fromCol": 5, "toCol": 5, "variant": "default" }
+  ],
+  "mainPath": [
+    "citizen_report",
+    "backend_api",
+    "geofence_service",
+    "admin_dispatch",
+    "assignment_guard",
+    "operator_action",
+    "incident_closed"
+  ],
+  "nodes": [
+    {
+      "id": "citizen_report",
+      "lane": "citizen",
+      "col": 0,
+      "type": "frontend",
+      "label": "Reporte Ciudadano",
+      "sublabel": "Foto WebP y GPS",
+      "tag": "PWA / Web",
+      "width": 132,
+      "sources": [
+        { "path": "frontend/src/app/features/citizen/feed/feed.component.ts", "line": 1 }
+      ]
+    },
+    {
+      "id": "backend_api",
+      "lane": "backend",
+      "col": 1,
+      "type": "backend",
+      "label": "Incidents API",
+      "sublabel": "Ingesta y DTO",
+      "tag": "NestJS Core",
+      "width": 132,
+      "sources": [
+        { "path": "backend/src/modules/incidents/incidents.controller.ts", "line": 1 }
+      ]
+    },
+    {
+      "id": "geofence_service",
+      "lane": "backend",
+      "col": 2,
+      "type": "database",
+      "label": "PostGIS Geofencing",
+      "sublabel": "Asignación de Zona",
+      "tag": "PostGIS Spatial",
+      "width": 132,
+      "sources": [
+        { "path": "backend/src/modules/geofencing/geofencing.service.ts", "line": 1 }
+      ]
+    },
+    {
+      "id": "admin_dispatch",
+      "lane": "admin",
+      "col": 3,
+      "type": "frontend",
+      "label": "Despacho & Alerta",
+      "sublabel": "Alerta Push y Panel",
+      "tag": "Admin Org",
+      "width": 132,
+      "sources": [
+        { "path": "frontend/src/app/features/incidents/incident-list/incident-list.component.ts", "line": 1 }
+      ]
+    },
+    {
+      "id": "assignment_guard",
+      "lane": "backend",
+      "col": 4,
+      "type": "backend",
+      "label": "Validación de Cupo",
+      "sublabel": "Tope 429 y Scope",
+      "tag": "Control Carga",
+      "width": 132,
+      "sources": [
+        { "path": "backend/src/modules/assignments/assignments.service.ts", "line": 1 }
+      ]
+    },
+    {
+      "id": "operator_action",
+      "lane": "operator",
+      "col": 5,
+      "type": "external",
+      "label": "Atención en Terreno",
+      "sublabel": "Bot Tarea y Maps",
+      "tag": "Patrulla Móvil",
+      "width": 132
+    },
+    {
+      "id": "incident_closed",
+      "lane": "admin",
+      "col": 5,
+      "type": "security",
+      "label": "Moderación & Cierre",
+      "sublabel": "Aprobación y Cierre",
+      "tag": "Terminal: closed",
+      "width": 132,
+      "sources": [
+        { "path": "backend/src/modules/incidents/incident-workflow.service.ts", "line": 1 }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "report-to-api",
+      "from": "citizen_report",
+      "to": "backend_api",
+      "label": "POST /incidents",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "api-to-geofence",
+      "from": "backend_api",
+      "to": "geofence_service",
+      "label": "calcular polígono",
+      "variant": "default",
+      "role": "main"
+    },
+    {
+      "id": "geofence-to-admin",
+      "from": "geofence_service",
+      "to": "admin_dispatch",
+      "label": "notifica org asignada",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "admin-to-guard",
+      "from": "admin_dispatch",
+      "to": "assignment_guard",
+      "label": "POST /assignments",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "guard-to-operator",
+      "from": "assignment_guard",
+      "to": "operator_action",
+      "label": "aviso Telegram con Maps",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "operator-to-close",
+      "from": "operator_action",
+      "to": "incident_closed",
+      "label": "resuelto → aprueba cierre",
+      "variant": "default",
+      "role": "main"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Arquitectura y Patrones Clave",
+      "items": [
+        "Desacoplamiento asíncrono con Redis Streams (outbox pattern) para evitar bloqueos por APIs externas",
+        "Geocodificación y asignación automática de jurisdicción municipal mediante PostGIS ST_Contains",
+        "Validación estricta de sobrecupo en asignaciones (429 CLAIM_LIMIT_REACHED) con excepción auditable"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Canales y Notificaciones",
+      "items": [
+        "Telegram Bot oficial gratuito: avisos prioritarios a admin_org con repiques cada 5 minutos",
+        "Mensaje enriquecido a operador_org con descripción completa, geolocalización y enlace a Google Maps",
+        "Feed ciudadano con geolocalización inversa y visualización de progreso en tiempo real"
+      ]
+    }
+  ]
+}

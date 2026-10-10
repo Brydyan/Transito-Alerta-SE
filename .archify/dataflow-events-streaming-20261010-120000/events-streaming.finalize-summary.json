@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "dataflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/dataflow-events-streaming-20261010-120000/candidate.json",
+    "sha256": "176cf92f0c9b4d114c41a687d19fffa31ab114e7919dd6f497d9bc505e2493d2",
+    "bytes": 5893
+  },
+  "artifact": {
+    "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/dataflow-events-streaming-20261010-120000/events-streaming.html",
+    "sha256": "f4f5b78292905f079b7148e24d9e9a10352c2e5a305ae4be7c19581191578c85",
+    "bytes": 764252
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "skipped"
+  },
+  "failedStage": "browser-check",
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/dataflow-events-streaming-20261010-120000/events-streaming.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/dataflow-events-streaming-20261010-120000/events-streaming.finalize.json",
+    "summaryReceipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/dataflow-events-streaming-20261010-120000/events-streaming.finalize-summary.json",
+    "browserCheckReceipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/dataflow-events-streaming-20261010-120000/events-streaming.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-10T16:18:40.834Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 5644
+}

@@ -25,6 +25,11 @@ import { AssignmentsService } from './assignments.service';
  * AssignmentsController (R5). Assigning requires the ASSIGN permission —
  * PermissionGuard returns 403 for operators lacking "ASSIGN assignments"
  * (anonymous never holds this; it is not on the ceiling).
+ *
+ * F7 emergency-dispatch (design D12) — every WRITE method now receives
+ * `req.user` so the service can validate the caller's scope against the
+ * incident's and the operator's organization. Reads (`list`) were already
+ * scoped (T3.2 D3); writes were the gap.
  */
 @Controller('assignments')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -33,15 +38,30 @@ export class AssignmentsController {
 
   @Post()
   @RequirePermission('ASSIGN')
-  assign(@Body() dto: AssignIncidentDto): Promise<AssignmentEntity> {
-    return this.assignmentsService.assign(dto.incident_id, dto.operator_id, dto.role);
+  async assign(
+    @Body() dto: AssignIncidentDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<AssignmentEntity> {
+    return this.assignmentsService.assign(
+      dto.incident_id,
+      dto.operator_id,
+      dto.role,
+      req.user!,
+      {
+        overrideCap: dto.override_cap,
+        overrideReason: dto.override_reason,
+      },
+    );
   }
 
   @Delete(':id')
   @RequirePermission('ASSIGN')
   @HttpCode(HttpStatus.NO_CONTENT)
-  release(@Param('id') id: string): Promise<void> {
-    return this.assignmentsService.release(id);
+  async release(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<void> {
+    return this.assignmentsService.release(id, req.user!);
   }
 
   @Get('incident/:incidentId')
@@ -57,10 +77,19 @@ export class AssignmentsController {
 
   @Patch(':id')
   @RequirePermission('UPDATE')
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdateAssignmentDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<AssignmentEntity> {
-    return this.assignmentsService.update(id, dto);
+    return this.assignmentsService.update(
+      id,
+      { operator_id: dto.operator_id, role: dto.role },
+      req.user!,
+      {
+        overrideCap: dto.override_cap,
+        overrideReason: dto.override_reason,
+      },
+    );
   }
 }

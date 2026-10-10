@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "b58c858f-5f04-4c5a-9ddb-c2965aa660ea",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/candidate.json",
+  "output": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+  "specification": {
+    "sha256": "2f0847a0d8aca20299397ad52608a274f09ac3e7291f6f2de670d79a59aa9fbb",
+    "bytes": 4352
+  },
+  "artifact": {
+    "sha256": "f25b088414c75f2c2e5414c9474738737f9c15d4fb9b2ab240fd5b278dd814d4",
+    "bytes": 761528
+  }
+}

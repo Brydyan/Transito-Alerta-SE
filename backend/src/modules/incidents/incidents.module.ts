@@ -79,6 +79,6 @@ import { RevealService } from './reveal.service';
   // IncidentsRepository is exported too (T3.2 D3) — Comments/Assignments
   // resolve the PARENT incident under the caller's scope before touching
   // their own rows, without importing the whole IncidentsService surface.
-  exports: [IncidentsService, IncidentsRepository],
+  exports: [IncidentsService, IncidentsRepository, IncidentWorkflowService],
 })
 export class IncidentsModule {}

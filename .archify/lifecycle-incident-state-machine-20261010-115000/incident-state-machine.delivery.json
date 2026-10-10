@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "60346b44-edf4-419a-ac39-982eecc67876",
+  "status": "current",
+  "command": "deliver",
+  "type": "lifecycle",
+  "input": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/lifecycle-incident-state-machine-20261010-115000/candidate.json",
+  "output": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/lifecycle-incident-state-machine-20261010-115000/incident-state-machine.html",
+  "specification": {
+    "sha256": "1f74f12efc4cd25a15b9788f656c2f789d9ea477da9759eb7de48cbb4e422aad",
+    "bytes": 3618
+  },
+  "artifact": {
+    "sha256": "a65fbc5329e0c09e876aa56fc2541687a5ca58603e10cc076cd437cdf0731e61",
+    "bytes": 757022
+  }
+}

@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Arquitectura de Infraestructura - Transito-Alerta-SE",
+    "output": ".archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Brydyan/Transito-Alerta-SE",
+      "revision": "ea71d353abaef60b5592e8b5abd48a3c9040506b"
+    }
+  },
+  "components": [
+    {
+      "id": "client",
+      "type": "external",
+      "label": "Clientes Web / Móvil",
+      "sublabel": "Ciudadano / Admin / Operador",
+      "pos": [40, 280],
+      "size": [130, 60]
+    },
+    {
+      "id": "nginx",
+      "type": "frontend",
+      "label": "Nginx Frontend",
+      "sublabel": "Angular 19 Standalone",
+      "pos": [230, 280],
+      "size": [130, 60],
+      "tag": "Puerto :8083",
+      "sources": [
+        { "path": "frontend/nginx.conf", "line": 1 }
+      ]
+    },
+    {
+      "id": "backend",
+      "type": "backend",
+      "label": "NestJS API Core",
+      "sublabel": "Controladores y Módulos",
+      "pos": [500, 280],
+      "size": [130, 60],
+      "tag": "Puerto :3004",
+      "sources": [
+        { "path": "backend/src/main.ts", "line": 1 }
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Redis In-Memory",
+      "sublabel": "Streams & Cache",
+      "pos": [500, 120],
+      "size": [130, 60],
+      "tag": "Streams / Cache"
+    },
+    {
+      "id": "minio",
+      "type": "cloud",
+      "label": "MinIO Object Store",
+      "sublabel": "Fotos WebP Comprimidas",
+      "pos": [500, 440],
+      "size": [130, 60],
+      "tag": "S3 Compatible"
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL + PostGIS",
+      "sublabel": "Esquema y Polígonos",
+      "pos": [740, 280],
+      "size": [140, 60],
+      "tag": "PostGIS 16"
+    },
+    {
+      "id": "telegram",
+      "type": "cloud",
+      "label": "Telegram Bot API",
+      "sublabel": "Alertas y Despacho",
+      "pos": [740, 120],
+      "size": [140, 60],
+      "tag": "Canal Oficial"
+    },
+    {
+      "id": "resend",
+      "type": "cloud",
+      "label": "Resend SMTP",
+      "sublabel": "Correos Transaccionales",
+      "pos": [740, 440],
+      "size": [140, 60],
+      "tag": "Email API"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Entorno Docker Compose (tase-network)",
+      "wraps": ["nginx", "backend", "redis", "minio", "postgres"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "client-to-nginx",
+      "from": "client",
+      "to": "nginx",
+      "label": "HTTPS :8083",
+      "variant": "emphasis"
+    },
+    {
+      "id": "nginx-to-backend",
+      "from": "nginx",
+      "to": "backend",
+      "label": "reverse proxy :3004"
+    },
+    {
+      "id": "backend-to-postgres",
+      "from": "backend",
+      "to": "postgres",
+      "label": "TypeORM / SQL",
+      "variant": "emphasis"
+    },
+    {
+      "id": "backend-to-redis",
+      "from": "backend",
+      "to": "redis",
+      "label": "XADD & Cache",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "backend-to-minio",
+      "from": "backend",
+      "to": "minio",
+      "label": "PutObject S3",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "redis-to-telegram",
+      "from": "redis",
+      "to": "telegram",
+      "label": "outbox worker",
+      "variant": "dashed"
+    },
+    {
+      "id": "backend-to-resend",
+      "from": "backend",
+      "to": "resend",
+      "label": "mail worker",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Red y Aislamiento",
+      "items": [
+        "Nginx expuesto en puerto 8083 con ruteo SPA y proxy inverso hacia backend y MinIO /storage",
+        "Backend NestJS opera en red interna de Docker comunicándose con PostGIS, Redis y MinIO",
+        "Variables de entorno aisladas y credenciales seguras para integración externa"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Almacenamiento y Notificaciones",
+      "items": [
+        "MinIO local para almacenamiento seguro de imágenes WebP optimizadas con Sharp",
+        "PostgreSQL con extensión PostGIS para geocodificación y match de zonas por polígonos",
+        "Redis Streams como Outbox asíncrono para Telegram y Resend"
+      ]
+    }
+  ]
+}

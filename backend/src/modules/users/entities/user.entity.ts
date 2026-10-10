@@ -111,6 +111,18 @@ export class UserEntity {
   @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
   deletedAt!: Date | null;
 
+  /**
+   * F7 emergency-dispatch (migration 0069, design D6) — Telegram chat id
+   * for `admin_org` (initial + reminder repique of critical incidents) and
+   * `operador_org` (assignment notifications). Stored as text because the
+   * Telegram API can return large negative integers for group chats and
+   * `@supergroup` ids; `bigint` was rejected during the design review for
+   * portability. NULL = user has not configured Telegram — the listener
+   * MUST skip without failing.
+   */
+  @Column({ name: 'telegram_chat_id', type: 'text', nullable: true, default: null })
+  telegramChatId!: string | null;
+
   /** T7.6 (0035) — present in legacy since `create_users_table`. Wiped by the GDPR soft delete. */
   @Column({ type: 'varchar', length: 30, nullable: true })
   phone!: string | null;

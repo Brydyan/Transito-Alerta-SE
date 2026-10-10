@@ -214,8 +214,14 @@ export class IncidentWorkflowService {
   }
 
   /**
-   * Operators in the incident's org whose active in_progress claim count is
-   * strictly less than the org cap, excluding the current claimer.
+   * Operators in the incident's org, including saturated ones. F7
+   * emergency-dispatch (design D4) — the response now informs instead
+   * of filters: every operator is returned with `available: bool` and
+   * `maxActive: int` so the UI can render «3 de 3» or distinguish a
+   * saturated operator from a missing one.
+   *
+   * Inactive users (`is_active = false`) and roles outside
+   * `operador_org` / `operador_sistema` are still excluded.
    */
   async availableOperators(incidentId: string): Promise<AvailableOperatorDto[]> {
     const incident = await this.loadIncident(incidentId);
@@ -240,21 +246,25 @@ export class IncidentWorkflowService {
         WHERE u.organization_id = $1
           AND u.is_active = true
           AND r.name IN ('operador_org', 'operador_sistema')
-          AND ($2::uuid IS NULL OR u.id <> $2::uuid)
-          AND COALESCE((
-                SELECT COUNT(*)
-                  FROM incidents
-                 WHERE claimed_by = u.id AND status = 'in_progress'
-              ), 0) < $3`,
-      [incident.organization_id, incident.claimed_by, maxActive],
+          -- Exclude the operator who currently holds the claim: a
+          -- saturated claimer cannot take on a second incident until
+          -- they release the first, and the dropdown is meant to
+          -- show the available pool.
+          AND ($2::uuid IS NULL OR u.id <> $2::uuid)`,
+      [incident.organization_id, incident.claimed_by],
     );
 
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      activeClaimCount: Number(r.active_count),
-    }));
+    return rows.map((r) => {
+      const active = Number(r.active_count);
+      return {
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        activeClaimCount: active,
+        available: active < maxActive,
+        maxActive,
+      };
+    });
   }
 
   /** Static list of the IncidentStatus enum — derived from the state machine (D3/D5).
@@ -523,5 +533,40 @@ export class IncidentWorkflowService {
       organizationId: row.organization_id,
       updatedAt: row.updated_at instanceof Date ? row.updated_at : new Date(row.updated_at),
     };
+  }
+
+  // ---- F7 emergency-dispatch public helpers (D1) -----------------------
+  //
+  // Both `claim()` (autoasignación) and `AssignmentsService.assign()`
+  // (asignación por admin) need the same per-org active-claim cap
+  // check. Before F7 the check lived only in `claim()` and `assign()`
+  // skipped it — a defect that let an admin saturate an operator in
+  // silence. The helpers below let `assign()` reuse the SAME numbers
+  // without duplicating SQL.
+
+  /** Per-org active-claim cap (design D5). */
+  async getMaxActiveClaimsFor(orgId: string): Promise<number> {
+    return this.maxActiveClaimsFor(orgId);
+  }
+
+  /** Active in_progress claim count for an operator. */
+  async getActiveClaimCount(userId: string): Promise<number> {
+    return this.activeClaimCountFor(userId);
+  }
+
+  /**
+   * Returns the organization_id of a user (or null if missing /
+   * soft-deleted). Exposed so `AssignmentsService.loadOperator` can
+   * run the org-match check without reaching into this service's
+   * private `dataSource` (W4 of `fixes-required.md`).
+   */
+  async findUserOrganizationId(userId: string): Promise<string | null> {
+    const rows = await this.dataSource.query<
+      Array<{ organization_id: string | null }>
+    >(
+      `SELECT organization_id FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    return rows[0]?.organization_id ?? null;
   }
 }
