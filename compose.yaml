@@ -196,8 +196,16 @@ services:
   # Supabase free-tier quotas. Two services: `minio` (the server, ports
   # 9000 API + 9001 console) and `minio-init` (one-shot bucket bootstrap
   # that creates `uploads` with a public-download policy).
+  #
+  # NOTE: quay.io/minio and docker.io/minio/minio both require authentication
+  # even for public pulls. We build from the official GitHub Release binary
+  # instead — no registry credentials needed, always publicly accessible.
+  # See docker/Dockerfile.minio and docker/Dockerfile.mc.
   minio:
-    image: quay.io/minio/minio:RELEASE.2024-07-04T14-25-45Z
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.minio
+    image: tase-minio-server:local
     container_name: tase-minio
     # Mismo techo de log que el resto de servicios.
     logging:
@@ -229,7 +237,10 @@ services:
     # Contenedor one-shot: crea el bucket y aplica la política pública de
     # descarga. `restart: 'no'` para que un fallo quede visible y no entre
     # en bucle silencioso.
-    image: quay.io/minio/mc:RELEASE.2024-07-04T14-31-02Z
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mc
+    image: tase-minio-client:local
     container_name: tase-minio-init
     depends_on:
       minio:
