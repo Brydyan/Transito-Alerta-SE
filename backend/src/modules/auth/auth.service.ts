@@ -7,7 +7,6 @@ import { UserEntity } from '../users/entities/user.entity';
 import { AuthConfig } from '../../config/auth.config';
 import { AuthContext } from '../../shared/authz/subject-scope';
 import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
-import { resolveSubjectScope } from '../../shared/authz/resolve-subject-scope';
 import { sha256Hex, timingSafeEqualHex } from '../../shared/crypto/session-hash';
 import { BufferedTokenPair, GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
@@ -89,7 +88,7 @@ export class AuthService {
     // T3.6 — requerido (sc-415, Slice C). El spec construye AuthService con
     // un mock; en producción Nest inyecta la instancia real.
     private readonly passwordHasher: PasswordHasher,
-  ) {}
+  ) { }
 
   private get authConfig(): AuthConfig {
     return this.configService.get<AuthConfig>('auth')!;
