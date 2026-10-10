@@ -4,9 +4,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { GeofencingModule } from '../geofencing/geofencing.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { AuditModule } from '../audit/audit.module';
-import { StorageModule } from '../../core/storage/storage.module';
-import { OrganizationEntity } from '../../entities/organization.entity';
-import { IncidentImageEntity } from '../../entities/incident-image.entity';
+import { StorageModule } from '../../infra/storage/storage.module';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
+import { IncidentImageEntity } from './entities/incident-image.entity';
 // REG (sc-325) — `EmailVerifiedGuard` consulta `email_verified_at`
 // directamente del `UserEntity` (no del JWT) para evitar
 // depender de un cache de permisos desactualizado. Esto
@@ -15,14 +15,14 @@ import { IncidentImageEntity } from '../../entities/incident-image.entity';
 // local — importar `AuthModule` o `UsersModule` enteros
 // arrastraría su grafo completo (JWT, sessions, storage)
 // sólo para conseguir un repositorio.
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 // AUD (sc-327) — `IncidentReporterEntity` se registra acá
 // (no en AuditModule) porque la única operación sobre él
 // es la inserción atómica con la creación de la
 // incidencia, que vive en `IncidentsService.create`.
 // Mantener el repositorio local respeta la regla "los
 // grafos de módulos no se cruzan al importar repos".
-import { IncidentReporterEntity } from '../../entities/incident-reporters.entity';
+import { IncidentReporterEntity } from './entities/incident-reporters.entity';
 import { IncidentsController } from './incidents.controller';
 import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService } from './incidents.service';

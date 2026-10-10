@@ -5,7 +5,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-import { IncidentPriority } from './incident.entity';
+import { IncidentPriority } from '../../incidents/entities/incident.entity';
 
 /**
  * incident_categories table (T3.7 — 0012_incident_categories.sql).

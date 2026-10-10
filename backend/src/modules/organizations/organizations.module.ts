@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { OrganizationEntity } from '../../entities/organization.entity';
-import { GeoZoneEntity } from '../../entities/geo-zone.entity';
+import { OrganizationEntity } from './entities/organization.entity';
+import { GeoZoneEntity } from '../geo-zones/entities/geo-zone.entity';
 import { GeofencingModule } from '../geofencing/geofencing.module';
 import { OrganizationsController } from './organizations.controller';
 import { OrganizationsRepository } from './organizations.repository';

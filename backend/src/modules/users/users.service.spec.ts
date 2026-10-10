@@ -1,9 +1,9 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import { UsersService, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './users.service';
-import { UserEntity } from '../../entities/user.entity';
-import { RoleEntity } from '../../entities/role.entity';
-import { OrganizationEntity } from '../../entities/organization.entity';
+import { UserEntity } from './entities/user.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
 import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
 import { AuthService } from '../auth/auth.service';
 import { AvatarStorageService } from './avatar-storage.service';

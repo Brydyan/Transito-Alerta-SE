@@ -1,5 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActionsDropdownComponent } from './actions-dropdown.component';
+import {
+  ActionsDropdownComponent,
+  MENU_GAP_PX,
+  shouldFlipMenuUp,
+} from './actions-dropdown.component';
 import { By } from '@angular/platform-browser';
 
 /**
@@ -111,5 +115,63 @@ describe('ActionsDropdownComponent', () => {
     component.isOpen.set(true);
     component.close();
     expect(component.isOpen()).toBe(false);
+  });
+
+  it('flip flag starts false and resets on close', () => {
+    expect(component.flippedUp()).toBe(false);
+    component.flippedUp.set(true);
+    component.close();
+    expect(component.flippedUp()).toBe(false);
+  });
+
+  it('applies ad-menu--up when the menu is flipped', () => {
+    component.isOpen.set(true);
+    component.flippedUp.set(true);
+    fixture.detectChanges();
+
+    expect(fixture.debugElement.query(By.css('.ad-menu--up'))).toBeTruthy();
+  });
+
+  it('does not flip when the menu is not clipped (no clipping ancestor)', () => {
+    const trigger = fixture.debugElement.query(By.css('[data-testid="actions-trigger"]'));
+    trigger.nativeElement.click();
+    fixture.detectChanges();
+
+    expect(component.isOpen()).toBe(true);
+    expect(component.flippedUp()).toBe(false);
+  });
+});
+
+/**
+ * Positioning decision — pure function, no DOM. Covers the flip-up rule
+ * used when the menu would be clipped by the bottom edge of its scroll
+ * container (last rows of the incidents table).
+ */
+describe('shouldFlipMenuUp', () => {
+  it('flips when the menu would be clipped below and there is room above', () => {
+    // Table wrapper scrolled: clipTop far above, trigger near the bottom.
+    expect(
+      shouldFlipMenuUp({ menuHeight: 174, wrapperTop: 557, clipTop: -1369 }),
+    ).toBe(true);
+  });
+
+  it('stays down when there is no room above either', () => {
+    expect(shouldFlipMenuUp({ menuHeight: 174, wrapperTop: 100, clipTop: 0 })).toBe(
+      false,
+    );
+  });
+
+  it('respects the gap between trigger and menu', () => {
+    // flippedTop = wrapperTop - menuHeight - gap; 178 - 174 - 4 = 0 → exactly fits.
+    expect(shouldFlipMenuUp({ menuHeight: 174, wrapperTop: 178, clipTop: 0 })).toBe(
+      true,
+    );
+    expect(shouldFlipMenuUp({ menuHeight: 174, wrapperTop: 177, clipTop: 0 })).toBe(
+      false,
+    );
+  });
+
+  it('uses a 4px default gap matching the CSS calc', () => {
+    expect(MENU_GAP_PX).toBe(4);
   });
 });

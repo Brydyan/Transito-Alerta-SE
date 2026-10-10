@@ -183,6 +183,10 @@ describe('IncidentsService (AUD sc-327 — B.5/B.6 anonymous sealing)', () => {
     repo.create.mockResolvedValue(
       makeRow({ citizen_id: AUTHOR_ID, is_anonymous: false }) as never,
     );
+    const txManagerQuery = jest.fn().mockResolvedValue([]);
+    dataSource.transaction.mockImplementation(async (fn) =>
+      fn({ query: txManagerQuery }),
+    );
 
     const result = await service.create(
       {
@@ -194,21 +198,39 @@ describe('IncidentsService (AUD sc-327 — B.5/B.6 anonymous sealing)', () => {
       AUTHOR_ID,
     );
 
-    // Sin máscara ni transacción: la rama rápida, sin
-    // costo adicional sobre el camino público normal.
+    // sc-405 (R-historia): create() corre en transacción en AMBAS
+    // ramas porque la fila de nacimiento del status_history se
+    // siembra con el INSERT (S.5.1). La diferencia anónimo/no-anónimo
+    // ya no es "transacción vs. sin transacción": es la fila de
+    // autoría (incident_reporters), que SÓLO existe para anónimos.
     expect(result.citizen_id).toBe(AUTHOR_ID);
     expect(result.is_anonymous).toBe(false);
     expect(dataSource.query).not.toHaveBeenCalled();
-    expect(dataSource.transaction).not.toHaveBeenCalled();
+    expect(dataSource.transaction).toHaveBeenCalled();
+    expect(txManagerQuery).not.toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO incident_reporters'),
+      expect.anything(),
+    );
+    // Sólo se siembra la fila de nacimiento del historial.
+    expect(txManagerQuery).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO status_history'),
+      ['inc-1', AUTHOR_ID, 'created', 'pending'],
+    );
   });
 
   it('B.5: is_anonymous omitido → default false (compatibilidad hacia atrás)', async () => {
     // El DTO declara `is_anonymous?` como opcional. Si el
     // cliente (legacy o nueva ruta que no conoce el campo)
     // omite el campo, el comportamiento es el preexistente:
-    // publicación normal, sin máscara, sin transacción.
+    // publicación normal, sin máscara, sin fila de autoría.
+    // La transacción sí se abre (siembra del historial,
+    // sc-405 R-historia).
     repo.create.mockResolvedValue(
       makeRow({ citizen_id: AUTHOR_ID, is_anonymous: false }) as never,
+    );
+    const txManagerQuery = jest.fn().mockResolvedValue([]);
+    dataSource.transaction.mockImplementation(async (fn) =>
+      fn({ query: txManagerQuery }),
     );
 
     const result = await service.create(
@@ -221,7 +243,11 @@ describe('IncidentsService (AUD sc-327 — B.5/B.6 anonymous sealing)', () => {
     );
 
     expect(result.citizen_id).toBe(AUTHOR_ID);
-    expect(dataSource.transaction).not.toHaveBeenCalled();
+    expect(dataSource.transaction).toHaveBeenCalled();
+    expect(txManagerQuery).not.toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO incident_reporters'),
+      expect.anything(),
+    );
   });
 
   it('B.6: el resultado de create NO contiene el id del autor real (sólo la máscara)', async () => {

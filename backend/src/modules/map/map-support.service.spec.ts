@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { IncidentCategoryEntity } from '../../entities/incident-category.entity';
+import { IncidentCategoryEntity } from '../incident-categories/entities/incident-category.entity';
 import { MapSupportService } from './map-support.service';
 
 describe('MapSupportService.getMapFilters', () => {

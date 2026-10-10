@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-import { UserEntity } from './user.entity';
+import { UserEntity } from '../../users/entities/user.entity';
 
 /**
  * AUD (sc-327) — registro genérico e inmutable de una acción

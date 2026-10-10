@@ -30,7 +30,7 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
  * State:
  *   - selectedOperatorId — chosen operator (null until user picks one)
  *   - selectedIncidentId — chosen incident (null until user picks one)
- *   - operatorList       — fetched from GET /operators/locations
+ *   - operatorList       — fetched from GET /operator/locations
  *   - workloads          — map<operatorId, count> populated lazily
  *   - isAssigning        — prevents double-submit
  *

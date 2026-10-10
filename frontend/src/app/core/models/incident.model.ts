@@ -28,10 +28,18 @@ export interface Incident {
     coordinates: [number, number]; // [lng, lat]
   };
   zone_id: string | null;
+  geo_zone?: {
+    name: string;
+  };
   geofence_matched: boolean;
   organization_id: string | null;
   // Ownership
   citizen_id: string;
+  citizen?: {
+    full_name: string;
+    email?: string;
+  };
+  is_anonymous: boolean;
   assigned_to: string | null;
   category_id: string | null;
   claimed_by: string | null;

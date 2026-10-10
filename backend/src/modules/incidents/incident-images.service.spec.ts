@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { IncidentImagesService } from './incident-images.service';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
-import { IncidentImageEntity } from '../../entities/incident-image.entity';
+import { IncidentImageEntity } from './entities/incident-image.entity';
 import { IncidentsRepository } from './incidents.repository';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 
@@ -48,7 +48,7 @@ const makeSavedImage = (overrides: Partial<IncidentImageEntity> = {}): IncidentI
 
 describe('IncidentImagesService', () => {
   let service: IncidentImagesService;
-  let imageRepo: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock; delete: jest.Mock };
+  let imageRepo: { find: jest.Mock; findOne: jest.Mock; create: jest.Mock; save: jest.Mock; delete: jest.Mock };
   let storage: { upload: jest.Mock; delete: jest.Mock };
   let incidentsRepository: { findOne: jest.Mock };
   // F6 fix (post-0051): el service inyecta `PermissionLookupService`.
@@ -59,6 +59,7 @@ describe('IncidentImagesService', () => {
 
   beforeEach(async () => {
     imageRepo = {
+      find: jest.fn(),
       findOne: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
@@ -89,6 +90,28 @@ describe('IncidentImagesService', () => {
     }).compile();
 
     service = module.get<IncidentImagesService>(IncidentImagesService);
+  });
+
+  describe('listForIncident()', () => {
+    it('returns images for an incident in scope', async () => {
+      incidentsRepository.findOne.mockResolvedValue(makeIncident());
+      const image = makeSavedImage();
+      imageRepo.find.mockResolvedValue([image]);
+
+      const result = await service.listForIncident('inc-1', { kind: 'global' });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('img-1');
+      expect(incidentsRepository.findOne).toHaveBeenCalledWith('inc-1', { kind: 'global' });
+    });
+
+    it('throws NotFoundException when incident is not found or out of scope', async () => {
+      incidentsRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.listForIncident('inc-1', { kind: 'org', organizationId: 'org-1' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 
   describe('attachToIncident()', () => {

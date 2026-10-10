@@ -1,5 +1,5 @@
-import { ImageCompressionService } from '../../core/image/image-compression.service';
-import { IStorageClient } from '../../core/storage/storage-client.interface';
+import { ImageCompressionService } from '../../infra/image/image-compression.service';
+import { IStorageClient } from '../../infra/storage/storage-client.interface';
 import {
   IncidentImageStorageService,
   MulterFile,
@@ -145,7 +145,7 @@ describe('IncidentImageStorageService', () => {
 
     it('propagates compress() errors so the upload never reaches the storage client', async () => {
       const { CompressionSizeExceeded } = await import(
-        '../../core/image/compression-error.exception'
+        '../../infra/image/compression-error.exception'
       );
       const err = new CompressionSizeExceeded('incident', 400, 300);
       imageCompression.compress.mockRejectedValue(err);

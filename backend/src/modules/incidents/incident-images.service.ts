@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { IncidentImageEntity } from '../../entities/incident-image.entity';
+import { IncidentImageEntity } from './entities/incident-image.entity';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
 import { IncidentImageDto } from './dto/incident-image.dto';
 import { IncidentsRepository } from './incidents.repository';
@@ -39,6 +39,25 @@ export class IncidentImagesService {
     // matchea — usamos el resolver.
     private readonly permissionLookup: PermissionLookupService,
   ) {}
+
+  async listForIncident(incidentId: string, scope: SubjectScope): Promise<IncidentImageDto[]> {
+    const incident = await this.incidentsRepository.findOne(incidentId, scope);
+    if (!incident) {
+      throw new NotFoundException(`Incident ${incidentId} not found or outside scope`);
+    }
+
+    const images = await this.imageRepo.find({
+      where: { incidentId },
+      order: { createdAt: 'ASC' },
+    });
+    return images.map((img) => ({
+      id: img.id,
+      url: img.url,
+      mime_type: img.mimeType,
+      file_size: img.fileSize,
+      created_at: img.createdAt,
+    }));
+  }
 
   async attachToIncident(
     incidentId: string,

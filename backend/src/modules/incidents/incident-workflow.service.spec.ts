@@ -12,9 +12,10 @@ import { DataSource, Repository } from 'typeorm';
 
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
+import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { GeofencingService } from '../geofencing/geofencing.service';
-import { OrganizationEntity } from '../../entities/organization.entity';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
 import { IncidentWorkflowService } from './incident-workflow.service';
 
 import {
@@ -43,12 +44,29 @@ const SIDE_EFFECT_DOUBLES = [
   },
   { provide: EventEmitter2, useValue: { emit: jest.fn() } },
   { provide: REDIS_CLIENT, useValue: { xadd: jest.fn().mockResolvedValue('1-0') } },
+  // F6 fix (post-0051): `changeStatus()` traduce (action, resource) → UUID
+  // vía el resolver antes de comparar (las perms del user ahora son UUIDs).
+  // Stub devuelve `"ACTION resource"` —el string formateado que los tests
+  // usan en `actorPermissions`— para mantener los asserts de auth exactos.
+  {
+    provide: PermissionLookupService,
+    useValue: {
+      getUuid: jest.fn(async (action: string, resource: string) => `${action} ${resource}`),
+    },
+  },
 ];
 
 // ---------- helpers ----------------------------------------------------------
 
 function makeDataSource(queryMock: jest.Mock) {
-  return { query: queryMock } as unknown as DataSource;
+  // claim() ahora corre en `DataSource.transaction` (historial atómico,
+  // S.5.1); el manager comparte el mismo mock query en cola.
+  const ds = { query: queryMock } as unknown as DataSource;
+  (ds as { transaction?: unknown }).transaction = jest.fn(
+    async (cb: (m: { query: jest.Mock; queryRunner: { query: jest.Mock } }) => unknown) =>
+      cb({ query: queryMock, queryRunner: { query: queryMock } }),
+  );
+  return ds;
 }
 
 function makeOrgRepo(org: Partial<OrganizationEntity> | null) {
@@ -114,15 +132,20 @@ describe('IncidentWorkflowService.claim', () => {
   });
 
   it('lets a system admin claim across orgs', async () => {
-    // 1) loadIncident → [INCIDENT]  2) active-count → 0  3) CAS → [updated]
-    const updated = { ...INCIDENT, claimed_by: ADMIN.id };
+    // 1) loadIncident → [INCIDENT]  2) active-count → 0
+    // 3) FOR UPDATE lock → [INCIDENT]  4) UPDATE claim → [updated]
+    // 5) INSERT status_history → []
+    const updated = { ...INCIDENT, claimed_by: ADMIN.id, status: 'in_progress' };
     const svc = await buildService([
       [INCIDENT],
       [{ count: '0' }],
+      [INCIDENT],
       [updated],
+      [],
     ]);
     const res = await svc.claim('inc-1', ADMIN);
     expect(res.claimedBy).toBe(ADMIN.id);
+    expect(res.status).toBe('in_progress');
   });
 
   it('throws HttpException with CLAIM_LIMIT_REACHED when the operator is at the cap', async () => {
@@ -136,29 +159,45 @@ describe('IncidentWorkflowService.claim', () => {
     expect(err.message).toContain(CLAIM_LIMIT_REACHED);
   });
 
-  it('throws ConflictException with INCIDENT_ALREADY_CLAIMED on CAS miss', async () => {
-    // 1) loadIncident  2) active-count = 0  3) CAS returns []
-    const svc = await buildService([[INCIDENT], [{ count: '0' }], []]);
+  it('throws ConflictException with INCIDENT_ALREADY_CLAIMED when the row is already claimed', async () => {
+    // 1) loadIncident  2) active-count = 0  3) FOR UPDATE lock devuelve
+    // una fila cuyo claimed_by ya está ocupado por otro operador.
+    const taken = { ...INCIDENT, claimed_by: OP_B.id };
+    const svc = await buildService([
+      [INCIDENT],
+      [{ count: '0' }],
+      [taken],
+    ]);
     const err = await svc.claim('inc-1', OP_A).catch((e) => e);
     expect(err).toBeInstanceOf(ConflictException);
     expect(err.message).toContain(INCIDENT_ALREADY_CLAIMED);
   });
 
   it('returns the updated row on the happy path', async () => {
-    const updated = { ...INCIDENT, claimed_by: OP_A.id };
-    const svc = await buildService([[INCIDENT], [{ count: '0' }], [updated]]);
+    // sc-405: el claim ahora transiciona pending → in_progress y registra
+    // el historial en la misma transacción.
+    const updated = { ...INCIDENT, claimed_by: OP_A.id, status: 'in_progress' };
+    const svc = await buildService([
+      [INCIDENT],
+      [{ count: '0' }],
+      [INCIDENT],
+      [updated],
+      [],
+    ]);
     const res = await svc.claim('inc-1', OP_A);
     expect(res.claimedBy).toBe(OP_A.id);
     expect(res.id).toBe('inc-1');
-    expect(res.status).toBe('pending');
+    expect(res.status).toBe('in_progress');
   });
 
   it('does not manually write updated_at in the claim UPDATE (trigger handles it)', async () => {
-    const updated = { ...INCIDENT, claimed_by: OP_A.id };
+    const updated = { ...INCIDENT, claimed_by: OP_A.id, status: 'in_progress' };
     const queryMock = jest.fn();
     queryMock.mockResolvedValueOnce([INCIDENT]); // loadIncident
     queryMock.mockResolvedValueOnce([{ count: '0' }]); // activeClaimCountFor
+    queryMock.mockResolvedValueOnce([INCIDENT]); // FOR UPDATE lock
     queryMock.mockResolvedValueOnce([updated]); // claim UPDATE
+    queryMock.mockResolvedValueOnce([]); // INSERT status_history
 
     const module = await Test.createTestingModule({
       providers: [
@@ -172,10 +211,36 @@ describe('IncidentWorkflowService.claim', () => {
 
     await svc.claim('inc-1', OP_A);
 
-    const claimUpdateCall = queryMock.mock.calls[2]; // third call is the claim UPDATE
+    const claimUpdateCall = queryMock.mock.calls[3]; // 4th call is the claim UPDATE
     const sql = claimUpdateCall[0];
     expect(sql).not.toContain('updated_at = ');
     expect(sql).toContain('claimed_at = NOW()');
+  });
+
+  it('writes status_history with the pending → in_progress transition (sc-405)', async () => {
+    const updated = { ...INCIDENT, claimed_by: OP_A.id, status: 'in_progress' };
+    const queryMock = jest.fn();
+    queryMock.mockResolvedValueOnce([INCIDENT]); // loadIncident
+    queryMock.mockResolvedValueOnce([{ count: '0' }]); // activeClaimCountFor
+    queryMock.mockResolvedValueOnce([INCIDENT]); // FOR UPDATE lock
+    queryMock.mockResolvedValueOnce([updated]); // claim UPDATE
+    queryMock.mockResolvedValueOnce([]); // INSERT status_history
+
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: makeDataSource(queryMock) },
+      ],
+    }).compile();
+    const svc = module.get(IncidentWorkflowService);
+
+    await svc.claim('inc-1', OP_A);
+
+    const historyCall = queryMock.mock.calls[4]; // 5th call is the history INSERT
+    expect(historyCall[0]).toContain('INSERT INTO status_history');
+    expect(historyCall[1]).toEqual(['inc-1', OP_A.id, 'pending', 'in_progress']);
   });
 });
 

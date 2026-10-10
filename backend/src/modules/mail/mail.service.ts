@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import * as nodemailer from 'nodemailer';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
 import { MailConfig } from '../../config/mail.config';
 import { renderMailTemplate, TemplateName } from './templates/mail-templates';
 import { PRODUCT_NAME } from './product-name';

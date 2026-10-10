@@ -1,4 +1,4 @@
-import type { IncidentPriority, IncidentStatus } from '../../../entities/incident.entity';
+import type { IncidentPriority, IncidentStatus } from '../entities/incident.entity';
 
 /**
  * Slim response shape for the claim/release endpoints (design "Deviations

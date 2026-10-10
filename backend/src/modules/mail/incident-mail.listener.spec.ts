@@ -4,7 +4,7 @@ import type { Redis } from 'ioredis';
 import { IncidentMailListener, INCIDENT_MAIL_CONSUMER_GROUP } from './incident-mail.listener';
 import { MailService } from './mail.service';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 
 function streamResponse(type: string, data: unknown, entryId = '1-0'): [string, [string, string[]][]][] {
   return [[INCIDENTS_STREAM_KEY, [[entryId, ['type', type, 'data', JSON.stringify(data)]]]]];

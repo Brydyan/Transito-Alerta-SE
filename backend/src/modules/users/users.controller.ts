@@ -21,7 +21,7 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from './entities/user.entity';
 import { SessionResponseDto } from '../sessions/dto/session-response.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';

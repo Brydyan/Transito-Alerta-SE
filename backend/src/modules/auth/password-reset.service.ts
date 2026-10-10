@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { sha256Hex, timingSafeEqualHex } from '../../common/crypto/session-hash';
 import { MailConfig } from '../../config/mail.config';
 import { MailService } from '../mail/mail.service';

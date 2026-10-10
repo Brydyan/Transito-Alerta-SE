@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { RoleEntity } from '../../entities/role.entity';
-import { OrganizationEntity } from '../../entities/organization.entity';
-import { UserEntity } from '../../entities/user.entity';
-import { StorageModule } from '../../core/storage/storage.module';
+import { RoleEntity } from '../roles/entities/role.entity';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
+import { UserEntity } from './entities/user.entity';
+import { StorageModule } from '../../infra/storage/storage.module';
 import { AuthModule } from '../auth/auth.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { AvatarStorageService } from './avatar-storage.service';

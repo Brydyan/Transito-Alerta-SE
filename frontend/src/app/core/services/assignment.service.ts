@@ -38,7 +38,7 @@ export interface OperatorWorkload {
 }
 
 /**
- * Operator location record from GET /operators/locations.
+ * Operator location record from GET /operator/locations.
  * Used to populate the operator panel in the assignment modal.
  */
 export interface AvailableOperator {
@@ -58,7 +58,7 @@ export interface AvailableOperator {
  * Endpoints used:
  *   POST   /assignments                         — create assignment
  *   GET    /assignments/operator/:id/count      — operator workload (new in Phase 1)
- *   GET    /operators/locations                 — available operators list
+ *   GET    /operator/locations                 — available operators list
  *   GET    /assignments/incident/:id            — list assignments for incident (latest)
  */
 @Injectable({
@@ -94,14 +94,14 @@ export class AssignmentService {
   }
 
   /**
-   * GET /operators/locations
+   * GET /operator/locations
    *
    * Returns operators with their current location info.
    * Used to build the operator list panel in the assignment modal.
    */
   getAvailableOperators(): Observable<AvailableOperator[]> {
     return this.httpService
-      .get<{ operators: AvailableOperator[] }>('/operators/locations')
+      .get<{ operators: AvailableOperator[] }>('/operator/locations')
       .pipe(map((res) => res.operators ?? []));
   }
 
