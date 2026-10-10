@@ -274,7 +274,7 @@ export class AssignmentsService {
     caller: AuthContext,
     _kind: 'operator',
   ): void {
-    if (caller.roleName === SYSTEM_ADMIN_ROLE) return;
+    if (caller.scope.kind === 'global') return;
     if (!caller.organizationId) {
       throw new ForbiddenException('WRONG_ORGANIZATION: caller has no organization');
     }
