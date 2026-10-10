@@ -2,8 +2,8 @@ import { ConflictException, ForbiddenException, NotFoundException } from '@nestj
 import { ConfigService } from '@nestjs/config';
 import type { DataSource } from 'typeorm';
 
-import { AuthContext } from '../../common/authz/subject-scope';
-import { sha256Hex } from '../../common/crypto/session-hash';
+import { AuthContext } from '../../shared/authz/subject-scope';
+import { sha256Hex } from '../../shared/crypto/session-hash';
 import { InvitationsService } from './invitations.service';
 
 function actor(overrides: Partial<AuthContext> = {}): AuthContext {

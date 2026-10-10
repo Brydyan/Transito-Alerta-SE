@@ -5,7 +5,7 @@ import { FindOperator } from 'typeorm';
 import { UserEntity } from './entities/user.entity';
 import { RoleEntity } from '../roles/entities/role.entity';
 import { OrganizationEntity } from '../organizations/entities/organization.entity';
-import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
+import { AuthContext, SubjectScope } from '../../shared/authz/subject-scope';
 import { AuthService } from '../auth/auth.service';
 import { SessionsRepository } from '../sessions/sessions.repository';
 import { AvatarStorageService } from './avatar-storage.service';

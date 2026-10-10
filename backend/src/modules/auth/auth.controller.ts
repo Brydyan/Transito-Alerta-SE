@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { InvitationsService } from '../invitations/invitations.service';
 import { AuthService, AuthTokens, RequestMeta } from './auth.service';
 import { AuthRegisterService, RegistrationRateLimited } from './auth.register';

@@ -11,8 +11,8 @@ import { CommentEntity } from './entities/comment.entity';
 import { CommentImageEntity } from './entities/comment-image.entity';
 import { CommentImageStorageService, MulterFile } from './comment-image-storage.service';
 import { CommentImageDto } from './dto/comment-image.dto';
-import { hasPermission } from '../../common/guards/permission.guard';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { hasPermission } from '../../shared/guards/permission.guard';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 

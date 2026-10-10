@@ -1,7 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
-import { AuthContext } from '../../common/authz/subject-scope';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { AuthContext } from '../../shared/authz/subject-scope';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { RevocationCache } from './revocation-cache';
 import { SessionsRepository } from './sessions.repository';
 import { SessionsService } from './sessions.service';

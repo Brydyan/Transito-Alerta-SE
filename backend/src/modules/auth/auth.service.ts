@@ -5,9 +5,10 @@ import { JwtService } from '@nestjs/jwt';
 
 import { UserEntity } from '../users/entities/user.entity';
 import { AuthConfig } from '../../config/auth.config';
-import { AuthContext } from '../../common/authz/subject-scope';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
-import { sha256Hex, timingSafeEqualHex } from '../../common/crypto/session-hash';
+import { AuthContext } from '../../shared/authz/subject-scope';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
+import { resolveSubjectScope } from '../../shared/authz/resolve-subject-scope';
+import { sha256Hex, timingSafeEqualHex } from '../../shared/crypto/session-hash';
 import { BufferedTokenPair, GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { isWithinRotationGrace } from '../sessions/session-validity';

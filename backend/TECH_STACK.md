@@ -101,12 +101,17 @@ backend/src/
 │   ├── websockets/           # Socket.io gateway (alertas en tiempo real)
 │   ├── notifications/        # Telegram Bot API, Web Push
 │   └── users/                # Perfiles y roles
-├── common/
-│   ├── guards/              # RateLimiterGuard, AuthGuard
-│   ├── interceptors/        # Error handling, Sentry
-│   ├── filters/             # Exception filters
-│   ├── dto/                 # DTOs globales
-│   └── types/               # Tipos TypeScript
+├── shared/               # Código compartido entre módulos
+│   ├── authz/            # Reglas de autorización (role-rank, scope-sql)
+│   ├── guards/           # RateLimiterGuard, PermissionGuard, EmailVerifiedGuard
+│   ├── interceptors/     # CacheInterceptor, SnakeCaseResponseInterceptor
+│   ├── observability/    # RequestIdMiddleware/Logger, AllExceptionsFilter
+│   ├── crypto/           # Session hash
+│   ├── decorators/       # RequirePermission
+│   ├── interfaces/       # AuthenticatedRequest
+│   ├── permissions/      # PermissionLookupService
+│   ├── utils/            # snake-case
+│   └── proxy-trust.ts    # Configuración de trust proxy
 └── main.ts                  # Bootstrap + API prefix
 ```
 

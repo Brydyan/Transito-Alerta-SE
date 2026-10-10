@@ -13,8 +13,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { PermissionGuard } from '../../common/guards/permission.guard';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AssignCategoryDto } from './dto/assign-category.dto';
 import { CreateOrganizationDto } from './dto/create-organization.dto';

@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 
 import { IncidentsService } from '../../src/modules/incidents/incidents.service';
-import { SubjectScope } from '../../src/common/authz/subject-scope';
+import { SubjectScope } from '../../src/shared/authz/subject-scope';
 import { ALL_ZONES_TAG } from '../../src/modules/geofencing/geofencing.service';
 import { TestEnvironment } from '../support/test-environment';
 

@@ -1,6 +1,6 @@
 import type { DataSource } from 'typeorm';
 
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 import { RoomAuthorizer } from './room-authorizer.service';
 
 function ctx(overrides: Partial<AuthContext> = {}): AuthContext {

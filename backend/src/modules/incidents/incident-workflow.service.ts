@@ -33,8 +33,8 @@ import {
 import { unwrapReturningRows, IncidentRow } from './incidents.repository';
 import { AvailableOperatorDto } from './dto/available-operator.dto';
 import { ClaimReleaseResponseDto } from './dto/claim-release-response.dto';
-import { hasPermission } from '../../common/guards/permission.guard';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { hasPermission } from '../../shared/guards/permission.guard';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 
 // Shape of the row returned by the CAS UPDATE statements; we cast and then
 // re-project into ClaimReleaseResponseDto at the controller boundary. The

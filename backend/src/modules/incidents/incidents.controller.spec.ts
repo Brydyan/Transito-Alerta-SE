@@ -10,8 +10,8 @@ import { IncidentWorkflowService } from './incident-workflow.service';
 // servicio. Lo importamos para tipar el mock del constructor.
 import { RevealService } from './reveal.service';
 import { IncidentRow } from './incidents.repository';
-import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { REQUIRE_PERMISSION_KEY } from '../../shared/decorators/require-permission.decorator';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 
 const GLOBAL_SCOPE = { kind: 'global' as const };
 

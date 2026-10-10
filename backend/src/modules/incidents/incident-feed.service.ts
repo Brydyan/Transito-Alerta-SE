@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { DataSource } from 'typeorm';
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 import { FeedQueryDto } from './dto/feed-query.dto';
 import { FeedItemDto, FeedResponseDto } from './dto/stats-response.dto';
 
