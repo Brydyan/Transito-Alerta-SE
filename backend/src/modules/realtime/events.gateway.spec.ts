@@ -3,7 +3,7 @@ import { EventsGateway } from './events.gateway';
 import { AuthService } from '../auth/auth.service';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { RoomAuthorizer } from './room-authorizer.service';
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 
 function makeSocket(overrides: Record<string, unknown> = {}) {
   return {

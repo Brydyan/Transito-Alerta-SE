@@ -11,9 +11,9 @@ import { IncidentImageEntity } from './entities/incident-image.entity';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
 import { IncidentImageDto } from './dto/incident-image.dto';
 import { IncidentsRepository } from './incidents.repository';
-import { SubjectScope } from '../../common/authz/subject-scope';
-import { hasPermission } from '../../common/guards/permission.guard';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { SubjectScope } from '../../shared/authz/subject-scope';
+import { hasPermission } from '../../shared/guards/permission.guard';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 

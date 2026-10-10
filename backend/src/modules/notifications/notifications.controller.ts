@@ -14,12 +14,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { NotificationsService } from './notifications.service';
 import { IncidentApprovalService } from './incident-approval.service';
 import { RejectNotificationDto } from './dto/reject-notification.dto';
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { PermissionGuard } from '../../common/guards/permission.guard';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('notifications')

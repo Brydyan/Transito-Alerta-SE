@@ -27,9 +27,9 @@ import { InvitationsModule } from './modules/invitations/invitations.module';
 import { OperatorsModule } from './modules/operators/operators.module';
 import { IncidentSocialModule } from './modules/incident-social/incident-social.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
-import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
-import { AllExceptionsFilter } from './common/observability/all-exceptions.filter';
-import { RequestIdMiddleware } from './common/observability/request-id.middleware';
+import { RateLimiterGuard } from './shared/guards/rate-limiter.guard';
+import { AllExceptionsFilter } from './shared/observability/all-exceptions.filter';
+import { RequestIdMiddleware } from './shared/observability/request-id.middleware';
 
 @Module({
   imports: [

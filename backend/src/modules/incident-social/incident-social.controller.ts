@@ -1,9 +1,9 @@
 import { Controller, Post, Delete, Param, Body, Req, HttpCode, HttpStatus, UseGuards, UnauthorizedException } from '@nestjs/common';
 import { IncidentSocialService } from './incident-social.service';
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { PermissionGuard } from '../../common/guards/permission.guard';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 
 @Controller('incidents/:id')
 @UseGuards(JwtAuthGuard, PermissionGuard)

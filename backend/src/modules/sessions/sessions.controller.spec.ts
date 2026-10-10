@@ -1,7 +1,7 @@
 import { Reflector } from '@nestjs/core';
 
-import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { REQUIRE_PERMISSION_KEY } from '../../shared/decorators/require-permission.decorator';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { SessionsController } from './sessions.controller';
 import { SessionsService } from './sessions.service';
 

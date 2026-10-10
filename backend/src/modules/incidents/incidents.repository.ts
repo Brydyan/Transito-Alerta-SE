@@ -3,8 +3,8 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { IncidentPriority, IncidentStatus } from './entities/incident.entity';
-import { SubjectScope } from '../../common/authz/subject-scope';
-import { scopeToSql } from '../../common/authz/scope-sql';
+import { SubjectScope } from '../../shared/authz/subject-scope';
+import { scopeToSql } from '../../shared/authz/scope-sql';
 
 export interface IncidentRow {
   id: string;

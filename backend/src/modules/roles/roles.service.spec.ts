@@ -5,7 +5,7 @@ import { RoleEntity } from './entities/role.entity';
 import { UserEntity } from '../users/entities/user.entity';
 import { PermissionEntity } from '../permissions/entities/permission.entity';
 import { AuthService } from '../auth/auth.service';
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 
 function makeActor(overrides: Partial<AuthContext> = {}): AuthContext {
   return {

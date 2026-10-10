@@ -6,7 +6,7 @@ import { IsNull, Repository } from 'typeorm';
 
 import { REDIS_CLIENT } from '../../infra/core.module';
 import { AssignmentEntity } from './entities/assignment.entity';
-import { SubjectScope } from '../../common/authz/subject-scope';
+import { SubjectScope } from '../../shared/authz/subject-scope';
 import { IncidentsRepository } from '../incidents/incidents.repository';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
 

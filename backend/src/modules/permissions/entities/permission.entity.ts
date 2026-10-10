@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
-import { PermissionAction } from '../../../common/decorators/require-permission.decorator';
+import { PermissionAction } from '../../../shared/decorators/require-permission.decorator';
 
 /**
  * Permissions catalog table (T3.1 — 0009_roles_permissions.sql, R7).

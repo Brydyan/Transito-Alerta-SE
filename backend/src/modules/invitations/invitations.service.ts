@@ -4,9 +4,9 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { OrganizationEntity } from '../organizations/entities/organization.entity';
 import { RoleEntity } from '../roles/entities/role.entity';
-import { assertCanInvite } from '../../common/authz/assert-can-invite';
-import { AuthContext } from '../../common/authz/subject-scope';
-import { sha256Hex, timingSafeEqualHex } from '../../common/crypto/session-hash';
+import { assertCanInvite } from '../../shared/authz/assert-can-invite';
+import { AuthContext } from '../../shared/authz/subject-scope';
+import { sha256Hex, timingSafeEqualHex } from '../../shared/crypto/session-hash';
 import { decodeTokenOrThrow, generateToken } from '../auth/token-codec';
 import { PasswordHasher } from '../auth/password-hasher';
 import { MailService } from '../mail/mail.service';

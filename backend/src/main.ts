@@ -4,10 +4,10 @@ import { LogLevel, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { SnakeCaseResponseInterceptor } from './common/interceptors/snake-case-response.interceptor';
-import { RequestIdLogger } from './common/observability/request-id.logger';
+import { SnakeCaseResponseInterceptor } from './shared/interceptors/snake-case-response.interceptor';
+import { RequestIdLogger } from './shared/observability/request-id.logger';
 import { RedisIoAdapter } from './modules/realtime/redis-io.adapter';
-import { isTrustedProxyAddress } from './common/proxy-trust';
+import { isTrustedProxyAddress } from './shared/proxy-trust';
 
 async function bootstrap(): Promise<void> {
   if (process.env.SENTRY_DSN) {

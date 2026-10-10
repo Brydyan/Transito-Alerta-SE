@@ -1,7 +1,7 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { IncidentAnalyticsService } from './incident-analytics.service';
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 
 type MockCache = { get: jest.Mock; set: jest.Mock };
 

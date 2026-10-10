@@ -3,7 +3,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { InvitationsService } from '../invitations/invitations.service';
 import { PasswordResetService } from './password-reset.service';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 
 function makeReq(overrides: Partial<Request> = {}): Request {
   return {

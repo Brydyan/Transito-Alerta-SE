@@ -27,7 +27,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 
 import { AppModule } from '../../src/app.module';
 import { JwtAuthGuard } from '../../src/modules/auth/jwt-auth.guard';
-import { PermissionGuard } from '../../src/common/guards/permission.guard';
+import { PermissionGuard } from '../../src/shared/guards/permission.guard';
 
 describe('Departments e2e (Testcontainers-gated)', () => {
   let app: INestApplication;
