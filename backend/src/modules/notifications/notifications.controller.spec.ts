@@ -3,9 +3,9 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { IncidentApprovalService } from './incident-approval.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionGuard } from '../../common/guards/permission.guard';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
 import type { Response } from 'express';
-import type { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import type { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 
 const mockNotificationsService = {
   findByUser: jest.fn(),

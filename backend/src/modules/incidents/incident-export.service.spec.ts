@@ -1,6 +1,6 @@
 import { DataSource } from 'typeorm';
 import { IncidentExportService } from './incident-export.service';
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 
 const ADMIN: AuthContext = {
   userId: 'a-1', roleName: 'master', organizationId: null,

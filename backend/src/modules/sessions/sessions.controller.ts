@@ -1,7 +1,7 @@
 import { Controller, Delete, HttpCode, HttpStatus, Param, ParseUUIDPipe, Req, UseGuards } from '@nestjs/common';
 
-import { PermissionGuard } from '../../common/guards/permission.guard';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SessionsService } from './sessions.service';
 

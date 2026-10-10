@@ -6,7 +6,7 @@ import { UserEntity } from '../users/entities/user.entity';
 import { PermissionEntity } from '../permissions/entities/permission.entity';
 import { MenuOptionRoleEntity } from '../menus/entities/menu-option-role.entity';
 import { MenuOptionEntity } from '../menus/entities/menu-option.entity';
-import { RoleRankAudit } from '../../common/authz/role-rank.audit';
+import { RoleRankAudit } from '../../shared/authz/role-rank.audit';
 import { AuthModule } from '../auth/auth.module';
 import { RolesController } from './roles.controller';
 import { RolesService } from './roles.service';

@@ -4,7 +4,7 @@ import { Readable } from 'stream';
 
 import { AuditController } from './audit.controller';
 import { AuditService } from './audit.service';
-import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
+import { REQUIRE_PERMISSION_KEY } from '../../shared/decorators/require-permission.decorator';
 
 /**
  * F6 (`2026-09-11-f6-audit-logs-export`) — controller spec.

@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 import { AuthService } from '../auth/auth.service';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { RoomAuthorizer } from './room-authorizer.service';

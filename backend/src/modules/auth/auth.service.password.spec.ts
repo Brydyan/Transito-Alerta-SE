@@ -6,7 +6,7 @@ import type { DataSource, Repository } from 'typeorm';
 
 import { AuthService } from './auth.service';
 import { UserEntity } from '../users/entities/user.entity';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { SessionsRepository } from '../sessions/sessions.repository';

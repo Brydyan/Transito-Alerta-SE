@@ -1,6 +1,6 @@
 import { DataSource } from 'typeorm';
 import { IncidentsRepository , unwrapReturningRows} from './incidents.repository';
-import { SubjectScope } from '../../common/authz/subject-scope';
+import { SubjectScope } from '../../shared/authz/subject-scope';
 
 const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
 

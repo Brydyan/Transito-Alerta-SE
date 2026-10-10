@@ -1,4 +1,4 @@
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 
 export interface RealtimeEventPayload {
   zone_id?: string | null;

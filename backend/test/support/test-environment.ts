@@ -13,10 +13,10 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { AppModule } from '../../src/app.module';
-import { SnakeCaseResponseInterceptor } from '../../src/common/interceptors/snake-case-response.interceptor';
+import { SnakeCaseResponseInterceptor } from '../../src/shared/interceptors/snake-case-response.interceptor';
 import { RedisIoAdapter } from '../../src/modules/realtime/redis-io.adapter';
 import { PasswordHasher } from '../../src/modules/auth/password-hasher';
-import { isTrustedProxyAddress } from '../../src/common/proxy-trust';
+import { isTrustedProxyAddress } from '../../src/shared/proxy-trust';
 import helmet from 'helmet';
 import {
   MAIL_BLOCKING_CLIENT,

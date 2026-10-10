@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 
-import { SubjectScope } from '../../common/authz/subject-scope';
+import { SubjectScope } from '../../shared/authz/subject-scope';
 import { StatusHistoryEntity } from './entities/status-history.entity';
 import { StatusHistoryRepository } from './status-history.repository';
 import { StatusHistoryService } from './status-history.service';

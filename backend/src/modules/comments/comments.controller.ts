@@ -13,10 +13,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { EmailVerifiedGuard } from '../../common/guards/email-verified.guard';
-import { PermissionGuard } from '../../common/guards/permission.guard';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
+import { EmailVerifiedGuard } from '../../shared/guards/email-verified.guard';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CommentEntity } from './entities/comment.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';

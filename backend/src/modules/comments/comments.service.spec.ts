@@ -4,7 +4,7 @@ import type { Repository } from 'typeorm';
 import { CommentsService, sanitizeContent } from './comments.service';
 import { CommentEntity } from './entities/comment.entity';
 import { IncidentsRepository } from '../incidents/incidents.repository';
-import { SubjectScope } from '../../common/authz/subject-scope';
+import { SubjectScope } from '../../shared/authz/subject-scope';
 
 const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
 const ORG_A_SCOPE: SubjectScope = { kind: 'org', organizationId: 'org-A' };

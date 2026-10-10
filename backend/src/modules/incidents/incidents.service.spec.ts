@@ -6,7 +6,7 @@ import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService, INCIDENTS_STREAM_KEY } from './incidents.service';
 import { GeofencingService, ALL_ZONES_TAG } from '../geofencing/geofencing.service';
 import { OrganizationsService } from '../organizations/organizations.service';
-import { SubjectScope } from '../../common/authz/subject-scope';
+import { SubjectScope } from '../../shared/authz/subject-scope';
 
 const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
 const ORG_A_SCOPE: SubjectScope = { kind: 'org', organizationId: 'org-A' };

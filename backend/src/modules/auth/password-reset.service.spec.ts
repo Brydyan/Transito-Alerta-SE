@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import type { DataSource } from 'typeorm';
 
-import { sha256Hex } from '../../common/crypto/session-hash';
+import { sha256Hex } from '../../shared/crypto/session-hash';
 import { PasswordResetService } from './password-reset.service';
 
 describe('PasswordResetService (T3.6 design "Component Design", mocked repository)', () => {
