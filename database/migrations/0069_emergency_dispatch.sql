@@ -39,7 +39,7 @@ ALTER TABLE assignments
   ADD COLUMN IF NOT EXISTS cap_override_reason text NULL;
 
 ALTER TABLE assignments
-  ADD COLUMN IF NOT EXISTS cap_override_by uuid NULL REFERENCES users(id);
+  ADD COLUMN IF NOT EXISTS cap_override_by uuid NULL REFERENCES users(id) ON DELETE SET NULL;
 
 COMMENT ON COLUMN assignments.cap_override_reason IS
   'Free-text justification when an admin assigned an operator above '
@@ -48,8 +48,9 @@ COMMENT ON COLUMN assignments.cap_override_reason IS
 
 COMMENT ON COLUMN assignments.cap_override_by IS
   'User id (master or admin_org) who authorized the cap override. NULL '
-  '= no override was used. Foreign key to users(id) so revoking the '
-  'author cascades to a NULL.';
+  '= no override was used. Foreign key to users(id) ON DELETE SET NULL '
+  'so deleting the authorizing user nullifies the audit trail without '
+  'blocking the delete.';
 
 -- 3) Critical-pending reminder state (design D10, B.5).
 -- The repique scheduler increments `reminder_count` and stamps

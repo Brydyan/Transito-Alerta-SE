@@ -136,8 +136,15 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
   });
 
   it('assignment: an operator claims an incident, a second claim conflicts, the event reaches incidents:events', async () => {
-    const operator = await env.provisionUser(['CREATE incidents', 'READ incidents', 'ASSIGN assignments']);
-    const secondOperator = await env.provisionUser(['ASSIGN assignments']);
+    // F7 D12: assign() now scopes the incident lookup by the caller's org.
+    // Both users must belong to the same org as the incident, which the
+    // seeded Santa Elena zone resolves to 'CTE - Santa Elena'.
+    const { rows: orgRows } = await env.pg.query<{ id: string }>(
+      `SELECT id FROM organizations WHERE name = 'CTE - Santa Elena'`,
+    );
+    const orgId = orgRows[0]?.id;
+    const operator = await env.provisionUser(['CREATE incidents', 'READ incidents', 'ASSIGN assignments'], { organizationId: orgId });
+    const secondOperator = await env.provisionUser(['ASSIGN assignments'], { organizationId: orgId });
 
     const incident = await request(env.httpServer)
       .post('/api/incidents')
