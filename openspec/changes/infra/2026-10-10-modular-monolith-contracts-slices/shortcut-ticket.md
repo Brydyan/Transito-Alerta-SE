@@ -16,8 +16,9 @@ ARCH — Modular Monolith, Vertical Slices y Shared Contracts (@tase/contracts)
 **Type**: Feature  
 **Epic**: ⚠️ GeoReporta (Epic 192)  
 **Estimate**: 13 pts (~40h)  
+**Story ID**: [sc-417](https://app.shortcut.com/upse/story/417)  
 **Labels**: `architecture`, `monorepo`, `contracts`, `refactor`, `frontend`, `backend`  
-**Branch sugerida**: `brydyan/sc-XXX/modular-monolith-contracts-slices`  
+**Branch sugerida**: `brydyan/sc-417/modular-monolith-contracts-slices`  
 
 **Description**
 ```markdown
@@ -67,26 +68,36 @@ Esta feature implementa la **Opción 1**:
 ## Desglose de Sub-Stories (Una por Fase)
 
 ### Sub-story 1: Setup Workspace y Paquete `@tase/contracts`
+- **Story**: [sc-420](https://app.shortcut.com/upse/story/420)
 - **Name**: `ARCH.1 — Setup de Workspace pnpm y Creación de @tase/contracts`
 - **Type**: Feature | **Estimate**: 3 pts
+- **Relación**: `relates to` [sc-417](https://app.shortcut.com/upse/story/417)
 - **Description**: Configuración de `pnpm-workspace.yaml` raíz y creación del paquete de contratos TypeScript puro en `packages/contracts/` con enums y DTOs canónicos (`IncidentStatus`, `UserRole`, etc.).
 
 ### Sub-story 2: Integración de Contratos y Path Aliases
+- **Story**: [sc-422](https://app.shortcut.com/upse/story/422)
 - **Name**: `ARCH.2 — Path Aliases y Reemplazo de Tipos Huérfanos`
 - **Type**: Feature | **Estimate**: 2 pts
+- **Relación**: `relates to` [sc-417](https://app.shortcut.com/upse/story/417)
 - **Description**: Configuración de `compilerOptions.paths` en `tsconfig.json` de backend y frontend; reemplazo de definiciones manuales de `IncidentStatus` en backend y frontend por el paquete común.
 
 ### Sub-story 3: Reorganización Modular de Backend por Dominios (DDD)
+- **Story**: [sc-424](https://app.shortcut.com/upse/story/424)
 - **Name**: `ARCH.3 — Backend: Modular Monolith en 4 Bounded Contexts`
 - **Type**: Feature | **Estimate**: 3 pts
+- **Relación**: `relates to` [sc-417](https://app.shortcut.com/upse/story/417)
 - **Description**: Agrupación de los 24 módulos en `backend/src/domains/` (`incidents/`, `iam/`, `gis/`, `comms/`) + consolidación de capas `infra/` y `shared/`.
 
 ### Sub-story 4: Frontend Vertical Slices y Limpieza de Core
+- **Story**: [sc-426](https://app.shortcut.com/upse/story/426)
 - **Name**: `ARCH.4 — Frontend: Vertical Slice Architecture y Saneamiento de Core`
 - **Type**: Feature | **Estimate**: 3 pts
+- **Relación**: `relates to` [sc-417](https://app.shortcut.com/upse/story/417)
 - **Description**: Reestructuración de `features/incidents/` en rodajas (`data-access/`, `ui/`, `feature/`, `utils/`) y migración de servicios de dominio desde `core/services/` hacia sus features.
 
 ### Sub-story 5: Docker Hermético y Gates Finales
+- **Story**: [sc-428](https://app.shortcut.com/upse/story/428)
 - **Name**: `ARCH.5 — Dockerfile Monorepo y Verificación Integral de Gates`
 - **Type**: Feature | **Estimate**: 2 pts
+- **Relación**: `relates to` [sc-417](https://app.shortcut.com/upse/story/417)
 - **Description**: Adaptación de `backend/Dockerfile` para resolver el workspace en build hermético; validación de `typecheck`, `test` y `build` completos en backend y frontend.
