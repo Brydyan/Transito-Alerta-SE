@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import Redis from 'ioredis';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
 import { UserEntity } from '../users/entities/user.entity';
 import { AuthService } from '../auth/auth.service';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';

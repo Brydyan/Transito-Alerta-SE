@@ -12,7 +12,7 @@ import { DataSource, Repository } from 'typeorm';
 
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
 import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
 import { GeofencingService } from '../geofencing/geofencing.service';
 import { OrganizationEntity } from '../organizations/entities/organization.entity';

@@ -23,7 +23,7 @@ import {
   MAIL_EVENTS_BLOCKING_CLIENT,
   REDIS_CLIENT,
   SESSION_REDIS_CLIENT,
-} from '../../src/core/core.module';
+} from '../../src/infra/core.module';
 import { applyMigrations } from './run-migrations';
 
 const E2E_SHARED_ENV_FILE = path.join(os.tmpdir(), 'tase-e2e-shared.json');
