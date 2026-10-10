@@ -17,6 +17,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { MenusModule } from './modules/menus/menus.module';
 import { MailModule } from './modules/mail/mail.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
 import { IncidentCategoriesModule } from './modules/incident-categories/incident-categories.module';
 import { MapModule } from './modules/map/map.module';
 import { GeoZonesModule } from './modules/geo-zones/geo-zones.module';
@@ -48,6 +49,7 @@ import { RequestIdMiddleware } from './shared/observability/request-id.middlewar
     PermissionsModule,
     MenusModule,
     MailModule,
+    TelegramModule,
     NotificationsModule,
     IncidentCategoriesModule,
     MapModule,

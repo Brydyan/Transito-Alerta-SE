@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "sequence",
+  "quality": "showcase",
+  "specification": {
+    "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/candidate.json",
+    "sha256": "08f7ebb593541dbf75dae97a3af47bcdb366856ee07451f4aa09aa426f04ef08",
+    "bytes": 4930
+  },
+  "artifact": {
+    "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+    "sha256": "631b191e93446fd0c74d1626e72dc9633fa6f651d5e06d389f1e9de0b4cb96cf",
+    "bytes": 764255
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "skipped"
+  },
+  "failedStage": "browser-check",
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.finalize.json",
+    "summaryReceipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.finalize-summary.json",
+    "browserCheckReceipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-10T16:18:40.834Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 408
+}

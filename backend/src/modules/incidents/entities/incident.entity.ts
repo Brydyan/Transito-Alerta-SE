@@ -119,6 +119,23 @@ export class IncidentEntity {
   @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
   deletedAt!: Date | null;
 
+  /**
+   * F7 emergency-dispatch (migration 0069, design D10 — REVISED Round 2).
+   * Cycle counter for the Telegram repique of a critical incident that
+   * stays in `pending`. Values: 0 = initial (sent by
+   * `critical-incident.listener`), 1 = T+25min reminder to admin_org,
+   * 2 = T+40min reminder to admin_org, 3 = T+60min final message to
+   * `master` (single role). The scheduler stops touching the incident
+   * once `reminder_count >= 3`. Persisted on the row so restarting
+   * the scheduler process does NOT reset the cadence.
+   */
+  @Column({ name: 'reminder_count', type: 'integer', default: 0 })
+  reminderCount!: number;
+
+  /** F7 emergency-dispatch (migration 0069) — timestamp of the last reminder. */
+  @Column({ name: 'last_reminded_at', type: 'timestamptz', nullable: true, default: null })
+  lastRemindedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
