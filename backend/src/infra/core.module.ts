@@ -12,6 +12,7 @@ import cacheConfig from '../config/cache.config';
 import { CacheConfig } from '../config/cache.config';
 import mailConfig from '../config/mail.config';
 import storageConfig from '../config/storage.config';
+import telegramConfig from '../config/telegram.config';
 import { PermissionEntity } from '../modules/permissions/entities/permission.entity';
 import { PermissionLookupService } from '../shared/permissions/permission-lookup.service';
 import { ImageCompressionModule } from './image/image-compression.module';
@@ -73,6 +74,14 @@ export const MAIL_EVENTS_BLOCKING_CLIENT = 'MAIL_EVENTS_BLOCKING_CLIENT';
 export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
 
 /**
+ * F7 emergency-dispatch — dedicated blocking connection for
+ * `TelegramOutboxConsumer` (design D5/D8). Same reasoning as
+ * `MAIL_BLOCKING_CLIENT`: a blocking consumer must own its connection
+ * so a slow Telegram send never queues the producers' XADDs behind it.
+ */
+export const TELEGRAM_BLOCKING_CLIENT = 'TELEGRAM_BLOCKING_CLIENT';
+
+/**
  * CoreModule — Config, TypeORM, Redis cache, EventEmitter2.
  * Imported by AppModule; every feature module depends on it transitively
  * (design "Module Dependency DAG").
@@ -87,7 +96,7 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
     ImageCompressionModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, authConfig, cacheConfig, mailConfig, storageConfig],
+      load: [databaseConfig, authConfig, cacheConfig, mailConfig, storageConfig, telegramConfig],
       envFilePath: ['.env'],
     }),
     TypeOrmModule.forRootAsync({
@@ -185,6 +194,19 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
         });
       },
     },
+    {
+      provide: TELEGRAM_BLOCKING_CLIENT,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const cacheConf = config.get<CacheConfig>('cache')!;
+        return new Redis(cacheConf.streamsUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: true,
+          retryStrategy: (times) => Math.min(times * 200, 5000),
+        });
+      },
+    },
     // F6 fix (post-0051): el `PermissionGuard` y los services que
     // hacen `callerPermissions.includes('STRING')` necesitan
     // traducir `(action, resource)` → UUID para comparar contra
@@ -204,6 +226,7 @@ export const SESSION_REDIS_CLIENT = 'SESSION_REDIS_CLIENT';
     MAIL_BLOCKING_CLIENT,
     MAIL_EVENTS_BLOCKING_CLIENT,
     SESSION_REDIS_CLIENT,
+    TELEGRAM_BLOCKING_CLIENT,
     PermissionLookupService,
   ],
 })

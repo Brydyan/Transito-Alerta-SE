@@ -51,10 +51,11 @@ añadir la validación a ese camino primero.
   de disponibilidad, no sólo los que están por debajo del tope
 
 ### In Scope — Aviso por Telegram
-- `users.telegram_chat_id` para los `admin_org`
-- Listener sobre creación de incidencia con `priority = 'critical'`
-- `TelegramService` con outbox y consumidor, siguiendo el patrón del módulo `mail`
-- Mensaje con título, categoría, ubicación, prioridad y enlace directo al detalle
+- `users.telegram_chat_id text NULL` para los `admin_org` y `operador_org`
+- Listener sobre creación de incidencia con `priority = 'critical'`: aviso inicial a los `admin_org` de la organización
+- Repique programado cada 5 min a los `admin_org` mientras la emergencia crítica permanezca en `pending`
+- Listener sobre asignación (`incident.assigned`): aviso inmediato al `operador_org` asignado con título, descripción, categoría, prioridad, ubicación geográfica (coordenadas y enlace a mapa) y enlace directo
+- `TelegramService` con outbox (`telegram:outbox`) en Redis Streams y consumidor desacoplado, siguiendo el patrón del módulo `mail`
 
 ### Out of Scope
 - Bot de dos vías: no se reclama ni se asigna desde Telegram. Exigiría webhook,
@@ -65,19 +66,19 @@ añadir la validación a ese camino primero.
 ## Capabilities
 
 ### New Capabilities
-- `emergency-dispatch`: aviso por Telegram ante incidencias `critical` y asignación
-  asistida con control de carga
+- `emergency-dispatch`: aviso por Telegram ante incidencias `critical` a administradores, notificación directa con detalles al operador asignado, y asignación asistida con control de carga
 
 ### Modified Capabilities
 - `incident-workflow`: `availableOperators()` deja de filtrar y pasa a informar
 - `admin-panel-backend`: la asignación valida carga y admite excepción registrada
 
-## DB Schema Changes
+## DB Schema Changes (Migración 0069_emergency_dispatch)
 
-- `users.telegram_chat_id text NULL` — el destinatario es el usuario `admin_org`, no la
-  organización: una organización puede tener varios (el seed crea dos)
+- `users.telegram_chat_id text NULL` — destinatarios (`admin_org` y `operador_org`)
 - `assignments.cap_override_reason text NULL` — motivo cuando se asigna por encima del tope
-- `assignments.cap_override_by uuid NULL` REFERENCES `users(id)` — quién lo autorizó
+- `assignments.cap_override_by uuid NULL` REFERENCES `users(id)` — quién autorizó el sobrecupo
+- `incidents.reminder_count int NOT NULL DEFAULT 0` — contador de repiques de emergencias no atendidas
+- `incidents.last_reminded_at timestamptz NULL` — marca de tiempo del último recordatorio enviado
 
 No hay tabla de auditoría en el proyecto (verificado), así que el registro de la
 excepción vive en la propia fila de asignación.

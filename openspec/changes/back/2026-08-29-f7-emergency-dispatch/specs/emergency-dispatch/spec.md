@@ -21,18 +21,25 @@ organización DEBEN recibir un aviso por Telegram.
 
 ### Requirement: Recordatorio mientras la emergencia siga sin atender
 Mientras una incidencia `critical` permanezca en `pending`, los `admin_org` DEBEN
-recibir un recordatorio cada 5 minutos.
+recibir recordatorios en T+25min y T+40min desde la creación; si nadie la asigna
+después de 1 hora, el `master` recibe un único aviso final.
 
-- Scenario: Repique — GIVEN una incidencia `critical` en `pending` desde hace 5 minutos
-  THEN se envía un recordatorio a los `admin_org` con `telegram_chat_id`
+- Scenario: Repique a T+25min — GIVEN una incidencia `critical` en `pending` desde
+  hace 25 minutos THEN se envía el primer recordatorio a los `admin_org` con
+  `telegram_chat_id`
+- Scenario: Repique a T+40min — GIVEN una incidencia `critical` en `pending` desde
+  hace 40 minutos y con `reminder_count = 1` THEN se envía el segundo recordatorio
+  a los `admin_org` con `telegram_chat_id`
 - Scenario: Parada por asignación — GIVEN una incidencia `critical` que pasa a
   `in_progress` THEN no se envían más recordatorios
 - Scenario: Parada por cierre — GIVEN una incidencia `critical` que pasa a `closed`
   desde `pending` THEN no se envían más recordatorios
-- Scenario: Escalado — GIVEN una incidencia `critical` que lleva 6 recordatorios
-  (30 minutos) sin asignarse THEN el aviso se extiende a `master` y `operador_sistema`
-- Scenario: Límite duro — GIVEN una incidencia `critical` que alcanza 12 recordatorios
-  (1 hora) THEN el repique se detiene y la incidencia queda marcada como no atendida
+- Scenario: Aviso final al master a T+60min — GIVEN una incidencia `critical` en
+  `pending` desde hace 60 minutos y con `reminder_count = 2` THEN se envía un
+  único mensaje al `master` indicando que la incidencia no fue asignada en 1 hora
+- Scenario: Límite duro — GIVEN una incidencia `critical` con `reminder_count = 3`
+  THEN el scheduler deja de tocarla (sin cambio de status; la columna
+  `reminder_count` queda en 3 como evidencia del repique)
 - Scenario: Sin horario silencioso — GIVEN una emergencia creada de madrugada
   THEN el recordatorio se envía igual: una emergencia no espera al horario laboral
 - Scenario: Prioridad no crítica — GIVEN una incidencia `high` en `pending` durante
@@ -40,17 +47,18 @@ recibir un recordatorio cada 5 minutos.
 
 ### Requirement: El operador asignado recibe su tarea
 Al asignarse una incidencia, el `operador_org` asignado DEBE recibir un mensaje con el
-detalle y el enlace.
+detalle completo y la ubicación para actuar sin depender de la plataforma inmediatamente.
 
 - Scenario: Aviso al asignado — GIVEN una asignación creada y un operador con
-  `telegram_chat_id` THEN recibe un mensaje con título, categoría, ubicación, prioridad
-  y enlace directo a la incidencia
+  `telegram_chat_id` THEN recibe un mensaje formateado que incluye: título de la
+  incidencia, descripción completa, categoría, prioridad, ubicación geográfica (coordenadas
+  y enlace directo a Google Maps) y enlace al detalle en la plataforma
 - Scenario: Sólo al asignado — GIVEN una organización con varios operadores
   THEN únicamente el asignado recibe el mensaje; los demás no
 - Scenario: Operador sin Telegram — GIVEN un operador sin `telegram_chat_id`
   THEN la asignación se crea igual y el aviso se omite sin fallar
 - Scenario: Reasignación — GIVEN una incidencia reasignada a otro operador
-  THEN el nuevo asignado recibe el mensaje
+  THEN el nuevo asignado recibe el mensaje con los datos actualizados
 
 ### Requirement: La excepción al tope se comunica al operador
 Asignar por encima del tope DEBE avisar al operador afectado.

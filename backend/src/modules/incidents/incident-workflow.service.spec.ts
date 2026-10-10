@@ -332,6 +332,41 @@ describe('IncidentWorkflowService.availableOperators', () => {
     expect(list[0].id).toBe(OP_B.id);
     expect(list[0].activeClaimCount).toBe(2);
   });
+
+  // F7 emergency-dispatch (design D4) — `availableOperators` now
+  // informs instead of filters. Saturated operators show up with
+  // `available: false` and the per-org cap.
+  it('returns saturated operators with available: false and the per-org maxActive (F7 D4)', async () => {
+    const claimed = { ...INCIDENT, claimed_by: null };
+    const svc = await buildService(
+      [
+        [claimed],
+        [
+          {
+            id: OP_A.id,
+            name: 'operator-a-device',
+            email: 'a@x.test',
+            active_count: '5',
+          },
+          {
+            id: OP_B.id,
+            name: 'operator-b-device',
+            email: 'b@x.test',
+            active_count: '2',
+          },
+        ],
+      ],
+      { id: 'org-X', maxActiveClaims: 5 } as OrganizationEntity,
+    );
+    const list = await svc.availableOperators('inc-1');
+    expect(list).toHaveLength(2);
+    const a = list.find((o) => o.id === OP_A.id)!;
+    const b = list.find((o) => o.id === OP_B.id)!;
+    expect(a.available).toBe(false);
+    expect(a.maxActive).toBe(5);
+    expect(b.available).toBe(true);
+    expect(b.maxActive).toBe(5);
+  });
 });
 
 // ---------- getStatuses ----------------------------------------------------

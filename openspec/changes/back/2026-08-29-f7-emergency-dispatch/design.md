@@ -146,16 +146,22 @@ admin abre el detalle → GET :id/available-operators → lista completa con `av
 
 | Archivo | Acción | Descripción |
 |---|---|---|
-| `database/migrations/00XX_emergency_dispatch.sql` | Nuevo | `users.telegram_chat_id`, `assignments.cap_override_reason`, `assignments.cap_override_by` |
-| `database/MIGRATION_LOG.md` | Modificar | Entrada nueva |
-| `backend/src/modules/assignments/assignments.service.ts` | Modificar (D1/D2/D3) | Valida tope; admite excepción registrada |
+| `database/migrations/0069_emergency_dispatch.sql` | Nuevo | `users.telegram_chat_id`, `assignments.cap_override_reason`, `assignments.cap_override_by`, `incidents.reminder_count`, `incidents.last_reminded_at` |
+| `database/rollback/0069_emergency_dispatch.DOWN.sql` | Nuevo | Reversión simétrica de columnas |
+| `database/MIGRATION_LOG.md` | Modificar | Registrar 0069 |
+| `backend/src/infra/core.module.ts` | Modificar | Registrar `TELEGRAM_BLOCKING_CLIENT` para desacoplar el consumidor |
+| `backend/src/config/telegram.config.ts` | Nuevo | Validador y config para `TELEGRAM_BOT_TOKEN` |
+| `backend/src/modules/assignments/assignments.service.ts` | Modificar (D1/D2/D3/D12) | Valida tope; scope org; admite excepción registrada |
+| `backend/src/modules/assignments/assignments.controller.ts` | Modificar (D12) | Pasa `req.user.scope` a `assign()`, `release()`, `update()` |
 | `backend/src/modules/assignments/dto/assign-incident.dto.ts` | Modificar (D3) | `override_cap`, `override_reason` |
 | `backend/src/modules/incidents/incident-workflow.service.ts` | Modificar (D1/D4) | Extrae la validación de tope; `availableOperators()` deja de filtrar |
 | `backend/src/modules/incidents/dto/available-operator.dto.ts` | Modificar (D4) | `available`, `maxActive` |
 | `backend/src/modules/telegram/telegram.module.ts` | Nuevo (D5) | Módulo, calcado de `mail` |
-| `backend/src/modules/telegram/telegram.service.ts` | Nuevo (D5) | Cliente de la API |
-| `backend/src/modules/telegram/telegram-outbox.consumer.ts` | Nuevo (D5) | Consumidor con reintentos |
-| `backend/src/modules/notifications/listeners/critical-incident.listener.ts` | Nuevo | Escucha `critical`, resuelve destinatarios, encola |
+| `backend/src/modules/telegram/telegram.service.ts` | Nuevo (D5) | Cliente HTTP hacia Telegram Bot API |
+| `backend/src/modules/telegram/telegram-outbox.consumer.ts` | Nuevo (D5) | Consumidor de Redis Streams con reintentos y dead stream |
+| `backend/src/modules/telegram/telegram-reminder.scheduler.ts` | Nuevo (D10) | Tarea `@Cron` cada minuto para repiques de emergencias en `pending` |
+| `backend/src/modules/notifications/listeners/critical-incident.listener.ts` | Nuevo | Escucha `incident.created` con `priority = 'critical'`, encola para admins |
+| `backend/src/modules/notifications/listeners/incident-assigned.listener.ts` | Nuevo (D11) | Escucha `incident.assigned`, encola mensaje completo para operador |
 
 ## Redis Caching Strategy
 
@@ -202,31 +208,52 @@ normal en un incidente de plataforma.
 Avisar al afectado tiene además un efecto útil sobre quien decide: el admin redacta el
 motivo sabiendo que lo va a leer la persona a la que le está cargando el trabajo extra.
 
-**D10 — Recordatorio cada 5 minutos mientras la crítica siga en `pending` (Q3 resuelta).**
+**D10 — Repique al admin_org + aviso final al master mientras la crítica siga en `pending` (Q3 resuelta — REVISED Round 2).**
 `@nestjs/schedule@6.1.3` ya está instalado; no hace falta infraestructura nueva.
 
-**Condición de parada: que la incidencia salga de `pending`.** No «que cambie de
-estado» en abstracto — `pending` es exactamente «nadie la ha tomado todavía», y en
-cuanto se asigna, el recordatorio pierde sentido. Ésta es la razón operativa por la que
-las críticas **no** pueden nacer en `in_progress` (ver 315/D9): sin `pending` no hay
-señal de parada.
+El Round 1 de este change implementó 5min × 12 recordatorios con escalado
+progresivo a master+operador_sistema y un status `unattended` al cierre. El
+equipo (2026-10-10) reconsideró: 3 mensajes es suficiente presión sobre el
+admin_org, y un único mensaje al `master` al cabo de 1h es el escalado
+correcto — el master hace follow-up manual. La cadencia final es:
 
-Tres decisiones que el «cada 5 minutos» por sí solo no resuelve:
+- T=0   (T0, vía `critical-incident.listener`): 1er mensaje a `admin_org` de la
+  organización de la incidencia.
+- T+25min: 2do mensaje a `admin_org`.
+- T+40min: 3er mensaje a `admin_org`.
+- T+60min: **único** mensaje al `master` (single role, no `operador_sistema`)
+  reportando que la incidencia crítica no fue asignada en 1h.
+- Después de T+60min: el scheduler deja de procesar la fila
+  (`reminder_count` queda en 3 como evidencia del repique completo).
 
-1. **Escalado, no repique infinito.** Tras 6 recordatorios (30 minutos) sin asignación,
-   se avisa también a `master` y `operador_sistema`. Una emergencia que lleva media
-   hora sin que nadie la tome dejó de ser un problema de la organización.
-2. **Límite duro.** A los 12 recordatorios (1 hora) se detiene el repique y se marca la
-   incidencia como no atendida. Repicar indefinidamente entrena a la gente a silenciar
-   el canal, que es el peor resultado posible para un canal de emergencias.
-3. **Sin horario silencioso.** Una emergencia a las 3 de la mañana sigue siendo una
-   emergencia. Se documenta explícitamente para que no se añada «por sentido común» más
-   adelante.
+**Condición de parada: que la incidencia salga de `pending`.** No «que cambie
+de estado» en abstracto — `pending` es exactamente «nadie la ha tomado
+todavía», y en cuanto se asigna, el recordatorio pierde sentido. Ésta es la
+razón operativa por la que las críticas **no** pueden nacer en `in_progress`
+(ver 315/D9): sin `pending` no hay señal de parada. El filtro es
+`status = 'pending'` en el SELECT del scheduler.
+
+Decisiones que el cambio de cadencia resuelve:
+
+1. **Escalado, no repique infinito.** El master se entera al minuto 60 con
+   un único mensaje detallado; el admin_org ya recibió 3 avisos graduales.
+2. **Límite duro.** A `reminder_count = 3` el scheduler salta la fila. No
+   hay status `unattended`: el master (o quien el master designe) decide
+   si escalarlo, cerrarlo o reasignarlo manualmente. Repicar más entrena a
+   silenciar el canal, que es el peor resultado posible.
+3. **Sin horario silencioso.** Una emergencia a las 3 de la mañana sigue
+   siendo una emergencia. Se documenta explícitamente para que no se
+   añada «por sentido común» más adelante.
 
 **D11 — El operador notificado es el asignado, no todos (Q3, segunda parte).**
-Al asignarse la incidencia, el `operador_org` **asignado** recibe un mensaje con el
-detalle y el enlace. Es lo que responde a «para que sepan lo que deben hacer»: su tarea
-concreta, no una alerta ambiental.
+Al asignarse la incidencia, el `operador_org` **asignado** recibe un mensaje completo
+con todos los datos de su tarea para no depender de ingresar de inmediato a la app:
+- Título de la incidencia
+- Descripción completa reportada
+- Categoría y Prioridad
+- Ubicación geográfica: coordenadas y enlace directo a Google Maps (`https://maps.google.com/?q={lat},{lng}`)
+- Enlace directo al detalle en la plataforma
+- Si la asignación se realizó con sobrecupo autorizado (excepción de tope), se adjunta el motivo (`override_reason`)
 
 Se descarta notificar a todos los operadores: reintroduciría el modelo de grupo ya
 rechazado, con sus dos agujeros —varios acudiendo a la misma emergencia, y ninguna con
