@@ -4,8 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import type { Cache } from 'cache-manager';
 
 import { AuthConfig } from '../../config/auth.config';
-import { AuthContext } from '../../common/authz/subject-scope';
-import { resolveSubjectScope } from '../../common/authz/resolve-subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
+import { resolveSubjectScope } from '../../shared/authz/resolve-subject-scope';
 import { AuthUserRepository } from './auth-user.repository';
 
 /**
