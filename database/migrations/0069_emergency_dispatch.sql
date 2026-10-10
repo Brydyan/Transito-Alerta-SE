@@ -52,11 +52,14 @@ COMMENT ON COLUMN assignments.cap_override_by IS
   'so deleting the authorizing user nullifies the audit trail without '
   'blocking the delete.';
 
--- 3) Critical-pending reminder state (design D10, B.5).
+-- 3) Critical-pending reminder state (design D10, B.5 — Round 2 cadence).
 -- The repique scheduler increments `reminder_count` and stamps
 -- `last_reminded_at` so restarting the process does not reset the cadence.
--- The 12-reminder cap (1h) is enforced in application code; this column
--- is the durable counter the scheduler reads/writes.
+-- Cadence (3 messages total, anchored to created_at):
+--   count 0→1 at T+25min : 1st reminder to admin_org
+--   count 1→2 at T+40min : 2nd reminder to admin_org
+--   count 2→3 at T+60min : final message to master (unattended report)
+-- Scheduler stops when reminder_count >= 3 (cfg.reminderStopAt).
 ALTER TABLE incidents
   ADD COLUMN IF NOT EXISTS reminder_count int NOT NULL DEFAULT 0;
 
@@ -65,12 +68,15 @@ ALTER TABLE incidents
 
 COMMENT ON COLUMN incidents.reminder_count IS
   'Number of Telegram reminder pings sent while the incident is critical '
-  'and still in pending. The scheduler reads this to decide escalation '
-  '(>= 6 → master+operador_sistema) and stop (>= 12 → mark unattended).';
+  'and still in pending. Cadence (Round 2): #1 at T+25min to admin_org, '
+  '#2 at T+40min to admin_org, #3 at T+60min to master. Scheduler stops '
+  'at 3 (cfg.reminderStopAt). Progress is tracked by this counter; '
+  'status = ''pending'' is the real safety net (assigned incidents '
+  'disappear from the candidate query automatically).';
 
 COMMENT ON COLUMN incidents.last_reminded_at IS
-  'Timestamp of the last Telegram reminder. The scheduler sends a new '
-  'reminder only when NOW() - last_reminded_at >= 5 minutes, so a restart '
-  'of the process does not reset the cadence.';
+  'Timestamp of the last Telegram reminder. Used by the scheduler as a '
+  'secondary guard against double-firing on back-to-back ticks; the '
+  'primary progress tracker is reminder_count.';
 
 COMMIT;
