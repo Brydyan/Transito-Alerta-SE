@@ -3,8 +3,11 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Cache } from 'cache-manager';
 import type { DataSource, Repository } from 'typeorm';
-import { AuthService, PERMISSION_CACHE_PREFIX } from './auth.service';
+import { AuthService } from './auth.service';
+import { AuthContextService, PERMISSION_CACHE_PREFIX } from './auth-context.service';
+import { AuthUserRepository } from './auth-user.repository';
 import { UserEntity } from '../users/entities/user.entity';
+import { PasswordHasher } from './password-hasher';
 import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
@@ -61,6 +64,10 @@ function makePermissionLookup() {
   };
 }
 
+function makePasswordHasher() {
+  return { hash: jest.fn(), verify: jest.fn() };
+}
+
 function makeSessionRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 'sid-1',
@@ -89,6 +96,7 @@ describe('AuthService', () => {
   let revocationCache: ReturnType<typeof makeRevocationCache>;
   let graceBuffer: ReturnType<typeof makeGraceBuffer>;
   let permissionLookup: ReturnType<typeof makePermissionLookup>;
+  let passwordHasher: ReturnType<typeof makePasswordHasher>;
   let service: AuthService;
 
   beforeEach(() => {
@@ -101,16 +109,21 @@ describe('AuthService', () => {
     revocationCache = makeRevocationCache();
     graceBuffer = makeGraceBuffer();
     permissionLookup = makePermissionLookup();
-    service = new AuthService(
+    passwordHasher = makePasswordHasher();
+    const authUserRepo = new AuthUserRepository(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
-      jwtService as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
-      configService,
       dataSource as unknown as DataSource,
+    );
+    service = new AuthService(
+      authUserRepo,
+      jwtService as unknown as JwtService,
+      new AuthContextService(cache as unknown as Cache, configService, authUserRepo),
+      configService,
       sessionsRepository as unknown as SessionsRepository,
       revocationCache as unknown as RevocationCache,
       graceBuffer as unknown as GraceBuffer,
       permissionLookup as unknown as PermissionLookupService,
+      passwordHasher as unknown as PasswordHasher,
     );
   });
 
@@ -549,16 +562,24 @@ describe('AuthService.invalidatePermissionCache', () => {
 
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
-    service = new AuthService(
+    const authUserRepo = new AuthUserRepository(
       {} as unknown as jest.Mocked<Repository<UserEntity>>,
-      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
-      { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeDataSource() as unknown as DataSource,
+    );
+    service = new AuthService(
+      authUserRepo,
+      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
+      new AuthContextService(
+        cache as unknown as Cache,
+        { get: () => makeAuthConfig() } as unknown as ConfigService,
+        authUserRepo,
+      ),
+      { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
       makePermissionLookup() as unknown as PermissionLookupService,
+      makePasswordHasher() as unknown as PasswordHasher,
     );
   });
 
@@ -582,16 +603,24 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn() };
     dataSource = makeDataSource();
-    service = new AuthService(
+    const authUserRepo = new AuthUserRepository(
       {} as unknown as jest.Mocked<Repository<UserEntity>>,
-      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
-      { get: () => makeAuthConfig() } as unknown as ConfigService,
       dataSource as unknown as DataSource,
+    );
+    service = new AuthService(
+      authUserRepo,
+      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
+      new AuthContextService(
+        cache as unknown as Cache,
+        { get: () => makeAuthConfig() } as unknown as ConfigService,
+        authUserRepo,
+      ),
+      { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
       makePermissionLookup() as unknown as PermissionLookupService,
+      makePasswordHasher() as unknown as PasswordHasher,
     );
   });
 
@@ -798,16 +827,24 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn() };
     dataSource = makeDataSource();
-    service = new AuthService(
+    const authUserRepo = new AuthUserRepository(
       {} as unknown as jest.Mocked<Repository<UserEntity>>,
-      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
-      { get: () => makeAuthConfig() } as unknown as ConfigService,
       dataSource as unknown as DataSource,
+    );
+    service = new AuthService(
+      authUserRepo,
+      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
+      new AuthContextService(
+        cache as unknown as Cache,
+        { get: () => makeAuthConfig() } as unknown as ConfigService,
+        authUserRepo,
+      ),
+      { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
       makePermissionLookup() as unknown as PermissionLookupService,
+      makePasswordHasher() as unknown as PasswordHasher,
     );
   });
 

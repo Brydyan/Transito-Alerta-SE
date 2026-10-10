@@ -6,7 +6,7 @@ import { SessionsRepository } from './sessions.repository';
 
 /**
  * SessionsBootWarmService (T3.9 design §2/§3.3, precedent
- * `common/authz/role-rank.audit.ts`) — rebuilds the Redis denylist from
+ * `shared/authz/role-rank.audit.ts`) — rebuilds the Redis denylist from
  * `user_sessions` at process boot: `revoked_at IS NOT NULL AND expires_at >
  * now()` (uses `idx_user_sessions_revoked`), one ioredis pipeline of `SET
  * sess:revoked:{id} 1 EX {ttl}` per row.
