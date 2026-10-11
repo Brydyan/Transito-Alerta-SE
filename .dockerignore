@@ -69,3 +69,6 @@ database/seeds/0004_seed_parroquias.generated.sql
 # run-migrations.ts).
 backend/scripts/*.bak
 backend/scripts/*.tmp
+backend/.storage/
+backend/.codegraph/
+backend/*.md
