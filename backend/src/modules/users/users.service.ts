@@ -1,6 +1,11 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { FindManyOptions, In, IsNull, Not, Repository } from 'typeorm';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, FindManyOptions, In, IsNull, Not, Repository } from 'typeorm';
 
 import { UserEntity } from './entities/user.entity';
 import { RoleEntity } from '../roles/entities/role.entity';
@@ -11,10 +16,18 @@ import { AuthService } from '../auth/auth.service';
 import { SessionResponseDto, toSessionResponseDto } from '../sessions/dto/session-response.dto';
 import { SessionsRepository } from '../sessions/sessions.repository';
 import { AvatarStorageService, UploadedFile } from './avatar-storage.service';
-import { FormDataResponseDto } from './dto/form-data-response.dto';
+import {
+  DepartmentDto,
+  FormDataResponseDto,
+} from './dto/form-data-response.dto';
+import { DepartmentRow } from '../departments/departments.repository';
 import { SYSTEM_ADMIN_ROLE_NAME, SYSTEM_ONLY_ROLES } from './role-exclusions.constants';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import {
+  ROLES_NOT_REQUIRING_ORG,
+  requiresOrgAndDept,
+} from './role-policy.constants';
 
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
@@ -45,6 +58,9 @@ export class UsersService {
     private readonly orgRepo: Repository<OrganizationEntity>,
     private readonly authService: AuthService,
     private readonly sessionsRepository: SessionsRepository,
+    // 2026-10-10-user-onboarding-telegram-tour (D6) — departments for
+    // the form-data dropdown + cross-row validation in adminCreate.
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   async findById(id: string): Promise<UserEntity> {
@@ -91,9 +107,37 @@ export class UsersService {
           })
         : [];
 
+    // 2026-10-10-user-onboarding-telegram-tour (D6) — departments
+    // for the form dropdown. System admins see every non-deleted
+    // dept; everyone else only the depts of their own org. The
+    // frontend filters the dropdown client-side by `organization_id`
+    // when the user picks an org, but the full list is small enough
+    // to ship every time.
+    const deptRows: DepartmentRow[] = isSystemAdmin
+      ? await this.dataSource.query(
+          `SELECT id, name, organization_id FROM departments
+            WHERE deleted_at IS NULL
+            ORDER BY name ASC`,
+        )
+      : currentUser.organizationId
+        ? await this.dataSource.query(
+            `SELECT id, name, organization_id FROM departments
+              WHERE deleted_at IS NULL
+                AND organization_id = $1
+              ORDER BY name ASC`,
+            [currentUser.organizationId],
+          )
+        : [];
+    const departments: DepartmentDto[] = deptRows.map((d) => ({
+      id: d.id,
+      name: d.name,
+      organization_id: d.organization_id,
+    }));
+
     return {
       roles: roles.map((r) => ({ id: r.id, name: r.name })),
       organizations: organizations.map((o) => ({ id: o.id, name: o.name })),
+      departments,
     };
   }
 
@@ -252,6 +296,7 @@ export class UsersService {
   async adminCreate(dto: AdminCreateUserDto): Promise<UserEntity> {
     let permissions: string[] = [];
     let permissionVersion = 1;
+    let resolvedRoleName: string | null = null;
 
     if (dto.role_id) {
       const role = await this.roleRepo.findOne({ where: { id: dto.role_id } });
@@ -260,6 +305,70 @@ export class UsersService {
       }
       permissions = role.permissions ?? [];
       permissionVersion = 2;
+      resolvedRoleName = role.name;
+    }
+
+    // 2026-10-10-user-onboarding-telegram-tour (D1) — role-vs-org-vs-dept
+    // policy. Two outcomes:
+    //   - global role (master / operador_sistema): force
+    //     organization_id and department_id to null.
+    //   - sectional role (admin_org / operador_org): both
+    //     organization_id and department_id are required; the
+    //     department must belong to the organization.
+    //   - other roles (including `reporter`): NOT in this flow at all
+    //     (citizen signup goes through the public register). We treat
+    //     any other role name as "not in the role policy" and force
+    //     nulls to avoid leaking the admin form to citizen roles.
+    let organizationId: string | null = null;
+    let departmentId: string | null = null;
+
+    if (resolvedRoleName && ROLES_NOT_REQUIRING_ORG.includes(resolvedRoleName)) {
+      organizationId = null;
+      departmentId = null;
+    } else if (resolvedRoleName && requiresOrgAndDept(resolvedRoleName)) {
+      if (!dto.organization_id) {
+        throw new BadRequestException(
+          `Role ${resolvedRoleName} requires organization_id`,
+        );
+      }
+      if (!dto.department_id) {
+        throw new BadRequestException(
+          `Role ${resolvedRoleName} requires department_id`,
+        );
+      }
+      // Cross-row invariant: the department must belong to the
+      // organization. The departments.repository is not exported as
+      // a service provider so we hit the table directly.
+      const dept = await this.dataSource.query<
+        Array<{ organization_id: string; deleted_at: Date | null }>
+      >(
+        `SELECT organization_id, deleted_at FROM departments
+          WHERE id = $1`,
+        [dto.department_id],
+      );
+      if (dept.length === 0) {
+        throw new BadRequestException(
+          `Department ${dto.department_id} does not exist`,
+        );
+      }
+      if (dept[0].deleted_at !== null) {
+        throw new BadRequestException(
+          `Department ${dto.department_id} is soft-deleted`,
+        );
+      }
+      if (dept[0].organization_id !== dto.organization_id) {
+        throw new BadRequestException(
+          `Department ${dto.department_id} does not belong to organization ${dto.organization_id}`,
+        );
+      }
+      organizationId = dto.organization_id;
+      departmentId = dto.department_id;
+    } else {
+      // Unknown role (including `reporter`) — D7 isolation. Force
+      // nulls so the admin form cannot accidentally persist org
+      // context on a citizen.
+      organizationId = null;
+      departmentId = null;
     }
 
     const tempDeviceUuid = `admin-bootstrap-${dto.email}-${Date.now()}`;
@@ -269,7 +378,8 @@ export class UsersService {
       firstName: dto.first_name ?? null,
       lastName: dto.last_name ?? null,
       phone: dto.phone ?? null,
-      organizationId: dto.organization_id ?? null,
+      organizationId,
+      departmentId,
       roleId: dto.role_id ?? null,
       // F6 fix: el admin crea al user en estado `is_active: false`
       // ("pending"). El `is_active: true` original rompía el flow
@@ -320,6 +430,11 @@ export class UsersService {
       }
     }
 
+    // 2026-10-10-user-onboarding-telegram-tour (D1) — when the role
+    // is changed, re-derive the role policy outcome. We re-resolve
+    // the target role name (from the DTO if set, otherwise from the
+    // existing user) and apply the same global/sectional rule as
+    // adminCreate.
     if (dto.role_id !== undefined) {
       const role = await this.roleRepo.findOne({ where: { id: dto.role_id } });
       if (!role) {
@@ -328,9 +443,50 @@ export class UsersService {
       target.roleId = role.id;
       target.permissions = role.permissions ?? [];
       target.permissionVersion = (target.permissionVersion ?? 1) + 1;
+
+      // If the new role is global, clear org + dept regardless of
+      // what the DTO says (defense-in-depth — the form may send
+      // stale values).
+      if (ROLES_NOT_REQUIRING_ORG.includes(role.name)) {
+        target.organizationId = null;
+        target.departmentId = null;
+      }
     }
+
     if (dto.organization_id !== undefined) {
       target.organizationId = dto.organization_id;
+    }
+    if (dto.department_id !== undefined) {
+      // Cross-row invariant: dept must belong to the org the user
+      // is in. If the user has no org, dept must be null.
+      if (dto.department_id === null) {
+        target.departmentId = null;
+      } else {
+        const dept = await this.dataSource.query<
+          Array<{ organization_id: string; deleted_at: Date | null }>
+        >(
+          `SELECT organization_id, deleted_at FROM departments
+            WHERE id = $1`,
+          [dto.department_id],
+        );
+        if (dept.length === 0) {
+          throw new BadRequestException(
+            `Department ${dto.department_id} does not exist`,
+          );
+        }
+        if (dept[0].deleted_at !== null) {
+          throw new BadRequestException(
+            `Department ${dto.department_id} is soft-deleted`,
+          );
+        }
+        const targetOrg = target.organizationId;
+        if (!targetOrg || dept[0].organization_id !== targetOrg) {
+          throw new BadRequestException(
+            `Department ${dto.department_id} does not belong to user's organization ${targetOrg ?? '<none>'}`,
+          );
+        }
+        target.departmentId = dto.department_id;
+      }
     }
     if (dto.first_name !== undefined) {
       target.firstName = dto.first_name;

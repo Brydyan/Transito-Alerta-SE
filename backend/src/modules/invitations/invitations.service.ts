@@ -19,6 +19,8 @@ import {
   INVITATION_NOT_FOUND,
 } from './invitation-errors';
 import { InvitationsRepository } from './invitations.repository';
+import { TelegramLinkService } from '../telegram/telegram-link.service';
+import { getTourProfileForRole } from '../telegram/constants/tour-profiles.constants';
 
 export interface CreateInvitationInput {
   email: string;
@@ -71,6 +73,13 @@ export class InvitationsService {
     private readonly passwordHasher: PasswordHasher,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
+    // 2026-10-10-user-onboarding-telegram-tour (D2/R3) — the
+    // invitation email embeds a one-shot Telegram deep-link bound
+    // to the user shadow. The user is not yet created at this
+    // point (is_active=false, the real row arrives via `redeem`),
+    // so the link token is bound to the shadow's id and the same
+    // row remains after the invitation is accepted.
+    private readonly telegramLink: TelegramLinkService,
   ) {}
 
   private get mailConfig(): MailConfig {
@@ -120,6 +129,28 @@ export class InvitationsService {
       ? (await this.organizationRepo.findOne({ where: { id: input.organizationId } }))?.name ?? null
       : null;
 
+    // 2026-10-10-user-onboarding-telegram-tour (D2/R3/R6) — the
+    // shadow user row was created in adminCreate; we look it up
+    // here so the link token maps to the same id that survives
+    // `redeem`. The shadow is guaranteed to exist because
+    // `findByClaimedEmail` succeeded (no claimed user) and the
+    // 409 `EMAIL_ALREADY_CLAIMED` path returns earlier.
+    const shadow = await this.dataSource.query<
+      Array<{ id: string }>
+    >(`SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1`, [
+      input.email,
+    ]);
+    const linkToken = shadow[0]
+      ? await this.telegramLink.issueFor(shadow[0].id)
+      : null;
+    const telegramDeepLink = linkToken
+      ? this.telegramLink.composeDeepLink(linkToken)
+      : null;
+    // The role guide text is the same body the bot will send after
+    // the user links their Telegram chat — same source, no drift.
+    const roleProfile = getTourProfileForRole(role.name);
+    const roleGuide = roleProfile ? roleProfile.tour : null;
+
     await this.mailService.enqueue({
       to: input.email,
       subject: 'You have been invited to Transito Alerta SE',
@@ -128,6 +159,12 @@ export class InvitationsService {
         link: `${this.mailConfig.appBaseUrl}/accept-invitation?token=${token}`,
         roleName: role.name,
         organizationName: organizationName ?? '',
+        // telegramLink + roleGuide are only meaningful for staff
+        // roles. `reporter` is not in this flow (D7) but the
+        // template guards with `telegramLink ?` so an empty
+        // section is the safe outcome if a future role slips in.
+        telegramLink: telegramDeepLink ?? '',
+        roleGuide: roleGuide ?? '',
       },
     });
 

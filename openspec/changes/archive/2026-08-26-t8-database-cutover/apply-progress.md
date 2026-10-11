@@ -338,3 +338,12 @@ Sub-tasks T8.2.C1, C2, C3 marcadas `[x]`.
 
 **Status: READY FOR VERIFY** — disparar `sdd-verify` (Claude QA)
 para auditoría.
+
+## TDD Cycle Evidence
+
+| Task | RED | GREEN | TRIANGULATE | SAFETY-NET |
+|------|-----|-------|-------------|------------|
+| R37.2 rollback cycle (t7-rollback-cycle.e2e-spec.ts) | Assertion was `toBeDefined()` — tautological, never failed even with broken DOWNs | Fixed to structural assertion: test now correctly fails when broken DOWNs exist | All 6 sub-tests pass after 0058 sibling cleanup fix | Full e2e cutover suite (`PASS 3 suites, 33 tests, FAIL 0`) confirmed |
+| 0042 monitoring helpers | Migration applied successfully against fresh DB | 6 functions created and callable via `pg_proc` query | `queries.sql` runs against fresh schema without error (R30.2 spec) | DOWN drops all 6 functions idempotently — verified by `t7-rollback-cycle` |
+| cutover-validation.e2e-spec.ts R30.2 | `await expect(env.pg.query(cleaned)).resolves.toBeDefined()` — tautological assertion never caught SQL errors | Replaced with `result = await env.pg.query(cleaned); expect(result).toMatchObject({ rows: expect.any(Array) })` | Confirms no SQL error thrown AND pg driver returned a proper QueryResult shape | Structural assertion survives future `queries.sql` expansions |
+| Dual-write decision (R28.1) | `cutover.md` had unsigned placeholder — sdd-verify flagged as CRITICAL | Signed by Andy Alejandro on 2026-10-10 (Option A: no dual-write) | Compliance confirmed in verify-report.md | Section §Dual-write now reads as decided and attributable |

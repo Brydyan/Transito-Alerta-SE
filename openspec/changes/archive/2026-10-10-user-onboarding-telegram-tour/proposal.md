@@ -4,6 +4,8 @@
 
 Permitir que el usuario `master` asigne departamento al crear usuarios, automatizar la vinculación segura de Telegram mediante deep-link (`t.me/<bot>?start=<token>`) sin intervención manual en la base de datos, y entregar un tour de bienvenida educativo adaptado al rol del usuario tanto por correo electrónico como por Telegram.
 
+**Shortcut**: Ticket único [sc-436](https://app.shortcut.com/upse/story/436) · Épica 192 «⚠️ GeoReporta» (workspace: `upse`) · Ver detalle en [`shortcut-ticket.md`](file:///home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/openspec/changes/back/2026-10-10-user-onboarding-telegram-tour/shortcut-ticket.md)
+
 ---
 
 ## Contexto y Problema

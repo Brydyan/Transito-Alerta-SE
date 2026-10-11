@@ -31,6 +31,19 @@ export class AdminCreateUserDto {
   @MaxLength(100)
   organization_id?: string;
 
+  /**
+   * 2026-10-10-user-onboarding-telegram-tour (D1) — optional
+   * `department_id`. The service validates the cross-row invariant
+   * `dept.organization_id === dto.organization_id` for sectional
+   * roles and forces `null` for global roles. Backend
+   * (`UsersService.adminCreate`) is the source of truth for the
+   * rules; the DTO stays open so the frontend can render the
+   * selector for any role and let the service reject.
+   */
+  @IsOptional()
+  @IsUUID()
+  department_id?: string;
+
   @IsOptional()
   @IsUUID()
   role_id?: string;

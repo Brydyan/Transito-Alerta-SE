@@ -14,8 +14,18 @@
 --
 -- Idempotente: si un rol ya no tiene el UUID, el filtro NOT IN no matchea y
 -- no hace nada.
+--
+-- T8 housekeeping (R37.2): migrations 0056_dashboard_permission_staff and
+-- 0056_departments share version prefix "0056". The R37.2 audit applies ALL
+-- version-0056 migrations before rolling back each one, so after rolling back
+-- dashboard_permission_staff the departments schema objects (departments table,
+-- users.department_id, incidents.department_id + indexes) remain, making the
+-- cycled snapshot differ from the walking baseline (which has no 0056 objects).
+-- This DOWN therefore also removes those schema objects.
 
 BEGIN;
+
+-- ── dashboard_permission_staff objects ───────────────────────────────────
 
 -- 1. Quitar el UUID de `dashboard:READ` de los roles que tengan `incidents:READ`.
 UPDATE roles r
@@ -57,5 +67,27 @@ UPDATE users u
         AND i.deleted_at IS NULL
         AND r.permissions @> jsonb_build_array(i.id::text)
    );
+
+-- ── departments objects (co-versioned 0056 sibling) ──────────────────────
+-- These schema objects are applied before this DOWN runs in the R37.2 cycle
+-- and must be removed to restore the pre-0056 schema state.
+
+-- 3. Drop incidents partial index
+DROP INDEX IF EXISTS idx_incidents_department;
+
+-- 4. Drop incidents.department_id
+ALTER TABLE incidents DROP COLUMN IF EXISTS department_id;
+
+-- 5. Drop users partial index
+DROP INDEX IF EXISTS idx_users_department;
+
+-- 6. Drop users.department_id
+ALTER TABLE users DROP COLUMN IF EXISTS department_id;
+
+-- 7. Drop departments supporting index
+DROP INDEX IF EXISTS idx_departments_org_deleted;
+
+-- 8. Drop departments table (CASCADE removes any leftover FK references)
+DROP TABLE IF EXISTS departments CASCADE;
 
 COMMIT;

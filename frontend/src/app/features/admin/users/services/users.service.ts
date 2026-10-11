@@ -18,6 +18,7 @@ import {
   CreateUserJsonPayload,
   UpdateUserPayload,
   Organization,
+  Department,
   permissionLabel,
   resolveRolePermissionLabels,
   toPermissionItem,
@@ -231,11 +232,16 @@ export class UsersService {
    * la UI (sin esto, el dropdown muestra opciones con texto vacío
    * porque `org.nombre` queda `undefined`).
    */
-  getFormData(): Observable<{ roles: ReadonlyArray<{ id: string; name: string }>; organizations: ReadonlyArray<Organization> }> {
+  getFormData(): Observable<{
+    roles: ReadonlyArray<{ id: string; name: string }>;
+    organizations: ReadonlyArray<Organization>;
+    departments: ReadonlyArray<Department>;
+  }> {
     return this.http
       .get<{
         roles: { id: string; name: string }[];
         organizations: { id: string; name: string }[];
+        departments?: { id: string; name: string; organization_id: string }[];
       }>(`${this.usersUrl}/form-data`, { withCredentials: true })
       .pipe(
         map((res) => ({
@@ -243,6 +249,11 @@ export class UsersService {
           organizations: (res.organizations ?? []).map((o) => ({
             id: o.id,
             nombre: o.name,
+          })),
+          departments: (res.departments ?? []).map((d) => ({
+            id: d.id,
+            nombre: d.name,
+            organizationId: d.organization_id,
           })),
         })),
       );

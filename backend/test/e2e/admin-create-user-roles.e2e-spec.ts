@@ -78,6 +78,25 @@ describe('E2E F6 — adminCreate reachability (catalog gap 0049)', () => {
     expect(roleRows.length).toBe(1);
     const roleId = roleRows[0].id;
 
+    // Insert a test organization directly (avoids relying on seed row presence
+    // after env.reset() clears cascade-reachable data)
+    const { rows: orgRows } = await env.pg.query<{ id: string }>(
+      `INSERT INTO organizations (name, created_at, updated_at)
+       VALUES ($1, now(), now())
+       RETURNING id`,
+      [`test-org-${randomUUID()}`],
+    );
+    const orgId = orgRows[0].id;
+
+    // Insert a department that belongs to that org
+    const { rows: deptRows } = await env.pg.query<{ id: string }>(
+      `INSERT INTO departments (name, organization_id, created_at, updated_at)
+       VALUES ($1, $2, now(), now())
+       RETURNING id`,
+      [`test-dept-${randomUUID()}`, orgId],
+    );
+    const deptId = deptRows[0].id;
+
     const email = `f6-target-${randomUUID()}@example.com`;
     const res = await request(env.httpServer)
       .post('/api/users')
@@ -88,6 +107,8 @@ describe('E2E F6 — adminCreate reachability (catalog gap 0049)', () => {
         first_name: 'F6',
         last_name: 'Target',
         role_id: roleId,
+        organization_id: orgId,
+        department_id: deptId,
       });
 
     expect(res.status).toBe(201);

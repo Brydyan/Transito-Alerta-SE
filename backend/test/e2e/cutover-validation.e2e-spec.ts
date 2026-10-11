@@ -221,7 +221,16 @@ describe('E2E T8 D8.3 cutover validation', () => {
         .join('\n');
       // Execute. ON_ERROR_STOP=1 makes psql abort on the first
       // error, but pg's query() doesn't have that — so we catch.
-      await expect(env.pg.query(cleaned)).resolves.toBeDefined();
+      const result = await env.pg.query(cleaned);
+      // pg.query() with multiple statements returns an array of QueryResult
+      // objects. We assert the array is non-empty and every element has the
+      // expected QueryResult shape — confirming (1) no SQL error was thrown
+      // and (2) the pg driver returned proper results for each statement.
+      const results = Array.isArray(result) ? result : [result];
+      expect(results.length).toBeGreaterThan(0);
+      for (const r of results) {
+        expect(r).toMatchObject({ rows: expect.any(Array) });
+      }
     });
 
     it('the DOWN of 0042 drops the 6 functions (idempotent, reversible per D8)', async () => {

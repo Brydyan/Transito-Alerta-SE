@@ -123,6 +123,18 @@ export class UserEntity {
   @Column({ name: 'telegram_chat_id', type: 'text', nullable: true, default: null })
   telegramChatId!: string | null;
 
+  /**
+   * 2026-10-10-user-onboarding-telegram-tour (D1) — FK to `departments`.
+   * The column was created by `0056_departments.sql` with
+   * `ON DELETE SET NULL`, but until this change the entity had no
+   * mapping, so the DTOs and the form could not persist the value.
+   * Required for `admin_org` / `operador_org`; forced `null` for
+   * `master` / `operador_sistema` per `ROLES_REQUIRING_ORG_AND_DEPT`
+   * policy in `role-policy.constants.ts`.
+   */
+  @Column({ name: 'department_id', type: 'uuid', nullable: true, default: null })
+  departmentId!: string | null;
+
   /** T7.6 (0035) — present in legacy since `create_users_table`. Wiped by the GDPR soft delete. */
   @Column({ type: 'varchar', length: 30, nullable: true })
   phone!: string | null;

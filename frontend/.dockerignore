@@ -9,11 +9,23 @@
 node_modules/
 dist/
 .angular/
+out-tsc/
 
-# Artefactos de test — no van a la imagen y engordan el contexto.
+# Artefactos y suites de test — no van a la imagen y engordan el contexto.
 test-results/
 playwright-report/
 coverage/
+e2e/
+playwright.config.ts
+
+# Arnés OpenSpec y documentación — no pertenecen al runtime ni al build web.
+openspec/
+docs/
+*.md
+
+# Scripts y temporales
+*.js.map
+migrate-scss-to-css.js
 
 # El Dockerfile no se copia a sí mismo.
 Dockerfile

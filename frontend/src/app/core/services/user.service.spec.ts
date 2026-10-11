@@ -82,4 +82,35 @@ describe('UserService', () => {
     expect(body.get('file')).toBeNull(); // el campo admin ("file") no debe usarse acá
     req.flush(fixtureUser);
   });
+
+  it('getCurrentUser — response incluye telegram_chat_id cuando el backend lo retorna', (done) => {
+    const fixtureWithTelegram = { ...fixtureUser, telegram_chat_id: 'chat-123' };
+    service.getCurrentUser().subscribe((user) => {
+      expect((user as { telegram_chat_id?: string | null }).telegram_chat_id).toBe('chat-123');
+      done();
+    });
+    const req = http.expectOne(`${base}/users/me`);
+    req.flush(fixtureWithTelegram);
+  });
+
+  it('getCurrentUser — telegram_chat_id es null cuando el usuario no está vinculado', (done) => {
+    const fixtureNoTelegram = { ...fixtureUser, telegram_chat_id: null };
+    service.getCurrentUser().subscribe((user) => {
+      expect((user as { telegram_chat_id?: string | null }).telegram_chat_id).toBeNull();
+      done();
+    });
+    const req = http.expectOne(`${base}/users/me`);
+    req.flush(fixtureNoTelegram);
+  });
+
+  it('generateTelegramLink — POST /api/users/me/telegram-link, retorna telegram_link', (done) => {
+    service.generateTelegramLink().subscribe((res) => {
+      expect(res.telegram_link).toBe('https://t.me/bot?start=tok123');
+      done();
+    });
+    const req = http.expectOne(`${base}/users/me/telegram-link`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.withCredentials).toBe(true);
+    req.flush({ telegram_link: 'https://t.me/bot?start=tok123' });
+  });
 });

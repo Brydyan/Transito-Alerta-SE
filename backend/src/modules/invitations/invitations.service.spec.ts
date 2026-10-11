@@ -62,6 +62,9 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
       passwordHasher as never,
       mailService as never,
       configService,
+      // 2026-10-10-user-onboarding-telegram-tour: the service now
+      // mints a one-shot Telegram link token at createInvitation.
+      { issueFor: jest.fn().mockResolvedValue('telegram-tok'), composeDeepLink: jest.fn().mockReturnValue('https://t.me/tase_alert_bot?start=telegram-tok') } as never,
     );
   });
 
@@ -112,6 +115,10 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
         expires_at: new Date(),
         created_at: new Date(),
       });
+      // 2026-10-10-user-onboarding-telegram-tour: the service looks
+      // up the user shadow to bind the link token. Stub a fake
+      // shadow here.
+      dataSource.query.mockResolvedValueOnce([{ id: 'shadow-1' }]);
 
       const result = await service.createInvitation(actor(), {
         email: 'a@b.com',
@@ -123,6 +130,14 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
       expect(mailService.enqueue).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'a@b.com', template: 'invitation' }),
       );
+      // Telegram link token + deep link + role guide are part of
+      // the email payload (D6 / R3 / R6).
+      const call = mailService.enqueue.mock.calls[0][0];
+      expect(call.data.telegramLink).toBe(
+        'https://t.me/tase_alert_bot?start=telegram-tok',
+      );
+      expect(call.data.roleGuide).toContain('operador_org');
+      expect(call.data.roleGuide).toContain('recibirás las tareas en Telegram');
     });
   });
 

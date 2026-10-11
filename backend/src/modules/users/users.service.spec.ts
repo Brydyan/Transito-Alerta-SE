@@ -1,5 +1,5 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import type { Repository } from 'typeorm';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { DataSource, type Repository } from 'typeorm';
 import { UsersService, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './users.service';
 import { UserEntity } from './entities/user.entity';
 import { RoleEntity } from '../roles/entities/role.entity';
@@ -35,6 +35,7 @@ describe('UsersService', () => {
     findActiveByUser: jest.Mock;
     findManageableTarget: jest.Mock;
   };
+  let dataSource: { query: jest.Mock };
   let service: UsersService;
 
   beforeEach(() => {
@@ -50,6 +51,10 @@ describe('UsersService', () => {
     orgRepo = { find: jest.fn(), findOne: jest.fn() };
     authService = { invalidatePermissionCache: jest.fn() };
     sessionsRepository = { findActiveByUser: jest.fn(), findManageableTarget: jest.fn() };
+    // 2026-10-10-user-onboarding-telegram-tour: the service now hits
+    // the DB directly for departments (getFormData dropdown +
+    // adminCreate/adminUpdate cross-row invariant).
+    dataSource = { query: jest.fn().mockResolvedValue([]) };
     service = new UsersService(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
       avatarStorage as unknown as AvatarStorageService,
@@ -57,6 +62,7 @@ describe('UsersService', () => {
       orgRepo as unknown as jest.Mocked<Repository<OrganizationEntity>>,
       authService as unknown as AuthService,
       sessionsRepository as unknown as SessionsRepository,
+      dataSource as unknown as DataSource,
     );
   });
 
@@ -457,25 +463,35 @@ describe('UsersService', () => {
   // F6 / 2026-09-08-f6-new-user-form — D2: adminCreate() denormalizes
   // role permissions (when role_id is provided) and persists phone.
   // Backward compat: no role_id → permissions: [], version: 1 (T5.6).
+  //
+  // F7 — 2026-10-10-user-onboarding-telegram-tour: when role_id is
+  // a sectional role, the DTO must also carry organization_id and
+  // department_id (the test sets up the dept-mock accordingly).
+  // Tests that exercise the role policy itself live in the next
+  // describe block.
   describe('adminCreate() (F6 D2 — denormalize role permissions + persist phone)', () => {
     it('with role_id: copies role.permissions onto the user and bumps permissionVersion to 2', async () => {
+      // The "happy path" in F6 used an admin_org role. With D1 in
+      // effect, that path requires org+dept. Use a global role
+      // (master) here so the F6 assertion is still meaningful
+      // without re-testing the policy.
       roleRepo.findOne.mockResolvedValue({
-        id: 'role-admin',
-        name: 'admin_org',
+        id: 'role-master',
+        name: 'master',
         permissions: ['READ dashboard', 'READ incidents'],
       });
 
       const result = await service.adminCreate({
         email: 'juan@municipio.ec',
-        role_id: 'role-admin',
+        role_id: 'role-master',
       });
 
-      expect(roleRepo.findOne).toHaveBeenCalledWith({ where: { id: 'role-admin' } });
+      expect(roleRepo.findOne).toHaveBeenCalledWith({ where: { id: 'role-master' } });
       expect(userRepo.create).toHaveBeenCalledTimes(1);
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.permissions).toEqual(['READ dashboard', 'READ incidents']);
       expect(createArg.permissionVersion).toBe(2);
-      expect(createArg.roleId).toBe('role-admin');
+      expect(createArg.roleId).toBe('role-master');
       // T7.5 fix: adminCreate crea el user en estado `is_active:
       // false` (pending). El user real se inserta via
       // `InvitationsService.redeem` cuando el destinatario acepta
@@ -483,6 +499,9 @@ describe('UsersService', () => {
       // `POST /api/admin/users/invite` que antes devolvía 409
       // `EMAIL_ALREADY_CLAIMED` apenas el admin creaba el user.
       expect(createArg.isActive).toBe(false);
+      // D1: global role strips any org/dept the form might have sent.
+      expect(createArg.organizationId).toBeNull();
+      expect(createArg.departmentId).toBeNull();
       expect(result.permissions).toEqual(['READ dashboard', 'READ incidents']);
       expect(result.permissionVersion).toBe(2);
     });
@@ -518,6 +537,167 @@ describe('UsersService', () => {
 
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.phone).toBe('+593 99 999 9999');
+    });
+  });
+
+  // F7 — 2026-10-10-user-onboarding-telegram-tour (D1). The role-policy
+  // constants live in `role-policy.constants.ts`; the service enforces
+  // the same rules.
+  describe('adminCreate() — role vs organization/department policy (D1)', () => {
+    it('global role (master): forces organization_id and department_id to null even if the DTO carries them', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-master',
+        name: 'master',
+        permissions: [],
+      });
+
+      await service.adminCreate({
+        email: 'sys@municipio.ec',
+        role_id: 'role-master',
+        organization_id: 'org-A',
+        department_id: 'dept-1',
+      });
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.organizationId).toBeNull();
+      expect(createArg.departmentId).toBeNull();
+    });
+
+    it('global role (operador_sistema): same — null org/dept', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-sys',
+        name: 'operador_sistema',
+        permissions: [],
+      });
+
+      await service.adminCreate({
+        email: 'opsys@municipio.ec',
+        role_id: 'role-sys',
+        organization_id: 'org-A',
+      });
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.organizationId).toBeNull();
+      expect(createArg.departmentId).toBeNull();
+    });
+
+    it('sectional role (admin_org) without organization_id: 400 BadRequest', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: [],
+      });
+
+      await expect(
+        service.adminCreate({
+          email: 'admin@municipio.ec',
+          role_id: 'role-admin',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(userRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('sectional role (admin_org) without department_id: 400 BadRequest', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: [],
+      });
+
+      await expect(
+        service.adminCreate({
+          email: 'admin@municipio.ec',
+          role_id: 'role-admin',
+          organization_id: 'org-A',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(userRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('sectional role with department not in the organization: 400 BadRequest (cross-row invariant)', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: [],
+      });
+      dataSource.query.mockResolvedValueOnce([
+        { organization_id: 'org-B', deleted_at: null },
+      ]);
+
+      await expect(
+        service.adminCreate({
+          email: 'admin@municipio.ec',
+          role_id: 'role-admin',
+          organization_id: 'org-A',
+          department_id: 'dept-in-org-B',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(userRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('sectional role with soft-deleted department: 400 BadRequest', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: [],
+      });
+      dataSource.query.mockResolvedValueOnce([
+        { organization_id: 'org-A', deleted_at: new Date() },
+      ]);
+
+      await expect(
+        service.adminCreate({
+          email: 'admin@municipio.ec',
+          role_id: 'role-admin',
+          organization_id: 'org-A',
+          department_id: 'dept-deleted',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('sectional role with valid org+dept: persists both', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: ['READ incidents'],
+      });
+      dataSource.query.mockResolvedValueOnce([
+        { organization_id: 'org-A', deleted_at: null },
+      ]);
+
+      await service.adminCreate({
+        email: 'admin@municipio.ec',
+        role_id: 'role-admin',
+        organization_id: 'org-A',
+        department_id: 'dept-in-org-A',
+      });
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.organizationId).toBe('org-A');
+      expect(createArg.departmentId).toBe('dept-in-org-A');
+    });
+
+    it('reporter role (citizen): D7 isolation — forces org/dept to null', async () => {
+      // `reporter` is the citizen role. Even if someone tries to
+      // create one through the admin form (it should not happen —
+      // but defense in depth), the service strips org/dept context
+      // so a citizen never inherits an admin organization.
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-reporter',
+        name: 'reporter',
+        permissions: [],
+      });
+
+      await service.adminCreate({
+        email: 'citizen@example.com',
+        role_id: 'role-reporter',
+        organization_id: 'org-A',
+        department_id: 'dept-1',
+      });
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.organizationId).toBeNull();
+      expect(createArg.departmentId).toBeNull();
     });
   });
 });

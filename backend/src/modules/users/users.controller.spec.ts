@@ -1,6 +1,8 @@
+import { ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { TelegramLinkService } from '../telegram/telegram-link.service';
 import { UploadedFile } from './avatar-storage.service';
 import { REQUIRE_PERMISSION_KEY } from '../../shared/decorators/require-permission.decorator';
 import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
@@ -17,6 +19,10 @@ describe('UsersController', () => {
     getSessionsForSelf: jest.Mock;
     getSessionsForUser: jest.Mock;
   };
+  let telegramLinkService: {
+    issueFor: jest.Mock;
+    composeDeepLink: jest.Mock;
+  };
   let controller: UsersController;
 
   beforeEach(() => {
@@ -29,7 +35,14 @@ describe('UsersController', () => {
       getSessionsForSelf: jest.fn(),
       getSessionsForUser: jest.fn(),
     };
-    controller = new UsersController(service as unknown as UsersService);
+    telegramLinkService = {
+      issueFor: jest.fn(),
+      composeDeepLink: jest.fn(),
+    };
+    controller = new UsersController(
+      service as unknown as UsersService,
+      telegramLinkService as unknown as TelegramLinkService,
+    );
   });
 
   it('GET / (list) requires READ users', () => {
@@ -99,6 +112,55 @@ describe('UsersController', () => {
 
     expect(service.updateOrganization).toHaveBeenCalledWith(actor, 'target-1', 'org-A');
     expect(result).toEqual({ id: 'target-1', organizationId: 'org-A' });
+  });
+
+  describe('POST /me/telegram-link — D3 endpoint', () => {
+    it('staff user (admin_org) returns { telegram_link }', async () => {
+      telegramLinkService.issueFor.mockResolvedValue('tok123');
+      telegramLinkService.composeDeepLink.mockReturnValue('https://t.me/bot?start=tok123');
+      const req = {
+        user: { userId: 'u-staff', roleName: 'admin_org', permissions: [], scope: GLOBAL_SCOPE },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.generateTelegramLink(req);
+
+      expect(telegramLinkService.issueFor).toHaveBeenCalledWith('u-staff');
+      expect(telegramLinkService.composeDeepLink).toHaveBeenCalledWith('tok123');
+      expect(result).toEqual({ telegram_link: 'https://t.me/bot?start=tok123' });
+    });
+
+    it('reporter role throws ForbiddenException (403)', async () => {
+      const req = {
+        user: { userId: 'u-reporter', roleName: 'reporter', permissions: [], scope: GLOBAL_SCOPE },
+      } as unknown as AuthenticatedRequest;
+
+      await expect(controller.generateTelegramLink(req)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(telegramLinkService.issueFor).not.toHaveBeenCalled();
+    });
+
+    it('master role is allowed (staff check only blocks reporter)', async () => {
+      telegramLinkService.issueFor.mockResolvedValue('tok-master');
+      telegramLinkService.composeDeepLink.mockReturnValue('https://t.me/bot?start=tok-master');
+      const req = {
+        user: { userId: 'u-master', roleName: 'master', permissions: [], scope: GLOBAL_SCOPE },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.generateTelegramLink(req);
+
+      expect(result).toEqual({ telegram_link: 'https://t.me/bot?start=tok-master' });
+    });
+
+    it('null composeDeepLink returns telegram_link: null', async () => {
+      telegramLinkService.issueFor.mockResolvedValue('tok-no-bot');
+      telegramLinkService.composeDeepLink.mockReturnValue(null);
+      const req = {
+        user: { userId: 'u-admin', roleName: 'admin_org', permissions: [], scope: GLOBAL_SCOPE },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.generateTelegramLink(req);
+
+      expect(result).toEqual({ telegram_link: null });
+    });
   });
 
   describe('T3.9 — session listing routes', () => {
