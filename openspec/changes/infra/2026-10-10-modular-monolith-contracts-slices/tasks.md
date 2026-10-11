@@ -1,10 +1,10 @@
 # Implementation Tasks: Modular Monolith, Vertical Slices y Shared Contracts
 
-> **Story Principal**: [sc-417](https://app.shortcut.com/upse/story/417)  
-> **Epic Shortcut**: ⚠️ GeoReporta (Epic 192, workspace `upse`)  
-> **Tickets Desglosados**: [`shortcut-ticket.md`](file:///home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/openspec/changes/infra/2026-10-10-modular-monolith-contracts-slices/shortcut-ticket.md)
+> **Ticket Único Shortcut**: [sc-417](https://app.shortcut.com/upse/story/417)  
+> **Epic**: ⚠️ GeoReporta (Epic 192, workspace `upse`)  
+> **Detalle**: [`shortcut-ticket.md`](file:///home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/openspec/changes/infra/2026-10-10-modular-monolith-contracts-slices/shortcut-ticket.md)
 
-## Fase 1 — Configuración del Workspace y Creación de `@tase/contracts` ([sc-420](https://app.shortcut.com/upse/story/420))
+## Fase 1 — Configuración del Workspace y Creación de `@tase/contracts` (Task 431)
 
 - [ ] 1.1 Crear archivo `pnpm-workspace.yaml` en la raíz del repositorio declarando `['backend', 'frontend', 'packages/*']`.
 - [ ] 1.2 Inicializar el paquete `packages/contracts/package.json` con `name: "@tase/contracts"`, `version: "1.0.0"` y script de typecheck.
@@ -18,7 +18,7 @@
 - [ ] 1.6 Exportar todos los símbolos en `packages/contracts/src/index.ts`.
 - [ ] 1.7 Ejecutar `pnpm install` desde la raíz para vincular `@tase/contracts` en el monorepo.
 
-## Fase 2 — Path Aliases y Vinculación Inicial de Contratos ([sc-422](https://app.shortcut.com/upse/story/422))
+## Fase 2 — Path Aliases y Vinculación Inicial de Contratos (Task 432)
 
 - [ ] 2.1 Agregar dependencia `"@tase/contracts": "workspace:*"` en `backend/package.json` y `frontend/package.json`.
 - [ ] 2.2 Configurar `compilerOptions.paths` en `backend/tsconfig.json`:
@@ -35,7 +35,7 @@
 - [ ] 2.5 Reemplazar definiciones manuales de `IncidentStatus` en frontend (`incident.model.ts`) por importación desde `@tase/contracts`.
 - [ ] 2.6 Verificar typechecking en ambas capas: `pnpm run typecheck` en backend y `pnpm run build` en frontend.
 
-## Fase 3 — Backend: Reorganización Modular por Dominios (DDD) ([sc-424](https://app.shortcut.com/upse/story/424))
+## Fase 3 — Backend: Reorganización Modular por Dominios (DDD) (Task 433)
 
 - [ ] 3.1 Crear estructura de carpetas en `backend/src/domains/`: `incidents/`, `iam/`, `gis/`, `comms/`.
 - [ ] 3.2 Migrar módulos de Identidad y Accesos a `backend/src/domains/iam/`:
@@ -50,7 +50,7 @@
 - [ ] 3.7 Actualizar imports de módulos en `app.module.ts` y suites de tests unitarios/e2e usando `@domains/*` y `@shared/*`.
 - [ ] 3.8 Ejecutar suite completa de tests de backend: `pnpm test` (verificar 22 suites pasando limpias).
 
-## Fase 4 — Frontend: Refactorización a Vertical Slice Architecture ([sc-426](https://app.shortcut.com/upse/story/426))
+## Fase 4 — Frontend: Refactorización a Vertical Slice Architecture (Task 434)
 
 - [ ] 4.1 Reestructurar la feature principal `frontend/src/app/features/incidents/` en rodajas verticales:
   - `data-access/`: migrar `incident.service.ts` y señales de estado.
@@ -63,7 +63,7 @@
 - [ ] 4.3 Actualizar rutas en `frontend/src/app/app.routes.ts` apuntando a las rodajas verticales reorganizadas.
 - [ ] 4.4 Ejecutar suite de pruebas de frontend: `pnpm test` y verificar que la totalidad de las pruebas unitarias pasen.
 
-## Fase 5 — Docker, CI/CD y Verificación Integral ([sc-428](https://app.shortcut.com/upse/story/428))
+## Fase 5 — Docker, CI/CD y Verificación Integral (Task 435)
 
 - [ ] 5.1 Actualizar `backend/Dockerfile` en los stages `deps` y `build` para copiar `pnpm-workspace.yaml` y `packages/contracts/`.
 - [ ] 5.2 Validar build de Docker localmente con `docker compose --profile staging build backend`.

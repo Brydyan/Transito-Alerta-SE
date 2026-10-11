@@ -8,7 +8,7 @@ Transformar la estructura del repositorio TASE en un monorepo modular coherente 
 3. **Frontend Vertical Slice Architecture**: Reestructuración de `frontend/src/app/features/` en rodajas verticales autónomas (`data-access`, `ui`, `feature`, `utils`) y saneamiento de los 38 servicios planos de `core/services/`.
 4. **Unified pnpm Workspace & Path Aliases**: Configuración centralizada de `pnpm-workspace.yaml` y resolución de rutas limpias en TypeScript (`@tase/contracts`, `@domains/*`, `@infra/*`, `@shared/*`), eliminando la fragilidad de imports relativos (`../../../../`).
 
-**Shortcut**: [sc-417](https://app.shortcut.com/upse/story/417) · Épica 192 «⚠️ GeoReporta» (workspace: `upse`) · Ver detalle de sub-stories en [`shortcut-ticket.md`](file:///home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/openspec/changes/infra/2026-10-10-modular-monolith-contracts-slices/shortcut-ticket.md)
+**Shortcut**: Ticket único [sc-417](https://app.shortcut.com/upse/story/417) · Épica 192 «⚠️ GeoReporta» (workspace: `upse`) · Ver detalle en [`shortcut-ticket.md`](file:///home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/openspec/changes/infra/2026-10-10-modular-monolith-contracts-slices/shortcut-ticket.md)
 
 ---
 
