@@ -426,8 +426,9 @@ describe('E2E T8 D8.2 migration up/down cycle (41 files)', () => {
             'Per design D6: edit the DOWN in place, add a `housekeeping` row to database/MIGRATION_LOG.md.',
         );
       }
-      // The audit itself ran to completion; the test is informational.
-      expect(offendingDowns).toBeDefined();
+      // R37.2 spec requirement: if any DOWN leaves residual schema state,
+      // the test MUST fail with the complete list. toEqual([]) enforces this.
+      expect(offendingDowns).toEqual([]);
     }, 600_000);
   });
 });
