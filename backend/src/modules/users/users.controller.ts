@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -30,11 +31,15 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserOrganizationDto } from './dto/update-user-organization.dto';
 import { UploadedFile as AvatarFile } from './avatar-storage.service';
 import { UsersService } from './users.service';
+import { TelegramLinkService } from '../telegram/telegram-link.service';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly telegramLinkService: TelegramLinkService,
+  ) {}
 
   @Get('me')
   me(@Req() req: AuthenticatedRequest): Promise<UserEntity> {
@@ -74,6 +79,27 @@ export class UsersController {
   @Get('me/sessions')
   meSessions(@Req() req: AuthenticatedRequest): Promise<SessionResponseDto[]> {
     return this.usersService.getSessionsForSelf(req.user!);
+  }
+
+  /**
+   * D3 — `POST /api/users/me/telegram-link` (2026-10-11-user-form-departments-telegram-hybrid).
+   *
+   * Issues a fresh Telegram deep-link token for the authenticated staff user.
+   * Blocked for `reporter` role (citizens cannot link to the admin bot).
+   * Protected by `JwtAuthGuard`; no extra `@RequirePermission` (self-service).
+   */
+  @Post('me/telegram-link')
+  async generateTelegramLink(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ telegram_link: string | null }> {
+    if (req.user!.roleName === 'reporter') {
+      throw new ForbiddenException(
+        'Los reporteros no pueden vincularse al bot de Telegram de gestión interna.',
+      );
+    }
+    const token = await this.telegramLinkService.issueFor(req.user!.userId);
+    const telegram_link = this.telegramLinkService.composeDeepLink(token);
+    return { telegram_link };
   }
 
   // ---- T5.6 admin CRUD: create / show / update / delete

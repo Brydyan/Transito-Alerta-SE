@@ -11,6 +11,10 @@ import { environment } from '../../../environments/environment';
  * snake_case vía `SnakeCaseResponseInterceptor` (global, `main.ts`),
  * así que el wire contract usa `first_name`/`last_name`/`avatar_url`,
  * no los nombres de columna de TypeORM.
+ *
+ * 2026-10-11 (user-form-departments-telegram-hybrid, D4): se agrega
+ * `telegram_chat_id` — poblado por `TelegramBotController.handleStart`
+ * cuando el usuario /start el bot. `null` = aún no vinculado.
  */
 export interface UserProfile {
   id: string;
@@ -20,6 +24,7 @@ export interface UserProfile {
   email: string | null;
   avatar_url: string | null;
   updated_at: string;
+  telegram_chat_id?: string | null;
 }
 
 /** Payload de `PATCH /users/me` — matchea `UpdateProfileDto` (backend). */
@@ -64,6 +69,20 @@ export class UserService {
     return this.http.patch<UserProfile>(`${this.baseUrl}/me`, payload, {
       withCredentials: true,
     });
+  }
+
+  /**
+   * `POST /users/me/telegram-link` — genera un token de vinculación
+   * de Telegram de un solo uso (24h TTL). Retorna la URL canónica
+   * `https://t.me/<bot>?start=<token>` que el frontend abre en nueva
+   * pestaña (D3 / D4, 2026-10-11 user-form-departments-telegram-hybrid).
+   */
+  generateTelegramLink(): Observable<{ telegram_link: string | null }> {
+    return this.http.post<{ telegram_link: string | null }>(
+      `${this.baseUrl}/me/telegram-link`,
+      {},
+      { withCredentials: true },
+    );
   }
 
   /**

@@ -159,7 +159,7 @@
     </div>
   </article>
 
-  <!-- Sección 3: Asignación de Entidad (organización) -->
+  <!-- Sección 3: Asignación de Entidad (organización + departamento) -->
   <article class="form-card lg:col-span-2" data-testid="section-organization">
     <header class="form-card__header">
       <span class="form-card__icon">
@@ -169,24 +169,50 @@
         <h2 class="form-card__title">Asignación de Entidad</h2>
       </div>
     </header>
-    <div class="form-card__body">
-      <label for="new-user-org" class="form-label">Organización Pertinente @if (requiresOrganization()) { <span class="text-prio-high">*</span> }</label>
-      <select
-        id="new-user-org"
-        class="form-control"
-        data-testid="select-organization"
-        [disabled]="isLoadingLookups()"
-        [value]="formData().organizationId ?? ''"
-        (change)="onOrganizationChange($any($event.target).value || null)"
-      >
-        <option value="" disabled>Seleccione organización...</option>
-        @for (org of organizations(); track org.id) {
-          <option [value]="org.id">{{ org.nombre }}</option>
-        }
-      </select>
-      <p class="text-xs text-slate-500 mt-2 italic">
-        Obligatorio si el rol corresponde a Administrador u Operador de Organización.
-      </p>
+    <div class="form-card__body grid grid-cols-1 md:grid-cols-2 gap-4">
+      @if (isGlobalRole()) {
+        <div class="md:col-span-2">
+          <div class="flex items-center gap-2 rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600" data-testid="global-role-info">
+            <ui-icon name="info" [size]="16" [strokeWidth]="2" />
+            <span>Este rol opera a nivel nacional/global. No requiere organización ni departamento.</span>
+          </div>
+        </div>
+      }
+      <div>
+        <label for="new-user-org" class="form-label">Organización Pertinente @if (requiresOrganization()) { <span class="text-prio-high">*</span> }</label>
+        <select
+          id="new-user-org"
+          class="form-control"
+          data-testid="select-organization"
+          [disabled]="isLoadingLookups() || isGlobalRole()"
+          [value]="formData().organizationId ?? ''"
+          (change)="onOrganizationChange($any($event.target).value || null)"
+        >
+          <option value="" disabled>Seleccione organización...</option>
+          @for (org of organizations(); track org.id) {
+            <option [value]="org.id">{{ org.nombre }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label for="new-user-dept" class="form-label">Departamento @if (requiresOrganization()) { <span class="text-prio-high">*</span> }</label>
+        <select
+          id="new-user-dept"
+          class="form-control"
+          data-testid="select-department"
+          [disabled]="isLoadingLookups() || isGlobalRole() || !formData().organizationId"
+          [value]="formData().departmentId ?? ''"
+          (change)="onDepartmentChange($any($event.target).value || null)"
+        >
+          <option value="" disabled>Seleccione departamento...</option>
+          @for (dept of filteredDepartments(); track dept.id) {
+            <option [value]="dept.id">{{ dept.nombre }}</option>
+          }
+        </select>
+        <p class="text-xs text-slate-500 mt-1 italic">
+          Obligatorio para roles de organización. Disponible tras seleccionar la organización.
+        </p>
+      </div>
     </div>
   </article>
 

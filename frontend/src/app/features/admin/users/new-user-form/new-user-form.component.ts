@@ -16,11 +16,14 @@ import { UsersService } from '../services/users.service';
 import { InvitationsService } from '../services/invitations.service';
 import {
   DEFAULT_NEW_USER_FORM,
+  Department,
   NewUserFormData,
   Organization,
   RoleOption,
   RolePermissionsView,
   CreateUserJsonPayload,
+  SECTIONAL_ROLES,
+  GLOBAL_ROLES,
 } from '../models/user.interface';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
@@ -29,7 +32,6 @@ import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.c
 
 const AVATAR_MIME_ALLOWED = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
-const ROLES_REQUIRING_ORG = ['admin_org', 'operador_org'] as const;
 
 /**
  * NewUserFormComponent — F6 (`2026-09-08-f6-new-user-form`).
@@ -69,6 +71,7 @@ export class NewUserFormComponent implements OnInit {
   readonly formData = signal<NewUserFormData>({ ...DEFAULT_NEW_USER_FORM });
   readonly roles = signal<ReadonlyArray<RoleOption>>([]);
   readonly organizations = signal<ReadonlyArray<Organization>>([]);
+  readonly departments = signal<ReadonlyArray<Department>>([]);
   readonly permissionsCatalog = signal<ReadonlyArray<string>>([]);
   readonly selectedRolePermissions = signal<RolePermissionsView>({ access: [], noAccess: [] });
 
@@ -82,12 +85,33 @@ export class NewUserFormComponent implements OnInit {
   // ---- Computed -----------------------------------------------------
 
   /**
+   * D1 (2026-10-11) — departamentos filtrados por la organización
+   * actualmente seleccionada. Vacío si no hay org.
+   */
+  readonly filteredDepartments = computed<ReadonlyArray<Department>>(() => {
+    const orgId = this.formData().organizationId;
+    if (!orgId) return [];
+    return this.departments().filter((d) => d.organizationId === orgId);
+  });
+
+  /**
+   * D2 (2026-10-11) — true cuando el rol seleccionado es global
+   * (`master` o `operador_sistema`). Los roles globales no requieren
+   * org ni departamento.
+   */
+  readonly isGlobalRole = computed<boolean>(() => {
+    const d = this.formData();
+    if (!d.roleId) return false;
+    const role = this.roles().find((r) => r.id === d.roleId);
+    return !!role && (GLOBAL_ROLES as readonly string[]).includes(role.name);
+  });
+
+  /**
    * D-frontend-7 — validación reactiva. Reglas:
    *  - firstName y lastName: requerido, >= 2 chars
    *  - email: requerido, formato básico
    *  - phone: opcional, max 30 chars
-   *  - roleId: si el rol es `admin_org` u `operador_org`,
-   *    `organizationId` es requerido
+   *  - roleId sectorial (admin_org, operador_org): require `organizationId` y `departmentId`
    */
   readonly isFormValid = computed<boolean>(() => {
     const d = this.formData();
@@ -97,8 +121,9 @@ export class NewUserFormComponent implements OnInit {
     if (d.phone.length > 30) return false;
     if (d.roleId) {
       const role = this.roles().find((r) => r.id === d.roleId);
-      if (role && (ROLES_REQUIRING_ORG as readonly string[]).includes(role.name) && !d.organizationId) {
-        return false;
+      if (role && (SECTIONAL_ROLES as readonly string[]).includes(role.name)) {
+        if (!d.organizationId) return false;
+        if (!d.departmentId) return false;
       }
     }
     return true;
@@ -118,17 +143,18 @@ export class NewUserFormComponent implements OnInit {
       d.lastName !== '' ||
       d.phone !== '' ||
       d.organizationId !== null ||
+      d.departmentId !== null ||
       d.roleId !== null ||
       this.pendingAvatar() !== null
     );
   });
 
-  /** Roles que disparan warning de organización requerida. */
+  /** Roles sectoriales que disparan obligatoriedad de organización y departamento. */
   readonly requiresOrganization = computed<boolean>(() => {
     const d = this.formData();
     if (!d.roleId) return false;
     const role = this.roles().find((r) => r.id === d.roleId);
-    return !!role && (ROLES_REQUIRING_ORG as readonly string[]).includes(role.name);
+    return !!role && (SECTIONAL_ROLES as readonly string[]).includes(role.name);
   });
 
   // ---- Lifecycle ----------------------------------------------------
@@ -144,9 +170,10 @@ export class NewUserFormComponent implements OnInit {
       .getFormData()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ roles, organizations }) => {
+        next: ({ roles, organizations, departments }) => {
           this.roles.set(roles.map((r) => ({ id: r.id, name: r.name })));
           this.organizations.set(organizations);
+          this.departments.set(departments);
           this.isLoadingLookups.set(false);
         },
         error: () => {
@@ -213,7 +240,12 @@ export class NewUserFormComponent implements OnInit {
   }
 
   onOrganizationChange(organizationId: string | null): void {
-    this.formData.update((d) => ({ ...d, organizationId }));
+    this.formData.update((d) => ({ ...d, organizationId, departmentId: null }));
+  }
+
+  /** D1 — selección de departamento. */
+  onDepartmentChange(departmentId: string | null): void {
+    this.formData.update((d) => ({ ...d, departmentId }));
   }
 
   onSendInvitationChange(value: boolean): void {
@@ -287,6 +319,7 @@ export class NewUserFormComponent implements OnInit {
       phone: d.phone.trim(),
       role_id: d.roleId,
       organization_id: d.organizationId,
+      department_id: d.departmentId,
     };
 
     this.usersService

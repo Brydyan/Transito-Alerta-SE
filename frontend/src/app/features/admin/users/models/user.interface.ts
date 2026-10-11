@@ -263,12 +263,40 @@ export function toUserStatus(isActive: boolean | null | undefined): UserStatus {
 // =====================================================================
 
 /**
+ * 2026-10-11 (user-form-departments-telegram-hybrid, D1) — Departamento
+ * mínimo para el dropdown de departamentos. Filtrado reactivamente por
+ * `organizationId` para evitar asignar un departamento de otra org.
+ */
+export interface Department {
+  readonly id: string;
+  readonly nombre: string;
+  readonly organizationId: string;
+}
+
+/**
+ * 2026-10-11 (D2) — roles sectoriales: requieren `organizationId`
+ * y `departmentId`.
+ */
+export const SECTIONAL_ROLES = ['admin_org', 'operador_org'] as const;
+export type SectionalRole = (typeof SECTIONAL_ROLES)[number];
+
+/**
+ * 2026-10-11 (D2) — roles globales: operan a nivel nacional, sin org
+ * ni departamento.
+ */
+export const GLOBAL_ROLES = ['master', 'operador_sistema'] as const;
+export type GlobalRole = (typeof GLOBAL_ROLES)[number];
+
+/**
  * F6 (D-frontend-3) — estado interno del `NewUserFormComponent`.
  * Mantenido como un único `signal<NewUserFormData>` (no `FormGroup`).
  *
  * Los campos `initialStatus` y `notificationChannel` son **fijos hasta
  * F7** (D-frontend-9) — se modelan en el estado para que el template
  * pueda atarlos sin filtraciones, pero el submit no los envía.
+ *
+ * 2026-10-11 (D1): se agrega `departmentId` para el selector de
+ * departamento. Obligatorio cuando el rol es sectorial.
  */
 export interface NewUserFormData {
   email: string;
@@ -276,6 +304,7 @@ export interface NewUserFormData {
   lastName: string;
   phone: string;
   organizationId: string | null;
+  departmentId: string | null;
   roleId: string | null;
   sendInvitation: boolean;
   initialStatus: 'activo';
@@ -292,6 +321,7 @@ export const DEFAULT_NEW_USER_FORM: NewUserFormData = {
   lastName: '',
   phone: '',
   organizationId: null,
+  departmentId: null,
   roleId: null,
   sendInvitation: true,
   initialStatus: 'activo',
@@ -327,6 +357,9 @@ export interface RolePermissionsView {
  * `POST /api/users` con la convención snake_case del proyecto
  * (ver `UsersService.createUserJson()`). El backend acepta `phone`
  * desde el change paralelo `back/2026-09-08-f6-new-user-form/`.
+ *
+ * 2026-10-11 (D1): se agrega `department_id` para el selector de
+ * departamento. `null` para roles globales o cuando no se seleccionó.
  */
 export interface CreateUserJsonPayload {
   email: string;
@@ -335,4 +368,5 @@ export interface CreateUserJsonPayload {
   phone: string;
   role_id: string | null;
   organization_id: string | null;
+  department_id: string | null;
 }

@@ -7,6 +7,7 @@ import { UserEntity } from './entities/user.entity';
 import { StorageModule } from '../../infra/storage/storage.module';
 import { AuthModule } from '../auth/auth.module';
 import { SessionsModule } from '../sessions/sessions.module';
+import { TelegramModule } from '../telegram/telegram.module';
 import { AvatarStorageService } from './avatar-storage.service';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
@@ -29,6 +30,7 @@ import { UsersService } from './users.service';
     AuthModule,
     SessionsModule,
     StorageModule,
+    TelegramModule,
   ],
   controllers: [UsersController],
   providers: [UsersService, AvatarStorageService],

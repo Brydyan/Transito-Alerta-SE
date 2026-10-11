@@ -8,7 +8,7 @@ import { UsersService } from '../services/users.service';
 import { InvitationsService } from '../services/invitations.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
-import { NewUserFormData, RolePermissionsView } from '../models/user.interface';
+import { NewUserFormData, RolePermissionsView, Department } from '../models/user.interface';
 
 /**
  * F6 (`2026-09-08-f6-new-user-form`) — contrato del
@@ -32,6 +32,7 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
     uploadAvatar: jest.Mock;
     getRolePermissions: jest.Mock;
     getPermissionsCatalog: jest.Mock;
+    getDepartments?: jest.Mock;
   };
   let mockInvitationsService: { invite: jest.Mock };
   let mockToastService: {
@@ -42,14 +43,20 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
   let mockDialogService: { confirm: jest.Mock };
   let router: Router;
 
-  /** Defaults de lookups: 2 roles (admin_org + operador_org) + 1 org. */
+  /** Defaults de lookups: 2 roles sectoriales + 1 global + ciudadano + 1 org + 2 departamentos. */
   const fixtureLookups = {
     roles: [
       { id: 'r-admin', name: 'admin_org' },
       { id: 'r-op', name: 'operador_org' },
+      { id: 'r-master', name: 'master' },
       { id: 'r-other', name: 'ciudadano' },
     ],
     organizations: [{ id: 'o1', nombre: 'GAD Norte' }],
+    departments: [
+      { id: 'd1', nombre: 'Tránsito', organizationId: 'o1' },
+      { id: 'd2', nombre: 'Obras', organizationId: 'o1' },
+      { id: 'd3', nombre: 'Otro GAD', organizationId: 'o2' },
+    ] as Department[],
   };
 
   beforeEach(async () => {
@@ -92,11 +99,12 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
   // Inicialización / lookups
   // -------------------------------------------------------------------
   describe('N.3 — Inicialización y lookups', () => {
-    it('S1.1: ngOnInit carga roles y orgs via getFormData', () => {
+    it('S1.1: ngOnInit carga roles, orgs y departments via getFormData', () => {
       init();
       expect(mockUsersService.getFormData).toHaveBeenCalledTimes(1);
-      expect(component.roles().length).toBe(3);
+      expect(component.roles().length).toBe(4);
       expect(component.organizations().length).toBe(1);
+      expect(component.departments().length).toBe(3);
       expect(component.isLoadingLookups()).toBe(false);
     });
 
@@ -162,7 +170,7 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
       expect(component.isFormValid()).toBe(false);
     });
 
-    it('rol admin_org + organización → válido', () => {
+    it('rol admin_org + organización + departamento → válido', () => {
       init();
       component.formData.update((d) => ({
         ...d,
@@ -171,6 +179,7 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
         email: 'juan@municipio.gob.ec',
         roleId: 'r-admin',
         organizationId: 'o1',
+        departmentId: 'd1',
       }));
       expect(component.isFormValid()).toBe(true);
     });
@@ -339,6 +348,7 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
         phone: '',
         role_id: null,
         organization_id: null,
+        department_id: null,
       });
       expect(mockUsersService.uploadAvatar).toHaveBeenCalledWith('u-new', expect.any(File));
       expect(mockInvitationsService.invite).toHaveBeenCalledWith({
@@ -486,6 +496,155 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
         new File([new Uint8Array(1024)], 'avatar.jpg', { type: 'image/jpeg' }),
       );
       expect(component.isFormDirty()).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // D1 — Departments: filteredDepartments y validación
+  // -------------------------------------------------------------------
+  describe('D1 — Departamentos: señal y filtrado reactivo', () => {
+    it('carga departments desde getFormData', () => {
+      init();
+      expect(component.departments().length).toBe(3);
+    });
+
+    it('filteredDepartments vacío cuando no hay org seleccionada', () => {
+      init();
+      component.formData.update((d) => ({ ...d, organizationId: null }));
+      expect(component.filteredDepartments().length).toBe(0);
+    });
+
+    it('filteredDepartments filtra por organizationId seleccionada', () => {
+      init();
+      component.formData.update((d) => ({ ...d, organizationId: 'o1' }));
+      const filtered = component.filteredDepartments();
+      expect(filtered.length).toBe(2);
+      expect(filtered.every((d) => d.organizationId === 'o1')).toBe(true);
+    });
+
+    it('onOrganizationChange resetea departmentId a null', () => {
+      init();
+      component.formData.update((d) => ({ ...d, departmentId: 'd1' }));
+      component.onOrganizationChange('o1');
+      expect(component.formData().departmentId).toBeNull();
+    });
+
+    it('onDepartmentChange actualiza departmentId', () => {
+      init();
+      component.onDepartmentChange('d1');
+      expect(component.formData().departmentId).toBe('d1');
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // D2 — Roles globales: isGlobalRole y forzar null
+  // -------------------------------------------------------------------
+  describe('D2 — Roles globales: isGlobalRole computed', () => {
+    it('isGlobalRole false cuando no hay rol', () => {
+      init();
+      component.formData.update((d) => ({ ...d, roleId: null }));
+      expect(component.isGlobalRole()).toBe(false);
+    });
+
+    it('isGlobalRole true para rol master', () => {
+      init();
+      component.formData.update((d) => ({ ...d, roleId: 'r-master' }));
+      expect(component.isGlobalRole()).toBe(true);
+    });
+
+    it('isGlobalRole false para rol admin_org', () => {
+      init();
+      component.formData.update((d) => ({ ...d, roleId: 'r-admin' }));
+      expect(component.isGlobalRole()).toBe(false);
+    });
+
+    it('isGlobalRole true para rol operador_sistema', () => {
+      init();
+      // Necesita un fixture de role con name 'operador_sistema'
+      // Actualizar fixtureLookups.roles para incluirlo, o agregarlo solo en este test:
+      component.roles.update((rs) => [...rs, { id: 'r-op-sis', name: 'operador_sistema' }]);
+      component.formData.update((d) => ({ ...d, roleId: 'r-op-sis' }));
+      expect(component.isGlobalRole()).toBe(true);
+    });
+
+    it('isFormValid: rol operador_sistema sin org ni departamento → válido (global)', () => {
+      init();
+      component.roles.update((rs) => [...rs, { id: 'r-op-sis', name: 'operador_sistema' }]);
+      component.formData.update((d) => ({
+        ...d,
+        firstName: 'Ana',
+        lastName: 'López',
+        email: 'ana@municipio.gob.ec',
+        roleId: 'r-op-sis',
+      }));
+      expect(component.isFormValid()).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // D1 — isFormValid con departmentId para roles sectoriales
+  // -------------------------------------------------------------------
+  describe('D1 — isFormValid: departmentId requerido para roles sectoriales', () => {
+    it('rol admin_org + org + sin departamento → inválido', () => {
+      init();
+      component.formData.update((d) => ({
+        ...d,
+        firstName: 'Juan',
+        lastName: 'Pérez',
+        email: 'juan@municipio.gob.ec',
+        roleId: 'r-admin',
+        organizationId: 'o1',
+        departmentId: null,
+      }));
+      expect(component.isFormValid()).toBe(false);
+    });
+
+    it('rol admin_org + org + departamento → válido', () => {
+      init();
+      component.formData.update((d) => ({
+        ...d,
+        firstName: 'Juan',
+        lastName: 'Pérez',
+        email: 'juan@municipio.gob.ec',
+        roleId: 'r-admin',
+        organizationId: 'o1',
+        departmentId: 'd1',
+      }));
+      expect(component.isFormValid()).toBe(true);
+    });
+
+    it('rol master sin org ni departamento → válido (global)', () => {
+      init();
+      component.formData.update((d) => ({
+        ...d,
+        firstName: 'Juan',
+        lastName: 'Pérez',
+        email: 'juan@municipio.gob.ec',
+        roleId: 'r-master',
+      }));
+      expect(component.isFormValid()).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // D1 — onSubmit incluye department_id en el payload
+  // -------------------------------------------------------------------
+  describe('D1 — onSubmit: department_id en payload', () => {
+    it('department_id se incluye cuando hay departamento seleccionado', () => {
+      init();
+      component.formData.update((d) => ({
+        ...d,
+        firstName: 'Juan',
+        lastName: 'Pérez',
+        email: 'juan@municipio.gob.ec',
+        roleId: 'r-admin',
+        organizationId: 'o1',
+        departmentId: 'd1',
+      }));
+      component.onSubmit();
+      expect(mockUsersService.createUserJson).toHaveBeenCalledWith(
+        expect.objectContaining({ department_id: 'd1', organization_id: 'o1' }),
+      );
     });
   });
 });

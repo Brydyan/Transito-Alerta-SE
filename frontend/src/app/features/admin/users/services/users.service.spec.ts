@@ -46,14 +46,17 @@ describe('UsersService (F6 new-user-form)', () => {
 
   afterEach(() => http.verify());
 
-  it('getFormData — GET /api/users/form-data y aplana { roles, organizations }', () => {
+  it('getFormData — GET /api/users/form-data y aplana { roles, organizations, departments }', () => {
     service.getFormData().subscribe((data) => {
       expect(data.roles).toEqual([
         { id: 'r1', name: 'admin_org' },
         { id: 'r2', name: 'operador_org' },
       ]);
       expect(data.organizations).toEqual([
-        { id: 'o1', name: 'GAD Norte' },
+        { id: 'o1', nombre: 'GAD Norte' },
+      ]);
+      expect(data.departments).toEqual([
+        { id: 'd1', nombre: 'Gestión Vial', organizationId: 'o1' },
       ]);
     });
     const req = http.expectOne(`${base}/form-data`);
@@ -65,6 +68,18 @@ describe('UsersService (F6 new-user-form)', () => {
         { id: 'r2', name: 'operador_org' },
       ],
       organizations: [{ id: 'o1', name: 'GAD Norte' }],
+      departments: [{ id: 'd1', name: 'Gestión Vial', organization_id: 'o1' }],
+    });
+  });
+
+  it('getFormData — departments vacío cuando el backend no lo retorna', () => {
+    service.getFormData().subscribe((data) => {
+      expect(data.departments).toEqual([]);
+    });
+    const req = http.expectOne(`${base}/form-data`);
+    req.flush({
+      roles: [],
+      organizations: [],
     });
   });
 
@@ -76,6 +91,7 @@ describe('UsersService (F6 new-user-form)', () => {
       phone: '+593 99 999 9999',
       role_id: 'r1',
       organization_id: 'o1',
+      department_id: 'd1',
     };
     service.createUserJson(payload).subscribe((user) => {
       expect(user).toEqual({ id: 'new-id', email: payload.email });
