@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { FindOperator } from 'typeorm';
+import { DataSource, FindOperator } from 'typeorm';
 
 import { UserEntity } from './entities/user.entity';
 import { RoleEntity } from '../roles/entities/role.entity';
@@ -55,11 +55,14 @@ const NO_ORG_ACTOR: AuthContext = {
 describe('UsersService.getFormData (T5.4)', () => {
   let roleRepo: { find: jest.Mock; findOne: jest.Mock };
   let orgRepo: { find: jest.Mock; findOne: jest.Mock };
+  let dataSource: { query: jest.Mock };
   let service: UsersService;
 
   beforeEach(async () => {
     roleRepo = { find: jest.fn(), findOne: jest.fn() };
     orgRepo = { find: jest.fn(), findOne: jest.fn() };
+    // F7 — departments are read via DataSource.query (D6).
+    dataSource = { query: jest.fn().mockResolvedValue([]) };
     const module = await Test.createTestingModule({
       providers: [
         UsersService,
@@ -69,6 +72,7 @@ describe('UsersService.getFormData (T5.4)', () => {
         { provide: getRepositoryToken(OrganizationEntity), useValue: orgRepo },
         { provide: AuthService, useValue: { invalidatePermissionCache: jest.fn() } },
         { provide: SessionsRepository, useValue: { findActiveByUser: jest.fn() } },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
     service = module.get(UsersService);
@@ -186,5 +190,49 @@ describe('UsersService.getFormData (T5.4)', () => {
     // ...and the soft-delete filter is composed alongside it, not replaced by it.
     expect(roleArgs.where.deletedAt).toBeInstanceOf(FindOperator);
     expect(roleArgs.where.deletedAt.type).toBe('isNull');
+  });
+
+  it('D6: system admin getFormData returns all departments from dataSource.query', async () => {
+    roleRepo.find.mockResolvedValueOnce([{ id: 'r1', name: 'master' }] as never);
+    orgRepo.find.mockResolvedValueOnce([{ id: 'org-A', name: 'Org A' }] as never);
+    dataSource.query.mockResolvedValueOnce([
+      { id: 'd1', name: 'Dept Alpha', organization_id: 'org-A' },
+      { id: 'd2', name: 'Dept Beta', organization_id: 'org-B' },
+    ]);
+
+    const res = await service.getFormData(SYSTEM_ADMIN_ACTOR);
+
+    expect(res.departments).toEqual([
+      { id: 'd1', name: 'Dept Alpha', organization_id: 'org-A' },
+      { id: 'd2', name: 'Dept Beta', organization_id: 'org-B' },
+    ]);
+  });
+
+  it('D6: org-scoped user getFormData returns only own org departments', async () => {
+    roleRepo.find.mockResolvedValueOnce([{ id: 'r2', name: 'admin_org' }] as never);
+    orgRepo.find.mockResolvedValueOnce([{ id: 'org-A', name: 'Org A' }] as never);
+    dataSource.query.mockResolvedValueOnce([
+      { id: 'd1', name: 'Dept Alpha', organization_id: 'org-A' },
+    ]);
+
+    const res = await service.getFormData(ORG_ADMIN_ACTOR);
+
+    expect(res.departments).toEqual([
+      { id: 'd1', name: 'Dept Alpha', organization_id: 'org-A' },
+    ]);
+    // The SQL query must pass the org filter as a parameter
+    expect(dataSource.query).toHaveBeenCalledWith(
+      expect.stringContaining('organization_id = $1'),
+      ['org-A'],
+    );
+  });
+
+  it('D6: user with no org gets empty departments[]', async () => {
+    roleRepo.find.mockResolvedValueOnce([{ id: 'r3', name: 'reporter' }] as never);
+
+    const res = await service.getFormData(NO_ORG_ACTOR);
+
+    expect(res.departments).toEqual([]);
+    expect(dataSource.query).not.toHaveBeenCalled();
   });
 });

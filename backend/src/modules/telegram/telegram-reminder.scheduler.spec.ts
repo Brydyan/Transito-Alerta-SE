@@ -18,12 +18,15 @@ describe('TelegramReminderScheduler (Round 2 cadence)', () => {
 
   const cfg: TelegramConfig = {
     botToken: undefined,
+    botUsername: 'tase_alert_bot',
+    webhookSecret: undefined,
     appBaseUrl: 'http://app.test',
     sweepIntervalMs: 10_000,
     claimIdleMs: 30_000,
     maxAttempts: 3,
     reminderIntervalMs: 25 * 60 * 1000,
     reminderStopAt: 3,
+    linkTokenTtlSeconds: 86_400,
   };
 
   beforeEach(() => {

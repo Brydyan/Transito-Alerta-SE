@@ -25,6 +25,53 @@ describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', (
       expect(html).not.toContain('<script>');
       expect(html).not.toContain('<b>Org</b>');
     });
+
+    it('renders the Telegram activation section when telegramLink is provided', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'admin_org',
+        organizationName: 'Org Test',
+        telegramLink: 'https://t.me/tase_alert_bot?start=abc123',
+      });
+
+      expect(html).toContain('https://t.me/tase_alert_bot?start=abc123');
+      expect(html).toContain('Iniciar bot de Telegram');
+      expect(html).toContain('Este enlace expira en 24 horas');
+    });
+
+    it('renders the role guide section when roleGuide is provided', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'operador_org',
+        organizationName: 'Org Test',
+        roleGuide: 'Recibirás las alertas en Telegram.',
+      });
+
+      expect(html).toContain('Recibirás las alertas en Telegram.');
+      expect(html).toContain('Lo que harás como operador_org');
+    });
+
+    it('omits Telegram and role guide sections when neither field is provided', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'admin_org',
+        organizationName: 'Org Test',
+      });
+
+      expect(html).not.toContain('Iniciar bot de Telegram');
+      expect(html).not.toContain('Lo que harás como');
+    });
+
+    it('escapes a poisoned telegramLink', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'admin_org',
+        organizationName: 'Org Test',
+        telegramLink: '"><script>alert(1)</script>',
+      });
+
+      expect(html).not.toContain('<script>');
+    });
   });
 
   describe('password-reset', () => {

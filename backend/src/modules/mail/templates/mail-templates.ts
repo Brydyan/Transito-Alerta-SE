@@ -56,8 +56,30 @@ const TEMPLATES: Record<TemplateName, TemplateFn> = {
   // a ser `PRODUCT_NAME` (GeoReporta). El renombrado toca
   // sólo lo que el usuario ve; `main.ts:77` (título de
   // Swagger) queda fuera de alcance por diseño.
-  invitation: (data) =>
-    `<p>You have been invited to join ${field(data, 'organizationName') || escapeHtml(PRODUCT_NAME)} as ${field(data, 'roleName')}.</p><p><a href="${field(data, 'link')}">Accept invitation</a></p><p>This link expires in 48 hours.</p>${productFooter()}`,
+  //
+  // 2026-10-10-user-onboarding-telegram-tour (D6 / R3) — the staff
+  // invitation email also ships a Telegram deep-link (`telegramLink`)
+  // and a per-role mini-guide (`roleGuide`). The deep-link only
+  // exists for staff roles; `reporter` invitations are not created
+  // by this flow (D7), so the conditional below is defensive — if
+  // `telegramLink` is missing, the section is skipped.
+  invitation: (data) => {
+    const baseHead = `<p>You have been invited to join ${field(data, 'organizationName') || escapeHtml(PRODUCT_NAME)} as ${field(data, 'roleName')}.</p>`;
+    const activate = `<p><a href="${field(data, 'link')}">Accept invitation</a></p><p>This link expires in 48 hours.</p>`;
+    const telegramLink = data['telegramLink'] ? String(data['telegramLink']) : '';
+    const roleGuide = data['roleGuide'] ? String(data['roleGuide']) : '';
+    const telegramSection = telegramLink
+      ? `<h3>Conecta tu cuenta con Telegram</h3>` +
+        `<p>Recibirás alertas operativas (emergencias, asignaciones) en Telegram. Pulsa el botón, abre el chat con el bot y envía <code>/start</code>:</p>` +
+        `<p><a href="${escapeHtml(telegramLink)}">Iniciar bot de Telegram</a></p>` +
+        `<p>Este enlace expira en 24 horas.</p>`
+      : '';
+    const guideSection = roleGuide
+      ? `<h3>Lo que harás como ${field(data, 'roleName')}</h3>` +
+        `<pre style="white-space:pre-wrap;font-family:sans-serif">${escapeHtml(roleGuide)}</pre>`
+      : '';
+    return baseHead + activate + telegramSection + guideSection + productFooter();
+  },
   'password-reset': (data) =>
     `<p>A password reset was requested for your account.</p><p><a href="${field(data, 'link')}">Reset your password</a></p><p>This link expires in 24 hours. If you did not request this, you can ignore this email.</p>${productFooter()}`,
   // MAIL A.2 — la verificación de cuenta. Datos: { otp, expiresMinutes }.

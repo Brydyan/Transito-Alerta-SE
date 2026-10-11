@@ -71,4 +71,14 @@ export class AdminUpdateUserDto {
   @IsOptional()
   @IsUUID()
   organization_id?: string;
+
+  /**
+   * 2026-10-10-user-onboarding-telegram-tour (D1) — department move.
+   * Same cross-row rule as in `AdminCreateUserDto`: the service
+   * validates that `dept.organization_id === target.organization_id`
+   * and forces `null` for global roles.
+   */
+  @IsOptional()
+  @IsUUID()
+  department_id?: string;
 }
