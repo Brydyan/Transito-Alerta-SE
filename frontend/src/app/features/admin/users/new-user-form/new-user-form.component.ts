@@ -29,6 +29,8 @@ import { ToastService } from '../../../../shared/components/toast/toast.service'
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
+import { GeoZoneService } from '../../../catalogs/locations/services/geo-zone.service';
+import { IGeoZoneFormData } from '../../../catalogs/locations/interfaces/igeo-zone.interface';
 
 const AVATAR_MIME_ALLOWED = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
@@ -66,12 +68,15 @@ export class NewUserFormComponent implements OnInit {
   private readonly dialogService = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
+  private readonly geoZoneService = inject(GeoZoneService);
 
   // ---- Estado del formulario (D-frontend-3) -------------------------
   readonly formData = signal<NewUserFormData>({ ...DEFAULT_NEW_USER_FORM });
   readonly roles = signal<ReadonlyArray<RoleOption>>([]);
   readonly organizations = signal<ReadonlyArray<Organization>>([]);
   readonly departments = signal<ReadonlyArray<Department>>([]);
+  /** sc-446 — active geo zones for the Alcance Territorial dropdown. */
+  readonly geoZones = signal<ReadonlyArray<IGeoZoneFormData['parents'][number]>>([]);
   readonly permissionsCatalog = signal<ReadonlyArray<string>>([]);
   readonly selectedRolePermissions = signal<RolePermissionsView>({ access: [], noAccess: [] });
 
@@ -145,6 +150,7 @@ export class NewUserFormComponent implements OnInit {
       d.organizationId !== null ||
       d.departmentId !== null ||
       d.roleId !== null ||
+      d.geoZoneId !== null ||
       this.pendingAvatar() !== null
     );
   });
@@ -181,6 +187,17 @@ export class NewUserFormComponent implements OnInit {
             'No se pudieron cargar los datos del formulario. Recargá la página para reintentar.',
           );
           this.isLoadingLookups.set(false);
+        },
+      });
+
+    // sc-446 — load geo zones in parallel; failure is non-fatal (dropdown stays disabled)
+    this.geoZoneService
+      .getFormData()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => this.geoZones.set(data.parents),
+        error: () => {
+          /* tolerar: el dropdown queda deshabilitado (geoZones vacío) */
         },
       });
   }
@@ -246,6 +263,11 @@ export class NewUserFormComponent implements OnInit {
   /** D1 — selección de departamento. */
   onDepartmentChange(departmentId: string | null): void {
     this.formData.update((d) => ({ ...d, departmentId }));
+  }
+
+  /** sc-446 — selección de zona geográfica (Alcance Territorial). */
+  onGeoZoneChange(geoZoneId: string | null): void {
+    this.formData.update((d) => ({ ...d, geoZoneId }));
   }
 
   onSendInvitationChange(value: boolean): void {
@@ -320,6 +342,7 @@ export class NewUserFormComponent implements OnInit {
       role_id: d.roleId,
       organization_id: d.organizationId,
       department_id: d.departmentId,
+      geo_zone_id: d.geoZoneId,
     };
 
     this.usersService

@@ -5,6 +5,10 @@
 
 BEGIN;
 
+-- ── 7) users.geo_zone_id — drop jurisdiction assignment ──────────────────
+DROP INDEX IF EXISTS idx_users_geo_zone_id;
+ALTER TABLE users DROP COLUMN IF EXISTS geo_zone_id;
+
 -- ── 6) T7.9.A — remove category seed and idempotency indexes ──────────────
 -- Leaves first (parent_id IS NOT NULL) so no FK from a leaf to a root is
 -- left dangling mid-statement (ON DELETE SET NULL makes order advisory but

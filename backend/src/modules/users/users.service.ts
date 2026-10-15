@@ -380,6 +380,7 @@ export class UsersService {
       phone: dto.phone ?? null,
       organizationId,
       departmentId,
+      geoZoneId: dto.geo_zone_id ?? null,
       roleId: dto.role_id ?? null,
       // F6 fix: el admin crea al user en estado `is_active: false`
       // ("pending"). El `is_active: true` original rompía el flow

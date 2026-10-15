@@ -9,6 +9,7 @@ import { InvitationsService } from '../services/invitations.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { NewUserFormData, RolePermissionsView, Department } from '../models/user.interface';
+import { GeoZoneService } from '../../../catalogs/locations/services/geo-zone.service';
 
 /**
  * F6 (`2026-09-08-f6-new-user-form`) — contrato del
@@ -41,6 +42,7 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
     warning: jest.Mock;
   };
   let mockDialogService: { confirm: jest.Mock };
+  let mockGeoZoneService: { getFormData: jest.Mock };
   let router: Router;
 
   /** Defaults de lookups: 2 roles sectoriales + 1 global + ciudadano + 1 org + 2 departamentos. */
@@ -72,6 +74,15 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
     mockInvitationsService = { invite: jest.fn().mockReturnValue(of({ id: 'inv-1' })) };
     mockToastService = { success: jest.fn(), error: jest.fn(), warning: jest.fn() };
     mockDialogService = { confirm: jest.fn() };
+    mockGeoZoneService = {
+      getFormData: jest.fn().mockReturnValue(of({
+        levels: ['provincia', 'canton', 'parroquia', 'zona'],
+        parents: [
+          { id: 'gz-1', name: 'Pichincha', code: '17', level: 'provincia' },
+          { id: 'gz-2', name: 'Quito', code: '17-01', level: 'canton' },
+        ],
+      })),
+    };
 
     await TestBed.configureTestingModule({
       imports: [NewUserFormComponent],
@@ -81,6 +92,7 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
         { provide: InvitationsService, useValue: mockInvitationsService },
         { provide: ToastService, useValue: mockToastService },
         { provide: ConfirmDialogService, useValue: mockDialogService },
+        { provide: GeoZoneService, useValue: mockGeoZoneService },
       ],
     }).compileComponents();
 
@@ -349,6 +361,7 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
         role_id: null,
         organization_id: null,
         department_id: null,
+        geo_zone_id: null,
       });
       expect(mockUsersService.uploadAvatar).toHaveBeenCalledWith('u-new', expect.any(File));
       expect(mockInvitationsService.invite).toHaveBeenCalledWith({
@@ -644,6 +657,66 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
       component.onSubmit();
       expect(mockUsersService.createUserJson).toHaveBeenCalledWith(
         expect.objectContaining({ department_id: 'd1', organization_id: 'o1' }),
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // sc-446 — Alcance Territorial: geoZones signal + onGeoZoneChange + payload
+  // -------------------------------------------------------------------
+  describe('sc-446 — Alcance Territorial (geoZones signal, handler, submit payload)', () => {
+    it('G1: GeoZoneService.getFormData() es llamado en ngOnInit y geoZones se puebla', () => {
+      init();
+      expect(mockGeoZoneService.getFormData).toHaveBeenCalledTimes(1);
+      expect(component.geoZones().length).toBe(2);
+      expect(component.geoZones()[0].id).toBe('gz-1');
+    });
+
+    it('G2: geoZones signal contiene los parents de getFormData()', () => {
+      init();
+      expect(component.geoZones()[1].name).toBe('Quito');
+    });
+
+    it('G3: onGeoZoneChange actualiza formData().geoZoneId', () => {
+      init();
+      component.onGeoZoneChange('gz-1');
+      expect(component.formData().geoZoneId).toBe('gz-1');
+    });
+
+    it('G3b: onGeoZoneChange con null limpia geoZoneId', () => {
+      init();
+      component.onGeoZoneChange('gz-1');
+      component.onGeoZoneChange(null);
+      expect(component.formData().geoZoneId).toBeNull();
+    });
+
+    it('G4: onSubmit incluye geo_zone_id en el payload cuando hay zona seleccionada', () => {
+      init();
+      component.formData.update((d) => ({
+        ...d,
+        firstName: 'Juan',
+        lastName: 'Pérez',
+        email: 'juan@municipio.gob.ec',
+        geoZoneId: 'gz-2',
+      }));
+      component.onSubmit();
+      expect(mockUsersService.createUserJson).toHaveBeenCalledWith(
+        expect.objectContaining({ geo_zone_id: 'gz-2' }),
+      );
+    });
+
+    it('G5: onSubmit incluye geo_zone_id: null cuando no hay zona seleccionada', () => {
+      init();
+      component.formData.update((d) => ({
+        ...d,
+        firstName: 'Juan',
+        lastName: 'Pérez',
+        email: 'juan@municipio.gob.ec',
+        geoZoneId: null,
+      }));
+      component.onSubmit();
+      expect(mockUsersService.createUserJson).toHaveBeenCalledWith(
+        expect.objectContaining({ geo_zone_id: null }),
       );
     });
   });

@@ -234,4 +234,20 @@ SELECT gen_random_uuid(), l.name, p.id, now(), now()
   JOIN parents p ON p.name = l.parent_name
 ON CONFLICT (name, parent_id) WHERE parent_id IS NOT NULL DO NOTHING;
 
+-- ════════════════════════════════════════════════════════════════════════
+-- 7) sc-446 follow-up — users.geo_zone_id (Alcance Territorial)
+--
+--    Links a staff user to their operational geo zone (canton/parroquia).
+--    Optional: not all roles require a jurisdiction assignment.
+--    ON DELETE SET NULL: removing a geo zone does not cascade to users.
+--    Requires 0002 (geo_zones table).
+-- ════════════════════════════════════════════════════════════════════════
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS geo_zone_id uuid NULL
+    REFERENCES geo_zones (id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_users_geo_zone_id
+  ON users (geo_zone_id)
+  WHERE geo_zone_id IS NOT NULL;
+
 COMMIT;

@@ -52,3 +52,39 @@ describe('AdminCreateUserDto (F6 D1 — phone field)', () => {
     expect(errors).toHaveLength(0);
   });
 });
+
+/**
+ * sc-446 (Alcance Territorial) — `geo_zone_id` optional UUID field.
+ * RED: these tests fail until the field is added to the DTO.
+ */
+describe('AdminCreateUserDto (sc-446 — geo_zone_id field)', () => {
+  async function validateDto(payload: Record<string, unknown>) {
+    const dto = plainToInstance(AdminCreateUserDto, payload);
+    const errors = await validate(dto);
+    return errors;
+  }
+
+  it('accepts a valid UUID for geo_zone_id', async () => {
+    const errors = await validateDto({
+      email: 'juan@municipio.ec',
+      geo_zone_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    });
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects a non-UUID string for geo_zone_id with a UUID validation error', async () => {
+    const errors = await validateDto({
+      email: 'juan@municipio.ec',
+      geo_zone_id: 'not-a-uuid',
+    });
+    const geoZoneError = errors.find((e) => e.property === 'geo_zone_id');
+    expect(geoZoneError).toBeDefined();
+    expect(geoZoneError!.constraints).toHaveProperty('isUuid');
+  });
+
+  it('accepts a payload without geo_zone_id (field is optional)', async () => {
+    const errors = await validateDto({ email: 'juan@municipio.ec' });
+    const geoZoneError = errors.find((e) => e.property === 'geo_zone_id');
+    expect(geoZoneError).toBeUndefined();
+  });
+});

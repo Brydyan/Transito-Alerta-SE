@@ -700,4 +700,40 @@ describe('UsersService', () => {
       expect(createArg.departmentId).toBeNull();
     });
   });
+
+  // sc-446 — adminCreate() must pass geo_zone_id from DTO to entity
+  describe('adminCreate() — geo_zone_id pass-through (sc-446)', () => {
+    it('passes geo_zone_id to userRepo.create() when provided in the DTO', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-master',
+        name: 'master',
+        permissions: [],
+      });
+
+      await service.adminCreate({
+        email: 'geo@municipio.ec',
+        role_id: 'role-master',
+        geo_zone_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+      });
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.geoZoneId).toBe('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+    });
+
+    it('passes geoZoneId: null to userRepo.create() when geo_zone_id is absent', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-master',
+        name: 'master',
+        permissions: [],
+      });
+
+      await service.adminCreate({
+        email: 'nogeo@municipio.ec',
+        role_id: 'role-master',
+      });
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.geoZoneId).toBeNull();
+    });
+  });
 });

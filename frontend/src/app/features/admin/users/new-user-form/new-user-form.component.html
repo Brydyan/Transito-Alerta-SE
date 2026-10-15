@@ -310,11 +310,15 @@
           <select
             id="new-user-canton"
             class="form-control"
-            disabled
-            title="Disponible en F7"
             data-testid="select-canton"
+            [disabled]="geoZones().length === 0"
+            [value]="formData().geoZoneId ?? ''"
+            (change)="onGeoZoneChange($any($event.target).value || null)"
           >
-            <option>Seleccionar lugar...</option>
+            <option value="" disabled>Seleccionar lugar...</option>
+            @for (zone of geoZones(); track zone.id) {
+              <option [value]="zone.id">{{ zone.name }}</option>
+            }
           </select>
         </div>
         <div>

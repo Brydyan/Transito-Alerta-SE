@@ -48,6 +48,14 @@ export class AdminCreateUserDto {
   @IsUUID()
   role_id?: string;
 
+  /**
+   * sc-446 (Alcance Territorial) — optional FK to `geo_zones`. Accepts any
+   * active geo zone UUID; no role-based restriction. NULL when omitted.
+   */
+  @IsOptional()
+  @IsUUID()
+  geo_zone_id?: string;
+
   @IsOptional()
   @IsString()
   @MinLength(2)
