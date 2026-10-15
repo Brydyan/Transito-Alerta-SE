@@ -14,7 +14,7 @@ import { Route } from '@angular/router';
  * Ref: design.md D1 (per-route guard pattern) and D2 (permission string table).
  */
 
-function findRoute(tree: Route[], ...segments: string[]): Route | undefined {
+function _findRoute(tree: Route[], ...segments: string[]): Route | undefined {
   let current: Route[] = tree;
   let found: Route | undefined;
 
