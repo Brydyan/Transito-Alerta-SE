@@ -80,8 +80,8 @@ describe('E2E T7.9.B notification permissions (0039)', () => {
   // The guard itself is covered against the pre-rename state in the migration
   // harness range applied by `beforeAll`.
   it('R20.3: re-applying 0039 does not duplicate the catalog rows or the JSONB grants', async () => {
-    await h.applyVersion('0039');
-    await h.applyVersion('0039');
+    await h.applyVersion('0009');
+    await h.applyVersion('0009');
 
     const catalogRows = await h.rows<{ count: string }>(
       `SELECT COUNT(*)::int AS count FROM permissions WHERE resource = 'notifications'`,

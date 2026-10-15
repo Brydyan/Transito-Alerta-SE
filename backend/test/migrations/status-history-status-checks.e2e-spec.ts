@@ -49,12 +49,13 @@ describe('QA SC-405 — 0020 incident_state_machine (status_history checks)', ()
     // defecto, con los CHECK estrechos de 0014.
     await db.applyRange({ from: '0001', to: '0019' });
 
-    // `incidents` sólo exige title y location (geometry). El actor queda
-    // NULL porque `changed_by_user_id` es nullable (FK ON DELETE SET NULL).
+    // `incidents` exige title, location, y citizen_id (NOT NULL hasta 0022).
+    // El actor queda NULL porque `changed_by_user_id` es nullable (FK ON DELETE SET NULL).
     const [incident] = await db.rows<{ id: string }>(
-      `INSERT INTO incidents (title, location)
+      `INSERT INTO incidents (title, location, citizen_id)
        VALUES ('[0020] incidente de prueba',
-               ST_SetSRID(ST_MakePoint(-80.8, -2.2), 4326))
+               ST_SetSRID(ST_MakePoint(-80.8, -2.2), 4326),
+               (SELECT id FROM users WHERE device_uuid = 'anonymous'))
        RETURNING id`,
     );
     incidentId = incident.id;

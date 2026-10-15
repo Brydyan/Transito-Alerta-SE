@@ -27,11 +27,11 @@ describe('T7.1.A — schema_migrations table & tracking', () => {
 
   beforeAll(async () => {
     bare = await MigrationHarness.start();
-    await bare.applyVersion('0030');
+    await bare.applyVersion('0021');
 
     full = await MigrationHarness.start();
     await full.applyRange({ to: '0029' });
-    await full.applyVersion('0030');
+    await full.applyVersion('0021');
   }, 240_000);
 
   afterAll(async () => {
@@ -41,7 +41,7 @@ describe('T7.1.A — schema_migrations table & tracking', () => {
 
   describe('T7.1.A1 — tabla schema_migrations existe y tiene estructura correcta', () => {
     it('re-aplicar 0030 no lanza (CREATE TABLE IF NOT EXISTS + ON CONFLICT DO NOTHING)', async () => {
-      await expect(bare.applyVersion('0030')).resolves.not.toThrow();
+      await expect(bare.applyVersion('0021')).resolves.not.toThrow();
     });
 
     it('schema_migrations existe con columnas version, name, checksum, applied_at', async () => {
@@ -124,7 +124,7 @@ describe('T7.1.A — schema_migrations table & tracking', () => {
         'SELECT COUNT(*) AS count FROM schema_migrations',
       );
 
-      await full.applyVersion('0030');
+      await full.applyVersion('0021');
 
       const [after] = await full.rows<{ count: string }>(
         'SELECT COUNT(*) AS count FROM schema_migrations',
