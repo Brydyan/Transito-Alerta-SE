@@ -82,7 +82,7 @@ describe('DepartmentsRepository', () => {
 
   describe('existsByOrgAndName', () => {
     it('returns true when a non-deleted row matches', async () => {
-      dataSource.query.mockResolvedValue([{ exists: true }]);
+      dataSource.query.mockResolvedValue([{ found: true }]);
       const result = await repository.existsByOrgAndName('org-1', 'Traffic');
       const [sql, params] = dataSource.query.mock.calls[0];
       expect(sql).toContain('EXISTS');
@@ -94,16 +94,16 @@ describe('DepartmentsRepository', () => {
     });
 
     it('returns false when no match', async () => {
-      dataSource.query.mockResolvedValue([{ exists: false }]);
+      dataSource.query.mockResolvedValue([{ found: false }]);
       const result = await repository.existsByOrgAndName('org-1', 'Unknown');
       expect(result).toBe(false);
     });
 
     it('returns false when the row is soft-deleted (excluded from EXISTS)', async () => {
-      dataSource.query.mockResolvedValue([{ exists: false }]);
+      dataSource.query.mockResolvedValue([{ found: false }]);
       const result = await repository.existsByOrgAndName('org-1', 'Deleted');
       // The WHERE clause includes `deleted_at IS NULL`; the result shape
-      // would have `exists: true` only if a live row matched.
+      // would have `found: true` only if a live row matched.
       expect(result).toBe(false);
     });
   });
