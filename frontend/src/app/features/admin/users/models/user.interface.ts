@@ -241,7 +241,7 @@ export interface UpdateUserPayload {
 export interface Organization {
   readonly id: string;
   readonly nombre: string;
-  readonly zoneId: string | null;
+  readonly zoneId?: string | null;
 }
 
 /**
