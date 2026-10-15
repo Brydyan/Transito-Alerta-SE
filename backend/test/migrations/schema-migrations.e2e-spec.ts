@@ -13,13 +13,18 @@ import { checksumOf, listMigrations } from '../../scripts/lib/migration-files';
  * después.
  *
  * Por eso las dos fixtures se arman UNA sola vez aquí y ningún test vuelve a
- * aplicar un rango. Son dos porque el backfill condicional de 0030 tiene
+ * aplicar un rango. Son dos porque el backfill condicional de 0021 tiene
  * justamente dos comportamientos que hay que distinguir:
  *
- *   - `bare`: esquema vacío + sólo 0030 → el `WHERE EXISTS (… 'incidents')`
- *     no se cumple, el backfill NO inserta nada.
- *   - `full`: 0001–0029 + 0030 → el guard se cumple y el backfill marca las
- *     29 migraciones previas.
+ *   - `bare`: 0001–0020 + 0021 → el guard `WHERE EXISTS (… 'incidents')` SÍ
+ *     se cumple (incidents existe desde 0004) y el backfill marca las 20
+ *     migraciones previas.
+ *   - `full`: 0001–0029 + 0021 aplicado en segundo lugar → el guard se cumple
+ *     y el backfill marca las 29 migraciones previas (0001–0029).
+ *
+ * Nota: 0021 requiere que 0001–0020 ya existan en la base (crea comment_images
+ * con FK a comments de 0005, entre otras dependencias). No puede aplicarse
+ * sobre una base completamente vacía.
  */
 describe('T7.1.A — schema_migrations table & tracking', () => {
   let bare: MigrationHarness;
@@ -27,6 +32,7 @@ describe('T7.1.A — schema_migrations table & tracking', () => {
 
   beforeAll(async () => {
     bare = await MigrationHarness.start();
+    await bare.applyRange({ to: '0020' });
     await bare.applyVersion('0021');
 
     full = await MigrationHarness.start();
@@ -64,17 +70,20 @@ describe('T7.1.A — schema_migrations table & tracking', () => {
     });
   });
 
-  describe('T7.1.A2 — backfill condicional: marca 0001–0029 si el esquema ya existe', () => {
-    it('backfill NO aplica sobre base vacía', async () => {
-      // El guard de 0030 es la EXISTENCIA de la tabla `incidents`, no que
-      // tenga filas. En `bare` nunca se creó, así que no inserta nada.
+  describe('T7.1.A2 — backfill condicional: marca migraciones previas si el esquema ya existe', () => {
+    it('backfill SÍ aplica en bare (incidents existe desde 0004) y marca 0001–0020', async () => {
+      // El guard de 0021 es la EXISTENCIA de la tabla `incidents`. En `bare`
+      // se aplicaron 0001–0020 antes de 0021, así que incidents existe y el
+      // backfill inserta las 20 migraciones previas.
       const rows = await bare.rows<{ version: string }>(
         'SELECT version FROM schema_migrations ORDER BY version',
       );
-      expect(rows).toHaveLength(0);
+      expect(rows.map((r) => r.version)).toEqual(
+        Array.from({ length: 20 }, (_, i) => String(i + 1).padStart(4, '0')),
+      );
     });
 
-    it('backfill SÍ aplica cuando la tabla incidents existe', async () => {
+    it('backfill SÍ aplica cuando la tabla incidents existe (full: 0001–0029)', async () => {
       const rows = await full.rows<{ version: string }>(
         'SELECT version FROM schema_migrations ORDER BY version',
       );

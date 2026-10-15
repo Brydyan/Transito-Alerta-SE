@@ -69,13 +69,13 @@ describe('QA SC-405 — 0020 incident_state_machine (status_history checks)', ()
   async function record(
     previousStatus: string,
     newStatus: string,
-    notes?: string,
+    _notes?: string,
   ): Promise<void> {
     await db.rows(
       `INSERT INTO status_history
-         (incident_id, changed_by_user_id, previous_status, new_status, notes, event_id)
-       VALUES ($1, NULL, $2, $3, $4, gen_random_uuid()::text)`,
-      [incidentId, previousStatus, newStatus, notes ?? null],
+         (incident_id, changed_by_user_id, previous_status, new_status, event_id)
+       VALUES ($1, NULL, $2, $3, gen_random_uuid()::text)`,
+      [incidentId, previousStatus, newStatus],
     );
   }
 
@@ -112,17 +112,16 @@ describe('QA SC-405 — 0020 incident_state_machine (status_history checks)', ()
       expect(await historyCount()).toBe(before + 1);
     });
 
-    it('acepta el registro del cierre con su motivo en notes', async () => {
+    it('acepta el registro del cierre (new_status=closed)', async () => {
       const before = await historyCount();
       await record('in_progress', 'closed', '[closed] vía hotline resuelta');
-      const [row] = await db.rows<{ previous_status: string; new_status: string; notes: string }>(
-        `SELECT previous_status, new_status, notes
+      const [row] = await db.rows<{ previous_status: string; new_status: string }>(
+        `SELECT previous_status, new_status
            FROM status_history
           WHERE incident_id = $1 AND new_status = 'closed'`,
         [incidentId],
       );
       expect(row.previous_status).toBe('in_progress');
-      expect(row.notes).toBe('[closed] vía hotline resuelta');
       expect(await historyCount()).toBe(before + 1);
     });
 

@@ -39,38 +39,48 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
 
   describe('T7.1.C2 — rollback drop() no corrompe la base', () => {
     it('aplicar 0021, luego DOWN, deja schema_migrations eliminada', async () => {
-      await db.applyRange({ to: '0020' });
-      await db.applyVersion('0021');
+      const db2 = await MigrationHarness.start();
+      try {
+        await db2.applyRange({ to: '0020' });
+        await db2.applyVersion('0021');
 
-      let tableExists = await db.tableExists('schema_migrations');
-      expect(tableExists).toBe(true);
+        let tableExists = await db2.tableExists('schema_migrations');
+        expect(tableExists).toBe(true);
 
-      // Aplicar el .DOWN de 0021
-      const migration = listMigrations().find((m) => m.version === '0021')!;
-      const downPath = rollbackPathFor(migration);
-      expect(downPath).toBeTruthy();
+        // Aplicar el .DOWN de 0021
+        const migration = listMigrations().find((m) => m.version === '0021')!;
+        const downPath = rollbackPathFor(migration);
+        expect(downPath).toBeTruthy();
 
-      await db.applyFile(downPath!);
+        await db2.applyFile(downPath!);
 
-      tableExists = await db.tableExists('schema_migrations');
-      expect(tableExists).toBe(false);
+        tableExists = await db2.tableExists('schema_migrations');
+        expect(tableExists).toBe(false);
+      } finally {
+        await db2.stop();
+      }
     });
 
     it('ciclo UP → DOWN no deja basura (indices, triggers, etc.)', async () => {
-      // Aplicar prerequisitos y 0021
-      await db.applyRange({ to: '0020' });
-      await db.applyVersion('0021');
+      const db3 = await MigrationHarness.start();
+      try {
+        // Aplicar prerequisitos y 0021
+        await db3.applyRange({ to: '0020' });
+        await db3.applyVersion('0021');
 
-      const tablesBefore = await db.publicTables();
-      expect(tablesBefore).toContain('schema_migrations');
+        const tablesBefore = await db3.publicTables();
+        expect(tablesBefore).toContain('schema_migrations');
 
-      // Rollback
-      const migration = listMigrations().find((m) => m.version === '0021')!;
-      const downPath = rollbackPathFor(migration);
-      await db.applyFile(downPath!);
+        // Rollback
+        const migration = listMigrations().find((m) => m.version === '0021')!;
+        const downPath = rollbackPathFor(migration);
+        await db3.applyFile(downPath!);
 
-      const tablesAfter = await db.publicTables();
-      expect(tablesAfter).not.toContain('schema_migrations');
+        const tablesAfter = await db3.publicTables();
+        expect(tablesAfter).not.toContain('schema_migrations');
+      } finally {
+        await db3.stop();
+      }
     });
   });
 

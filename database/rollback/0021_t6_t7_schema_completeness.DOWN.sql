@@ -2,8 +2,9 @@
 -- Reverts Group F consolidation in reverse section order: 9→8→7→6→5→4→3→2→1
 --
 -- Ownership notes (columns NOT dropped here because they predate this group):
---   users.updated_at, incidents.updated_at, incident_categories.updated_at
---     — owned by 0001, 0004, 0012 respectively.
+--   users.updated_at              — owned by 0001
+--   incidents.updated_at          — owned by 0004
+--   incident_categories.updated_at — owned by 0012
 --   idx_user_sessions_active (0016's revoked_at semantics) — NOT owned here
 --     even though section 8 recreated it by the same name.
 
@@ -35,7 +36,7 @@ ALTER TABLE password_reset_tokens DROP COLUMN IF EXISTS updated_at;
 ALTER TABLE invitations        DROP COLUMN IF EXISTS updated_at;
 ALTER TABLE permissions        DROP COLUMN IF EXISTS updated_at;
 ALTER TABLE roles              DROP COLUMN IF EXISTS updated_at;
-ALTER TABLE incident_categories DROP COLUMN IF EXISTS updated_at;
+-- Intentionally NOT dropped: incident_categories.updated_at (0012)
 ALTER TABLE geo_zones          DROP COLUMN IF EXISTS updated_at;
 ALTER TABLE organizations      DROP COLUMN IF EXISTS updated_at;
 ALTER TABLE notifications      DROP COLUMN IF EXISTS updated_at;

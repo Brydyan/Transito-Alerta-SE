@@ -49,7 +49,7 @@ describe('E2E T7.9.A reference data — incident category tree (0038)', () => {
 
   beforeAll(async () => {
     h = await MigrationHarness.start();
-    await h.applyRange({ to: '0021' });
+    await h.applyRange({ to: '0022' });
   }, 120_000);
 
   afterAll(async () => {
