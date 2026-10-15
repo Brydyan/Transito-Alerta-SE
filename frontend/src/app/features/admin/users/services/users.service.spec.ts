@@ -92,6 +92,7 @@ describe('UsersService (F6 new-user-form)', () => {
       role_id: 'r1',
       organization_id: 'o1',
       department_id: 'd1',
+      geo_zone_id: null,
     };
     service.createUserJson(payload).subscribe((user) => {
       expect(user).toEqual({ id: 'new-id', email: payload.email });
