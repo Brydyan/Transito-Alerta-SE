@@ -28,7 +28,7 @@ export class RoleEntity {
   /**
    * F5 (0054) — scope groups roles into three blocks for the menu
    * admin matrix: 'platform', 'organization', 'public'.
-   * CHECK constraint in 0054_dynamic_menus_schema.sql enforces valid values.
+   * CHECK constraint in 0028_dynamic_menus_schema.sql enforces valid values.
    */
   @Column({ type: 'varchar', default: 'organization' })
   scope!: string;

@@ -28,13 +28,13 @@ const REPO_ROOT = resolve(__dirname, '../../..');
 const RUNBOOK_PATH = join(REPO_ROOT, 'docs/runbooks/cutover.md');
 const QUERIES_PATH = join(REPO_ROOT, 'database/monitoring/queries.sql');
 const SCRIPT_PATH = join(REPO_ROOT, 'backend/scripts/cutover-rehearsal.sh');
-const MIGRATION_0042_PATH = join(
+const MIGRATION_0024_PATH = join(
   REPO_ROOT,
-  'database/migrations/0042_monitoring_helpers.sql',
+  'database/migrations/0024_monitoring_helpers.sql',
 );
-const DOWN_0042_PATH = join(
+const DOWN_0024_PATH = join(
   REPO_ROOT,
-  'database/rollback/0042_monitoring_helpers.DOWN.sql',
+  'database/rollback/0024_monitoring_helpers.DOWN.sql',
 );
 
 describe('E2E T8 D8.3 cutover validation', () => {
@@ -42,15 +42,15 @@ describe('E2E T8 D8.3 cutover validation', () => {
 
   beforeAll(async () => {
     env = await TestEnvironment.start();
-    // Apply 0042 on top of what TestEnvironment already applied
-    // (0001..0041). The test-environment harness is hard-coded to
-    // read from `database/migrations/`, so 0042 is just the next
+    // Apply 0024 on top of what TestEnvironment already applied
+    // (0001..0023). The test-environment harness is hard-coded to
+    // read from `database/migrations/`, so 0024 is just the next
     // file in lexicographic order — by the time T8 lands, the
     // harness naturally picks it up. We re-apply it explicitly
     // here to keep this spec self-contained against the
-    // pre-T8-test-environment that only ran 0001..0041.
-    const migration0042 = readFileSync(MIGRATION_0042_PATH, 'utf8');
-    await env.pg.query(migration0042);
+    // pre-T8-test-environment that only ran 0001..0023.
+    const migration0024 = readFileSync(MIGRATION_0024_PATH, 'utf8');
+    await env.pg.query(migration0024);
   }, 180_000);
 
   afterAll(async () => {
@@ -233,8 +233,8 @@ describe('E2E T8 D8.3 cutover validation', () => {
       }
     });
 
-    it('the DOWN of 0042 drops the 6 functions (idempotent, reversible per D8)', async () => {
-      const down = readFileSync(DOWN_0042_PATH, 'utf8');
+    it('the DOWN of 0024 drops the 6 functions (idempotent, reversible per D8)', async () => {
+      const down = readFileSync(DOWN_0024_PATH, 'utf8');
       // The DOWN must have 6 DROP FUNCTION statements on actual
       // SQL lines (not inside `--` comments). Filter to lines that
       // start with DROP (after trimming whitespace) so a comment

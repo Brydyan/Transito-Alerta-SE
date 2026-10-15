@@ -4,7 +4,7 @@ import { MigrationHarness } from '../support/migration-harness';
 import { rollbackPathFor, listMigrations } from '../../scripts/lib/migration-files';
 
 /**
- * T7.9.C4 — migración 0041 (geografía de Santa Elena + organización semilla).
+ * T7.9.C4 — migración 0023 (geografía de Santa Elena + organización semilla).
  * Ejercita R21.0–R21.5 (specs/database-schema/spec.md) contra Postgres real
  * vía `MigrationHarness` — controla exactamente qué rango de migraciones se
  * aplica (design.md D4/D5), nunca fixtures `ST_MakeEnvelope`: R21.3 sólo es
@@ -16,7 +16,7 @@ import { rollbackPathFor, listMigrations } from '../../scripts/lib/migration-fil
  * bordes entre fuentes distintas (parroquias de OSM, cantones de la
  * migración inmutable 0003).
  */
-describe('T7.9.C4 — geography + organizations seed (migración 0041)', () => {
+describe('T7.9.C4 — geography + organizations seed (migración 0023)', () => {
   let db: MigrationHarness;
 
   const SEEDED_IDS = {
@@ -30,7 +30,7 @@ describe('T7.9.C4 — geography + organizations seed (migración 0041)', () => {
 
   beforeAll(async () => {
     db = await MigrationHarness.start();
-    await db.applyRange({ to: '0041' });
+    await db.applyRange({ to: '0023' });
   }, 180_000);
 
   afterAll(async () => {
@@ -143,13 +143,13 @@ describe('T7.9.C4 — geography + organizations seed (migración 0041)', () => {
     expect(zone.code).toBe('EC-24-01');
   });
 
-  it('R21.5 — re-aplicar 0041 no cambia los conteos de geo_zones ni organizations', async () => {
+  it('R21.5 — re-aplicar 0023 no cambia los conteos de geo_zones ni organizations', async () => {
     const [before] = await db.rows<{ geo: string; orgs: string }>(
       `SELECT (SELECT count(*) FROM geo_zones)::text AS geo,
               (SELECT count(*) FROM organizations)::text AS orgs`,
     );
 
-    await db.applyVersion('0041');
+    await db.applyVersion('0023');
 
     const [after] = await db.rows<{ geo: string; orgs: string }>(
       `SELECT (SELECT count(*) FROM geo_zones)::text AS geo,
@@ -166,23 +166,23 @@ describe('T7.9.C4 — geography + organizations seed (migración 0041)', () => {
  * pattern que `backend/test/migrations/rollback-cycle.e2e-spec.ts`. Tests
  * ordenados deliberadamente: primero el guard (no muta estado permanente, se
  * limpia en el propio test), luego el DOWN real al final del archivo — deja
- * la base sin las filas de 0041, así que debe ser el último consumidor del
+ * la base sin las filas de 0023, así que debe ser el último consumidor del
  * harness compartido.
  */
-describe('T7.9.C6/C7 — 0041 rollback: guard ruidoso, orden inverso, sin residuos', () => {
+describe('T7.9.C6/C7 — 0023 rollback: guard ruidoso, orden inverso, sin residuos', () => {
   let db: MigrationHarness;
-  const downPath = rollbackPathFor(listMigrations().find((m) => m.version === '0041')!)!;
+  const downPath = rollbackPathFor(listMigrations().find((m) => m.version === '0023')!)!;
 
   beforeAll(async () => {
     db = await MigrationHarness.start();
-    await db.applyRange({ to: '0041' });
+    await db.applyRange({ to: '0023' });
   }, 180_000);
 
   afterAll(async () => {
     await db.stop();
   });
 
-  it('0041_geography_organizations_seed.DOWN.sql existe', () => {
+  it('0023_t7_data_migrations.DOWN.sql existe', () => {
     expect(downPath).toBeTruthy();
   });
 
@@ -198,7 +198,7 @@ describe('T7.9.C6/C7 — 0041 rollback: guard ruidoso, orden inverso, sin residu
       [deviceUuid, org.id],
     );
 
-    await expect(db.applyFile(downPath)).rejects.toThrow(/cannot rollback 0041/);
+    await expect(db.applyFile(downPath)).rejects.toThrow(/cannot rollback/);
 
     // The file's own BEGIN was issued before the RAISE EXCEPTION aborted
     // the multi-statement simple-protocol query — Postgres leaves the
@@ -211,7 +211,7 @@ describe('T7.9.C6/C7 — 0041 rollback: guard ruidoso, orden inverso, sin residu
     await db.client.query('DELETE FROM users WHERE device_uuid = $1', [deviceUuid]);
   });
 
-  it('el DOWN, en orden inverso y una sola transacción, restaura el estado previo a 0041 sin residuos', async () => {
+  it('el DOWN, en orden inverso y una sola transacción, restaura el estado previo a 0023 sin residuos', async () => {
     await db.applyFile(downPath);
 
     const orgs = await db.rows<{ count: string }>(
@@ -239,7 +239,7 @@ describe('T7.9.C6/C7 — 0041 rollback: guard ruidoso, orden inverso, sin residu
 
     // The 4 preexisting province/canton rows themselves must survive — the
     // DOWN only nulls their `code`, it never deletes them (they predate
-    // 0041's ownership).
+    // 0023's ownership).
     const survivors = await db.rows<{ count: string }>(
       `SELECT count(*)::text AS count FROM geo_zones WHERE id IN (
          '8f14e45f-ceea-4c1f-8f2c-000000000024',
@@ -251,8 +251,8 @@ describe('T7.9.C6/C7 — 0041 rollback: guard ruidoso, orden inverso, sin residu
     expect(Number(survivors[0].count)).toBe(4);
   });
 
-  it('re-aplicar 0041 tras el DOWN reconstruye exactamente el mismo estado (ciclo completo)', async () => {
-    await db.applyVersion('0041');
+  it('re-aplicar 0023 tras el DOWN reconstruye exactamente el mismo estado (ciclo completo)', async () => {
+    await db.applyVersion('0023');
 
     const orgs = await db.rows<{ count: string }>(
       `SELECT count(*)::text AS count FROM organizations WHERE name = 'CTE - Santa Elena'`,

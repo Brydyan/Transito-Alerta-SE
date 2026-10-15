@@ -62,13 +62,13 @@ describe('QA SC-405 — 0067 restore_anonymous_mask', () => {
       await expect(db.rows(`SELECT id FROM users WHERE device_uuid = 'anonymous'`))
         .resolves.toHaveLength(0);
 
-      await db.applyVersion('0067');
+      await db.applyVersion('0025');
 
       await expectCanonicalMaskRow();
     });
 
     it('re-aplicar 0067 es idempotente (no duplica, no desvía)', async () => {
-      await db.applyVersion('0067');
+      await db.applyVersion('0025');
       const [{ count }] = await db.rows<{ count: string }>(
         `SELECT COUNT(*) AS count FROM users WHERE device_uuid = 'anonymous'`,
       );
@@ -86,7 +86,7 @@ describe('QA SC-405 — 0067 restore_anonymous_mask', () => {
                 updated_at = now()
           WHERE device_uuid = 'anonymous'`,
       );
-      await db.applyVersion('0067');
+      await db.applyVersion('0025');
       await expectCanonicalMaskRow();
     });
 
@@ -97,7 +97,7 @@ describe('QA SC-405 — 0067 restore_anonymous_mask', () => {
                 updated_at  = now()
           WHERE device_uuid = 'anonymous'`,
       );
-      await db.applyVersion('0067');
+      await db.applyVersion('0025');
       await expectCanonicalMaskRow();
     });
 
@@ -107,7 +107,7 @@ describe('QA SC-405 — 0067 restore_anonymous_mask', () => {
             SET role_id = (SELECT id FROM roles WHERE name = 'reporter' LIMIT 1)
           WHERE device_uuid = 'anonymous'`,
       );
-      await db.applyVersion('0067');
+      await db.applyVersion('0025');
       await expectCanonicalMaskRow();
     });
   });

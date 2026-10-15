@@ -125,7 +125,8 @@ export class UserEntity {
 
   /**
    * 2026-10-10-user-onboarding-telegram-tour (D1) — FK to `departments`.
-   * The column was created by `0056_departments.sql` with
+<<<<<<< HEAD
+   * The column was created by `0030_departments.sql` with
    * `ON DELETE SET NULL`, but until this change the entity had no
    * mapping, so the DTOs and the form could not persist the value.
    * Required for `admin_org` / `operador_org`; forced `null` for
@@ -135,7 +136,15 @@ export class UserEntity {
   @Column({ name: 'department_id', type: 'uuid', nullable: true, default: null })
   departmentId!: string | null;
 
-  /** T7.6 (0035) — present in legacy since `create_users_table`. Wiped by the GDPR soft delete. */
+  /**
+   * sc-446 (Alcance Territorial) — FK to `geo_zones`. Optional on all roles.
+   * Column added by migration 0022 section 7 with `ON DELETE SET NULL`.
+   * NULL = no territorial assignment.
+   */
+  @Column({ name: 'geo_zone_id', type: 'uuid', nullable: true, default: null })
+  geoZoneId!: string | null;
+
+  /** T7.6 (0022) — present in legacy since `create_users_table`. Wiped by the GDPR soft delete. */
   @Column({ type: 'varchar', length: 30, nullable: true })
   phone!: string | null;
 

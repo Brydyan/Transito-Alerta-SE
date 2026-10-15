@@ -1,6 +1,10 @@
 -- 0012_incident_categories.sql
 -- Transito Alerta SE — Incident Categories module (T3.7)
 --
+-- Group C consolidation (2026-10-14): fused column additions from:
+--   0062_incident_category_description — ADD COLUMN description
+--   0065_incident_category_priority    — ADD COLUMN priority
+--
 -- MANUAL EXECUTION ONLY — see 0001_initial_schema.sql header.
 --
 -- Adjacency-list table (design D1/D2): flat self-FK `parent_id`, no
@@ -17,12 +21,22 @@
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS incident_categories (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name       varchar(255) NOT NULL,
-  parent_id  uuid REFERENCES incident_categories (id) ON DELETE SET NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        varchar(255) NOT NULL,
+  parent_id   uuid        REFERENCES incident_categories (id) ON DELETE SET NULL,
+  description text        NULL,
+  priority    varchar(16) NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
 );
+
+COMMENT ON COLUMN incident_categories.description IS
+  'Optional free-text description. NOT exposed via /api/menus/my or /api/incidents. '
+  'Read by /api/incident-categories/{id} responses and surfaced in the admin form.';
+
+COMMENT ON COLUMN incident_categories.priority IS
+  'Default priority for incidents filed under this sub-category. '
+  'NULL on root categories. Application enforces non-NULL on subs.';
 
 CREATE INDEX IF NOT EXISTS idx_incident_categories_parent_id
   ON incident_categories (parent_id);
@@ -35,10 +49,7 @@ CREATE INDEX IF NOT EXISTS idx_incidents_category_id
 
 -- Permission catalog (design D5): resource is the HYPHENATED
 -- 'incident-categories', matching PermissionGuard's inferResourceFromPath
--- off the real route segment (/api/incident-categories/...). Purely
--- informational catalog row — PermissionGuard compares the flat
--- "ACTION resource" string on the caller's own permission set, never this
--- table — but it must match exactly or nothing here is ever grantable.
+-- off the real route segment (/api/incident-categories/...).
 INSERT INTO permissions (resource, action) VALUES
   ('incident-categories', 'READ'),
   ('incident-categories', 'CREATE'),

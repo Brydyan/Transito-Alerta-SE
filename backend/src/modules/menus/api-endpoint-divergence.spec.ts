@@ -3,7 +3,7 @@ import * as path from 'node:path';
 
 /**
  * F5.5.7 — Divergence test (D5): the `api_endpoints` seed in migration
- * 0054 must match the registered routes in the application.
+ * 0028 must match the registered routes in the application.
  *
  * Strategy: read the migration SQL, extract all (method, path) pairs from
  * the INSERT statement, and verify they cover the routes we expect from
@@ -27,7 +27,7 @@ interface SeededEndpoint {
 function parseSeededEndpoints(): SeededEndpoint[] {
   const migrationPath = path.resolve(
     __dirname,
-    '../../../../database/migrations/0054_dynamic_menus_schema.sql',
+    '../../../../database/migrations/0028_dynamic_menus_schema.sql',
   );
 
   let src: string;
@@ -175,7 +175,7 @@ describe('api_endpoints seed divergence (D5, F5.5.7)', () => {
       throw new Error(
         `D5 DIVERGENCE: ${missingInSeed.length} route(s) registered in controllers ` +
           `but NOT in the api_endpoints seed. Add them to ` +
-          `0054_dynamic_menus_schema.sql:\n  ${missingInSeed.join('\n  ')}`,
+          `0028_dynamic_menus_schema.sql:\n  ${missingInSeed.join('\n  ')}`,
       );
     }
   });
@@ -196,7 +196,7 @@ describe('api_endpoints seed divergence (D5, F5.5.7)', () => {
     if (orphaned.length > 0) {
       throw new Error(
         `D5 DIVERGENCE: ${orphaned.length} seeded endpoint(s) not found in controllers:\n  ` +
-          `${orphaned.join('\n  ')}. Remove them from 0054_dynamic_menus_schema.sql ` +
+          `${orphaned.join('\n  ')}. Remove them from 0028_dynamic_menus_schema.sql ` +
           `or add the missing controller routes.`,
       );
     }

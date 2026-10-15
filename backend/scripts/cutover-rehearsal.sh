@@ -124,7 +124,7 @@ check_migration_status() {
   applied=$(psql "$STAGING_DATABASE_URL" -tA -c \
     "SELECT version FROM schema_migrations ORDER BY version")
   local expected
-  expected=$(printf "%04d\n" {1..42} | sort)  # 0001..0042
+  expected=$(printf "%04d\n" {1..24} | sort)  # 0001..0024
   local diff_output
   diff_output=$(diff <(echo "$applied") <(echo "$expected") || true)
   if [ -n "$diff_output" ]; then
@@ -132,7 +132,7 @@ check_migration_status() {
     echo "$diff_output"
     return 1
   fi
-  echo "All 42 migrations applied (including 0042_monitoring_helpers)"
+  echo "All 24 migrations applied (including 0024_monitoring_helpers)"
   return 0
 }
 

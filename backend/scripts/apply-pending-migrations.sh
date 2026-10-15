@@ -41,7 +41,7 @@
 #                warning, NEVER applied automatically. Fix the ledger by hand
 #                after confirming the effect exists:
 #                  INSERT INTO schema_migrations (version, name, checksum, applied_at)
-#                  VALUES ('0062', '0062_incident_category_description.sql',
+#                  VALUES ('0012', '0012_incident_categories.sql',
 #                          'manual', now())
 #                  ON CONFLICT (version) DO NOTHING;
 #   * Each file runs with ON_ERROR_STOP=1. Migrations that open their own

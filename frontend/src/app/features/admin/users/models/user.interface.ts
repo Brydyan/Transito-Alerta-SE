@@ -28,7 +28,7 @@ export interface RolePermission {
  * no encajara con el tipo y el código no compilara.
  *
  * sc-340 — qué contienen esos strings, corregido: desde
- * `0051_roles_permissions_uuid_format.sql` son **UUIDs**, no
+ * `0026_roles_permissions_uuid_format.sql` son **UUIDs**, no
  * etiquetas `"ACTION resource"`. El tipo sigue siendo `string[]`
  * (un UUID es un string), pero el contenido NO es legible por sí
  * solo. Por eso `UserFormComponent.loadRolePermissions` los
@@ -297,6 +297,10 @@ export type GlobalRole = (typeof GLOBAL_ROLES)[number];
  *
  * 2026-10-11 (D1): se agrega `departmentId` para el selector de
  * departamento. Obligatorio cuando el rol es sectorial.
+<<<<<<< HEAD
+ *
+ * sc-446 (Alcance Territorial): se agrega `geoZoneId` para el selector
+ * de zona geográfica. Opcional para todos los roles.
  */
 export interface NewUserFormData {
   email: string;
@@ -305,6 +309,7 @@ export interface NewUserFormData {
   phone: string;
   organizationId: string | null;
   departmentId: string | null;
+  geoZoneId: string | null;
   roleId: string | null;
   sendInvitation: boolean;
   initialStatus: 'activo';
@@ -322,6 +327,7 @@ export const DEFAULT_NEW_USER_FORM: NewUserFormData = {
   phone: '',
   organizationId: null,
   departmentId: null,
+  geoZoneId: null,
   roleId: null,
   sendInvitation: true,
   initialStatus: 'activo',
@@ -369,4 +375,6 @@ export interface CreateUserJsonPayload {
   role_id: string | null;
   organization_id: string | null;
   department_id: string | null;
+  /** sc-446 (Alcance Territorial) — optional geo zone FK. NULL when not selected. */
+  geo_zone_id: string | null;
 }

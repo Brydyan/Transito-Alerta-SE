@@ -28,12 +28,12 @@ import { TestEnvironment } from '../support/test-environment';
  * the real `permissions` catalog → real controller. They are the
  * regression guard for the F6 form's runtime correctness.
  *
- * Migration 0049 (`database/migrations/0049_admin_user_permissions.sql`)
+ * Migration 0009 (`database/migrations/0009_roles_permissions.sql`)
  * is what makes these specs pass on a fresh DB. Without it, the
  * first two specs FAIL on the `POST /api/users` 403, and the
  * `GET /api/permissions` 200 in the assertion below flips to 403.
  */
-describe('E2E F6 — adminCreate reachability (catalog gap 0049)', () => {
+describe('E2E F6 — adminCreate reachability (catalog gap absorbed into 0009)', () => {
   let env: TestEnvironment;
 
   beforeAll(async () => {

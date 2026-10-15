@@ -49,7 +49,7 @@ describe('E2E T7.9.A reference data — incident category tree (0038)', () => {
 
   beforeAll(async () => {
     h = await MigrationHarness.start();
-    await h.applyRange({ to: '0038' });
+    await h.applyRange({ to: '0022' });
   }, 120_000);
 
   afterAll(async () => {
@@ -103,8 +103,8 @@ describe('E2E T7.9.A reference data — incident category tree (0038)', () => {
   // ---- R19.3 — re-apply is idempotent --------------------------------------
 
   it('R19.3: re-applying 0038 does not duplicate the tree', async () => {
-    await h.applyVersion('0038');
-    await h.applyVersion('0038');
+    await h.applyVersion('0022');
+    await h.applyVersion('0022');
 
     const { total, roots, leaves } = await categoryCounts();
     expect(total).toBe(22);
