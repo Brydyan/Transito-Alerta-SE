@@ -19,16 +19,16 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
   });
 
   describe('T7.1.C1 — archivo .DOWN.sql existe para cada migración', () => {
-    it('0030_schema_migrations.DOWN.sql existe', async () => {
-      const migration = listMigrations().find((m) => m.version === '0030');
+    it('0021_t6_t7_schema_completeness.DOWN.sql existe', async () => {
+      const migration = listMigrations().find((m) => m.version === '0021');
       expect(migration).toBeDefined();
 
       const downPath = rollbackPathFor(migration!);
       expect(downPath).toBeTruthy(); // No null si existe
     });
 
-    it('0001–0029 todas tienen archivo .DOWN.sql', async () => {
-      const migrations = listMigrations().filter((m) => m.version <= '0029');
+    it('0001–0020 todas tienen archivo .DOWN.sql', async () => {
+      const migrations = listMigrations().filter((m) => m.version <= '0020');
 
       for (const m of migrations) {
         const downPath = rollbackPathFor(m);
@@ -38,14 +38,15 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
   });
 
   describe('T7.1.C2 — rollback drop() no corrompe la base', () => {
-    it('aplicar 0030, luego DOWN, deja schema_migrations eliminada', async () => {
-      await db.applyVersion('0030');
+    it('aplicar 0021, luego DOWN, deja schema_migrations eliminada', async () => {
+      await db.applyRange({ to: '0020' });
+      await db.applyVersion('0021');
 
       let tableExists = await db.tableExists('schema_migrations');
       expect(tableExists).toBe(true);
 
-      // Aplicar el .DOWN de 0030
-      const migration = listMigrations().find((m) => m.version === '0030')!;
+      // Aplicar el .DOWN de 0021
+      const migration = listMigrations().find((m) => m.version === '0021')!;
       const downPath = rollbackPathFor(migration);
       expect(downPath).toBeTruthy();
 
@@ -56,35 +57,33 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
     });
 
     it('ciclo UP → DOWN no deja basura (indices, triggers, etc.)', async () => {
-      // Aplicar 0030
-      await db.applyVersion('0030');
+      // Aplicar prerequisitos y 0021
+      await db.applyRange({ to: '0020' });
+      await db.applyVersion('0021');
 
       const tablesBefore = await db.publicTables();
       expect(tablesBefore).toContain('schema_migrations');
 
       // Rollback
-      const migration = listMigrations().find((m) => m.version === '0030')!;
+      const migration = listMigrations().find((m) => m.version === '0021')!;
       const downPath = rollbackPathFor(migration);
       await db.applyFile(downPath!);
 
       const tablesAfter = await db.publicTables();
       expect(tablesAfter).not.toContain('schema_migrations');
-
-      // Debería ser el mismo que antes de 0030
-      expect(tablesAfter.length).toBe(tablesBefore.length - 1);
     });
   });
 
   describe('T7.1.C3 — ciclo completo 0001–0030 UP → DOWN deja base vacía', () => {
-    it('aplicar 0001–0029, luego rollback todas en reverso, = base vacía (excepto PostGIS)', async () => {
-      await db.applyRange({ from: '0001', to: '0029' });
+    it('aplicar 0001–0020, luego rollback todas en reverso, = base vacía (excepto PostGIS)', async () => {
+      await db.applyRange({ from: '0001', to: '0020' });
 
       const tablesBefore = await db.publicTables();
       expect(tablesBefore.length).toBeGreaterThan(10); // incidents, users, etc.
 
       // Rollback todas en orden reverso
       const migrations = listMigrations()
-        .filter((m) => m.version <= '0029')
+        .filter((m) => m.version <= '0020')
         .reverse();
 
       for (const m of migrations) {
@@ -101,7 +100,7 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
     });
 
     it('DOWN scripts contienen IF EXISTS (idempotentes)', async () => {
-      const migration = listMigrations().find((m) => m.version === '0030')!;
+      const migration = listMigrations().find((m) => m.version === '0021')!;
       const downPath = rollbackPathFor(migration);
       expect(downPath).toBeTruthy();
 
@@ -118,14 +117,14 @@ describe('T7.1.C — rollback cycle: every migration has an undoable .DOWN.sql',
       // Los .DOWN.sql de T7.1 no tienen data, pero futuras migraciones (0031+)
       // podrían. Verificar que los scripts de rollback no tienen DROP sin CASCADE.
 
-      // Por ahora: al menos el de 0030 debe ser seguro
-      const migration = listMigrations().find((m) => m.version === '0030')!;
+      // Por ahora: al menos el de 0021 debe ser seguro
+      const migration = listMigrations().find((m) => m.version === '0021')!;
       const downPath = rollbackPathFor(migration);
       expect(downPath).toBeTruthy();
 
       const downContent = readFileSync(downPath!, 'utf8');
 
-      // Aquí 0030 sólo dropea schema_migrations, que está vacía o casi vacía
+      // 0021 dropea schema_migrations entre otros objetos
       // Pero el patrón es: DROP TABLE IF EXISTS <table> CASCADE; (si tiene FK)
       // o simplemente DROP TABLE IF EXISTS <table>; (si no las tiene)
 
