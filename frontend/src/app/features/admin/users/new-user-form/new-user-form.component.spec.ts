@@ -361,7 +361,6 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
         role_id: null,
         organization_id: null,
         department_id: null,
-<<<<<<< HEAD
         geo_zone_id: null,
       });
       expect(mockUsersService.uploadAvatar).toHaveBeenCalledWith('u-new', expect.any(File));
