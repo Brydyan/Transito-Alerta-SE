@@ -30,8 +30,9 @@ COPY --from=dependencies /app/node_modules /app/backend/node_modules
 # Copia scripts (incluyendo lib/) + config
 COPY backend/scripts/ /app/backend/scripts/
 COPY backend/tsconfig.scripts.json /app/backend/
-# Copia migrations desde la raíz
+# Copia migrations y seeds desde la raíz
 COPY database/migrations /app/database/migrations
+COPY database/seeds /app/database/seeds
 # Copia entrypoint script
 COPY backend/scripts/entrypoint-migrations.sh /app/backend/scripts/entrypoint-migrations.sh
 RUN chmod +x /app/backend/scripts/entrypoint-migrations.sh
