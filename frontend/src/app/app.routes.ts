@@ -102,6 +102,8 @@ export const routes: Routes = [
               {
                 path: '',
                 pathMatch: 'full',
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Usuarios', permission: 'READ users' },
                 loadComponent: () =>
                   import('./features/admin/users/users-list/users-list.component').then(
                     (m) => m.UsersListComponent,
@@ -131,7 +133,8 @@ export const routes: Routes = [
           },
           {
             path: 'roles',
-            data: { breadcrumb: 'Roles' },
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Roles', permission: 'READ roles' },
             loadComponent: () =>
               import('./features/admin/roles/roles.component').then((m) => m.RolesComponent),
           },
@@ -172,7 +175,7 @@ export const routes: Routes = [
           },
           {
             path: 'config',
-            data: { breadcrumb: 'Configuración' },
+            data: { breadcrumb: 'Configuración', permission: 'READ system-config' },
             canActivate: [permissionGuard],
             loadComponent: () =>
               import('./features/admin/system-config/system-config.component').then(
@@ -206,7 +209,8 @@ export const routes: Routes = [
             children: [
               {
                 path: '',
-                data: { breadcrumb: 'Departamentos' },
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Departamentos', permission: 'READ departments' },
                 loadComponent: () =>
                   import(
                     './features/catalogs/departments/department-list/department-list.component'
@@ -238,7 +242,8 @@ export const routes: Routes = [
             children: [
               {
                 path: '',
-                data: { breadcrumb: 'Organizaciones' },
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Organizaciones', permission: 'READ organizations' },
                 loadComponent: () =>
                   import('./features/catalogs/organizations/organization-list/organization-list.component').then(
                     (m) => m.OrganizationListComponent,
