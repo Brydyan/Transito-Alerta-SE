@@ -64,7 +64,7 @@ const CATALOG = Object.freeze([
         description:
           'Impacto leve entre vehículos sin víctimas ni heridos, con afectación material superficial.',
         priority: PRIORITY['Media'],
-        departments: ['Cuerpo de Vigilancia (Patrulla de Sector)'],
+        departments: ['Cuerpo de Vigilancia'],
       },
       {
         name: 'Colisión con heridos o atrapados',
@@ -106,7 +106,7 @@ const CATALOG = Object.freeze([
         description:
           'Saturación de alta densidad en puntos críticos por eventos turísticos, feriados o desvíos.',
         priority: PRIORITY['Alta'],
-        departments: ['Cuerpo de Vigilancia (Operaciones Viales)'],
+        departments: ['Cuerpo de Vigilancia'],
       },
     ],
   },
@@ -134,7 +134,7 @@ const CATALOG = Object.freeze([
         description:
           'Deterioro, choque o sustracción de paneles verticales regulatorios, preventivos o informativos.',
         priority: PRIORITY['Baja'],
-        departments: ['Ingeniería de Tránsito y Señalización'],
+        departments: ['Ingeniería de Tránsito'],
       },
     ],
   },
@@ -155,7 +155,7 @@ const CATALOG = Object.freeze([
         description:
           'Competencias ilegales ("piques") o conducción deliberada por encima del rango moderado.',
         priority: PRIORITY['Alta'],
-        departments: ['Cuerpo de Vigilancia (Grupo Operativo)'],
+        departments: ['Cuerpo de Vigilancia'],
       },
       {
         name: 'Sospecha de embriaguez',
@@ -176,7 +176,7 @@ const CATALOG = Object.freeze([
         description:
           'Embarque y desembarque en zonas no demarcadas o circulación con pasajeros en estribos.',
         priority: PRIORITY['Media'],
-        departments: ['Unidad de Control de Transporte Público'],
+        departments: ['Unidad de Control de Transporte'],
       },
       {
         name: 'Transporte informal ("pirata")',

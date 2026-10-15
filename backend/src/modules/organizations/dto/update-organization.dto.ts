@@ -13,7 +13,7 @@ export class UpdateOrganizationDto {
    * for both `undefined` and `null`.
    */
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   zone_id?: string | null;
 
   /**
@@ -21,6 +21,6 @@ export class UpdateOrganizationDto {
    * cycles (A→B→A) are rejected in `OrganizationsService.update`, not here.
    */
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   parent_id?: string | null;
 }

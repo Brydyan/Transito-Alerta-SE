@@ -25,7 +25,7 @@ export class UpdateGeoZoneDto {
    * validation for both `undefined` and `null`.
    */
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   parent_id?: string | null;
 
   @IsOptional()
