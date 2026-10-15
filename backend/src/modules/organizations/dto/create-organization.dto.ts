@@ -7,11 +7,11 @@ export class CreateOrganizationDto {
   name!: string;
 
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   zone_id?: string;
 
   /** T7.5.A4 — institutional parent (design D8). Cycle-checked in the service. */
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   parent_id?: string;
 }

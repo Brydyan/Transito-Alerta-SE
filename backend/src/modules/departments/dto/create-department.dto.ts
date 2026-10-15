@@ -37,6 +37,6 @@ export class CreateDepartmentDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)
-  @IsUUID('4', { each: true })
+  @IsUUID('all', { each: true })
   category_ids?: string[];
 }

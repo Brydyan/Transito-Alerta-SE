@@ -6,6 +6,6 @@ import { IsOptional, IsUUID } from 'class-validator';
  */
 export class AssignCategoryDto {
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   incident_category_id?: string | null;
 }

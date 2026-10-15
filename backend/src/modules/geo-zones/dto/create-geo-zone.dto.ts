@@ -19,7 +19,7 @@ export class CreateGeoZoneDto {
   level?: GeoZoneLevel;
 
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   parent_id?: string;
 
   @IsOptional()
