@@ -154,7 +154,7 @@ export class InvitationsService {
 
     await this.mailService.enqueue({
       to: input.email,
-      subject: 'You have been invited to Transito Alerta SE',
+      subject: 'Has sido invitado a Transito Alerta SE',
       template: 'invitation',
       data: {
         link: `${this.mailConfig.appBaseUrl}/accept-invitation?token=${token}`,

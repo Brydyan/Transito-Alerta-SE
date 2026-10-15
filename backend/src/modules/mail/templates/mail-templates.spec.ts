@@ -12,7 +12,7 @@ describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', (
       expect(html).toContain('http://localhost:3000/accept-invitation?token=abc123');
       expect(html).toContain('operator_org');
       expect(html).toContain('Santa Elena Transito');
-      expect(html).toMatch(/48 hours/);
+      expect(html).toMatch(/48 horas/);
     });
 
     it('escapes a poisoned token/link — no unescaped HTML reaches the body', () => {
@@ -81,7 +81,7 @@ describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', (
       });
 
       expect(html).toContain('http://localhost:3000/reset-password?token=xyz789');
-      expect(html).toMatch(/24 hours/);
+      expect(html).toMatch(/24 horas/);
       expect(html.toLowerCase()).not.toContain('your password is');
     });
 

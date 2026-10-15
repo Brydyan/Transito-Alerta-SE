@@ -40,13 +40,13 @@ function productFooter(): string {
 
 const TEMPLATES: Record<TemplateName, TemplateFn> = {
   'incident.created': (data) =>
-    `<p>A new incident was reported.</p><p><strong>Title:</strong> ${field(data, 'title')}</p><p><strong>Description:</strong> ${field(data, 'description')}</p>${productFooter()}`,
+    `<p>Se ha reportado un nuevo incidente.</p><p><strong>Título:</strong> ${field(data, 'title')}</p><p><strong>Descripción:</strong> ${field(data, 'description')}</p>${productFooter()}`,
   'incident.assigned': (data) =>
-    `<p>You have been assigned an incident.</p><p><strong>Title:</strong> ${field(data, 'title')}</p>${productFooter()}`,
+    `<p>Se te ha asignado un incidente.</p><p><strong>Título:</strong> ${field(data, 'title')}</p>${productFooter()}`,
   'incident.status_changed': (data) =>
-    `<p>An incident's status changed.</p><p><strong>Title:</strong> ${field(data, 'title')}</p><p><strong>New status:</strong> ${field(data, 'status')}</p>${productFooter()}`,
+    `<p>El estado de un incidente ha cambiado.</p><p><strong>Título:</strong> ${field(data, 'title')}</p><p><strong>Nuevo estado:</strong> ${field(data, 'status')}</p>${productFooter()}`,
   'comment.created': (data) =>
-    `<p>A new comment was posted.</p><p><strong>Comment:</strong> ${field(data, 'content')}</p>${productFooter()}`,
+    `<p>Se ha publicado un nuevo comentario.</p><p><strong>Comentario:</strong> ${field(data, 'content')}</p>${productFooter()}`,
   // T3.6 — `link` already carries the token as part of a query string; it
   // is still passed through `field()` like every other interpolated value
   // (task 7.1: "the token string itself must be escaped via field() like
@@ -64,8 +64,8 @@ const TEMPLATES: Record<TemplateName, TemplateFn> = {
   // by this flow (D7), so the conditional below is defensive — if
   // `telegramLink` is missing, the section is skipped.
   invitation: (data) => {
-    const baseHead = `<p>You have been invited to join ${field(data, 'organizationName') || escapeHtml(PRODUCT_NAME)} as ${field(data, 'roleName')}.</p>`;
-    const activate = `<p><a href="${field(data, 'link')}">Accept invitation</a></p><p>This link expires in 48 hours.</p>`;
+    const baseHead = `<p>Has sido invitado a unirte a ${field(data, 'organizationName') || escapeHtml(PRODUCT_NAME)} como ${field(data, 'roleName')}.</p>`;
+    const activate = `<p><a href="${field(data, 'link')}">Aceptar invitación</a></p><p>Este enlace expira en 48 horas.</p>`;
     const telegramLink = data['telegramLink'] ? String(data['telegramLink']) : '';
     const roleGuide = data['roleGuide'] ? String(data['roleGuide']) : '';
     const telegramSection = telegramLink
@@ -81,7 +81,7 @@ const TEMPLATES: Record<TemplateName, TemplateFn> = {
     return baseHead + activate + telegramSection + guideSection + productFooter();
   },
   'password-reset': (data) =>
-    `<p>A password reset was requested for your account.</p><p><a href="${field(data, 'link')}">Reset your password</a></p><p>This link expires in 24 hours. If you did not request this, you can ignore this email.</p>${productFooter()}`,
+    `<p>Se solicitó un restablecimiento de contraseña para tu cuenta.</p><p><a href="${field(data, 'link')}">Restablecer contraseña</a></p><p>Este enlace expira en 24 horas. Si no lo solicitaste, podés ignorar este correo.</p>${productFooter()}`,
   // MAIL A.2 — la verificación de cuenta. Datos: { otp, expiresMinutes }.
   // El OTP sale por `field()` como cualquier otro valor (R13).
   'email_verification': (data) =>
