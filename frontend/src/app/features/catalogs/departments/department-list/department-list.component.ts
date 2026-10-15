@@ -28,7 +28,7 @@ import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.c
 // Roles that bypass the per-org scoping (mirror of backend's
 // GLOBAL_ROLES set in DepartmentsController). Used by D9 to decide
 // whether to render the Organization column.
-const GLOBAL_ROLES = new Set(['master', 'operador_sistema']);
+const GLOBAL_ROLES = new Set(['master', 'agent_system']);
 
 /**
  * DepartmentListComponent (`front/2026-09-15-departments-menu`).
@@ -83,7 +83,7 @@ export class DepartmentListComponent implements OnInit, OnDestroy {
   /** D5: [10, 20, 50]. Backend MAX_PAGE_SIZE = 100, so all three are legal. */
   readonly pageSizeOptions = [10, 20, 50];
 
-  /** D9: organization column visible for master + operador_sistema only. */
+  /** D9: organization column visible for master + agent_system only. */
   readonly showOrganizationColumn = computed(() => {
     const role = this.authService.currentUser()?.roleName ?? null;
     return role !== null && GLOBAL_ROLES.has(role);

@@ -30,7 +30,7 @@ import { User, toUserStatus } from '../models/user.interface';
  *   - Backdrop click cierra; ESC cierra; botón X cierra.
  *
  * D7: NO `*hasPermission` para mostrar/ocultar. Master y
- * operador_sistema ven a todos; operador_org ve a los de su
+ * agent_system ven a todos; operator_org ve a los de su
  * org (regla del backend `assertVisible` aplicada en el GET
  * `/api/users`). El modal respeta la lista que ya pasó la
  * visibilidad del backend.

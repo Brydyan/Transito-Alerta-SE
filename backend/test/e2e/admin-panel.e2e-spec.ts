@@ -37,7 +37,7 @@ describe('E2E admin panel + CRUD gaps (T5.6)', () => {
       .expect(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect((res.body as Array<{ name: string }>).map((r) => r.name)).toEqual(
-      expect.arrayContaining(['master', 'operador_org', 'reporter']),
+      expect.arrayContaining(['master', 'operator_org', 'reporter']),
     );
   });
 

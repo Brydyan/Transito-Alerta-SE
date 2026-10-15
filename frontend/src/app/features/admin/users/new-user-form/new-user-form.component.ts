@@ -77,6 +77,16 @@ export class NewUserFormComponent implements OnInit {
   readonly departments = signal<ReadonlyArray<Department>>([]);
   /** sc-446 — active geo zones for the Alcance Territorial dropdown. */
   readonly geoZones = signal<ReadonlyArray<IGeoZoneFormData['parents'][number]>>([]);
+
+  /** Nombre de la zona de la org seleccionada — campo informativo "Sector Operativo". */
+  readonly orgSectorName = computed<string>(() => {
+    const orgId = this.formData().organizationId;
+    if (!orgId) return '';
+    const org = this.organizations().find((o) => o.id === orgId);
+    if (!org?.zoneId) return '';
+    return this.geoZones().find((z) => z.id === org.zoneId)?.name ?? '';
+  });
+
   readonly permissionsCatalog = signal<ReadonlyArray<string>>([]);
   readonly selectedRolePermissions = signal<RolePermissionsView>({ access: [], noAccess: [] });
 
@@ -101,7 +111,7 @@ export class NewUserFormComponent implements OnInit {
 
   /**
    * D2 (2026-10-11) — true cuando el rol seleccionado es global
-   * (`master` o `operador_sistema`). Los roles globales no requieren
+   * (`master` o `agent_system`). Los roles globales no requieren
    * org ni departamento.
    */
   readonly isGlobalRole = computed<boolean>(() => {
@@ -116,7 +126,7 @@ export class NewUserFormComponent implements OnInit {
    *  - firstName y lastName: requerido, >= 2 chars
    *  - email: requerido, formato básico
    *  - phone: opcional, max 30 chars
-   *  - roleId sectorial (admin_org, operador_org): require `organizationId` y `departmentId`
+   *  - roleId sectorial (admin_org, operator_org): require `organizationId` y `departmentId`
    */
   readonly isFormValid = computed<boolean>(() => {
     const d = this.formData();

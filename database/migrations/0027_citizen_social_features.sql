@@ -7,7 +7,7 @@
 -- Same shape as 0049/0050/0026/0027/0053:
 --   1. CREATE tables (incident_followers, incident_corroborations)
 --   2. INSERT catalog rows idempotently (resource, action) — UUIDs generated
---   3. Grant to roles (master, operador_sistema, admin_org, operador_org)
+--   3. Grant to roles (master, agent_system, admin_org, operator_org)
 --      by concatenating permission UUIDs to roles.permissions JSONB array
 --   4. Denormaliza a users.permissions + bump permission_version para invalidar
 --      cache perm:v3:uid:*
@@ -61,7 +61,7 @@ UPDATE roles r
            AND p.action IN ('CREATE', 'DELETE'))
      ) AS elem
    )
- WHERE r.name IN ('master', 'operador_sistema', 'admin_org', 'operador_org')
+ WHERE r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
    AND r.deleted_at IS NULL;
 
 -- 4) Denormalizar a users.permissions de los usuarios activos.
@@ -71,7 +71,7 @@ UPDATE users u
        permission_version = u.permission_version + 1
   FROM roles r
  WHERE u.role_id = r.id
-   AND r.name IN ('master', 'operador_sistema', 'admin_org', 'operador_org')
+   AND r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
    AND u.deleted_at IS NULL
    AND u.is_active = TRUE
    AND r.deleted_at IS NULL;

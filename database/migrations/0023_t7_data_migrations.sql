@@ -7,7 +7,7 @@
 --
 -- Section order is load-bearing: 0023 (rename) must precede 0041 because
 -- downstream migrations (0026+) reference the new role names (master,
--- admin_org, operador_org) and the seed's rollback keys on 'CTE - Santa Elena'.
+-- admin_org, operator_org) and the seed's rollback keys on 'CTE - Santa Elena'.
 --
 -- MANUAL EXECUTION ONLY — see 0001_initial_schema.sql header.
 -- Requires 0009 (roles seeded with old names), 0021 (schema_migrations),
@@ -22,13 +22,13 @@ BEGIN;
 --
 --    admin_sistema     → master
 --    admin_organizacion → admin_org
---    operador_organizacion → operador_org
---    operador_sistema and reporter unchanged.
+--    operator_organizacion → operator_org
+--    agent_system and reporter unchanged.
 --    Idempotent: only affects rows with old names.
 -- ════════════════════════════════════════════════════════════════════════
 UPDATE roles SET name = 'master'       WHERE name = 'admin_sistema';
 UPDATE roles SET name = 'admin_org'    WHERE name = 'admin_organizacion';
-UPDATE roles SET name = 'operador_org' WHERE name = 'operador_organizacion';
+UPDATE roles SET name = 'operator_org' WHERE name = 'operator_organizacion';
 
 -- ════════════════════════════════════════════════════════════════════════
 -- 2) T7.9.C — Geography + Organizations Seed

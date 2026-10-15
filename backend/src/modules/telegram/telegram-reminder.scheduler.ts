@@ -20,7 +20,7 @@ import { TelegramConfig } from '../../config/telegram.config';
  *   - After T+60min : no more pings; the scheduler skips the row.
  *
  * The previous design (Round 1) used 5-minute cadences with
- * progressive escalation to master + operador_sistema and a 12-reminder
+ * progressive escalation to master + agent_system and a 12-reminder
  * (1h) hard stop with an `'unattended'` status change. The team
  * decided 3 messages is enough pressure on the admin_org, and a single
  * "nobody took it" report to master at the 1h mark is the right

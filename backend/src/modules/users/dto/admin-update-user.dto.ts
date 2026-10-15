@@ -13,7 +13,7 @@ import {
  * field is optional; only present fields are touched.
  *
  * F6 fix: se agregan `email` y `phone` al DTO. El admin (master u
- * operador_sistema) puede actualizar el correo y teléfono de un
+ * agent_system) puede actualizar el correo y teléfono de un
  * usuario bajo su alcance. Antes el form del frontend intentaba
  * mandarlos pero el DTO los rechazaba con
  * `forbidNonWhitelisted` (validación global del `main.ts`) y el

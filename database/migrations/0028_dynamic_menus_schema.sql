@@ -83,10 +83,10 @@ ALTER TABLE roles
     CHECK (scope IN ('platform', 'organization', 'public'));
 
 -- Scope assignments (verified against 0015/0023 seed):
---   master, operador_sistema → platform
---   admin_org, operador_org  → organization (DEFAULT)
+--   master, agent_system → platform
+--   admin_org, operator_org  → organization (DEFAULT)
 --   reporter                 → public
-UPDATE roles SET scope = 'platform' WHERE name IN ('master', 'operador_sistema');
+UPDATE roles SET scope = 'platform' WHERE name IN ('master', 'agent_system');
 UPDATE roles SET scope = 'public'   WHERE name = 'reporter';
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -102,11 +102,11 @@ ON CONFLICT (resource, action) DO NOTHING;
 
 -- ════════════════════════════════════════════════════════════════════════
 -- 7. Grant permissions to roles (F5.1.6)
---    READ → master + operador_sistema
+--    READ → master + agent_system
 --    CREATE/UPDATE/DELETE → master only
 -- ════════════════════════════════════════════════════════════════════════
 
--- Grant READ menu-options to master and operador_sistema
+-- Grant READ menu-options to master and agent_system
 UPDATE roles r
    SET permissions = (
      SELECT jsonb_agg(DISTINCT elem)
@@ -119,7 +119,7 @@ UPDATE roles r
            AND p.action = 'READ')
      ) AS elem
    )
- WHERE r.name IN ('master', 'operador_sistema')
+ WHERE r.name IN ('master', 'agent_system')
    AND r.deleted_at IS NULL
    AND NOT (r.permissions ? (
      SELECT p.id::text FROM permissions p
@@ -161,13 +161,13 @@ UPDATE users u
    AND u.is_active = TRUE
    AND r.deleted_at IS NULL;
 
--- Propagate to operador_sistema users
+-- Propagate to agent_system users
 UPDATE users u
    SET permissions = r.permissions,
        permission_version = u.permission_version + 1
   FROM roles r
  WHERE u.role_id = r.id
-   AND r.name = 'operador_sistema'
+   AND r.name = 'agent_system'
    AND u.deleted_at IS NULL
    AND u.is_active = TRUE
    AND r.deleted_at IS NULL;

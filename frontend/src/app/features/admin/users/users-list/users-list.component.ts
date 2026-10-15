@@ -48,7 +48,7 @@ import { UserDetailModalService } from '../user-detail-modal/user-detail-modal.s
  * `ActionMenuComponent` viven en `users-list/components/`.
  *
  * Decisiones de diseño aplicadas (D7): NO `*hasPermission` sobre
- * los botones de la lista. La idea es que `operador_org` ve
+ * los botones de la lista. La idea es que `operator_org` ve
  * los botones y, al hacer click, recibe un 403 del backend
  * que el toast traduce. La spec D1 dice que no se pueden
  * modificar aserciones preexistentes — y los specs viejos del

@@ -178,7 +178,7 @@ describe('E2E incident analytics (T5.2)', () => {
   it('feed: org operator sees org-scoped incidents', async () => {
     const citizen = await env.provisionUser([]);
     const operator = await env.provisionUser(['READ incidents'], {
-      roleName: 'operador_org',
+      roleName: 'operator_org',
       organizationId: orgA,
     });
 

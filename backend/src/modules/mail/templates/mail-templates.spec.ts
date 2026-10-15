@@ -5,12 +5,12 @@ describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', (
     it('renders the link, role and organization name, all escaped', () => {
       const html = renderMailTemplate('invitation', {
         link: 'http://localhost:3000/accept-invitation?token=abc123',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
         organizationName: 'Santa Elena Transito',
       });
 
       expect(html).toContain('http://localhost:3000/accept-invitation?token=abc123');
-      expect(html).toContain('operador_org');
+      expect(html).toContain('operator_org');
       expect(html).toContain('Santa Elena Transito');
       expect(html).toMatch(/48 hours/);
     });
@@ -42,13 +42,13 @@ describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', (
     it('renders the role guide section when roleGuide is provided', () => {
       const html = renderMailTemplate('invitation', {
         link: 'http://localhost/accept',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
         organizationName: 'Org Test',
         roleGuide: 'Recibirás las alertas en Telegram.',
       });
 
       expect(html).toContain('Recibirás las alertas en Telegram.');
-      expect(html).toContain('Lo que harás como operador_org');
+      expect(html).toContain('Lo que harás como operator_org');
     });
 
     it('omits Telegram and role guide sections when neither field is provided', () => {

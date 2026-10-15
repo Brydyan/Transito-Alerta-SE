@@ -53,7 +53,7 @@ ON CONFLICT (resource, action) DO NOTHING;
 
 UPDATE roles
    SET permissions = permissions || jsonb_build_array('CREATE comment-images', 'DELETE comment-images')
- WHERE name IN ('operador_organizacion', 'operador_sistema', 'admin_organizacion', 'admin_sistema')
+ WHERE name IN ('operator_organizacion', 'agent_system', 'admin_organizacion', 'admin_sistema')
    AND NOT (permissions ?& array['CREATE comment-images', 'DELETE comment-images']);
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -162,13 +162,13 @@ UPDATE roles SET permissions = (
   SELECT jsonb_agg(DISTINCT elem)
   FROM (
     SELECT elem FROM roles, jsonb_array_elements(permissions) AS elem
-    WHERE name = 'operador_organizacion'
+    WHERE name = 'operator_organizacion'
     UNION ALL
     SELECT '"incident-images:CREATE"'::jsonb
     UNION ALL
     SELECT '"incident-images:DELETE"'::jsonb
   ) sub
-) WHERE name = 'operador_organizacion';
+) WHERE name = 'operator_organizacion';
 
 UPDATE roles SET permissions = (
   SELECT jsonb_agg(DISTINCT elem)

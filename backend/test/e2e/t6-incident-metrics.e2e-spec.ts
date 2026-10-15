@@ -36,7 +36,7 @@ describe('E2E T6 incident metrics (T6.3.D1, T6.3.D2)', () => {
   it('T6.3.D1: POST /incidents/:id/claim → GET incident → claimed_at IS NOT NULL', async () => {
     const operator = await env.provisionUser(
       ['CREATE incidents', 'CLAIM incidents', 'READ incidents'],
-      { organizationId: orgId, roleName: 'operador_org' },
+      { organizationId: orgId, roleName: 'operator_org' },
     );
     const auth = { Authorization: `Bearer ${operator.accessToken}` };
 
@@ -67,7 +67,7 @@ describe('E2E T6 incident metrics (T6.3.D1, T6.3.D2)', () => {
   it('T6.3.D2: status → in_progress → resolution_date IS NULL', async () => {
     // Use a system operator with global scope so they can see and update any incident.
     const sysOp = await env.provisionUser(['CREATE incidents', 'READ incidents', 'UPDATE incidents'], {
-      roleName: 'operador_sistema',
+      roleName: 'agent_system',
     });
     const auth = { Authorization: `Bearer ${sysOp.accessToken}` };
 
@@ -95,7 +95,7 @@ describe('E2E T6 incident metrics (T6.3.D1, T6.3.D2)', () => {
 
   it('T6.3.D2: status → resolved → resolution_date IS NOT NULL', async () => {
     const sysOp = await env.provisionUser(['CREATE incidents', 'READ incidents', 'UPDATE incidents'], {
-      roleName: 'operador_sistema',
+      roleName: 'agent_system',
     });
     const auth = { Authorization: `Bearer ${sysOp.accessToken}` };
 

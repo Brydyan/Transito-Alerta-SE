@@ -49,9 +49,9 @@ export class EmailVerifiedGuard implements CanActivate {
    * allow-list), no abre la puerta de par en par.
    */
   private static readonly STAFF_ROLES = new Set([
-    'operador_org',
+    'operator_org',
     'admin_org',
-    'operador_sistema',
+    'agent_system',
     'master',
   ]);
 

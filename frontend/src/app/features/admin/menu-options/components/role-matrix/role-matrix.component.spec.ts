@@ -9,11 +9,11 @@ describe('RoleMatrixComponent', () => {
   const mockMatrix: RoleMatrix = {
     platform: [
       { role_id: 'r1', role_name: 'master', can_read: true, can_write: false },
-      { role_id: 'r2', role_name: 'operador_sistema', can_read: true, can_write: false },
+      { role_id: 'r2', role_name: 'agent_system', can_read: true, can_write: false },
     ],
     organization: [
       { role_id: 'r3', role_name: 'admin_org', can_read: false, can_write: false },
-      { role_id: 'r4', role_name: 'operador_org', can_read: true, can_write: false },
+      { role_id: 'r4', role_name: 'operator_org', can_read: true, can_write: false },
     ],
     public: [
       { role_id: 'r5', role_name: 'reporter', can_read: false, can_write: false },
@@ -101,7 +101,7 @@ describe('RoleMatrixComponent', () => {
       let emitted: { role_id: string; can_read: boolean; can_write: boolean } | null = null;
       component.accessChanged.subscribe((e) => (emitted = e));
 
-      // operador_org (r4): can_read=true, can_write=false → can set can_write=true.
+      // operator_org (r4): can_read=true, can_write=false → can set can_write=true.
       component.toggleAccess('r4', 'can_write', true);
       expect(emitted).toEqual({ role_id: 'r4', can_read: true, can_write: true });
     });
@@ -160,11 +160,11 @@ describe('RoleMatrixComponent', () => {
     fixture.componentRef.setInput('matrix', {
       platform: [
         { role_id: 'r1', role_name: 'master', can_read: false, can_write: false },
-        { role_id: 'r2', role_name: 'operador_sistema', can_read: false, can_write: false },
+        { role_id: 'r2', role_name: 'agent_system', can_read: false, can_write: false },
       ],
       organization: [
         { role_id: 'r3', role_name: 'admin_org', can_read: false, can_write: false },
-        { role_id: 'r4', role_name: 'operador_org', can_read: false, can_write: false },
+        { role_id: 'r4', role_name: 'operator_org', can_read: false, can_write: false },
       ],
       public: [
         { role_id: 'r5', role_name: 'reporter', can_read: false, can_write: false },

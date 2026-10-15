@@ -70,7 +70,7 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
 
   describe('createInvitation', () => {
     it('409 EMAIL_ALREADY_CLAIMED pre-check happens before any token is generated', async () => {
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operator_org' });
       organizationRepo.findOne.mockResolvedValue({ id: 'org-1', name: 'Santa Elena' });
       invitationsRepository.findByClaimedEmail.mockResolvedValue({ id: 'existing-user' });
 
@@ -91,7 +91,7 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
     });
 
     it('403 via assertCanInvite when the org is out of the actor scope', async () => {
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operator_org' });
       organizationRepo.findOne.mockResolvedValue({ id: 'org-2', name: 'Other Org' });
 
       await expect(
@@ -104,7 +104,7 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
     });
 
     it('happy path: inserts the row and enqueues the invitation mail', async () => {
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operator_org' });
       organizationRepo.findOne.mockResolvedValue({ id: 'org-1', name: 'Santa Elena' });
       invitationsRepository.findByClaimedEmail.mockResolvedValue(null);
       invitationsRepository.insertPending.mockResolvedValue({
@@ -136,7 +136,7 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
       expect(call.data.telegramLink).toBe(
         'https://t.me/tase_alert_bot?start=telegram-tok',
       );
-      expect(call.data.roleGuide).toContain('operador_org');
+      expect(call.data.roleGuide).toContain('operator_org');
       expect(call.data.roleGuide).toContain('recibirás las tareas en Telegram');
     });
   });

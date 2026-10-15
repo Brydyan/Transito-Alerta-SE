@@ -44,7 +44,7 @@ export interface MeResponse {
   email_verified: boolean;
   /**
    * REG (sc-325) Fix A (ronda 10) — nombre del rol (`reporter`,
-   * `operador_org`, `admin_org`, `operador_sistema`, `master`) o
+   * `operator_org`, `admin_org`, `agent_system`, `master`) o
    * `null` para el dispositivo anónimo. Sin este campo, C.4 no
    * puede decidir el redirect (`current?.roleName === 'reporter'`
    * era siempre `false` antes del fix).

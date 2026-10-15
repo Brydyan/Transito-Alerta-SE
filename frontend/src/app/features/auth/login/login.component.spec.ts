@@ -105,7 +105,7 @@ describe('LoginComponent (REG sc-325 Fix A — C.4 redirect)', () => {
     // del routing real, fuera del scope de C.4.
   });
 
-  it('Fix A: operador_org sin verificar → NO navega a /verificar', async () => {
+  it('Fix A: operator_org sin verificar → NO navega a /verificar', async () => {
     // La verificación no aplica al staff. Aunque `emailVerified`
     // sea `false`, la condición no se cumple porque `roleName`
     // no es `'reporter'`. Si esto falla, es el defecto de
@@ -114,7 +114,7 @@ describe('LoginComponent (REG sc-325 Fix A — C.4 redirect)', () => {
     // útil.
     const { component, router } = setup({
       id: 'u-staff-1',
-      roleName: 'operador_org',
+      roleName: 'operator_org',
       emailVerified: false,
     });
     const navSpy = jest.spyOn(router, 'navigate');
@@ -133,10 +133,10 @@ describe('LoginComponent (REG sc-325 Fix A — C.4 redirect)', () => {
     expect(navSpy).not.toHaveBeenCalledWith(['/verificar']);
   });
 
-  it('Fix A: operador_sistema sin verificar → NO navega a /verificar', async () => {
+  it('Fix A: agent_system sin verificar → NO navega a /verificar', async () => {
     const { component, router } = setup({
       id: 'u-staff-3',
-      roleName: 'operador_sistema',
+      roleName: 'agent_system',
       emailVerified: false,
     });
     const navSpy = jest.spyOn(router, 'navigate');

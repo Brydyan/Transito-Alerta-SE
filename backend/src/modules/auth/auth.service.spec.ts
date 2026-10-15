@@ -765,10 +765,10 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
     expect(cache.set).not.toHaveBeenCalled();
   });
 
-  it('operador_sistema resolves to global scope (explicit branch, not fallthrough)', async () => {
+  it('agent_system resolves to global scope (explicit branch, not fallthrough)', async () => {
     cache.get.mockResolvedValue(undefined);
     dataSource.query.mockResolvedValue([
-      { permissions: ['READ incidents'], organization_id: null, device_uuid: 'device-x', role_name: 'operador_sistema' },
+      { permissions: ['READ incidents'], organization_id: null, device_uuid: 'device-x', role_name: 'agent_system' },
     ]);
 
     const ctx = await service.getAuthContextByUserId('user-2');
@@ -789,7 +789,7 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
         permissions: ['READ incidents', 'UPDATE incidents'],
         organization_id: 'org-1',
         device_uuid: 'device-abc',
-        role_name: 'operador_org',
+        role_name: 'operator_org',
         role_deleted_at: new Date('2026-08-25T00:00:00Z'),
       },
     ]);
@@ -807,7 +807,7 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
         permissions: ['READ incidents'],
         organization_id: 'org-1',
         device_uuid: 'device-abc',
-        role_name: 'operador_org',
+        role_name: 'operator_org',
         role_deleted_at: null,
       },
     ]);
@@ -815,7 +815,7 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
     const ctx = await service.getAuthContextByUserId('user-1');
 
     expect(ctx.permissions).toEqual(['READ incidents']);
-    expect(ctx.roleName).toBe('operador_org');
+    expect(ctx.roleName).toBe('operator_org');
   });
 });
 

@@ -108,7 +108,7 @@ describe('E2E REG — EmailVerifiedGuard conectado (sc-325)', () => {
   it('staff SIN verificar publica igual — la allow-list lo exime', async () => {
     const operador = await env.provisionUser(['CREATE incidents', 'READ incidents'], {
       email: `operador-${randomUUID()}@example.com`,
-      roleName: 'operador_org',
+      roleName: 'operator_org',
       emailVerified: false,
     });
 
@@ -154,7 +154,7 @@ describe('E2E REG — EmailVerifiedGuard conectado (sc-325)', () => {
     // demuestra con un CREATE de un rol nuevo con permisos
     // equivalentes a `reporter` (CREATE incidents). Si el
     // guard filtra por nombre, un rol distinto de
-    // `master`/`admin_sistema`/`operador_sistema` no entra a
+    // `master`/`admin_sistema`/`agent_system` no entra a
     // la allow-list y el ciudadano debe verificar.
     const admin = await env.provisionUser(['READ roles', 'CREATE roles'], {
       email: `admin-${randomUUID()}@example.com`,

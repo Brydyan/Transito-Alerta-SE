@@ -38,7 +38,7 @@ ON CONFLICT (resource, action) DO NOTHING;
 --    has no `role_permissions` table; AuthService reads the JSONB column).
 UPDATE roles
    SET permissions = permissions || jsonb_build_array('CLAIM incidents', 'RELEASE incidents')
- WHERE name IN ('operador_organizacion', 'operador_sistema')
+ WHERE name IN ('operator_organizacion', 'agent_system')
    AND NOT (permissions ?& array['CLAIM incidents', 'RELEASE incidents']);
 
 COMMIT;

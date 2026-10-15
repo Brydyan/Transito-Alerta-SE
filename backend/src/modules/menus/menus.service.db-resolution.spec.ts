@@ -429,7 +429,7 @@ describe('MenusService — DB resolution (F5.4, strict TDD)', () => {
     // (can_read/can_write matrix) is now the single source of truth for menu access.
     // Tests marked .skip below until a permanent fix (PermissionLookupService) is implemented.
 
-    it.skip('operador_sistema with over-granted matrix row for /admin/users but lacking READ users UUID does NOT see Usuarios', async () => {
+    it.skip('agent_system with over-granted matrix row for /admin/users but lacking READ users UUID does NOT see Usuarios', async () => {
       userRepo.findOne.mockResolvedValue(
         Object.assign(new UserEntity(), { id: USER_OPERADOR, roleId: ROLE_OPERADOR }),
       );

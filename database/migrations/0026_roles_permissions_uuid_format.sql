@@ -8,7 +8,7 @@
 -- + el `PATCH /api/roles/:id` nuevo del role-editor envían
 -- UUIDs. Sin esta migration, el catálogo de roles queda con
 -- dos formatos distintos (strings en `admin_org`, UUIDs en
--- `operador_org` después del primer PATCH), y la matriz de
+-- `operator_org` después del primer PATCH), y la matriz de
 -- permisos del role-editor no matchea los checkboxes
 -- (asignados="READ incidents" vs catalogo.permisoId="uuid-...").
 --

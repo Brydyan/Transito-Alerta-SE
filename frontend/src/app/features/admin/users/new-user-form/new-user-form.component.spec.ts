@@ -49,7 +49,7 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
   const fixtureLookups = {
     roles: [
       { id: 'r-admin', name: 'admin_org' },
-      { id: 'r-op', name: 'operador_org' },
+      { id: 'r-op', name: 'operator_org' },
       { id: 'r-master', name: 'master' },
       { id: 'r-other', name: 'ciudadano' },
     ],
@@ -571,18 +571,18 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
       expect(component.isGlobalRole()).toBe(false);
     });
 
-    it('isGlobalRole true para rol operador_sistema', () => {
+    it('isGlobalRole true para rol agent_system', () => {
       init();
-      // Necesita un fixture de role con name 'operador_sistema'
+      // Necesita un fixture de role con name 'agent_system'
       // Actualizar fixtureLookups.roles para incluirlo, o agregarlo solo en este test:
-      component.roles.update((rs) => [...rs, { id: 'r-op-sis', name: 'operador_sistema' }]);
+      component.roles.update((rs) => [...rs, { id: 'r-op-sis', name: 'agent_system' }]);
       component.formData.update((d) => ({ ...d, roleId: 'r-op-sis' }));
       expect(component.isGlobalRole()).toBe(true);
     });
 
-    it('isFormValid: rol operador_sistema sin org ni departamento → válido (global)', () => {
+    it('isFormValid: rol agent_system sin org ni departamento → válido (global)', () => {
       init();
-      component.roles.update((rs) => [...rs, { id: 'r-op-sis', name: 'operador_sistema' }]);
+      component.roles.update((rs) => [...rs, { id: 'r-op-sis', name: 'agent_system' }]);
       component.formData.update((d) => ({
         ...d,
         firstName: 'Ana',

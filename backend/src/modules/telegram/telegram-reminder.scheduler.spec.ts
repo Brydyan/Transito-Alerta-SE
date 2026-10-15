@@ -7,7 +7,7 @@ import { TelegramConfig } from '../../config/telegram.config';
 /**
  * F7 B.5 / D10 REVISED — repique cadence is now 25/40/60 minutes from
  * `created_at`, with the 3rd message going to `master` (not a
- * progressive escalation to master + operador_sistema). The cycle
+ * progressive escalation to master + agent_system). The cycle
  * counter `reminder_count` runs 0 → 1 → 2 → 3 and stops there.
  */
 describe('TelegramReminderScheduler (Round 2 cadence)', () => {

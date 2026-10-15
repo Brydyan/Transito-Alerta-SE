@@ -114,7 +114,7 @@ export class UserEntity {
   /**
    * F7 emergency-dispatch (migration 0069, design D6) — Telegram chat id
    * for `admin_org` (initial + reminder repique of critical incidents) and
-   * `operador_org` (assignment notifications). Stored as text because the
+   * `operator_org` (assignment notifications). Stored as text because the
    * Telegram API can return large negative integers for group chats and
    * `@supergroup` ids; `bigint` was rejected during the design review for
    * portability. NULL = user has not configured Telegram — the listener
@@ -129,8 +129,8 @@ export class UserEntity {
    * The column was created by `0030_departments.sql` with
    * `ON DELETE SET NULL`, but until this change the entity had no
    * mapping, so the DTOs and the form could not persist the value.
-   * Required for `admin_org` / `operador_org`; forced `null` for
-   * `master` / `operador_sistema` per `ROLES_REQUIRING_ORG_AND_DEPT`
+   * Required for `admin_org` / `operator_org`; forced `null` for
+   * `master` / `agent_system` per `ROLES_REQUIRING_ORG_AND_DEPT`
    * policy in `role-policy.constants.ts`.
    */
   @Column({ name: 'department_id', type: 'uuid', nullable: true, default: null })

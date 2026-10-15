@@ -19,7 +19,7 @@ function actor(overrides: Partial<AuthContext> = {}): AuthContext {
 describe('assertCanManage', () => {
   it('throws 404 NotFoundException when the target is not visible under the actor scope (cross-org)', () => {
     const a = actor({ scope: { kind: 'org', organizationId: 'org-1' } });
-    const target = { id: 'target-1', organizationId: 'org-2', roleName: 'operador_org' };
+    const target = { id: 'target-1', organizationId: 'org-2', roleName: 'operator_org' };
     expect(() => assertCanManage(a, target)).toThrow(NotFoundException);
   });
 
@@ -58,7 +58,7 @@ describe('assertCanManage', () => {
       organizationId: null,
       scope: { kind: 'global' },
     });
-    const target = { id: 'target-3', organizationId: 'org-9', roleName: 'operador_org' };
+    const target = { id: 'target-3', organizationId: 'org-9', roleName: 'operator_org' };
     expect(() => assertCanManage(a, target)).not.toThrow();
   });
 
@@ -100,13 +100,13 @@ describe('assertCanManage', () => {
 describe('assertVisible', () => {
   it('throws 404 when the target is not visible under the actor scope', () => {
     const a = actor({ scope: { kind: 'org', organizationId: 'org-1' } });
-    const target = { id: 'target-1', organizationId: 'org-2', roleName: 'operador_org' };
+    const target = { id: 'target-1', organizationId: 'org-2', roleName: 'operator_org' };
     expect(() => assertVisible(a, target)).toThrow(NotFoundException);
   });
 
   it('does not throw when the target is visible, regardless of rank', () => {
     const a = actor({
-      roleName: 'operador_org',
+      roleName: 'operator_org',
       organizationId: 'org-1',
       scope: { kind: 'org', organizationId: 'org-1' },
     });

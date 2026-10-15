@@ -82,7 +82,7 @@ export class UsersService {
    * this the two endpoints disagreed about the same table: the roles listing
    * hid a role that the form dropdown still offered. `0029_dynamic_menus_data_migration.sql`
    * soft-deleted the pre-0023 legacy names (`admin_organizacion`,
-   * `operador_organizacion`, ...) locally, which is what made the divergence
+   * `operator_organizacion`, ...) locally, which is what made the divergence
    * visible to an admin picking a role. The filter is composed with the
    * system-only name exclusion, not substituted for it.
    */
@@ -136,7 +136,7 @@ export class UsersService {
 
     return {
       roles: roles.map((r) => ({ id: r.id, name: r.name })),
-      organizations: organizations.map((o) => ({ id: o.id, name: o.name })),
+      organizations: organizations.map((o) => ({ id: o.id, name: o.name, zone_id: o.zoneId ?? null })),
       departments,
     };
   }
@@ -310,9 +310,9 @@ export class UsersService {
 
     // 2026-10-10-user-onboarding-telegram-tour (D1) — role-vs-org-vs-dept
     // policy. Two outcomes:
-    //   - global role (master / operador_sistema): force
+    //   - global role (master / agent_system): force
     //     organization_id and department_id to null.
-    //   - sectional role (admin_org / operador_org): both
+    //   - sectional role (admin_org / operator_org): both
     //     organization_id and department_id are required; the
     //     department must belong to the organization.
     //   - other roles (including `reporter`): NOT in this flow at all
@@ -496,7 +496,7 @@ export class UsersService {
       target.lastName = dto.last_name;
     }
     // F6 fix: `email` y `phone` ahora son actualizables por admin
-    // (master u operador_sistema con `UPDATE users` permission).
+    // (master u agent_system con `UPDATE users` permission).
     // Antes el DTO los rechazaba y el form del frontend no podía
     // ni mostrarlos en la UI. Ver `AdminUpdateUserDto` para los
     // validadores (formato email, formato phone Ecuador).

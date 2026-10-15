@@ -120,7 +120,7 @@ describe('UsersService.getFormData (T5.4)', () => {
     const res = await service.getFormData(ORG_ADMIN_ACTOR);
 
     expect(res.roles.map((r) => r.name)).toEqual(['admin_org', 'reporter']);
-    expect(res.organizations).toEqual([{ id: 'org-A', name: 'Org A' }]);
+    expect(res.organizations).toEqual([{ id: 'org-A', name: 'Org A', zone_id: null }]);
     // Role query MUST carry a where clause that filters by name.
     const roleArgs = roleRepo.find.mock.calls[0][0];
     expect(roleArgs.where).toBeDefined();

@@ -17,8 +17,8 @@
 --      zone_id IS NULL stays organization_id IS NULL (a real state, not a
 --      failure — spec "Backfill assigns organization from zone").
 --   4. organizations permission catalog rows.
---   5. Four staff role seeds (admin_sistema, operador_sistema,
---      admin_organizacion, operador_organizacion) per proposal's
+--   5. Four staff role seeds (admin_sistema, agent_system,
+--      admin_organizacion, operator_organizacion) per proposal's
 --      "Role matrix seeded by 0015" table. 'reporter' already seeded by
 --      0009 and is not touched here.
 --
@@ -71,7 +71,7 @@ INSERT INTO roles (name, description, permissions) VALUES
      ]'::jsonb
   ),
   (
-    'operador_sistema',
+    'agent_system',
     'System operator — global read scope, zero users/roles writes (defense in depth)',
     '["READ incidents",
       "READ comments",
@@ -95,7 +95,7 @@ INSERT INTO roles (name, description, permissions) VALUES
      ]'::jsonb
   ),
   (
-    'operador_organizacion',
+    'operator_organizacion',
     'Organization operator — org_assigned scope (own assignments only)',
     '["READ incidents", "UPDATE incidents",
       "READ comments", "CREATE comments",

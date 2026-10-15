@@ -91,7 +91,7 @@ ON CONFLICT (resource, action) DO NOTHING;
 
 -- =========================================================================
 -- Role seeds (string-format permissions; 0051 converts to UUIDs)
--- Old role names (admin_sistema, admin_organizacion, operador_organizacion)
+-- Old role names (admin_sistema, admin_organizacion, operator_organizacion)
 -- preserved so that 0015 (ON CONFLICT DO NOTHING) and 0040 (rename) remain
 -- valid no-ops and renames respectively on a fresh install.
 -- =========================================================================
@@ -131,9 +131,9 @@ INSERT INTO roles (name, description, permissions) VALUES (
     "READ system-config"]'::jsonb
 ) ON CONFLICT (name) DO NOTHING;
 
--- operador_sistema: global read-only operator.
+-- agent_system: global read-only operator.
 INSERT INTO roles (name, description, permissions) VALUES (
-  'operador_sistema',
+  'agent_system',
   'System operator — global read scope, zero users/roles writes (defense in depth)',
   '["READ incidents",
     "READ comments",
@@ -167,9 +167,9 @@ INSERT INTO roles (name, description, permissions) VALUES (
     "READ status-history"]'::jsonb
 ) ON CONFLICT (name) DO NOTHING;
 
--- operador_organizacion → renamed to operador_org by 0040. Org-assigned operator.
+-- operator_organizacion → renamed to operator_org by 0040. Org-assigned operator.
 INSERT INTO roles (name, description, permissions) VALUES (
-  'operador_organizacion',
+  'operator_organizacion',
   'Organization operator — org_assigned scope (own assignments only)',
   '["READ incidents",    "UPDATE incidents",
     "READ comments",     "CREATE comments",

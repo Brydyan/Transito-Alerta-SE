@@ -19,7 +19,7 @@
  * The 10 scenarios follow tasks.md D.1 verbatim. When run, they
  * exercise the controller via `supertest` against the Nest app, with
  * auth headers spoofing each of the 4 role archetypes (`master`,
- * `admin_org`, `operador_sistema`, `no-org`).
+ * `admin_org`, `agent_system`, `no-org`).
  */
 
 import { Test } from '@nestjs/testing';

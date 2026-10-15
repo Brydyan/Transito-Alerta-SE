@@ -125,14 +125,14 @@ ON CONFLICT (id) DO NOTHING;
 -- 4. menu_option_roles — complete matrix from day one
 --
 -- Role rules (post-0063 canonical state):
---   all-staff (master, operador_sistema, admin_org, operador_org):
+--   all-staff (master, agent_system, admin_org, operator_org):
 --     Dashboard, INCIDENCIAS group + its leaves, CATÁLOGOS group + its leaves
---   management-only (master, operador_sistema):
+--   management-only (master, agent_system):
 --     GESTIÓN group, Usuarios, Roles  [0029 original]
---   GESTIÓN extended (+ admin_org, operador_org per 0063):
+--   GESTIÓN extended (+ admin_org, operator_org per 0063):
 --     GESTIÓN root, Organizaciones, Org CRUD leaves, Ubicaciones, Cat leaves
---   Departamentos (0063): master+operador_sistema CAN write, admin_org read-only
---   Controles (0057): master CAN write, operador_sistema read-only
+--   Departamentos (0063): master+agent_system CAN write, admin_org read-only
+--   Controles (0057): master CAN write, agent_system read-only
 -- ════════════════════════════════════════════════════════════════════════
 
 -- ── Dashboard + INCIDENCIAS group + its 4 leaves: all 4 staff roles ─────
@@ -148,15 +148,15 @@ WHERE mo.id IN (
   'b0000000-0000-0000-0000-000000000004',  -- Mapa
   'b0000000-0000-0000-0000-000000000005'   -- Reportar
 )
-AND r.name IN ('master', 'operador_sistema', 'admin_org', 'operador_org')
+AND r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
 AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
--- ── GESTIÓN root: all 4 staff (0063 added admin_org + operador_org) ─────
+-- ── GESTIÓN root: all 4 staff (0063 added admin_org + operator_org) ─────
 INSERT INTO menu_option_roles (menu_option_id, role_id, can_read, can_write)
 SELECT 'a0000000-0000-0000-0000-000000000002', r.id, true, false
 FROM roles r
-WHERE r.name IN ('master', 'operador_sistema', 'admin_org', 'operador_org')
+WHERE r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
   AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO UPDATE
   SET can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write;
@@ -170,7 +170,7 @@ WHERE mo.id IN (
   'b0000000-0000-0000-0000-000000000006',  -- Usuarios
   'b0000000-0000-0000-0000-000000000007'   -- Roles
 )
-AND r.name IN ('master', 'operador_sistema')
+AND r.name IN ('master', 'agent_system')
 AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
@@ -185,7 +185,7 @@ WHERE mo.id IN (
   'c0000000-0000-0000-0000-000000000003',  -- Crear rol
   'c0000000-0000-0000-0000-000000000004'   -- Editar rol
 )
-AND r.name IN ('master', 'operador_sistema')
+AND r.name IN ('master', 'agent_system')
 AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
@@ -199,17 +199,17 @@ WHERE mo.id IN (
   'c0000000-0000-0000-0000-000000000005',  -- Crear organización
   'c0000000-0000-0000-0000-000000000006'   -- Editar organización
 )
-AND r.name IN ('master', 'operador_sistema', 'admin_org', 'operador_org')
+AND r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
 AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
--- ── Departamentos parent: master+operador_sistema WRITE, admin_org READ ──
+-- ── Departamentos parent: master+agent_system WRITE, admin_org READ ──
 INSERT INTO menu_option_roles (menu_option_id, role_id, can_read, can_write)
 SELECT 'b0000000-0000-0000-0000-000000000012', r.id,
        true,
        CASE WHEN r.name = 'admin_org' THEN false ELSE true END
 FROM roles r
-WHERE r.name IN ('master', 'operador_sistema', 'admin_org')
+WHERE r.name IN ('master', 'agent_system', 'admin_org')
   AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO UPDATE
   SET can_read  = EXCLUDED.can_read,
@@ -226,19 +226,19 @@ WHERE mo.id IN (
   'c0000000-0000-0000-0000-000000000007',  -- Crear departamento
   'c0000000-0000-0000-0000-000000000008'   -- Editar departamento
 )
-AND r.name IN ('master', 'operador_sistema', 'admin_org')
+AND r.name IN ('master', 'agent_system', 'admin_org')
 AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO UPDATE
   SET can_read  = EXCLUDED.can_read,
       can_write = EXCLUDED.can_write;
 
--- ── Controles: master WRITE, operador_sistema READ ───────────────────────
+-- ── Controles: master WRITE, agent_system READ ───────────────────────
 INSERT INTO menu_option_roles (menu_option_id, role_id, can_read, can_write)
 SELECT 'b0000000-0000-0000-0000-000000000011', r.id,
        true,
        CASE WHEN r.name = 'master' THEN true ELSE false END
 FROM roles r
-WHERE r.name IN ('master', 'operador_sistema')
+WHERE r.name IN ('master', 'agent_system')
   AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
@@ -256,7 +256,7 @@ WHERE mo.id IN (
   'c0000000-0000-0000-0000-000000000011',  -- Crear categoría
   'c0000000-0000-0000-0000-000000000012'   -- Editar categoría
 )
-AND r.name IN ('master', 'operador_sistema', 'admin_org', 'operador_org')
+AND r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
 AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 

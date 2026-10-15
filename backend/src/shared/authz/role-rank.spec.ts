@@ -2,10 +2,10 @@ import { rankOf, ROLE_RANK } from './role-rank';
 
 describe('ROLE_RANK', () => {
   it('orders the five roles from most to least privileged', () => {
-    expect(ROLE_RANK.master).toBeLessThan(ROLE_RANK.operador_sistema);
-    expect(ROLE_RANK.operador_sistema).toBeLessThan(ROLE_RANK.admin_org);
-    expect(ROLE_RANK.admin_org).toBeLessThan(ROLE_RANK.operador_org);
-    expect(ROLE_RANK.operador_org).toBeLessThan(ROLE_RANK.reporter);
+    expect(ROLE_RANK.master).toBeLessThan(ROLE_RANK.agent_system);
+    expect(ROLE_RANK.agent_system).toBeLessThan(ROLE_RANK.admin_org);
+    expect(ROLE_RANK.admin_org).toBeLessThan(ROLE_RANK.operator_org);
+    expect(ROLE_RANK.operator_org).toBeLessThan(ROLE_RANK.reporter);
   });
 });
 

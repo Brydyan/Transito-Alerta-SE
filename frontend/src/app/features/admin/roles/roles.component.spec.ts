@@ -18,7 +18,7 @@ import { ConfirmDialogService } from '../../../shared/components/confirm-dialog/
  * sc-340 (R6): el fixture refleja el contrato vigente — nombres
  * canónicos post-0023 (`0023_t7_data_migrations`: `admin_sistema` →
  * `master`, `admin_organizacion` → `admin_org`,
- * `operador_organizacion` → `operador_org`; `reporter` ya existía
+ * `operator_organizacion` → `operator_org`; `reporter` ya existía
  * desde `0009`) e identificadores UUID string post-0026. El fixture
  * anterior afirmaba nombres legacy con `rolId` numérico, un contrato
  * que el código ya no cumple.
@@ -35,9 +35,9 @@ describe('RolesComponent (F6 rediseño)', () => {
 
   const fixtureRoles = [
     { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-111111111111', nombre: 'master', isSystemRole: true, permissionCount: 48 },
-    { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-222222222222', nombre: 'operador_sistema', isSystemRole: true, permissionCount: 32 },
+    { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-222222222222', nombre: 'agent_system', isSystemRole: true, permissionCount: 32 },
     { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-333333333333', nombre: 'admin_org', isSystemRole: false, permissionCount: 24 },
-    { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-444444444444', nombre: 'operador_org', isSystemRole: false, permissionCount: 18 },
+    { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-444444444444', nombre: 'operator_org', isSystemRole: false, permissionCount: 18 },
     { rolId: 'a1b2c3d4-e5f6-4a7b-8c9d-555555555555', nombre: 'reporter', isSystemRole: false, permissionCount: 8 },
   ];
 
@@ -86,12 +86,9 @@ describe('RolesComponent (F6 rediseño)', () => {
   });
 
   it('búsqueda local filtra por nombre (case-insensitive)', () => {
-    component.onSearch('operador');
-    expect(component.visibleRoles().length).toBe(2);
-    expect(component.visibleRoles().map((r) => r.nombre)).toEqual([
-      'operador_sistema',
-      'operador_org',
-    ]);
+    component.onSearch('operator');
+    expect(component.visibleRoles().length).toBe(1);
+    expect(component.visibleRoles().map((r) => r.nombre)).toEqual(['operator_org']);
   });
 
   it('búsqueda local reset-ea a página 1 vía refetch', () => {

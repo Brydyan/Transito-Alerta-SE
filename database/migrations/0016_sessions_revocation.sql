@@ -57,8 +57,8 @@ INSERT INTO permissions (resource, action) VALUES
 ON CONFLICT (resource, action) DO NOTHING;
 
 -- 6. Role-matrix append. roles.permissions is a jsonb string array (0015);
---    the @> guard makes the append idempotent. operador_sistema and
---    operador_organizacion get nothing (session listings are staff PII);
+--    the @> guard makes the append idempotent. agent_system and
+--    operator_organizacion get nothing (session listings are staff PII);
 --    reporter needs nothing (own sessions are always permitted, D9).
 UPDATE roles
    SET permissions = permissions || '["READ sessions", "DELETE sessions"]'::jsonb

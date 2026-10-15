@@ -217,7 +217,7 @@ export interface CreateUserPayload {
  * F6 fix 2: `email` y `telefono` (renombrado a `phone` en el wire
  * del backend) ya estaban en el interface pero el DTO del backend
  * no los aceptaba y el form no los podía cambiar vía admin. Ahora
- * el admin puede editar ambos (master u operador_sistema con
+ * el admin puede editar ambos (master u agent_system con
  * `UPDATE users` permission). El backend valida formato y
  * unicidad del email.
  */
@@ -241,6 +241,7 @@ export interface UpdateUserPayload {
 export interface Organization {
   readonly id: string;
   readonly nombre: string;
+  readonly zoneId?: string | null;
 }
 
 /**
@@ -277,14 +278,14 @@ export interface Department {
  * 2026-10-11 (D2) — roles sectoriales: requieren `organizationId`
  * y `departmentId`.
  */
-export const SECTIONAL_ROLES = ['admin_org', 'operador_org'] as const;
+export const SECTIONAL_ROLES = ['admin_org', 'operator_org'] as const;
 export type SectionalRole = (typeof SECTIONAL_ROLES)[number];
 
 /**
  * 2026-10-11 (D2) — roles globales: operan a nivel nacional, sin org
  * ni departamento.
  */
-export const GLOBAL_ROLES = ['master', 'operador_sistema'] as const;
+export const GLOBAL_ROLES = ['master', 'agent_system'] as const;
 export type GlobalRole = (typeof GLOBAL_ROLES)[number];
 
 /**
@@ -337,7 +338,7 @@ export const DEFAULT_NEW_USER_FORM: NewUserFormData = {
 /**
  * F6 (D-frontend-5) — opción de rol en el dropdown. `id` es UUID
  * (matches `RoleEntity.id`); `name` viene de la columna `roles.name`
- * y se usa para las reglas "admin_org/operador_org requieren org".
+ * y se usa para las reglas "admin_org/operator_org requieren org".
  * `permissions` se carga on-demand (no upfront) — ver
  * `UsersService.getRolePermissions()`.
  */

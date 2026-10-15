@@ -85,7 +85,7 @@ describe('E2E T6 export XLSX + feed rebuild (T6.7.A5, T6.7.C6)', () => {
   });
 
   it('T6.7.C6: POST /incidents/admin/feed/rebuild without admin_sistema role → 403', async () => {
-    const nonAdmin = await env.provisionUser(['CREATE incidents'], { roleName: 'operador_sistema' });
+    const nonAdmin = await env.provisionUser(['CREATE incidents'], { roleName: 'agent_system' });
 
     await request(env.httpServer)
       .post('/api/incidents/admin/feed/rebuild')

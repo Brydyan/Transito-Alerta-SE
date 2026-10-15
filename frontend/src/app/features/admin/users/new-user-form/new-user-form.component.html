@@ -322,14 +322,14 @@
           </select>
         </div>
         <div>
-          <label for="new-user-zona" class="form-label">Zona / Sector Operativo</label>
+          <label for="new-user-zona" class="form-label">Sector Operativo</label>
           <input
             id="new-user-zona"
             type="text"
             class="form-control"
-            disabled
-            title="Disponible en F7"
-            placeholder="Ej: Sector Norte / Centro"
+            readonly
+            [value]="orgSectorName()"
+            placeholder="Se determina por la organización seleccionada"
             data-testid="input-zona"
           />
         </div>
