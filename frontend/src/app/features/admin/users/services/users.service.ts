@@ -240,7 +240,7 @@ export class UsersService {
     return this.http
       .get<{
         roles: { id: string; name: string }[];
-        organizations: { id: string; name: string }[];
+        organizations: { id: string; name: string; zone_id: string | null }[];
         departments?: { id: string; name: string; organization_id: string }[];
       }>(`${this.usersUrl}/form-data`, { withCredentials: true })
       .pipe(
@@ -249,6 +249,7 @@ export class UsersService {
           organizations: (res.organizations ?? []).map((o) => ({
             id: o.id,
             nombre: o.name,
+            zoneId: o.zone_id ?? null,
           })),
           departments: (res.departments ?? []).map((d) => ({
             id: d.id,

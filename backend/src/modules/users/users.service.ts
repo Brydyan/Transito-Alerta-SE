@@ -136,7 +136,7 @@ export class UsersService {
 
     return {
       roles: roles.map((r) => ({ id: r.id, name: r.name })),
-      organizations: organizations.map((o) => ({ id: o.id, name: o.name })),
+      organizations: organizations.map((o) => ({ id: o.id, name: o.name, zone_id: o.zoneId ?? null })),
       departments,
     };
   }

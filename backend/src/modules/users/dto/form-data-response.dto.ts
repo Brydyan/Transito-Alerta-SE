@@ -6,6 +6,7 @@ export interface RoleDto {
 export interface OrganizationDto {
   id: string;
   name: string;
+  zone_id: string | null;
 }
 
 /**

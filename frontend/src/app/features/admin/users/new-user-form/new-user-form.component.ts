@@ -77,6 +77,16 @@ export class NewUserFormComponent implements OnInit {
   readonly departments = signal<ReadonlyArray<Department>>([]);
   /** sc-446 — active geo zones for the Alcance Territorial dropdown. */
   readonly geoZones = signal<ReadonlyArray<IGeoZoneFormData['parents'][number]>>([]);
+
+  /** Nombre de la zona de la org seleccionada — campo informativo "Sector Operativo". */
+  readonly orgSectorName = computed<string>(() => {
+    const orgId = this.formData().organizationId;
+    if (!orgId) return '';
+    const org = this.organizations().find((o) => o.id === orgId);
+    if (!org?.zoneId) return '';
+    return this.geoZones().find((z) => z.id === org.zoneId)?.name ?? '';
+  });
+
   readonly permissionsCatalog = signal<ReadonlyArray<string>>([]);
   readonly selectedRolePermissions = signal<RolePermissionsView>({ access: [], noAccess: [] });
 
