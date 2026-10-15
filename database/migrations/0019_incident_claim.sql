@@ -13,7 +13,7 @@ ALTER TABLE permissions
 
 ALTER TABLE permissions
   ADD CONSTRAINT permissions_action_check
-  CHECK (action IN ('READ', 'CREATE', 'UPDATE', 'DELETE', 'ASSIGN', 'CLAIM', 'RELEASE'));
+  CHECK (action IN ('READ', 'CREATE', 'UPDATE', 'DELETE', 'ASSIGN', 'CLAIM', 'RELEASE', 'CLOSE', 'REVEAL'));
 
 -- 1) Add claimed_by to incidents.
 ALTER TABLE incidents
