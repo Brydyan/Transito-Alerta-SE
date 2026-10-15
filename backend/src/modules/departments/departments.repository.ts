@@ -154,7 +154,7 @@ export class DepartmentsRepository {
 
   /** True if a non-deleted dept with this (org, name) pair exists. */
   async existsByOrgAndName(organizationId: string, name: string): Promise<boolean> {
-    const rows: Array<{ exists: boolean }> = await this.dataSource.query(
+    const rows: Array<{ found: boolean }> = await this.dataSource.query(
       `SELECT EXISTS (
          SELECT 1 FROM departments
           WHERE organization_id = $1
