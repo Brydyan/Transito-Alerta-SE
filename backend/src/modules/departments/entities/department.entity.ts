@@ -27,7 +27,7 @@ import { OrganizationEntity } from '../../organizations/entities/organization.en
  * orgs would require a separate, audited "transfer" flow — out of scope here.
  *
  * UNIQUE(organization_id, name) enforces per-org naming uniqueness; the
- * migration `0056_departments.sql` mirrors it on the database side.
+ * migration `0030_departments.sql` mirrors it on the database side.
  */
 @Entity('departments')
 @Unique('uq_departments_org_name', ['organizationId', 'name'])

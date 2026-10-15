@@ -80,8 +80,8 @@ export class UsersService {
    * sc-340 (R1) — `deletedAt: IsNull()` is now applied in BOTH branches.
    * `RolesService.findAll` has always filtered soft-deleted roles, so before
    * this the two endpoints disagreed about the same table: the roles listing
-   * hid a role that the form dropdown still offered. `0059_sanitize_roles_matrix.sql`
-   * soft-deleted the pre-0040 legacy names (`admin_organizacion`,
+   * hid a role that the form dropdown still offered. `0029_dynamic_menus_data_migration.sql`
+   * soft-deleted the pre-0023 legacy names (`admin_organizacion`,
    * `operador_organizacion`, ...) locally, which is what made the divergence
    * visible to an admin picking a role. The filter is composed with the
    * system-only name exclusion, not substituted for it.
@@ -291,7 +291,7 @@ export class UsersService {
    * T5.6 behavior (`permissions: []`, `permissionVersion: 1`) so
    * pre-existing callers stay green. The new `phone` field from D1
    * is persisted; its `users.phone` column was added in migration
-   * 0035, so no schema change here.
+   * 0022, so no schema change here.
    */
   async adminCreate(dto: AdminCreateUserDto): Promise<UserEntity> {
     let permissions: string[] = [];

@@ -46,7 +46,7 @@ const CANTON_CENTROIDS = Object.freeze({
   'EC-24-03': { lat: -2.2147, lng: -80.9689, label: 'Salinas' },
 });
 
-/** Categorías sembradas por 0038_reference_data.sql — leafs sólo. */
+/** Categorías sembradas por 0012_incident_categories.sql — leafs sólo. */
 const CATEGORIES = Object.freeze([
   'Baches y Hundimientos',
   'Semáforos Dañados',

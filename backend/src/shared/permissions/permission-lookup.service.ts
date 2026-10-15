@@ -9,9 +9,9 @@ import { PermissionEntity } from '../../modules/permissions/entities/permission.
  * mantiene un índice in-memory de `"ACTION resource" -> uuid`
  * construido a partir del catálogo de `permissions`.
  *
- * F6 fix (post-0051): las `users.permissions` ahora se almacenan
- * como UUIDs (migration `0051_roles_permissions_uuid_format.sql`
- * y `0049_admin_user_permissions.sql` ya normalizaron). El
+ * F6 fix (post-0026): las `users.permissions` ahora se almacenan
+ * como UUIDs (migration `0026_roles_permissions_uuid_format.sql`
+ * y `0009_roles_permissions.sql` ya normalizaron). El
  * `PermissionGuard` clásico comparaba
  * `userPermissions.includes("READ roles")` (string formateado)
  * contra un array de UUIDs — siempre `false` → 403 a

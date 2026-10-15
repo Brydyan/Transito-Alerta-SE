@@ -16,10 +16,10 @@ import { ConfirmDialogService } from '../../../shared/components/confirm-dialog/
  * `StatsCardsComponent`.
  *
  * sc-340 (R6): el fixture refleja el contrato vigente — nombres
- * canónicos post-0040 (`0040_rename_roles`: `admin_sistema` →
+ * canónicos post-0023 (`0023_t7_data_migrations`: `admin_sistema` →
  * `master`, `admin_organizacion` → `admin_org`,
  * `operador_organizacion` → `operador_org`; `reporter` ya existía
- * desde `0009`) e identificadores UUID string post-0051. El fixture
+ * desde `0009`) e identificadores UUID string post-0026. El fixture
  * anterior afirmaba nombres legacy con `rolId` numérico, un contrato
  * que el código ya no cumple.
  */

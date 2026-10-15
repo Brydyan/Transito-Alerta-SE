@@ -13,8 +13,8 @@ export class AdminCreateUserDto {
 
   /**
    * F6 / 2026-09-08-f6-new-user-form (D1) — optional phone. The
-   * `users.phone` column already exists since migration 0035
-   * (`database/migrations/0035_domain_columns.sql`); this DTO was
+   * `users.phone` column already exists since migration 0022
+   * (`database/migrations/0022_t7_schema_completeness.sql`); this DTO was
    * the only thing preventing the F6 mock 03-02 form from
    * persisting it. Format is intentionally lax (no Ecuador prefix
    * enforcement on the backend) to mirror `UpdateProfileDto`

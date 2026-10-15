@@ -28,7 +28,7 @@ export interface RolePermission {
  * no encajara con el tipo y el código no compilara.
  *
  * sc-340 — qué contienen esos strings, corregido: desde
- * `0051_roles_permissions_uuid_format.sql` son **UUIDs**, no
+ * `0026_roles_permissions_uuid_format.sql` son **UUIDs**, no
  * etiquetas `"ACTION resource"`. El tipo sigue siendo `string[]`
  * (un UUID es un string), pero el contenido NO es legible por sí
  * solo. Por eso `UserFormComponent.loadRolePermissions` los

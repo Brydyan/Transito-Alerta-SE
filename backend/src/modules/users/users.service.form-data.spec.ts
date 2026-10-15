@@ -161,7 +161,7 @@ describe('UsersService.getFormData (T5.4)', () => {
    *
    * `RolesService.findAll` has always filtered `deletedAt: IsNull()`; this
    * method did not, so the dropdown offered roles that the roles listing
-   * hides. `0059_sanitize_roles_matrix.sql` soft-deleted the pre-0040 legacy
+   * hides. `0029_dynamic_menus_data_migration.sql` soft-deleted the pre-0023 legacy
    * names locally, which is what made the divergence visible.
    *
    * Asserting `toBeDefined()` here would pass on any object, so the operator

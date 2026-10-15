@@ -3,9 +3,9 @@
  * database/seeds/users.js
  *
  * T7.9.D4 — sembrador de usuarios de demo/operación (R22.5, R22.6).
- * Diseñado para correr después de 0041 (que crea la organización
+ * Diseñado para correr después de 0023 (que crea la organización
  * "CTE - Santa Elena" y los catálogos de roles). NO modifica geografía
- * ni la organización — esos llegan siempre por la migración 0041
+ * ni la organización — esos llegan siempre por la migración 0023
  * (R22.1).
  *
  * Distribución sembrada (6 filas):
@@ -117,8 +117,8 @@ function readE2ePassword() {
 
 /**
  * Resuelve un role_id desde la tabla `roles` por nombre. Lanza si la fila
- * no existe — el seeder asume 0041 aplicada, que ya dejó el catálogo de
- * roles poblado (0009 + 0015 + 0040). Devuelve null sólo si el caller
+ * no existe — el seeder asume 0023 aplicada, que ya dejó el catálogo de
+ * roles poblado (0009 + 0015 + 0023). Devuelve null sólo si el caller
  * explícitamente lo permite (modo degradado, no usado en producción).
  */
 async function resolveRoleId(client, roleName) {
@@ -129,7 +129,7 @@ async function resolveRoleId(client, roleName) {
   if (rows.rows.length === 0) {
     throw new Error(
       `users.js: role "${roleName}" no existe en la tabla roles. ` +
-        `Aplica 0040_rename_roles.sql antes de correr este seeder.`,
+        `Aplica 0023_t7_data_migrations.sql antes de correr este seeder.`,
     );
   }
   return rows.rows[0].id;
@@ -139,7 +139,7 @@ async function resolveRoleId(client, roleName) {
  * Resuelve organization_id por nombre. Devuelve null si la organización
  * no existe (los usuarios sin organización — master / operador_sistema —
  * no deben fallar por esto; sí fallarían los admin_org/operador_org, pero
- * el caller debe haber aplicado 0041 antes).
+ * el caller debe haber aplicado 0023 antes).
  */
 async function resolveOrganizationId(client, orgName) {
   if (!orgName) return null;
@@ -256,7 +256,7 @@ async function run(client, opts = {}) {
     if (needsOrg && !orgId) {
       throw new Error(
         `users.js: rol "${u.role}" requiere la organización "${DEFAULT_ORG_NAME}" ` +
-          `pero no existe. Aplica 0041_geography_organizations_seed.sql antes.`,
+          `pero no existe. Aplica 0023_t7_data_migrations.sql antes.`,
       );
     }
     const r = await upsertUser(client, {
@@ -283,7 +283,7 @@ async function run(client, opts = {}) {
     if (!orgId) {
       throw new Error(
         `users.js: el usuario e2e (rol "${E2E_USER.role}") requiere la organización ` +
-          `"${DEFAULT_ORG_NAME}" pero no existe. Aplica 0041_geography_organizations_seed.sql antes.`,
+          `"${DEFAULT_ORG_NAME}" pero no existe. Aplica 0023_t7_data_migrations.sql antes.`,
       );
     }
     const e2eHash = await bcrypt.hash(e2ePassword, cost);

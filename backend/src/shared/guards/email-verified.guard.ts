@@ -41,7 +41,7 @@ export class EmailVerifiedGuard implements CanActivate {
    * REG (sc-325) — el ÚNICO rol al que NO se le exige verificación
    * de correo antes de publicar. La lista es exhaustiva sobre
    * los staff roles del sistema (`0009_roles_permissions.sql` /
-   * `0040_rename_roles.sql`). Cualquier `roleName` que no esté en
+   * `0023_t7_data_migrations.sql`). Cualquier `roleName` que no esté en
    * esta lista (incluido `null` y `'reporter'`) cae en la rama
    * de verificación. Esto es fail-closed: un renombrado del rol
    * `reporter` por el panel administrativo lo deja en el mismo

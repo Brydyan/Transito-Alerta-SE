@@ -25,13 +25,13 @@ describe('E2E T7.9.B notification permissions (0039)', () => {
     'operador_org',
   ];
 
-  // Applies through 0040, not 0039: the grants in 0039 are written against the
-  // pre-rename role names, and 0040_rename_roles is what turns them into the
+  // Applies through 0023, not 0039: the grants in 0039 are written against the
+  // pre-rename role names, and 0023_t7_data_migrations is what turns them into the
   // `master` / `admin_org` / `operador_org` this suite asserts on. A rename
   // does not touch the `permissions` JSONB, so the grants travel with the row.
   beforeAll(async () => {
     h = await MigrationHarness.start();
-    await h.applyRange({ to: '0040' });
+    await h.applyRange({ to: '0023' });
   }, 120_000);
 
   afterAll(async () => {
