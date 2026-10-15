@@ -160,10 +160,10 @@ export class DepartmentsRepository {
           WHERE organization_id = $1
             AND name = $2
             AND deleted_at IS NULL
-       ) AS exists`,
+       ) AS found`,
       [organizationId, name],
     );
-    return rows[0]?.exists === true;
+    return rows[0]?.found === true;
   }
 
   async list(
