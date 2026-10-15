@@ -304,7 +304,10 @@ if (require.main === module) {
     process.exit(1);
   }
 
-  const client = new Client();
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL ||
+      `postgres://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'postgres'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'transito_alerta'}`,
+  });
   client
     .connect()
     .then(() => run(client, { force: flags.force }))
@@ -314,7 +317,7 @@ if (require.main === module) {
       );
     })
     .catch((err) => {
-      console.error('demo-catalog failed:', err.message);
+      console.error('demo-catalog failed:', err);
       process.exit(1);
     })
     .finally(() => client.end());
