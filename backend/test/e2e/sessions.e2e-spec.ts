@@ -220,7 +220,7 @@ describe('Sessions e2e (T3.9)', () => {
       const targetInOtherOrg = await env.provisionUser(['READ incidents'], {
         deviceUuid: `device-other-org-${randomUUID()}`,
         organizationId: orgBId,
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
 
       await request(env.httpServer)
@@ -255,7 +255,7 @@ describe('Sessions e2e (T3.9)', () => {
       const target = await env.provisionUser(['READ incidents'], {
         deviceUuid: `device-target-${randomUUID()}`,
         organizationId: orgAId,
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
 
       await request(env.httpServer)

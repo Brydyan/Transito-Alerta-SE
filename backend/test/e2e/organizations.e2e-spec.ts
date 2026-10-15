@@ -117,10 +117,10 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
         .expect(404);
     });
 
-    it('operador_organizacion sees only Org A incidents assigned to them', async () => {
+    it('operator_organizacion sees only Org A incidents assigned to them', async () => {
       const orgAOperator = await env.provisionUser(['READ incidents'], {
         organizationId: orgAId,
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
       const assignedIncidentId = await insertIncidentForOrg(orgAId, 'Assigned to me');
       const unassignedIncidentId = await insertIncidentForOrg(orgAId, 'Not assigned');
@@ -156,8 +156,8 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
       expect(list.body.items).toEqual([]);
     });
 
-    it('operador_sistema sees incidents from both organizations', async () => {
-      const sysOperator = await env.provisionUser(['READ incidents'], { roleName: 'operador_sistema' });
+    it('agent_system sees incidents from both organizations', async () => {
+      const sysOperator = await env.provisionUser(['READ incidents'], { roleName: 'agent_system' });
       await insertIncidentForOrg(orgAId);
       await insertIncidentForOrg(orgBId);
 
@@ -275,8 +275,8 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
         organizationId: orgAId,
         roleName: 'admin_org',
       });
-      await env.provisionUser([], { organizationId: orgAId, roleName: 'operador_org' });
-      await env.provisionUser([], { organizationId: orgBId, roleName: 'operador_org' });
+      await env.provisionUser([], { organizationId: orgAId, roleName: 'operator_org' });
+      await env.provisionUser([], { organizationId: orgBId, roleName: 'operator_org' });
 
       const list = await request(env.httpServer)
         .get('/api/users')
@@ -321,7 +321,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
       });
       const orgBUser = await env.provisionUser([], {
         organizationId: orgBId,
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
 
       await request(env.httpServer)
@@ -349,7 +349,7 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
       });
       const target = await env.provisionUser([], {
         organizationId: orgAId,
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
 
       const res = await request(env.httpServer)
@@ -386,14 +386,14 @@ describe('Organizations / tenant isolation e2e (T3.2)', () => {
       expect(res.body.code ?? res.body.message).toBeDefined();
     });
 
-    it('admin_organizacion calling POST /roles/:id/assign to grant operador_organizacion (a lower rank) succeeds', async () => {
+    it('admin_organizacion calling POST /roles/:id/assign to grant operator_organizacion (a lower rank) succeeds', async () => {
       const orgAAdmin = await env.provisionUser(['ASSIGN roles'], {
         organizationId: orgAId,
         roleName: 'admin_org',
       });
       const roleLessTarget = await env.provisionUser([], { organizationId: orgAId });
       const { rows } = await env.pg.query<{ id: string }>(
-        `SELECT id FROM roles WHERE name = 'operador_org'`,
+        `SELECT id FROM roles WHERE name = 'operator_org'`,
       );
       const operadorOrgRoleId = rows[0].id;
 

@@ -134,15 +134,15 @@ describe('E2E F6 — adminCreate reachability (catalog gap absorbed into 0009)',
 
   /**
    * The negative path: a user WITHOUT `CREATE users` (here
-   * `operador_org`, which legitimately manages incidents but not
+   * `operator_org`, which legitimately manages incidents but not
    * other users) gets a 403 from the `PermissionGuard` on
    * `POST /api/users`. This is the regression guard for the
    * catalog row that the spec wanted to exist in the first place.
    */
-  it('operador_org without CREATE users gets 403 on POST /api/users', async () => {
+  it('operator_org without CREATE users gets 403 on POST /api/users', async () => {
     const operador = await env.provisionUser([], {
       email: `operador-${randomUUID()}@example.com`,
-      roleName: 'operador_org',
+      roleName: 'operator_org',
       emailVerified: true,
     });
 

@@ -10,9 +10,9 @@
  *
  * Distribución sembrada (6 filas):
  *   - 1 master               (organization_id NULL)
- *   - 1 operador_sistema     (organization_id NULL)
+ *   - 1 agent_system     (organization_id NULL)
  *   - 2 admin_org            (organization_id = CTE - Santa Elena)
- *   - 2 operador_org         (organization_id = CTE - Santa Elena)
+ *   - 2 operator_org         (organization_id = CTE - Santa Elena)
  *
  * Idempotencia (R22.6):
  *   - `ON CONFLICT (email) DO NOTHING` a nivel SQL.
@@ -45,21 +45,21 @@ const DEFAULT_BCRYPT_COST = 12;
 // Distribución seedada — T7.9.D4 / R22.5.
 const SEED_USERS = Object.freeze([
   { role: 'master', email: 'master@tase.local', firstName: 'Master', lastName: 'System' },
-  { role: 'operador_sistema', email: 'operador-sistema@tase.local', firstName: 'Operador', lastName: 'Sistema' },
+  { role: 'agent_system', email: 'operador-sistema@tase.local', firstName: 'Operador', lastName: 'Sistema' },
   { role: 'admin_org', email: 'admin-org-1@tase.local', firstName: 'Admin', lastName: 'Org Uno' },
   { role: 'admin_org', email: 'admin-org-2@tase.local', firstName: 'Admin', lastName: 'Org Dos' },
-  { role: 'operador_org', email: 'operador-org-1@tase.local', firstName: 'Operador', lastName: 'Org Uno' },
-  { role: 'operador_org', email: 'operador-org-2@tase.local', firstName: 'Operador', lastName: 'Org Dos' },
+  { role: 'operator_org', email: 'operador-org-1@tase.local', firstName: 'Operador', lastName: 'Org Uno' },
+  { role: 'operator_org', email: 'operador-org-2@tase.local', firstName: 'Operador', lastName: 'Org Dos' },
 ]);
 
 // Usuario dedicado a la suite e2e. NO entra en SEED_USERS porque su
 // siembra es CONDICIONAL a la presencia de E2E_PASSWORD (D3 del change
-// `2026-09-03-e2e-test-user-and-credentials`). Su rol es `operador_org`
+// `2026-09-03-e2e-test-user-and-credentials`). Su rol es `operator_org`
 // (D1): atraviesa los guards de permiso como un usuario real, en vez
 // de saltárselos como haría un master. La organización es la misma
 // que los seis de demo (CTE - Santa Elena).
 const E2E_USER = Object.freeze({
-  role: 'operador_org',
+  role: 'operator_org',
   email: 'e2e@tase.local',
   firstName: 'E2E',
   lastName: 'Test',
@@ -95,7 +95,7 @@ function readBcryptCost(opts) {
  * Decisión deliberada (D3 del change `2026-09-03-e2e-test-user-and-credentials`):
  * NO existe una constante `DEFAULT_E2E_PASSWORD` análoga a
  * `DEFAULT_SEED_PASSWORD`. Staging está publicado a internet por el Tailscale
- * Funnel; una cuenta `operador_org` con contraseña pública es una cuenta
+ * Funnel; una cuenta `operator_org` con contraseña pública es una cuenta
  * regalada. Si `E2E_PASSWORD` está ausente o vacía, el usuario e2e no se
  * siembra — y eso es lo correcto, no una falla.
  *
@@ -137,8 +137,8 @@ async function resolveRoleId(client, roleName) {
 
 /**
  * Resuelve organization_id por nombre. Devuelve null si la organización
- * no existe (los usuarios sin organización — master / operador_sistema —
- * no deben fallar por esto; sí fallarían los admin_org/operador_org, pero
+ * no existe (los usuarios sin organización — master / agent_system —
+ * no deben fallar por esto; sí fallarían los admin_org/operator_org, pero
  * el caller debe haber aplicado 0023 antes).
  */
 async function resolveOrganizationId(client, orgName) {
@@ -252,7 +252,7 @@ async function run(client, opts = {}) {
   let skipped = 0;
   const users = [];
   for (const u of SEED_USERS) {
-    const needsOrg = u.role === 'admin_org' || u.role === 'operador_org';
+    const needsOrg = u.role === 'admin_org' || u.role === 'operator_org';
     if (needsOrg && !orgId) {
       throw new Error(
         `users.js: rol "${u.role}" requiere la organización "${DEFAULT_ORG_NAME}" ` +
@@ -276,7 +276,7 @@ async function run(client, opts = {}) {
 
   // Usuario e2e: sembrado CONDICIONAL a la presencia de E2E_PASSWORD.
   // Si no está, no es un error — es la decisión de diseño D3: sin
-  // secret, no se crea una cuenta `operador_org` con contraseña que
+  // secret, no se crea una cuenta `operator_org` con contraseña que
   // cualquiera pueda leer en el repo.
   const e2ePassword = readE2ePassword();
   if (e2ePassword !== null) {

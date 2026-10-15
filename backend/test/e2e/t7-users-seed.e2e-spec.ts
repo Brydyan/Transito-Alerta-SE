@@ -5,8 +5,8 @@ import { MigrationHarness } from '../support/migration-harness';
 /**
  * T7.9.D2 — `database/seeds/users.js` deja la distribución acordada
  * (R22.5, R22.6, spec.md):
- *   - 1 master, 1 operador_sistema (organization_id NULL)
- *   - 2 admin_org, 2 operador_org (organization_id = CTE - Santa Elena)
+ *   - 1 master, 1 agent_system (organization_id NULL)
+ *   - 2 admin_org, 2 operator_org (organization_id = CTE - Santa Elena)
  *   - ON CONFLICT (email) DO NOTHING — re-ejecutar mantiene el conteo en 6.
  *
  * Test-first: este archivo DEBE fallar hasta que users.js exista. La
@@ -82,13 +82,13 @@ describe('T7.9.D2 — database/seeds/users.js (R22.5, R22.6)', () => {
     }
 
     expect(byRole.get('master')).toBe(1);
-    expect(byRole.get('operador_sistema')).toBe(1);
+    expect(byRole.get('agent_system')).toBe(1);
     expect(byRole.get('admin_org')).toBe(2);
-    expect(byRole.get('operador_org')).toBe(2);
+    expect(byRole.get('operator_org')).toBe(2);
 
-    // 1 master + 1 operador_sistema are unbound.
+    // 1 master + 1 agent_system are unbound.
     expect(orgUnbound).toBe(2);
-    // 2 admin_org + 2 operador_org are bound to CTE - Santa Elena.
+    // 2 admin_org + 2 operator_org are bound to CTE - Santa Elena.
     expect(orgBound).toBe(4);
 
     const [org] = await db.rows<{ id: string }>(
@@ -100,7 +100,7 @@ describe('T7.9.D2 — database/seeds/users.js (R22.5, R22.6)', () => {
       `SELECT role FROM users WHERE organization_id = $1 ORDER BY role`,
       [org.id],
     );
-    expect(boundRows.map((r) => r.role)).toEqual(['admin_org', 'admin_org', 'operador_org', 'operador_org']);
+    expect(boundRows.map((r) => r.role)).toEqual(['admin_org', 'admin_org', 'operator_org', 'operator_org']);
   });
 
   it('R22.6 — re-ejecutar el seeder no duplica ningún email y el conteo permanece en 6', async () => {

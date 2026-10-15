@@ -199,12 +199,12 @@ async function ensureCitizenReporter(client) {
 }
 
 async function ensureOperator(client) {
-  // Cualquier operador con role operador_org sirve como "responsable" de
+  // Cualquier operador con role operator_org sirve como "responsable" de
   // los assignments (no necesita ser específico del incidente en este
   // seeder — la app no asigna uno real a cada uno de los 1000). Si no
   // hay ninguno, fallback al master (también sirve como approver).
   const rows = await client.query(
-    `SELECT id FROM users WHERE role = 'operador_org' AND deleted_at IS NULL
+    `SELECT id FROM users WHERE role = 'operator_org' AND deleted_at IS NULL
      ORDER BY email LIMIT 1`,
   );
   if (rows.rows.length > 0) return rows.rows[0].id;
@@ -213,7 +213,7 @@ async function ensureOperator(client) {
      ORDER BY email LIMIT 1`,
   );
   if (master.rows.length > 0) return master.rows[0].id;
-  throw new Error('volume-incidents.js: no hay operador_org ni master — corre users.js primero.');
+  throw new Error('volume-incidents.js: no hay operator_org ni master — corre users.js primero.');
 }
 
 async function ensureApprover(client) {

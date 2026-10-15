@@ -7,7 +7,7 @@ import { MigrationHarness } from '../support/migration-harness';
 
 /**
  * T8 (E2E — Usuario de pruebas y credenciales reales) — `database/seeds/users.js`
- * siembra `e2e@tase.local` con rol `operador_org` cuando `E2E_PASSWORD` está
+ * siembra `e2e@tase.local` con rol `operator_org` cuando `E2E_PASSWORD` está
  * definida, y NO la siembra cuando no lo está. El usuario es propio, no uno de
  * los seis de demo, y su contraseña nunca es una constante del repo.
  *
@@ -16,7 +16,7 @@ import { MigrationHarness } from '../support/migration-harness';
  *   - Sin `E2E_PASSWORD` → el usuario e2e no se crea (avería disfrazada de
  *     decisión si lo sembráramos con una contraseña por defecto).
  *   - Re-correr el seeder no duplica (mismo `ON CONFLICT (email) DO NOTHING`).
- *   - El usuario e2e nunca es `master` ni `operador_sistema`: atraviesa los
+ *   - El usuario e2e nunca es `master` ni `agent_system`: atraviesa los
  *     guards como un usuario real.
  *
  * El scenario "sin valor por defecto" se verifica sobre el código fuente
@@ -111,7 +111,7 @@ describe('T8 — database/seeds/users.js siembra e2e@tase.local (E2E_PASSWORD)',
     expect(USERS_SEED_SOURCE).not.toMatch(/E2E_PASSWORD\s*=\s*['"]/);
   });
 
-  it('Sembrado — con E2E_PASSWORD se crea e2e@tase.local como operador_org', async () => {
+  it('Sembrado — con E2E_PASSWORD se crea e2e@tase.local como operator_org', async () => {
     await clearE2eUser();
     delete process.env.E2E_PASSWORD;
     process.env.E2E_PASSWORD = E2E_PASSWORD;
@@ -124,12 +124,12 @@ describe('T8 — database/seeds/users.js siembra e2e@tase.local (E2E_PASSWORD)',
 
     const e2eUser = result.users.find((u) => u.email === 'e2e@tase.local');
     expect(e2eUser).toBeDefined();
-    expect(e2eUser?.role).toBe('operador_org');
+    expect(e2eUser?.role).toBe('operator_org');
     expect(e2eUser?.inserted).toBe(true);
 
     const row = await fetchE2eUser();
     expect(row).not.toBeNull();
-    expect(row?.role).toBe('operador_org');
+    expect(row?.role).toBe('operator_org');
     // organization_id = CTE - Santa Elena (mismo org que los seis de demo
     // con rol organizacional).
     const [org] = await db.rows<{ id: string }>(
@@ -182,13 +182,13 @@ describe('T8 — database/seeds/users.js siembra e2e@tase.local (E2E_PASSWORD)',
     expect(rows[0]?.count).toBe('1');
   }, 180_000);
 
-  it('No es master — el usuario e2e no tiene rol master ni operador_sistema', async () => {
+  it('No es master — el usuario e2e no tiene rol master ni agent_system', async () => {
     process.env.E2E_PASSWORD = E2E_PASSWORD;
 
     const row = await fetchE2eUser();
     expect(row).not.toBeNull();
     expect(row?.role).not.toBe('master');
-    expect(row?.role).not.toBe('operador_sistema');
+    expect(row?.role).not.toBe('agent_system');
   });
 
   it('Los seis de demo intactos — sembrar el e2e no toca el rol, organización ni hash de los seis', async () => {

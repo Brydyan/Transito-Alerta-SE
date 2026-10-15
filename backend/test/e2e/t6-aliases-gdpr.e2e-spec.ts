@@ -87,7 +87,7 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1)', () => {
       roleName: 'master',
     });
     const email = `preview-${randomUUID()}@example.com`;
-    const { token } = await createInvitation(admin.accessToken, email, 'operador_org');
+    const { token } = await createInvitation(admin.accessToken, email, 'operator_org');
 
     const r1 = await request(env.httpServer)
       .get(`/api/invitations/preview?token=${encodeURIComponent(token)}`)
@@ -108,7 +108,7 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1)', () => {
       roleName: 'master',
     });
     const email = `accept-${randomUUID()}@example.com`;
-    const { token } = await createInvitation(admin.accessToken, email, 'operador_org');
+    const { token } = await createInvitation(admin.accessToken, email, 'operator_org');
 
     const res = await request(env.httpServer)
       .post('/api/invitations/accept')

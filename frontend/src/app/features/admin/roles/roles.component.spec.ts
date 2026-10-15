@@ -86,12 +86,9 @@ describe('RolesComponent (F6 rediseño)', () => {
   });
 
   it('búsqueda local filtra por nombre (case-insensitive)', () => {
-    component.onSearch('operador');
-    expect(component.visibleRoles().length).toBe(2);
-    expect(component.visibleRoles().map((r) => r.nombre)).toEqual([
-      'agent_system',
-      'operator_org',
-    ]);
+    component.onSearch('operator');
+    expect(component.visibleRoles().length).toBe(1);
+    expect(component.visibleRoles().map((r) => r.nombre)).toEqual(['operator_org']);
   });
 
   it('búsqueda local reset-ea a página 1 vía refetch', () => {

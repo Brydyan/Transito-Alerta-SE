@@ -114,7 +114,7 @@ describe('E2E T6 soft deletes + assignment update (T6.2.D1, T6.2.D2, T6.4.A5)', 
       ['CREATE incidents', 'DELETE incidents', 'READ incidents', 'UPDATE incidents', 'ASSIGN assignments'],
       { organizationId: orgId, roleName: 'admin_org' },
     );
-    const operator = await env.provisionUser([], { organizationId: orgId, roleName: 'operador_org' });
+    const operator = await env.provisionUser([], { organizationId: orgId, roleName: 'operator_org' });
     const auth = { Authorization: `Bearer ${admin.accessToken}` };
 
     const created = await request(env.httpServer)
