@@ -3,7 +3,7 @@ import { SubjectScope } from './subject-scope';
 /**
  * Pure function, zero I/O (T3.2 design D1/D2). Maps `(roleName,
  * organizationId)` to a `SubjectScope` per the proposal's role table.
- * `operador_sistema` is an EXPLICIT `case`, never a fallthrough — the
+ * `agent_system` is an EXPLICIT `case`, never a fallthrough — the
  * GeoReporta accident this task exists to avoid repeating. `default:
  * public` covers `role_id IS NULL` (unranked, D2) and any unknown role
  * name, reproducing today's unscoped behaviour exactly.
@@ -16,13 +16,13 @@ export function resolveSubjectScope(
   switch (roleName) {
     case 'master':
       return { kind: 'global' };
-    case 'operador_sistema':
+    case 'agent_system':
       return { kind: 'global' };
     case 'admin_org':
       return organizationId === null
         ? { kind: 'deny', reason: 'staff_without_organization' }
         : { kind: 'org', organizationId };
-    case 'operador_org':
+    case 'operator_org':
       return organizationId === null || userId === undefined
         ? { kind: 'deny', reason: 'staff_without_organization' }
         : { kind: 'org_assigned', organizationId, userId };

@@ -287,7 +287,7 @@ describe('RolesService', () => {
         });
         roleRepo.findOne
           .mockResolvedValueOnce({ id: 'role-new', name: 'reporter', permissions: [] })
-          .mockResolvedValueOnce({ id: 'role-op', name: 'operador_org' });
+          .mockResolvedValueOnce({ id: 'role-op', name: 'operator_org' });
         userRepo.findOne.mockResolvedValue({
           id: 'target-1',
           organizationId: 'org-B',
@@ -305,7 +305,7 @@ describe('RolesService', () => {
       it('allows the assignment when the actor outranks a visible target', async () => {
         const actor = makeActor(); // admin_sistema, global
         roleRepo.findOne
-          .mockResolvedValueOnce({ id: 'role-new', name: 'operador_org', permissions: ['READ incidents'] })
+          .mockResolvedValueOnce({ id: 'role-new', name: 'operator_org', permissions: ['READ incidents'] })
           .mockResolvedValueOnce({ id: 'role-old', name: 'reporter' });
         userRepo.findOne.mockResolvedValue({
           id: 'target-1',
@@ -372,7 +372,7 @@ describe('RolesService', () => {
         expect(userRepo.save).not.toHaveBeenCalled();
       });
 
-      it('allows an admin_organizacion to grant operador_organizacion to a role-less user in its own org', async () => {
+      it('allows an admin_organizacion to grant operator_organizacion to a role-less user in its own org', async () => {
         const actor = makeActor({
           roleName: 'admin_org',
           organizationId: 'org-A',
@@ -380,7 +380,7 @@ describe('RolesService', () => {
         });
         roleRepo.findOne.mockResolvedValueOnce({
           id: 'role-new',
-          name: 'operador_org',
+          name: 'operator_org',
           permissions: ['READ incidents'],
         });
         userRepo.findOne.mockResolvedValue({
@@ -631,8 +631,8 @@ describe('RolesService', () => {
       expect(dataSource.transaction).not.toHaveBeenCalled();
     });
 
-    it('operador_org NO puede incluir REVEAL incidents → BadRequestException', async () => {
-      roleRepo.findOne.mockResolvedValue(mockRole('operador_org'));
+    it('operator_org NO puede incluir REVEAL incidents → BadRequestException', async () => {
+      roleRepo.findOne.mockResolvedValue(mockRole('operator_org'));
 
       await expect(
         service.syncPermissions('role-1', ['REVEAL incidents']),
@@ -656,7 +656,7 @@ describe('RolesService', () => {
     });
 
     it('roles no-master pueden tener cualquier permiso que NO sea REVEAL incidents', async () => {
-      roleRepo.findOne.mockResolvedValue(mockRole('operador_org'));
+      roleRepo.findOne.mockResolvedValue(mockRole('operator_org'));
 
       const result = await service.syncPermissions('role-1', [
         'READ incidents',
@@ -670,8 +670,8 @@ describe('RolesService', () => {
     });
 
     it('denormaliza el set nuevo a users asignados + bump version + invalida cache (AUD FIX-7)', async () => {
-      roleRepo.findOne.mockResolvedValue(mockRole('operador_org'));
-      const saved: RoleEntity = { id: 'role-1', name: 'operador_org', permissions: ['READ incidents'] } as RoleEntity;
+      roleRepo.findOne.mockResolvedValue(mockRole('operator_org'));
+      const saved: RoleEntity = { id: 'role-1', name: 'operator_org', permissions: ['READ incidents'] } as RoleEntity;
       roleRepo.save.mockImplementation(async (x: RoleEntity) => x);
       dataSource.transaction.mockImplementation(async (cb) => cb({ getRepository: () => ({ save: async () => saved }) }));
       userRepo.find.mockResolvedValue([

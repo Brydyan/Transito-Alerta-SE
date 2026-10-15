@@ -250,7 +250,7 @@ describe('AuthController', () => {
         deviceUuid: 'device-staff',
         permissions: ['CREATE incidents'],
         email_verified: false,
-        role_name: 'operador_org',
+        role_name: 'operator_org',
       });
       const req = {
         user: { userId: 'user-staff', permissions: [], sessionId: 'sid-staff', isAnonymous: false },
@@ -258,7 +258,7 @@ describe('AuthController', () => {
 
       const result = await controller.me(req);
 
-      expect(result.role_name).toBe('operador_org');
+      expect(result.role_name).toBe('operator_org');
       expect(result.permission_names).toEqual(['CREATE incidents']);
     });
 

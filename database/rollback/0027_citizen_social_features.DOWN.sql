@@ -26,7 +26,7 @@ UPDATE roles r
          AND p.deleted_at IS NULL
      )
    )
- WHERE r.name IN ('master', 'operador_sistema', 'admin_org', 'operador_org')
+ WHERE r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
    AND r.deleted_at IS NULL;
 
 -- 2) Denormalize removal to users.permissions
@@ -35,7 +35,7 @@ UPDATE users u
        permission_version = u.permission_version + 1
   FROM roles r
  WHERE u.role_id = r.id
-   AND r.name IN ('master', 'operador_sistema', 'admin_org', 'operador_org')
+   AND r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
    AND u.deleted_at IS NULL
    AND u.is_active = TRUE
    AND r.deleted_at IS NULL;

@@ -75,10 +75,10 @@ function makeOrgRepo(org: Partial<OrganizationEntity> | null) {
   } as unknown as Repository<OrganizationEntity>;
 }
 
-const OP_A = { id: 'op-a', organizationId: 'org-X', role: 'operador_org' };
-const OP_B = { id: 'op-b', organizationId: 'org-X', role: 'operador_org' };
+const OP_A = { id: 'op-a', organizationId: 'org-X', role: 'operator_org' };
+const OP_B = { id: 'op-b', organizationId: 'org-X', role: 'operator_org' };
 const ADMIN = { id: 'admin-1', organizationId: 'org-X', role: 'master' };
-const OUTSIDER = { id: 'op-z', organizationId: 'org-Y', role: 'operador_org' };
+const OUTSIDER = { id: 'op-z', organizationId: 'org-Y', role: 'operator_org' };
 
 const INCIDENT = {
   id: 'inc-1',

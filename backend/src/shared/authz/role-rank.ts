@@ -6,9 +6,9 @@
  */
 export const ROLE_RANK: Record<string, number> = {
   master: 1,
-  operador_sistema: 2,
+  agent_system: 2,
   admin_org: 3,
-  operador_org: 4,
+  operator_org: 4,
   reporter: 5,
 };
 

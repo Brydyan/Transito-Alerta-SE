@@ -261,7 +261,7 @@ describe('UsersService', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-A',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
       sessionsRepository.findActiveByUser.mockResolvedValue([]);
 
@@ -282,7 +282,7 @@ describe('UsersService', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-B',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
 
       await expect(
@@ -292,7 +292,7 @@ describe('UsersService', () => {
     });
 
     it('does NOT rank-gate — a lower-ranked actor can still list a visible higher-ranked target (D9: read != write)', async () => {
-      const actor = makeActor({ roleName: 'operador_org' });
+      const actor = makeActor({ roleName: 'operator_org' });
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-A',
@@ -326,7 +326,7 @@ describe('UsersService', () => {
         roleId: 'role-1',
         deviceUuid: 'device-target',
       });
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operator_org' });
       userRepo.update.mockResolvedValue({ affected: 1 });
       userRepo.findOne.mockResolvedValueOnce({
         id: 'target-1',
@@ -352,7 +352,7 @@ describe('UsersService', () => {
         roleId: 'role-1',
         deviceUuid: 'device-target',
       });
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operator_org' });
       userRepo.update.mockResolvedValue({ affected: 1 });
       userRepo.findOne.mockResolvedValueOnce({
         id: 'target-1',
@@ -378,7 +378,7 @@ describe('UsersService', () => {
         roleId: 'role-1',
         deviceUuid: 'device-target',
       });
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operator_org' });
 
       await expect(service.updateOrganization(actor, 'target-1', 'org-B')).rejects.toBeInstanceOf(
         NotFoundException,
@@ -563,10 +563,10 @@ describe('UsersService', () => {
       expect(createArg.departmentId).toBeNull();
     });
 
-    it('global role (operador_sistema): same — null org/dept', async () => {
+    it('global role (agent_system): same — null org/dept', async () => {
       roleRepo.findOne.mockResolvedValue({
         id: 'role-sys',
-        name: 'operador_sistema',
+        name: 'agent_system',
         permissions: [],
       });
 

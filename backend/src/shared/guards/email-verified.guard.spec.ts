@@ -53,7 +53,7 @@ describe('EmailVerifiedGuard (REG sc-325)', () => {
   it('Fix 5: la allow-list cubre los 4 staff roles; cualquier otro roleName exige verificación', async () => {
     // Allow-list exhaustivo. El denegado (`null`, `'reporter'`,
     // otros nombres) cae en la rama de verificación.
-    for (const roleName of ['operador_org', 'admin_org', 'operador_sistema', 'master']) {
+    for (const roleName of ['operator_org', 'admin_org', 'agent_system', 'master']) {
       const user = { userId: 'u1', roleName, permissions: [] };
       await expect(guard.canActivate(ctxFor(user))).resolves.toBe(true);
     }

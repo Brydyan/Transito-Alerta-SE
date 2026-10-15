@@ -6,7 +6,7 @@ import { AuthContext } from '../../shared/authz/subject-scope';
 import { FeedQueryDto } from './dto/feed-query.dto';
 import { FeedItemDto, FeedResponseDto } from './dto/stats-response.dto';
 
-const STAFF_ROLES = ['master', 'admin_org', 'operador_org', 'operador_sistema'];
+const STAFF_ROLES = ['master', 'admin_org', 'operator_org', 'agent_system'];
 const CITIZEN_FEED_KEY = 'feed:incidents';
 const CITIZEN_MAX_PAGE = 50;
 const STAFF_BBOX_CAP = 500;

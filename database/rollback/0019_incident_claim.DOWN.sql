@@ -26,6 +26,6 @@ UPDATE roles
        FROM jsonb_array_elements(permissions) AS elem
       WHERE elem NOT IN ('"CLAIM incidents"'::jsonb, '"RELEASE incidents"'::jsonb)
    )
- WHERE name IN ('operador_organizacion', 'operador_sistema');
+ WHERE name IN ('operator_organizacion', 'agent_system');
 
 COMMIT;

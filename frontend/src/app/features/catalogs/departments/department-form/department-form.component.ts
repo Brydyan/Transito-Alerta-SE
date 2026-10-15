@@ -30,9 +30,9 @@ import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.c
 
 // Roles that bypass the per-org scoping (mirror of backend's
 // DepartmentsController.GLOBAL_ROLES set). Used by the form to decide
-// whether to render the org selector (master/operador_sistema) vs. fix
+// whether to render the org selector (master/agent_system) vs. fix
 // the org to the caller's own (admin_org).
-const GLOBAL_ROLES = new Set(['master', 'operador_sistema']);
+const GLOBAL_ROLES = new Set(['master', 'agent_system']);
 
 /**
  * DepartmentFormComponent (`front/2026-09-15-departments-menu`).
@@ -88,7 +88,7 @@ export class DepartmentFormComponent implements OnInit {
   /** Sticky banner above the form for cross-field errors. */
   readonly bannerError = signal<string | null>(null);
 
-  /** D9-style: master + operador_sistema see an org selector; admin_org
+  /** D9-style: master + agent_system see an org selector; admin_org
    *  sees the org field locked to their own (no choice). */
   readonly isGlobalRole = computed(() => {
     const role = this.authService.currentUser()?.roleName ?? null;
@@ -154,7 +154,7 @@ export class DepartmentFormComponent implements OnInit {
     // whether the caller is locked to their own org or picks from a list.
     const ownOrgId = this.ownOrganizationId();
     if (this.isGlobalRole()) {
-      // master / operador_sistema pick from the org list once it loads.
+      // master / agent_system pick from the org list once it loads.
       this.organizationIdControl.setValidators([Validators.required]);
     } else if (ownOrgId) {
       // admin_org is locked to their own org — pre-fill the value. We do
@@ -256,7 +256,7 @@ export class DepartmentFormComponent implements OnInit {
     const name = (this.form.value.name as string).trim();
     const description =
       (this.form.value.description as string | null)?.trim() || null;
-    // For master / operador_sistema: the form's organization_id field
+    // For master / agent_system: the form's organization_id field
     // holds the caller's choice from the dropdown. For admin_org: it
     // holds their locked-in org from the auth context. Either way the
     // form value is the single source of truth at submit time.

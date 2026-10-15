@@ -221,7 +221,7 @@ export class IncidentWorkflowService {
    * saturated operator from a missing one.
    *
    * Inactive users (`is_active = false`) and roles outside
-   * `operador_org` / `operador_sistema` are still excluded.
+   * `operator_org` / `agent_system` are still excluded.
    */
   async availableOperators(incidentId: string): Promise<AvailableOperatorDto[]> {
     const incident = await this.loadIncident(incidentId);
@@ -245,7 +245,7 @@ export class IncidentWorkflowService {
          JOIN roles r ON r.id = u.role_id
         WHERE u.organization_id = $1
           AND u.is_active = true
-          AND r.name IN ('operador_org', 'operador_sistema')
+          AND r.name IN ('operator_org', 'agent_system')
           -- Exclude the operator who currently holds the claim: a
           -- saturated claimer cannot take on a second incident until
           -- they release the first, and the dropdown is meant to

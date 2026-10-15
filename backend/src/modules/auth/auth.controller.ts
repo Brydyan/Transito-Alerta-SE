@@ -178,7 +178,7 @@ export class AuthController {
      *  `email_verified` siempre. */
     email_verified: boolean;
     /** REG (sc-325) Fix A (ronda 10) — nombre del rol
-     *  (`reporter`, `operador_org`, `admin_org`, etc.) o `null`
+     *  (`reporter`, `operator_org`, `admin_org`, etc.) o `null`
      *  para el dispositivo anónimo. El frontend usa esto en C.4
      *  para decidir el redirect post-login. */
     role_name: string | null;

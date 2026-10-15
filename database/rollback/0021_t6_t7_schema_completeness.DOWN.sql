@@ -125,7 +125,7 @@ UPDATE roles
        FROM jsonb_array_elements(permissions) AS elem
       WHERE elem NOT IN ('"CREATE comment-images"'::jsonb, '"DELETE comment-images"'::jsonb)
    )
- WHERE name IN ('operador_organizacion', 'operador_sistema', 'admin_organizacion', 'admin_sistema');
+ WHERE name IN ('operator_organizacion', 'agent_system', 'admin_organizacion', 'admin_sistema');
 
 DELETE FROM permissions WHERE resource = 'comment-images';
 

@@ -14,7 +14,7 @@ export interface RoleListItem {
   permissionCount?: number;
   /**
    * F6 — etiqueta «Sistema» del mock 04-01 para roles built-in
-   * (admin_sistema, operador_sistema). El backend lo deduce o lo
+   * (admin_sistema, agent_system). El backend lo deduce o lo
    * expone como `isSystemRole: boolean`; si no, queda en false.
    */
   isSystemRole?: boolean;

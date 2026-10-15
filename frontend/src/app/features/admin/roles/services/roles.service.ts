@@ -51,7 +51,7 @@ export class RolesService {
             rolId: r.id ?? '',
             nombre: r.name ?? '',
             permissionCount: r.permissions?.length ?? 0,
-            isSystemRole: r.name ? ['master', 'operador_sistema'].includes(r.name) : false,
+            isSystemRole: r.name ? ['master', 'agent_system'].includes(r.name) : false,
           }));
         })
       );

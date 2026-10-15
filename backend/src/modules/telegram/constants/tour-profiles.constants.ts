@@ -38,8 +38,8 @@ export const TOUR_PROFILES: Readonly<Record<string, TourProfile>> = {
       'Para detalles consulta el manual de admin o escribe /help.',
     ].join('\n'),
   },
-  operador_sistema: {
-    roleName: 'operador_sistema',
+  agent_system: {
+    roleName: 'agent_system',
     welcome: '👋 Bienvenido, Operador General del Sistema',
     tour: [
       'Como operador de sistema tu trabajo es transversal al país:',
@@ -66,18 +66,18 @@ export const TOUR_PROFILES: Readonly<Record<string, TourProfile>> = {
       'emergencia crítica en tu organización.',
     ].join('\n'),
   },
-  operador_org: {
-    roleName: 'operador_org',
+  operator_org: {
+    roleName: 'operator_org',
     welcome: '👋 Bienvenido, Operador de Campo',
     tour: [
-      'Como operador_org recibirás las tareas en Telegram:',
+      'Como operator_org recibirás las tareas en Telegram:',
       '• Cuando se te asigne una incidencia recibirás un mensaje con',
       '  título, descripción, prioridad, coordenadas y enlace a Google',
       '  Maps para dirigirte al lugar.',
       '• Para cambiar el estado (in_progress → resolved) abre la app.',
       '• Sube notas y fotos desde el detalle de la incidencia.',
       '',
-      'Si tu operador_org carga supera el cupo, un admin puede',
+      'Si tu operator_org carga supera el cupo, un admin puede',
       'asignarte una adicional con un motivo justificado — recibirás',
       'el motivo en el mensaje para tu contexto.',
     ].join('\n'),

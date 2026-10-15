@@ -101,7 +101,7 @@ export class NewUserFormComponent implements OnInit {
 
   /**
    * D2 (2026-10-11) — true cuando el rol seleccionado es global
-   * (`master` o `operador_sistema`). Los roles globales no requieren
+   * (`master` o `agent_system`). Los roles globales no requieren
    * org ni departamento.
    */
   readonly isGlobalRole = computed<boolean>(() => {
@@ -116,7 +116,7 @@ export class NewUserFormComponent implements OnInit {
    *  - firstName y lastName: requerido, >= 2 chars
    *  - email: requerido, formato básico
    *  - phone: opcional, max 30 chars
-   *  - roleId sectorial (admin_org, operador_org): require `organizationId` y `departmentId`
+   *  - roleId sectorial (admin_org, operator_org): require `organizationId` y `departmentId`
    */
   readonly isFormValid = computed<boolean>(() => {
     const d = this.formData();

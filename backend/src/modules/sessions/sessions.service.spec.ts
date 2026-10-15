@@ -92,7 +92,7 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-B',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
 
       await expect(
@@ -163,7 +163,7 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-B',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
 
       await expect(
@@ -200,7 +200,7 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-A',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
       sessionsRepository.revoke.mockResolvedValue(
         makeSessionRow({ id: 'sid-2', expires_at: new Date(Date.now() + 10_000) }),

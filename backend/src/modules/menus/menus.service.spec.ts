@@ -353,7 +353,7 @@ describe('MenusService', () => {
     expect(permissionLookup.getUuid).toHaveBeenCalledWith('CREATE', 'incidents');
   });
 
-  it.skip('operador_sistema with matrix can_read=true for /admin/users but WITHOUT READ users UUID does NOT see Usuarios', async () => {
+  it.skip('agent_system with matrix can_read=true for /admin/users but WITHOUT READ users UUID does NOT see Usuarios', async () => {
     authService.getPermissionsByUserId.mockResolvedValue([UUID_READ_INCIDENTS, UUID_READ_ORGANIZATIONS]);
     const usuarios = Object.assign(new MenuOptionEntity(), {
       id: 'op1', name: 'Usuarios', route: '/admin/users', parentId: null, displayOrder: 60, isActive: true, deletedAt: null,
@@ -422,7 +422,7 @@ describe('MenusService', () => {
     expect(result.map((e) => e.label)).not.toContain('Ubicaciones');
   });
 
-  it.skip('operador_org (15 permisos) sees a coherent subset without orphan headers (F1.2.3)', async () => {
+  it.skip('operator_org (15 permisos) sees a coherent subset without orphan headers (F1.2.3)', async () => {
     // Subset representativo: el operador de organización tiene acceso a
     // incidencias (lectura y creación) y a organizaciones. NO ve usuarios,
     // roles, categorías, ni ubicaciones. El menú resultante no debe tener

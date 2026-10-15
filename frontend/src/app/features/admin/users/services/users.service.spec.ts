@@ -50,7 +50,7 @@ describe('UsersService (F6 new-user-form)', () => {
     service.getFormData().subscribe((data) => {
       expect(data.roles).toEqual([
         { id: 'r1', name: 'admin_org' },
-        { id: 'r2', name: 'operador_org' },
+        { id: 'r2', name: 'operator_org' },
       ]);
       expect(data.organizations).toEqual([
         { id: 'o1', nombre: 'GAD Norte' },
@@ -65,7 +65,7 @@ describe('UsersService (F6 new-user-form)', () => {
     req.flush({
       roles: [
         { id: 'r1', name: 'admin_org' },
-        { id: 'r2', name: 'operador_org' },
+        { id: 'r2', name: 'operator_org' },
       ],
       organizations: [{ id: 'o1', name: 'GAD Norte' }],
       departments: [{ id: 'd1', name: 'Gestión Vial', organization_id: 'o1' }],

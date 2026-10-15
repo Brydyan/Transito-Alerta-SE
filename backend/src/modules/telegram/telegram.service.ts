@@ -19,7 +19,7 @@ export interface OutboundTelegram {
   parse_mode?: 'HTML' | 'MarkdownV2';
 }
 
-export type TelegramAudience = 'admin_org' | 'operador_org' | 'master' | 'operador_sistema';
+export type TelegramAudience = 'admin_org' | 'operator_org' | 'master' | 'agent_system';
 
 /**
  * TelegramService (F7 emergency-dispatch, design D5) — the only writer onto

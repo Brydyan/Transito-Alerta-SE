@@ -28,7 +28,7 @@ import { UiIconComponent } from '../../../../../shared/components/ui-icon/ui-ico
  *
  * D7: NO `*hasPermission`. El botón se muestra para todos y el
  * backend rechaza con 403 — el toast lo explica (F6 design
- * «operador_org ve botones pero obtiene 403 on click»).
+ * «operator_org ve botones pero obtiene 403 on click»).
  */
 @Component({
   selector: 'app-action-menu',

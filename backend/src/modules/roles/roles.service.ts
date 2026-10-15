@@ -18,8 +18,8 @@ import { RoleStatsDto } from './dto/role-stats.dto';
  * AUD (sc-327) FIX-6 (ronda 12) — nombres de roles sembrados
  * por las migraciones. Una migración 0015 los siembra
  * con sus nombres largos (`admin_organizacion`,
- * `operador_organizacion`) y la 0047 los renombra a
- * `admin_org` / `operador_org`. El conjunto FINAL —el que
+ * `operator_organizacion`) y la 0047 los renombra a
+ * `admin_org` / `operator_org`. El conjunto FINAL —el que
  * el código de runtime ve— es este. Tratarlos como
  * identificadores, no como etiquetas, es lo que el FIX-6
  * exige: las migraciones conceden permisos por nombre, así
@@ -30,8 +30,8 @@ import { RoleStatsDto } from './dto/role-stats.dto';
 const SEEDED_ROLE_NAMES: ReadonlySet<string> = new Set([
   'master',
   'admin_org',
-  'operador_org',
-  'operador_sistema',
+  'operator_org',
+  'agent_system',
   'reporter',
 ]);
 

@@ -19,12 +19,12 @@
  */
 export const ROLES_REQUIRING_ORG_AND_DEPT: ReadonlyArray<string> = [
   'admin_org',
-  'operador_org',
+  'operator_org',
 ];
 
 export const ROLES_NOT_REQUIRING_ORG: ReadonlyArray<string> = [
   'master',
-  'operador_sistema',
+  'agent_system',
 ];
 
 export function requiresOrgAndDept(roleName: string | null | undefined): boolean {

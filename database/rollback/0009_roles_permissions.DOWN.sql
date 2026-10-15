@@ -17,8 +17,8 @@ DROP TABLE IF EXISTS permissions;
 DELETE FROM roles
  WHERE name IN (
    'reporter',
-   'admin_sistema', 'operador_sistema',
-   'admin_organizacion', 'operador_organizacion'
+   'admin_sistema', 'agent_system',
+   'admin_organizacion', 'operator_organizacion'
  );
 
 ALTER TABLE roles

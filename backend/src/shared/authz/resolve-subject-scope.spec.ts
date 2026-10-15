@@ -6,9 +6,9 @@ describe('resolveSubjectScope', () => {
     expect(resolveSubjectScope('master', 'org-1')).toEqual({ kind: 'global' });
   });
 
-  it('operador_sistema (any org) -> global, explicit branch by name', () => {
-    expect(resolveSubjectScope('operador_sistema', null)).toEqual({ kind: 'global' });
-    expect(resolveSubjectScope('operador_sistema', 'org-1')).toEqual({ kind: 'global' });
+  it('agent_system (any org) -> global, explicit branch by name', () => {
+    expect(resolveSubjectScope('agent_system', null)).toEqual({ kind: 'global' });
+    expect(resolveSubjectScope('agent_system', 'org-1')).toEqual({ kind: 'global' });
   });
 
   it('admin_org with organizationId set -> org', () => {
@@ -25,16 +25,16 @@ describe('resolveSubjectScope', () => {
     });
   });
 
-  it('operador_org with organizationId set -> org_assigned', () => {
-    expect(resolveSubjectScope('operador_org', 'org-1', 'user-1')).toEqual({
+  it('operator_org with organizationId set -> org_assigned', () => {
+    expect(resolveSubjectScope('operator_org', 'org-1', 'user-1')).toEqual({
       kind: 'org_assigned',
       organizationId: 'org-1',
       userId: 'user-1',
     });
   });
 
-  it('operador_org with organizationId NULL -> deny', () => {
-    expect(resolveSubjectScope('operador_org', null, 'user-1')).toEqual({
+  it('operator_org with organizationId NULL -> deny', () => {
+    expect(resolveSubjectScope('operator_org', null, 'user-1')).toEqual({
       kind: 'deny',
       reason: 'staff_without_organization',
     });

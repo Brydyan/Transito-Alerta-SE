@@ -356,7 +356,7 @@ export class UsersService {
     if (payload.nombres !== undefined) body['first_name'] = payload.nombres;
     if (payload.apellidos !== undefined) body['last_name'] = payload.apellidos;
     // F6 fix: `email` y `phone` ahora son actualizables por admin
-    // (master u operador_sistema con `UPDATE users`). El DTO del
+    // (master u agent_system con `UPDATE users`). El DTO del
     // backend (`AdminUpdateUserDto`) los valida y rechaza 409
     // si el email ya existe en otro user.
     if (payload.email !== undefined) body['email'] = payload.email;

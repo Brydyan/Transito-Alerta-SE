@@ -1,7 +1,7 @@
 -- 0031_emergency_dispatch.sql
 -- 2026-08-29-f7-emergency-dispatch
 -- Adds the schema surface needed by the emergency-dispatch change:
---   1) Telegram chat id for `admin_org` and `operador_org` (D6, B.2).
+--   1) Telegram chat id for `admin_org` and `operator_org` (D6, B.2).
 --   2) Per-assignment cap-override audit fields (D3, A.3).
 --   3) Incident reminder counter for the critical-pending repique (D10, B.5).
 --
@@ -27,7 +27,7 @@ ALTER TABLE users
 
 COMMENT ON COLUMN users.telegram_chat_id IS
   'Telegram chat_id for emergency-dispatch notifications. '
-  'Used by admin_org (initial + reminder repique) and operador_org '
+  'Used by admin_org (initial + reminder repique) and operator_org '
   '(assignment notifications). NULL = user has not configured Telegram; '
   'the listener must skip without failing.';
 

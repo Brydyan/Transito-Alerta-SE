@@ -19,13 +19,13 @@ function actor(overrides: Partial<AuthContext> = {}): AuthContext {
 describe('assertCanInvite (T3.6 design D10)', () => {
   it('org actor inviting into their own org, granting a lower-rank role, does not throw', () => {
     const a = actor({ roleName: 'admin_org', scope: { kind: 'org', organizationId: 'org-1' } });
-    expect(() => assertCanInvite(a, 'org-1', 'operador_org')).not.toThrow();
+    expect(() => assertCanInvite(a, 'org-1', 'operator_org')).not.toThrow();
   });
 
   it('org actor inviting into a DIFFERENT org: 403 OUT_OF_SCOPE_ORGANIZATION, not 404', () => {
     const a = actor({ roleName: 'admin_org', scope: { kind: 'org', organizationId: 'org-1' } });
     try {
-      assertCanInvite(a, 'org-2', 'operador_org');
+      assertCanInvite(a, 'org-2', 'operator_org');
       fail('expected ForbiddenException');
     } catch (err) {
       expect(err).toBeInstanceOf(ForbiddenException);
@@ -42,7 +42,7 @@ describe('assertCanInvite (T3.6 design D10)', () => {
 
   it('global actor may invite into a null organization (system-level invite)', () => {
     const a = actor({ roleName: 'master', organizationId: null, scope: { kind: 'global' } });
-    expect(() => assertCanInvite(a, null, 'operador_sistema')).not.toThrow();
+    expect(() => assertCanInvite(a, null, 'agent_system')).not.toThrow();
   });
 
   it('rank check runs after the scope check — inviting a same-or-higher rank role is 403 INSUFFICIENT_ROLE_RANK', () => {
@@ -59,7 +59,7 @@ describe('assertCanInvite (T3.6 design D10)', () => {
   });
 
   it('public/deny scope actors can never invite (403 OUT_OF_SCOPE_ORGANIZATION)', () => {
-    const a = actor({ roleName: 'operador_org', scope: { kind: 'public' } });
+    const a = actor({ roleName: 'operator_org', scope: { kind: 'public' } });
     expect(() => assertCanInvite(a, 'org-1', 'reporter')).toThrow(ForbiddenException);
   });
 

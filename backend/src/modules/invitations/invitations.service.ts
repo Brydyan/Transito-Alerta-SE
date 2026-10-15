@@ -21,6 +21,7 @@ import {
 import { InvitationsRepository } from './invitations.repository';
 import { TelegramLinkService } from '../telegram/telegram-link.service';
 import { getTourProfileForRole } from '../telegram/constants/tour-profiles.constants';
+import { ROLE_DISPLAY_NAMES } from '../roles/role-display-names.constants';
 
 export interface CreateInvitationInput {
   email: string;
@@ -157,7 +158,7 @@ export class InvitationsService {
       template: 'invitation',
       data: {
         link: `${this.mailConfig.appBaseUrl}/accept-invitation?token=${token}`,
-        roleName: role.name,
+        roleName: ROLE_DISPLAY_NAMES[role.name] ?? role.name,
         organizationName: organizationName ?? '',
         // telegramLink + roleGuide are only meaningful for staff
         // roles. `reporter` is not in this flow (D7) but the

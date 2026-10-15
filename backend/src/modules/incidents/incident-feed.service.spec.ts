@@ -7,7 +7,7 @@ type Filters = { bbox?: string; status?: string; priority?: string; zone_id?: st
 
 const ORG_OPERATOR: AuthContext = {
   userId: 'op-1',
-  roleName: 'operador_org',
+  roleName: 'operator_org',
   organizationId: 'org-1',
   permissions: ['READ incidents'],
   scope: { kind: 'org', organizationId: 'org-1' },

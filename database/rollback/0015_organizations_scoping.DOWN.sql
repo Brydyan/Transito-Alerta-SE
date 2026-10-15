@@ -10,7 +10,7 @@
 BEGIN;
 
 DELETE FROM roles WHERE name IN (
-  'admin_sistema', 'operador_sistema', 'admin_organizacion', 'operador_organizacion'
+  'admin_sistema', 'agent_system', 'admin_organizacion', 'operator_organizacion'
 );
 
 DELETE FROM permissions WHERE resource = 'organizations';
