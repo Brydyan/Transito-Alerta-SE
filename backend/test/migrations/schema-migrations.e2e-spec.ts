@@ -12,41 +12,37 @@ import { checksumOf, listMigrations } from '../../scripts/lib/migration-files';
  * y deja la transacción abortada, arrastrando en cascada a todo lo que venga
  * después.
  *
- * Por eso las dos fixtures se arman UNA sola vez aquí y ningún test vuelve a
- * aplicar un rango. Son dos porque el backfill condicional de 0021 tiene
- * justamente dos comportamientos que hay que distinguir:
+ * Por eso la fixture se arma UNA sola vez aquí y ningún test vuelve a
+ * aplicar un rango.
  *
- *   - `bare`: 0001–0020 + 0021 → el guard `WHERE EXISTS (… 'incidents')` SÍ
- *     se cumple (incidents existe desde 0004) y el backfill marca las 20
- *     migraciones previas.
- *   - `full`: 0001–0029 + 0021 aplicado en segundo lugar → el guard se cumple
- *     y el backfill marca las 29 migraciones previas (0001–0029).
+ * `bare`: 0001–0020 + 0021 → el guard `WHERE EXISTS (… 'incidents')` SÍ
+ * se cumple (incidents existe desde 0004) y el backfill marca las 20
+ * migraciones previas.
  *
  * Nota: 0021 requiere que 0001–0020 ya existan en la base (crea comment_images
  * con FK a comments de 0005, entre otras dependencias). No puede aplicarse
  * sobre una base completamente vacía.
+ *
+ * Nota sobre la consolidación: en la cadena consolidada (0001–0031), 0021 es
+ * quien crea schema_migrations y hace el backfill de 0001–0020. Ya no existe
+ * un paso final que backfille 0001–0029 como hacía el antiguo 0030; el runner
+ * (`run-migrations.ts`) registra cada versión cuando la aplica.
  */
 describe('T7.1.A — schema_migrations table & tracking', () => {
   let bare: MigrationHarness;
-  let full: MigrationHarness;
 
   beforeAll(async () => {
     bare = await MigrationHarness.start();
     await bare.applyRange({ to: '0020' });
     await bare.applyVersion('0021');
-
-    full = await MigrationHarness.start();
-    await full.applyRange({ to: '0029' });
-    await full.applyVersion('0021');
   }, 240_000);
 
   afterAll(async () => {
     await bare?.stop();
-    await full?.stop();
   }, 120_000);
 
   describe('T7.1.A1 — tabla schema_migrations existe y tiene estructura correcta', () => {
-    it('re-aplicar 0030 no lanza (CREATE TABLE IF NOT EXISTS + ON CONFLICT DO NOTHING)', async () => {
+    it('re-aplicar 0021 no lanza (CREATE TABLE IF NOT EXISTS + ON CONFLICT DO NOTHING)', async () => {
       await expect(bare.applyVersion('0021')).resolves.not.toThrow();
     });
 
@@ -82,28 +78,18 @@ describe('T7.1.A — schema_migrations table & tracking', () => {
         Array.from({ length: 20 }, (_, i) => String(i + 1).padStart(4, '0')),
       );
     });
-
-    it('backfill SÍ aplica cuando la tabla incidents existe (full: 0001–0029)', async () => {
-      const rows = await full.rows<{ version: string }>(
-        'SELECT version FROM schema_migrations ORDER BY version',
-      );
-
-      expect(rows.map((r) => r.version)).toEqual(
-        Array.from({ length: 29 }, (_, i) => String(i + 1).padStart(4, '0')),
-      );
-    });
   });
 
   describe('T7.1.A3 — semántica del checksum de las filas backfilleadas', () => {
     // Las filas que inserta el backfill NO llevan el SHA-256 del fichero:
-    // 0030 escribe el literal 'backfill' a propósito, porque esas migraciones
+    // 0021 escribe el literal 'backfill' a propósito, porque esas migraciones
     // se aplicaron fuera del runner y su contenido en disco puede haber
     // cambiado legítimamente desde entonces. `run-migrations.ts` reconoce ese
     // centinela y salta la validación de drift para esas versiones.
     it('las filas backfilleadas llevan el centinela "backfill", no un SHA-256', async () => {
-      const rows = await full.rows<{ version: string; checksum: string }>(
+      const rows = await bare.rows<{ version: string; checksum: string }>(
         `SELECT version, checksum FROM schema_migrations
-          WHERE version <= '0029' ORDER BY version`,
+          WHERE version <= '0020' ORDER BY version`,
       );
 
       expect(rows.length).toBeGreaterThan(0);
@@ -115,7 +101,7 @@ describe('T7.1.A — schema_migrations table & tracking', () => {
     it('el centinela es distinguible de un SHA-256 real del mismo fichero', async () => {
       const migration = listMigrations()[0]; // 0001
 
-      const [stored] = await full.rows<{ checksum: string }>(
+      const [stored] = await bare.rows<{ checksum: string }>(
         'SELECT checksum FROM schema_migrations WHERE version = $1',
         [migration.version],
       );
@@ -128,14 +114,14 @@ describe('T7.1.A — schema_migrations table & tracking', () => {
   });
 
   describe('T7.1.A4 — inserción idempotente con ON CONFLICT DO NOTHING', () => {
-    it('re-aplicar 0030 no duplica filas', async () => {
-      const [before] = await full.rows<{ count: string }>(
+    it('re-aplicar 0021 no duplica filas', async () => {
+      const [before] = await bare.rows<{ count: string }>(
         'SELECT COUNT(*) AS count FROM schema_migrations',
       );
 
-      await full.applyVersion('0021');
+      await bare.applyVersion('0021');
 
-      const [after] = await full.rows<{ count: string }>(
+      const [after] = await bare.rows<{ count: string }>(
         'SELECT COUNT(*) AS count FROM schema_migrations',
       );
 
@@ -143,14 +129,14 @@ describe('T7.1.A — schema_migrations table & tracking', () => {
     });
   });
 
-  describe('T7.1.A5 — 0030 marca 0001–0029 pero no se registra a sí misma', () => {
-    it('quedan exactamente 29 filas y ninguna es 0030', async () => {
-      const rows = await full.rows<{ version: string }>('SELECT version FROM schema_migrations');
+  describe('T7.1.A5 — 0021 marca 0001–0020 pero no se registra a sí misma', () => {
+    it('quedan exactamente 20 filas y ninguna es 0021', async () => {
+      const rows = await bare.rows<{ version: string }>('SELECT version FROM schema_migrations');
 
-      // 0030 registra el rango 0001–0029; su propia fila la escribe el runner
+      // 0021 registra el rango 0001–0020; su propia fila la escribe el runner
       // (`run-migrations.ts`), no el fichero de migración.
-      expect(rows).toHaveLength(29);
-      expect(rows.map((r) => r.version)).not.toContain('0030');
+      expect(rows).toHaveLength(20);
+      expect(rows.map((r) => r.version)).not.toContain('0021');
     });
   });
 });
