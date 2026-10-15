@@ -297,6 +297,7 @@ export type GlobalRole = (typeof GLOBAL_ROLES)[number];
  *
  * 2026-10-11 (D1): se agrega `departmentId` para el selector de
  * departamento. Obligatorio cuando el rol es sectorial.
+<<<<<<< HEAD
  *
  * sc-446 (Alcance Territorial): se agrega `geoZoneId` para el selector
  * de zona geográfica. Opcional para todos los roles.

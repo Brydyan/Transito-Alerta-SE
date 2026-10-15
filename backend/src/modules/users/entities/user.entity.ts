@@ -125,6 +125,7 @@ export class UserEntity {
 
   /**
    * 2026-10-10-user-onboarding-telegram-tour (D1) — FK to `departments`.
+<<<<<<< HEAD
    * The column was created by `0030_departments.sql` with
    * `ON DELETE SET NULL`, but until this change the entity had no
    * mapping, so the DTOs and the form could not persist the value.
