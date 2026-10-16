@@ -311,4 +311,41 @@ describe('UsersService (F6 new-user-form)', () => {
       ]);
     });
   });
+
+  // 2026-10-16 — toggle "mostrar inactivos" en lista de usuarios.
+  // El `active` query param se agrega cuando `activeOnly !== undefined`.
+  // La ausencia del param (default `undefined`) NO agrega nada.
+  describe('getUsers — activeOnly toggle', () => {
+    it('does not add `active` param when activeOnly is undefined (default — all users)', () => {
+      service.getUsers(1, 10).subscribe();
+      const req = http.expectOne(`${environment.apiUrl}/users?page=1&limit=10`);
+      expect(req.request.params.has('active')).toBe(false);
+      req.flush({ items: [], total: 0 });
+    });
+
+    it('adds `active=true` when activeOnly is true (toggle off — historical default)', () => {
+      service.getUsers(1, 10, undefined, undefined, true).subscribe();
+      const req = http.expectOne(`${environment.apiUrl}/users?page=1&limit=10&active=true`);
+      expect(req.request.params.get('active')).toBe('true');
+      req.flush({ items: [], total: 0 });
+    });
+
+    it('adds `active=false` when activeOnly is false (toggle on — shadow users)', () => {
+      service.getUsers(1, 10, undefined, undefined, false).subscribe();
+      const req = http.expectOne(`${environment.apiUrl}/users?page=1&limit=10&active=false`);
+      expect(req.request.params.get('active')).toBe('false');
+      req.flush({ items: [], total: 0 });
+    });
+
+    it('combines `active` with `role` and `org` params', () => {
+      service.getUsers(1, 10, 'admin_org', 'org-A', false).subscribe();
+      const req = http.expectOne(
+        `${environment.apiUrl}/users?page=1&limit=10&role=admin_org&org=org-A&active=false`,
+      );
+      expect(req.request.params.get('role')).toBe('admin_org');
+      expect(req.request.params.get('org')).toBe('org-A');
+      expect(req.request.params.get('active')).toBe('false');
+      req.flush({ items: [], total: 0 });
+    });
+  });
 });

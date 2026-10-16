@@ -25,6 +25,23 @@
     [organizations]="organizations()"
     (filterChange)="onFilterChange($event)"
   />
+  <!-- 2026-10-16 — toggle "mostrar inactivos". Por defecto la lista
+       muestra sólo usuarios ACTIVOS (histórico, evita los shadow
+       de adminCreate). Al marcar el checkbox se llama
+       `getUsers(activeOnly=false)` y el backend filtra por
+       `is_active: false` — útil para admins que necesitan auditar
+       invitaciones pendientes. -->
+  <label class="toolbar__toggle flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+         data-testid="toolbar-toggle-inactive">
+    <input
+      type="checkbox"
+      class="form-check-input shrink-0 mt-0"
+      [checked]="showInactiveOnly()"
+      (change)="onToggleInactive($any($event.target).checked)"
+      aria-label="Mostrar solo usuarios inactivos o pendientes de invitación"
+    />
+    <span>Solo inactivos / pendientes</span>
+  </label>
 </section>
 
 @if (errorMessage()) {

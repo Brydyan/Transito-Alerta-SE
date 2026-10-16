@@ -167,12 +167,32 @@ export class UsersController {
     @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    // 2026-10-16 — toggle "mostrar inactivos" en la lista de
+    // usuarios. Wire values: `active=true` → solo activos;
+    // `active=false` → solo inactivos (shadow-users de adminCreate);
+    // ausente → todos (default histórico, isActive=true).
+    // `forbidNonWhitelisted` is NOT enabled globally here — the
+    // controller does not apply ValidationPipe for query params on
+    // this route, so unknown values (`active=foo`) fall through to
+    // `activeOnly = undefined` and the caller still gets the full
+    // list (defensive).
+    @Query('active') active?: string,
   ): Promise<{ items: UserEntity[]; total: number }> {
+    const activeOnly =
+      active === undefined
+        ? undefined
+        : active === 'true'
+          ? true
+          : active === 'false'
+            ? false
+            : undefined;
+
     return this.usersService.list(
       page ? parseInt(page, 10) : undefined,
       limit ? parseInt(limit, 10) : undefined,
       req.user!.scope,
       req.user!.userId,
+      activeOnly,
     );
   }
 

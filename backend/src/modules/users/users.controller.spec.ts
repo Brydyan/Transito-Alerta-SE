@@ -90,7 +90,44 @@ describe('UsersController', () => {
 
     await controller.list(req, '2', '50');
 
-    expect(service.list).toHaveBeenCalledWith(2, 50, GLOBAL_SCOPE, 'u1');
+    expect(service.list).toHaveBeenCalledWith(2, 50, GLOBAL_SCOPE, 'u1', undefined);
+  });
+
+  // 2026-10-16 — toggle "mostrar inactivos".
+  it('GET / with active=false forwards activeOnly=false to the service', async () => {
+    service.list.mockResolvedValue({ items: [], total: 0 });
+    const req = {
+      user: { userId: 'u1', permissions: [], scope: GLOBAL_SCOPE },
+    } as unknown as AuthenticatedRequest;
+
+    await controller.list(req, undefined, undefined, 'false');
+
+    expect(service.list).toHaveBeenCalledWith(undefined, undefined, GLOBAL_SCOPE, 'u1', false);
+  });
+
+  it('GET / with active=true forwards activeOnly=true to the service', async () => {
+    service.list.mockResolvedValue({ items: [], total: 0 });
+    const req = {
+      user: { userId: 'u1', permissions: [], scope: GLOBAL_SCOPE },
+    } as unknown as AuthenticatedRequest;
+
+    await controller.list(req, undefined, undefined, 'true');
+
+    expect(service.list).toHaveBeenCalledWith(undefined, undefined, GLOBAL_SCOPE, 'u1', true);
+  });
+
+  it('GET / with unknown active value forwards undefined (defensive)', async () => {
+    service.list.mockResolvedValue({ items: [], total: 0 });
+    const req = {
+      user: { userId: 'u1', permissions: [], scope: GLOBAL_SCOPE },
+    } as unknown as AuthenticatedRequest;
+
+    await controller.list(req, undefined, undefined, 'foo');
+
+    // `active === 'foo'` does not match 'true' or 'false' → undefined
+    // → service sees activeOnly=undefined → no extra filter beyond
+    // the historical `isActive: true` baseline.
+    expect(service.list).toHaveBeenCalledWith(undefined, undefined, GLOBAL_SCOPE, 'u1', undefined);
   });
 
   it('PATCH /:id/organization requires UPDATE users', () => {

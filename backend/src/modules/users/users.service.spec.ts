@@ -177,6 +177,64 @@ describe('UsersService', () => {
       );
     });
 
+    // 2026-10-16 — toggle "mostrar inactivos" en lista de usuarios.
+    // activeOnly=undefined → sin filtro extra (lista completa de
+    // shadow + active). Por defecto el controller manda `undefined`,
+    // así que el default histórico "todos" se preserva.
+    it('activeOnly=undefined returns all users (current default — no extra filter)', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, GLOBAL_SCOPE, undefined, undefined);
+
+      // `undefined` ⇒ `isActive` se sobreescribe con `true` por
+      // el default de `findAndCount`. La spec del F6 (isActive:
+      // true) sigue aplicándose.
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isActive: true } }),
+      );
+    });
+
+    // activeOnly=true → solo isActive=true. Mismo comportamiento que
+    // el default histórico pero explícito desde el caller.
+    it('activeOnly=true filters by isActive: true', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, GLOBAL_SCOPE, undefined, true);
+
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isActive: true } }),
+      );
+    });
+
+    // activeOnly=false → solo isActive=false. Toggle del frontend:
+    // muestra los shadow-users que adminCreate creó pero aún no
+    // aceptaron invitación (T7.5).
+    it('activeOnly=false filters by isActive: false (toggle "Solo inactivos / pendientes")', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, GLOBAL_SCOPE, undefined, false);
+
+      // El `findAndCount` interno debe respetar el `isActive: false`
+      // del caller — NO sobreescribir con `true`.
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isActive: false } }),
+      );
+    });
+
+    // Mismo toggle en `org` scope: combina organizationId con el
+    // isActive explícito del toggle.
+    it('activeOnly=false combines with organization_id (org scope)', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, ORG_A_SCOPE, undefined, false);
+
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { organizationId: 'org-A', isActive: false },
+        }),
+      );
+    });
+
     it('public scope returns self only', async () => {
       userRepo.findOne.mockResolvedValue({ id: 'user-1' });
 
