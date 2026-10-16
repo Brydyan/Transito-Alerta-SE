@@ -29,13 +29,15 @@ Affected routes:
 | Route | Permission string | Authorized roles |
 |---|---|---|
 | `/app/admin/users` | `READ users` | `master`, `admin_org`, `operador_sistema` |
-| `/app/admin/roles` | `READ roles` | `master`, `operador_sistema` |
+| `/app/admin/roles` | `READ roles` | `master`, `admin_org`, `operador_sistema` |
 | `/app/admin/config` | `READ system-config` | `master`, `operador_sistema` |
 | `/app/admin/departamentos` | `READ departments` | `master`, `admin_org`, `operador_sistema` |
 | `/app/admin/organizaciones` | `READ organizations` | `master`, `admin_org` |
-| `/app/admin/auditoria` | `READ audit-logs` | `master`, `operador_sistema` |
-| `/app/admin/geo-zonas` | `READ geo-zones` | `master`, `operador_sistema` |
-| `/app/admin/reportes` | `READ reports` | `master`, `operador_sistema` |
+
+> **Fuera de scope de este change**: Las rutas `/app/admin/audit-logs`
+> (ya tenía guard — `READ audit-logs` desde `2026-09-11-f6-audit-logs-export`),
+> `/app/admin/geo-zonas` (ruta no creada), y `/app/admin/reportes` (ruta no
+> creada) no son parte de este change.
 
 #### Scenario: Authorized role accesses guarded admin list — users
 
@@ -54,7 +56,7 @@ Affected routes:
 
 #### Scenario: Authorized role accesses roles list
 
-- GIVEN a user with role `operador_sistema` is authenticated
+- GIVEN a user with role `admin_org` is authenticated
 - WHEN they navigate to `/app/admin/roles`
 - THEN the route activates and the roles list component renders
 
@@ -86,30 +88,6 @@ Affected routes:
 
 - GIVEN a user with role `reporter` is authenticated
 - WHEN they navigate directly by URL to `/app/admin/organizaciones`
-- THEN the router redirects to `/app`
-
-#### Scenario: Authorized role accesses audit log list
-
-- GIVEN a user with role `master` is authenticated
-- WHEN they navigate to `/app/admin/auditoria`
-- THEN the route activates and the audit log list component renders
-
-#### Scenario: Unauthorized role is redirected from audit log list
-
-- GIVEN a user with role `reporter` is authenticated
-- WHEN they navigate directly by URL to `/app/admin/auditoria`
-- THEN the router redirects to `/app`
-
-#### Scenario: Authorized role accesses geo-zones list
-
-- GIVEN a user with role `operador_sistema` is authenticated
-- WHEN they navigate to `/app/admin/geo-zonas`
-- THEN the route activates and the geo-zones list component renders
-
-#### Scenario: Unauthorized role is redirected from geo-zones list
-
-- GIVEN a user with role `reporter` is authenticated
-- WHEN they navigate directly by URL to `/app/admin/geo-zonas`
 - THEN the router redirects to `/app`
 
 ---
@@ -226,8 +204,7 @@ render for a reporter.
 - GIVEN a user with role `reporter` is authenticated
 - WHEN they navigate directly by URL to any of the routes:
   `/app/admin/users`, `/app/admin/roles`, `/app/admin/config`,
-  `/app/admin/departamentos`, `/app/admin/organizaciones`,
-  `/app/admin/auditoria`, `/app/admin/geo-zonas`, `/app/admin/reportes`
+  `/app/admin/departamentos`, `/app/admin/organizaciones`
 - THEN for each route `permissionGuard` denies activation
 - AND the router redirects to `/app`
 - AND no admin component renders

@@ -5,8 +5,8 @@
 
 ## Completed Tasks
 
-- [x] 1.1 Created `database/migrations/0070_system_config_permission.sql`
-- [x] 1.2 Created `database/rollback/0070_system_config_permission.DOWN.sql`
+- [x] 1.1 CREATE absorbed — `READ system-config` catalog row was consolidated into `database/migrations/0009_roles_permissions.sql` (Group A consolidation 2026-10-14, commit 1bbccfec3). No standalone 0070 file was created.
+- [x] 1.2 DOWN absorbed — rollback is covered by `database/rollback/0009_roles_permissions.DOWN.sql`. No standalone 0070.DOWN.sql was created.
 - [ ] 1.3 Verify migration applies/rolls back cleanly on test DB (manual — out of scope for apply phase)
 - [x] 2.1 Added `canActivate: [permissionGuard]` + `data.permission: 'READ users'` to `admin/users` list (`path: ''`)
 - [x] 2.2 Added `canActivate: [permissionGuard]` + `data.permission: 'READ roles'` to `admin/roles` list
@@ -22,8 +22,7 @@
 | `frontend/src/app/app.routes.ts` | Modified | Added `canActivate: [permissionGuard]` + `data.permission` to 4 list routes; added `permission: 'READ system-config'` to config route `data` |
 | `frontend/src/app/app.routes.spec.ts` | Created | TDD spec — 10 structural assertions covering all 5 route changes |
 | `frontend/src/app/app.routes.new-user-form.spec.ts` | Modified | Fixed fragile regex (pre-existing failure) that broke when `canActivate: [...]` was added to the `path: ''` child; replaced with bracket-counting extraction |
-| `database/migrations/0070_system_config_permission.sql` | Created | `READ system-config` catalog row + grants to `master` and `operador_sistema` |
-| `database/rollback/0070_system_config_permission.DOWN.sql` | Created | Symmetric rollback — removes UUID from role arrays, bumps version, soft-deletes catalog row |
+| `database/migrations/0009_roles_permissions.sql` | Absorbed | `READ system-config` catalog row + grants to `master` and `operador_sistema` absorbed into Group A (no 0070 file created) |
 
 ## TDD Cycle Evidence
 
@@ -50,7 +49,7 @@
 |----------|--------|
 | Focused test command and result | `npx jest --testPathPatterns='app.routes\|permission.guard' --no-coverage` → 32 passed / 0 failed (6 suites) |
 | Runtime harness | N/A — declarative route config; no runtime boundary changed. Guard logic (`permission.guard.ts`) is unchanged. |
-| Rollback boundary | `git revert frontend/src/app/app.routes.ts`; run `database/rollback/0070_system_config_permission.DOWN.sql` on DB |
+| Rollback boundary | `git revert frontend/src/app/app.routes.ts`; `READ system-config` permission is in `0009_roles_permissions.sql` — use `database/rollback/0009_roles_permissions.DOWN.sql` if the full Group A rollback is needed |
 
 ## Deviations from Design
 

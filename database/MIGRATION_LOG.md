@@ -37,6 +37,13 @@ Groups fused:
 | G | 0025 aud_anon_module | 0045 + 0046 + 0048 + 0067 |
 | H | 0023 t7_data_migrations | 0040 + 0041 |
 
+### Nota de consolidación 2026-10-14 — front/2026-10-14-admin-route-guards
+
+`READ system-config` (diseñado como migración `0070` en el change
+`front/2026-10-14-admin-route-guards`) fue consolidado en `0009` durante la
+refactorización Group A del mismo día. No existe archivo `0070_*.sql`
+independiente. Ver commit `1bbccfec3`.
+
 ---
 
 ## Log
@@ -75,6 +82,7 @@ Groups fused:
 | 0030 | departments | **Group C2** (fused 2026-10-14): departments table (org FK CASCADE, soft delete, UNIQUE org+name); users.department_id + incidents.department_id FKs SET NULL + partial indexes; 4 departments permission rows granted to master + admin_org; department_incident_categories junction table + index. Absorbed: 0056_departments + 0057_dept_perms + 0058_dept_incident_categories | ⏳ Pending | — | — | — |
 | 0031 | emergency_dispatch | users.telegram_chat_id text NULL; assignments.cap_override_reason + cap_override_by uuid FK; incidents.reminder_count int DEFAULT 0 + last_reminded_at timestamptz NULL. No new permissions (ASSIGN already in master+admin_org per 0015). Renumbered from 0069 (2026-10-14) | ⏳ Pending | — | — | — |
 | 0032 | departments_soft_delete_unique | Drop plain UNIQUE(organization_id, name) on departments; replace with partial unique index WHERE deleted_at IS NULL. Fixes: soft-deleted dept blocks re-creation of same name in same org. | ⏳ Pending | — | — | — |
+| 0033 | user_notification_channel | users.preferred_notification_channel varchar(20) NOT NULL DEFAULT 'email'. Stores email | telegram preference; no dispatch logic in this change. Future channels possible without ALTER TYPE (D4). | ⏳ Pending | — | — | — |
 
 ## Status legend
 
