@@ -183,6 +183,18 @@ export interface User {
    * que la columna ESTADO de la tabla refleje datos reales.
    */
   isActive?: boolean;
+  /**
+   * 2026-10-15-user-status-notif-channel (S2) — preferred notification
+   * channel preference, surfaced on the edit form so Master callers
+   * can change it (and so the detail modal can show the current value).
+   * Wire shape: `preferred_notification_channel` (snake_case → camel
+   * via `SnakeCaseResponseInterceptor`). Optional because older users
+   * pre-0033 had no column; the backend defaults them to `'email'`
+   * on read but the interceptor does not backfill on the way out — we
+   * tolerate `undefined` and let `UserFormComponent` default to
+   * `'email'` in its patchValue.
+   */
+  preferredNotificationChannel?: string;
 }
 
 export interface UserDetail extends User {
@@ -230,6 +242,21 @@ export interface UpdateUserPayload {
   organizationId?: string | null;
   avatar?: Avatar;
   directPermissions?: { permisoId: string; permitido: boolean }[];
+  /**
+   * 2026-10-15-user-status-notif-channel (S1) — Master-only toggle.
+   * The form only sends this when the authenticated user is `master`
+   * AND the target differs from the caller (defense in depth — the
+   * service still rejects self-deactivation if a non-Master caller
+   * manages to bypass the form). Wire: `is_active`.
+   */
+  isActive?: boolean;
+  /**
+   * 2026-10-15-user-status-notif-channel (S2) — preferred notification
+   * channel. The form sends it for Master and anyone with UPDATE
+   * users (the DTO `@IsIn(['email', 'telegram'])` enforces the value
+   * server-side). Wire: `preferred_notification_channel`.
+   */
+  preferredNotificationChannel?: string;
 }
 
 /**

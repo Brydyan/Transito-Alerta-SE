@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -411,9 +412,33 @@ export class UsersService {
    * fields present in the body are touched. Name updates still go
    * through `updateProfile` (R4 self-service path) — this method only
    * handles role + organization moves.
+   *
+   * 2026-10-15-user-status-notif-channel — extended with two new
+   * optional fields:
+   *   - `is_active` (Master-only toggle, self-deactivation rejected)
+   *   - `preferred_notification_channel` (email | telegram, anyone
+   *     with `UPDATE users` permission; the DTO `@IsIn` enforces the
+   *     value at the validation pipe).
+   *
+   * `callerId` and `callerRole` come from `req.user!` on the
+   * controller. The role check exists because the `@RequirePermission`
+   * decorator only knows about capability strings, not role names —
+   * `is_active` is Master-only by design (spec S1 / design D6).
    */
-  async adminUpdate(id: string, dto: AdminUpdateUserDto): Promise<UserEntity> {
+  async adminUpdate(
+    id: string,
+    dto: AdminUpdateUserDto,
+    callerId: string,
+    callerRole: string,
+  ): Promise<UserEntity> {
     const target = await this.findById(id);
+
+    // 2026-10-15-user-status-notif-channel — spec S1 escenario
+    // "Master attempts to deactivate themselves" (400|403). We use
+    // `ForbiddenException` (→ 403), matching design D2.
+    if (dto.is_active === false && id === callerId) {
+      throw new ForbiddenException('Cannot deactivate your own account');
+    }
 
     // F6 fix: si el admin cambia el `email`, validar unicidad antes
     // de persistir. La columna `users.email` tiene UNIQUE en el
@@ -505,6 +530,17 @@ export class UsersService {
     }
     if (dto.phone !== undefined) {
       target.phone = dto.phone;
+    }
+    // 2026-10-15-user-status-notif-channel — Master-only field
+    // application. Spec S1 escenario "Non-master sends is_active
+    // field (field ignored)": a non-master caller with a leaked
+    // permission scope can't disable accounts. The DTO declares the
+    // field, so the validation pipe does not 400 — we drop it here.
+    if (dto.is_active !== undefined && callerRole === 'master') {
+      target.isActive = dto.is_active;
+    }
+    if (dto.preferred_notification_channel !== undefined) {
+      target.preferredNotificationChannel = dto.preferred_notification_channel;
     }
     const saved = await this.userRepo.save(target);
     await this.authService.invalidatePermissionCache(saved.id, saved.deviceUuid);

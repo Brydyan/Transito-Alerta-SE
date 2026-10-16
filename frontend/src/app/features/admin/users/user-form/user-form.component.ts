@@ -31,6 +31,7 @@ import {
   toPermissionItem,
 } from '../models/user.interface';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
+import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { AuthService } from '../../../../core/services/auth.service';
 
 export function ecuadorPhoneValidator(): ValidatorFn {
@@ -66,6 +67,11 @@ export function ecuadorPhoneValidator(): ValidatorFn {
 export class UserFormComponent implements OnInit, OnDestroy {
   private readonly usersService = inject(UsersService);
   private readonly toastService = inject(ToastService);
+  // 2026-10-15-user-status-notif-channel (S3) — confirm before
+  // deactivating an active user. The dialog returns a Subject<boolean>;
+  // we subscribe and send the PATCH only on `true`. Reactivation
+  // proceeds without a dialog (spec S3 escenario "Master reactivates").
+  private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -84,6 +90,29 @@ export class UserFormComponent implements OnInit, OnDestroy {
   readonly isAdminOrSuperadmin = computed(() => {
     const role = this.authService.currentUser()?.roleName?.toLowerCase();
     return role === 'master' || role === 'admin_org';
+  });
+
+  /**
+   * 2026-10-15-user-status-notif-channel (S3) — the Cuenta section
+   * (active toggle + channel selector) is rendered only when the
+   * authenticated user is `master`. Spec S3 escenario "Non-master
+   * opens edit form — Cuenta section not visible". This is stricter
+   * than `isAdminOrSuperadmin` (which also admits `admin_org`); the
+   * change's design D6 narrows visibility to master-only.
+   */
+  readonly isMaster = computed(() => {
+    return this.authService.currentUser()?.roleName?.toLowerCase() === 'master';
+  });
+
+  /**
+   * 2026-10-15-user-status-notif-channel (S3) — defense in depth. The
+   * backend service rejects self-deactivation with `ForbiddenException`
+   * (controller passes `callerId === id`); we also disable the
+   * toggle visually so Master can't even attempt it from the form.
+   */
+  readonly isSelfEdit = computed(() => {
+    const caller = this.authService.currentUser()?.id;
+    return !!caller && caller === this.userId;
   });
 
   readonly isLoading = signal(false);
@@ -142,6 +171,13 @@ export class UserFormComponent implements OnInit, OnDestroy {
     // aceptaba pero el form no lo podía cambiar).
     rolId: [null as string | null, Validators.required],
     organizationId: [null as string | null],
+    // 2026-10-15-user-status-notif-channel (S1/S3) — both fields
+    // default to safe values; the `isActive` toggle is reactive
+    // (toggles fire `onToggleActive()`); the channel selector is
+    // plain. We don't validate them here — the backend DTO
+    // `@IsIn(['email','telegram'])` rejects bad strings with 400.
+    isActive: [true],
+    preferredNotificationChannel: ['email'],
   });
 
   campoInvalido(campo: string): boolean {
@@ -205,6 +241,15 @@ export class UserFormComponent implements OnInit, OnDestroy {
             telefono: user.telefono,
             rolId: user.rol?.rolId ?? null,
             organizationId: user.organizationId ?? null,
+            // 2026-10-15-user-status-notif-channel — load current
+            // state into the form so the toggle and selector render
+            // accurately. `user.isActive` is `undefined` for users
+            // fetched pre-0033 (no column yet) — default to `true`
+            // so we don't accidentally start a deactivation flow.
+            // Same for `preferredNotificationChannel` — the DB default
+            // is `'email'`, and we mirror that default here.
+            isActive: user.isActive ?? true,
+            preferredNotificationChannel: user.preferredNotificationChannel ?? 'email',
           });
 
           if (user.rol?.rolId && this.isAdminOrSuperadmin()) {
@@ -292,6 +337,54 @@ export class UserFormComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * 2026-10-15-user-status-notif-channel (S3) — Master toggles the
+   * active switch on the edit form. Deactivation is the destructive
+   * direction: it invalidates the target's session on the next
+   * authenticated request (the JWT guard filters `WHERE is_active =
+   * TRUE` in `findAuthContextRow`). Spec S3 mandates a confirmation
+   * dialog with a warning before the PATCH fires; we use the
+   * existing `ConfirmDialogService` pattern (`onDelete` in the users
+   * list is the reference). Reactivation proceeds without a dialog —
+   * the `change` event of the underlying `<input type="checkbox">`
+   * skips the prompt when the new state is `true`.
+   *
+   * Defense in depth — the backend service still rejects
+   * self-deactivation with 403, so a Master that somehow targets
+   * their own id gets the same outcome with or without the dialog.
+   * We also disable the toggle visually via `[disabled]` in the
+   * template when `isSelfEdit()`.
+   */
+  onToggleActive(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const nextActive = target.checked;
+
+    if (nextActive) {
+      // Reactivation — no dialog.
+      this.userForm.patchValue({ isActive: true });
+      return;
+    }
+
+    // Deactivation — open the confirmation dialog. The template binds
+    // `target.checked` to the input directly via `[checked]`, so on
+    // cancel we revert the input first and skip the form patch.
+    target.checked = true;
+    const dialog$ = this.confirmDialog.confirm({
+      title: 'Desactivar usuario',
+      message:
+        'Al desactivar la cuenta, las sesiones activas del usuario se invalidarán en su próxima petición. Esta acción puede revertirse reactivando la cuenta desde el mismo formulario.',
+      confirmText: 'Desactivar',
+      cancelText: 'Cancelar',
+      isDanger: true,
+    });
+    dialog$.subscribe((ok) => {
+      if (ok) {
+        target.checked = false;
+        this.userForm.patchValue({ isActive: false });
+      }
+    });
+  }
+
   private computeDirectPermissionsDiff(): { permisoId: string; permitido: boolean }[] {
     const current = this.directPermissionIds();
     const original = this.originalDirectIds;
@@ -327,7 +420,15 @@ export class UserFormComponent implements OnInit, OnDestroy {
     if (this.isEditing()) {
       const directPermissions = this.computeDirectPermissionsDiff();
 
-      const payload = {
+      // 2026-10-15-user-status-notif-channel — only Master sends
+      // `isActive` (others can't toggle the field; spec S3). We also
+      // skip the PATCH when the target is the caller themselves
+      // (the service rejects with 403 anyway, but skipping avoids
+      // a useless request and a confusing error toast).
+      const sendIsActive = this.isMaster() && !this.isSelfEdit();
+      const sendChannel = this.isMaster();
+
+      const payload: Record<string, unknown> = {
         email: form.email,
         nombres: form.nombres,
         apellidos: form.apellidos,
@@ -339,6 +440,8 @@ export class UserFormComponent implements OnInit, OnDestroy {
         // F6 fix: organizationId se incluye para que el form
         // pueda cambiar la org. Si es `null`, el backend lo limpia.
         organizationId: form.organizationId ?? null,
+        ...(sendIsActive ? { isActive: form.isActive } : {}),
+        ...(sendChannel ? { preferredNotificationChannel: form.preferredNotificationChannel } : {}),
         ...(directPermissions.length > 0 ? { directPermissions } : {}),
       };
 

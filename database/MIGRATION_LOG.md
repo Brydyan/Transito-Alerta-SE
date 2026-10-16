@@ -83,6 +83,7 @@ independiente. Ver commit `1bbccfec3`.
 | 0031 | emergency_dispatch | users.telegram_chat_id text NULL; assignments.cap_override_reason + cap_override_by uuid FK; incidents.reminder_count int DEFAULT 0 + last_reminded_at timestamptz NULL. No new permissions (ASSIGN already in master+admin_org per 0015). Renumbered from 0069 (2026-10-14) | ⏳ Pending | — | — | — |
 | 0032 | departments_soft_delete_unique | Drop plain UNIQUE(organization_id, name) on departments; replace with partial unique index WHERE deleted_at IS NULL. Fixes: soft-deleted dept blocks re-creation of same name in same org. | ⏳ Pending | — | — | — |
 | 0033 | user_notification_channel | users.preferred_notification_channel varchar(20) NOT NULL DEFAULT 'email'. Stores email | telegram preference; no dispatch logic in this change. Future channels possible without ALTER TYPE (D4). | ⏳ Pending | — | — | — |
+| 0034 | incident_images_drop_url | incident_images: DROP COLUMN url + DELETE all rows. The column was an unused duplicate of the storage location; the pre-change storage service stub fabricated URLs against never-uploaded objects. (D2 of 2026-10-06-incident-images-read-path.) | ⏳ Pending | — | — | — |
 
 ## Status legend
 
