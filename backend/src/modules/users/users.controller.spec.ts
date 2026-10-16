@@ -273,6 +273,19 @@ describe('UsersController', () => {
 
       expect(result).toEqual({ telegram_link: null });
     });
+
+    // Gap 3 (2026-10-16) — el endpoint está protegido por
+    // `@RequirePermission('UPDATE', 'users')`. La metadata la lee
+    // el `PermissionGuard` para autorizar la acción. Sin este
+    // chequeo, un cambio de wiring en el controller podría
+    // desproteger la ruta silenciosamente.
+    it('has @RequirePermission("UPDATE", "users") metadata', () => {
+      const metadata = Reflect.getMetadata(
+        REQUIRE_PERMISSION_KEY,
+        UsersController.prototype.adminGenerateTelegramLink,
+      );
+      expect(metadata).toEqual({ action: 'UPDATE', resource: 'users' });
+    });
   });
 
 });

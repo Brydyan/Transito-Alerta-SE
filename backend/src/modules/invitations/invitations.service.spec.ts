@@ -118,7 +118,11 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
       // 2026-10-10-user-onboarding-telegram-tour: the service looks
       // up the user shadow to bind the link token. Stub a fake
       // shadow here.
-      dataSource.query.mockResolvedValueOnce([{ id: 'shadow-1' }]);
+      dataSource.query.mockResolvedValueOnce([{ id: 'shadow-1', first_name: 'María' }]);
+      // 2026-10-16-invitation-email-styled-template (D2): the
+      // service also looks up the inviter to fill the
+      // "Invitado por" row in the details card.
+      dataSource.query.mockResolvedValueOnce([{ first_name: 'Carlos', last_name: 'Mendoza' }]);
 
       const result = await service.createInvitation(actor(), {
         email: 'a@b.com',
@@ -138,6 +142,16 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
       );
       expect(call.data.roleGuide).toContain('operator_org');
       expect(call.data.roleGuide).toContain('recibirás las tareas en Telegram');
+      // 2026-10-16-invitation-email-styled-template (D2): subject
+      // names the organization when one is provided; new data fields
+      // carry inviter name, recipient first name, recipient email
+      // and ISO expiresAt.
+      expect(call.subject).toBe('Invitación a GeoReporta — Santa Elena');
+      expect(call.data.inviterName).toBe('Carlos Mendoza');
+      expect(call.data.recipientFirstName).toBe('María');
+      expect(call.data.recipientEmail).toBe('a@b.com');
+      expect(typeof call.data.expiresAt).toBe('string');
+      expect(call.data.expiresAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
   });
 
@@ -284,6 +298,65 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
         .mockRejectedValueOnce({ code: '23505' }); // INSERT throws unique violation
 
       await expect(service.redeem(token, 'password12345')).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    // 2026-10-16 — bug fix: shadow-user UPDATE path. `manager.query()`
+    // for `UPDATE...RETURNING` returns the [rows[], affectedCount] tuple
+    // (TypeORM gotcha, same as `firstUpdatedRow` in
+    // `invitations.repository.ts`); `INSERT...RETURNING` returns a flat
+    // array. The shadow UPDATE branch was reading `updatedRows[0].id`
+    // directly without unwrapping the tuple — `updatedRows[0]` was the
+    // inner rows array, and `.id` on an array is `undefined`. `redeem()`
+    // then returned `undefined`, `issueSessionForNewIdentity(undefined)`
+    // INSERTed `user_id = null` → 500 on the accept-invitation route.
+    //
+    // El mock del UPDATE devuelve explícitamente la tupla
+    // `[[{ id: 'shadow-1' }], 1]` para reproducir el bug — antes del
+    // fix, el test recibía `undefined` en `userId`.
+    it('happy path (shadow-user): CAS wins, UPDATE activates shadow row, returns shadow id', async () => {
+      const token = validToken();
+      const manager = withManager();
+      const tokenHash = sha256Hex(token);
+      invitationsRepository.redeemCas.mockResolvedValue({
+        id: 'inv-1',
+        email: 'shadow@b.com',
+        role_id: 'role-1',
+        organization_id: 'org-1',
+        token_hash: tokenHash,
+      });
+      passwordHasher.hash.mockResolvedValue('$2b$04$fakehash');
+      manager.query
+        .mockResolvedValueOnce([{ permissions: ['READ incidents'] }]) // role lookup
+        .mockResolvedValueOnce([{ id: 'shadow-1' }])                   // shadow SELECT → found
+        .mockResolvedValueOnce([[{ id: 'shadow-1' }], 1]);             // UPDATE...RETURNING tuple
+
+      const userId = await service.redeem(token, 'password12345');
+
+      expect(userId).toBe('shadow-1');
+    });
+
+    // Mismo path con `termsVersion` para cubrir el branch del UPDATE
+    // que también escribe `terms_accepted_at` + `terms_version`.
+    it('happy path (shadow-user + terms): CAS wins, UPDATE writes compliance fields, returns shadow id', async () => {
+      const token = validToken();
+      const manager = withManager();
+      const tokenHash = sha256Hex(token);
+      invitationsRepository.redeemCas.mockResolvedValue({
+        id: 'inv-1',
+        email: 'shadow@b.com',
+        role_id: 'role-1',
+        organization_id: 'org-1',
+        token_hash: tokenHash,
+      });
+      passwordHasher.hash.mockResolvedValue('$2b$04$fakehash');
+      manager.query
+        .mockResolvedValueOnce([{ permissions: [] }])   // role lookup
+        .mockResolvedValueOnce([{ id: 'shadow-2' }])     // shadow SELECT → found
+        .mockResolvedValueOnce([[{ id: 'shadow-2' }], 1]); // UPDATE...RETURNING tuple (terms branch)
+
+      const userId = await service.redeem(token, 'password12345', 'v1');
+
+      expect(userId).toBe('shadow-2');
     });
   });
 

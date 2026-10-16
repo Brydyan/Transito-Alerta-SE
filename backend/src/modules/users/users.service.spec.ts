@@ -1319,5 +1319,43 @@ describe('UsersService', () => {
 
       expect(result).toEqual({ telegram_link: null });
     });
+
+    it('throws NotFoundException when admin_org actor targets a user from a different org (scope violation)', async () => {
+      // Gap 1 (2026-10-16) — assertCanManage enforces "admin_org
+      // sólo ve a los de su org"; este caso confirma que la regla
+      // corre antes del mint del token. Master outrankea todo y
+      // salta el branch — por eso necesitamos admin_org explícito.
+      //
+      // Por diseño D11 de `assertCanManage`: cross-org sale como
+      // 404 (`NotFoundException('User not found')`), NO 403. Un 403
+      // confirmaría que el id existe y, por eliminación, leakearía
+      // la membresía de org del target. El endpoint aplica la
+      // misma regla que el resto del surface de gestión.
+      const adminOrgActor: AuthContext = {
+        userId: 'admin-org-A',
+        permissions: [],
+        organizationId: 'org-A',
+        roleName: 'admin_org',
+        scope: { kind: 'org', organizationId: 'org-A' },
+        sessionId: 'sess-admin-A',
+        isAnonymous: false,
+      };
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        organizationId: 'org-B',
+        roleId: 'role-operator_org',
+      });
+      roleRepo.findOne.mockResolvedValueOnce({
+        id: 'role-operator_org',
+        name: 'operator_org',
+      });
+
+      await expect(
+        service.adminGenerateTelegramLink(adminOrgActor, TARGET_ID),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      // La guardia corre antes del mint — un 404 nunca emite token.
+      expect(telegramLinkService.issueFor).not.toHaveBeenCalled();
+    });
   });
 });
