@@ -11,6 +11,7 @@ import { SessionsRepository } from '../sessions/sessions.repository';
 import { AvatarStorageService } from './avatar-storage.service';
 import { UsersService } from './users.service';
 import { AuditService } from '../audit/audit.service';
+import { TelegramLinkService } from '../telegram/telegram-link.service';
 
 const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
 const ORG_A_SCOPE: SubjectScope = { kind: 'org', organizationId: 'org-A' };
@@ -79,6 +80,9 @@ describe('UsersService.getFormData (T5.4)', () => {
         // does not call `audit.record()`, so the mock's default
         // `undefined` return is enough.
         { provide: AuditService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
+        // 2026-10-16 — `adminGenerateTelegramLink()` injects
+        // `TelegramLinkService`. `getFormData` does not touch it.
+        { provide: TelegramLinkService, useValue: { issueFor: jest.fn(), composeDeepLink: jest.fn() } },
       ],
     }).compile();
     service = module.get(UsersService);

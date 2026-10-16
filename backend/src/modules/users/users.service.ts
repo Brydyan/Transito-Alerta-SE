@@ -23,6 +23,7 @@ import {
 } from './dto/form-data-response.dto';
 import { DepartmentRow } from '../departments/departments.repository';
 import { AuditService } from '../audit/audit.service';
+import { TelegramLinkService } from '../telegram/telegram-link.service';
 import { SYSTEM_ADMIN_ROLE_NAME, SYSTEM_ONLY_ROLES } from './role-exclusions.constants';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
@@ -72,6 +73,12 @@ export class UsersService {
     // and is captured separately by the AuthService when the user
     // accepts an invitation (out of scope of this change).
     private readonly auditService: AuditService,
+    // 2026-10-16 — admin-side Telegram link regeneration. UsersModule
+    // already imports TelegramModule (since 2026-10-10), so the
+    // provider is in scope; this gives the service a handle on
+    // `issueFor`/`composeDeepLink` without threading it through the
+    // controller.
+    private readonly telegramLinkService: TelegramLinkService,
   ) {}
 
   async findById(id: string): Promise<UserEntity> {
@@ -739,4 +746,48 @@ export class UsersService {
     }
     return touched;
   }
+
+// 2026-10-16 — admin-side Telegram link regeneration (POST
+// /users/:id/telegram-link). Same visibility + rank pattern as
+// updateOrganization: `@RequirePermission('UPDATE','users')` on the
+// route gates capability, `assertCanManage` enforces scope/rank here.
+// 404 on missing user, 404 on out-of-scope (assertCanManage — the
+// D9 pattern), 403 on rank-mismatch. Reporters are explicitly
+// rejected with 403 — D7 isolation: the staff bot is for backoffice,
+// not citizen-facing.
+async adminGenerateTelegramLink(
+  actor: AuthContext,
+  targetId: string,
+): Promise<{ telegram_link: string | null }> {
+  const target = await this.userRepo.findOne({ where: { id: targetId } });
+  if (!target) {
+    throw new NotFoundException(`User ${targetId} not found`);
+  }
+
+  const role = target.roleId
+    ? await this.roleRepo.findOne({ where: { id: target.roleId } })
+    : null;
+
+  // 404 if out of scope, 403 if actor doesn't outrank target.
+  // assertCanManage throws; we don't catch.
+  assertCanManage(actor, {
+    id: target.id,
+    organizationId: target.organizationId,
+    roleName: role?.name ?? null,
+  });
+
+  if (role?.name === 'reporter') {
+    throw new ForbiddenException(
+      'Los reporteros no pueden vincularse al bot de Telegram de gestión interna.',
+    );
+  }
+
+  const token = await this.telegramLinkService.issueFor(target.id);
+  // composeDeepLink returns null when TELEGRAM_BOT_USERNAME is
+  // unset (no-op env in dev / pre-deploy). We surface that as
+  // `telegram_link: null` — the frontend reads it and shows the
+  // "Bot de Telegram no configurado" message.
+  const telegram_link = this.telegramLinkService.composeDeepLink(token);
+  return { telegram_link };
+}
 }

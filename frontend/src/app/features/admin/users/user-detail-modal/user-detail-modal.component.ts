@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { UserDetailModalService } from './user-detail-modal.service';
+import { UsersService } from '../services/users.service';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
 import { User, toUserStatus } from '../models/user.interface';
 
@@ -110,7 +111,38 @@ import { User, toUserStatus } from '../models/user.interface';
             </div>
           </div>
 
-          <footer class="modal-footer">
+          <footer class="modal-footer modal-footer--split">
+            <!-- Telegram link — sólo roles staff (master/admin_org/operator_org).
+                 Reporteros no usan el bot interno, así que ocultamos la sección. -->
+            @if (activeUser()?.rol?.nombre !== 'reporter') {
+              <div class="telegram-link-section">
+                @if (telegramLinkResult() !== undefined) {
+                  @if (telegramLinkResult(); as link) {
+                    <div class="telegram-link-result">
+                      <span class="telegram-link-label">Enlace Telegram:</span>
+                      <a
+                        [href]="link"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="telegram-link-url"
+                      >
+                        {{ link }}
+                      </a>
+                    </div>
+                  } @else {
+                    <span class="telegram-link-empty">Bot de Telegram no configurado.</span>
+                  }
+                }
+                <button
+                  type="button"
+                  class="btn btn--secondary"
+                  [disabled]="generatingLink()"
+                  (click)="generateTelegramLink()"
+                >
+                  {{ generatingLink() ? 'Generando…' : 'Regenerar enlace Telegram' }}
+                </button>
+              </div>
+            }
             <button
               type="button"
               class="btn btn--secondary"
@@ -246,6 +278,40 @@ import { User, toUserStatus } from '../models/user.interface';
         padding: 1rem 1.25rem;
         border-top: 1px solid var(--color-border-subtle, #e2e8f0);
       }
+      .modal-footer--split {
+        justify-content: space-between;
+      }
+      .telegram-link-section {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.375rem;
+        min-width: 0;
+      }
+      .telegram-link-result {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        max-width: 100%;
+        font-size: 0.8125rem;
+      }
+      .telegram-link-label {
+        font-weight: 600;
+        color: var(--color-slate-500, #64748b);
+      }
+      .telegram-link-url {
+        color: var(--color-primary-600, #2563eb);
+        text-decoration: none;
+        word-break: break-all;
+      }
+      .telegram-link-url:hover {
+        text-decoration: underline;
+      }
+      .telegram-link-empty {
+        font-size: 0.8125rem;
+        color: var(--color-slate-500, #64748b);
+        font-style: italic;
+      }
       .btn {
         padding: 0.5rem 1rem;
         font-size: 0.875rem;
@@ -262,11 +328,16 @@ import { User, toUserStatus } from '../models/user.interface';
       .btn--secondary:hover {
         background: var(--color-bg-primary, #f1f5f9);
       }
+      .btn--secondary[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
     `,
   ],
 })
 export class UserDetailModalComponent {
   protected readonly service = inject(UserDetailModalService);
+  private readonly usersAdminService = inject(UsersService);
 
   /** Signal del service — `null` = modal cerrado. */
   protected readonly activeUser = this.service.activeUser;
@@ -287,6 +358,21 @@ export class UserDetailModalComponent {
   });
 
   /**
+   * Resultado del último `regenerateTelegramLink` para el user actual.
+   *   - `undefined` → aún no se pidió un enlace (estado inicial).
+   *   - `string`    → deep-link generado (mostrar como link).
+   *   - `null`      → bot no configurado (`TELEGRAM_BOT_USERNAME`
+   *                    unset) — frontend muestra "Bot no configurado".
+   *
+   * Se resetea a `undefined` cada vez que cambia el `activeUser()`,
+   * así no se filtra el link de un user anterior a otro nuevo.
+   */
+  protected readonly telegramLinkResult = signal<string | null | undefined>(undefined);
+
+  /** `true` mientras la request al backend está en vuelo. */
+  protected readonly generatingLink = signal(false);
+
+  /**
    * Cierra al click en el backdrop (no en la card). El stopPropagation
    * del template evita que clicks dentro cierren.
    */
@@ -294,5 +380,34 @@ export class UserDetailModalComponent {
     if (event.target === event.currentTarget) {
       this.service.close();
     }
+  }
+
+  /**
+   * Pide al backend un deep-link nuevo para el `activeUser()`. No-op
+   * si el modal no está abierto (defensivo). Reseteamos el resultado
+   * previo al iniciar para que la UI no muestre un link "stale"
+   * mientras corre la nueva request.
+   *
+   * El backend (`UsersService.adminGenerateTelegramLink`) valida:
+   *   - target existe → 404 si no.
+   *   - actor outranka target (`assertCanManage`) → 403 si no.
+   *   - target no es `reporter` → 403 (no usan el bot interno).
+   * Devuelve `{ telegram_link: string | null }`; `null` significa
+   * "bot no configurado" y el template lo renderiza como texto muted.
+   */
+  generateTelegramLink(): void {
+    const user = this.activeUser();
+    if (!user) return;
+    this.generatingLink.set(true);
+    this.telegramLinkResult.set(undefined);
+    this.usersAdminService.regenerateTelegramLink(user.usuarioId).subscribe({
+      next: (res) => {
+        this.telegramLinkResult.set(res.telegram_link);
+        this.generatingLink.set(false);
+      },
+      error: () => {
+        this.generatingLink.set(false);
+      },
+    });
   }
 }
