@@ -84,6 +84,7 @@ independiente. Ver commit `1bbccfec3`.
 | 0032 | departments_soft_delete_unique | Drop plain UNIQUE(organization_id, name) on departments; replace with partial unique index WHERE deleted_at IS NULL. Fixes: soft-deleted dept blocks re-creation of same name in same org. | ⏳ Pending | — | — | — |
 | 0033 | user_notification_channel | users.preferred_notification_channel varchar(20) NOT NULL DEFAULT 'email'. Stores email | telegram preference; no dispatch logic in this change. Future channels possible without ALTER TYPE (D4). | ⏳ Pending | — | — | — |
 | 0034 | incident_images_drop_url | incident_images: DROP COLUMN url + DELETE all rows. The column was an unused duplicate of the storage location; the pre-change storage service stub fabricated URLs against never-uploaded objects. (D2 of 2026-10-06-incident-images-read-path.) | ⏳ Pending | — | — | — |
+| 0035 | audit_events_actor_set_null | audit_events.actor_id: DROP NOT NULL + change FK from ON DELETE RESTRICT to ON DELETE SET NULL. Audit trails must survive physical user deletion (GDPR); actor_id becomes NULL for deleted actors. Required after audit wiring in sc-327 added citizen actor rows. | ⏳ Pending | — | — | — |
 
 ## Status legend
 
