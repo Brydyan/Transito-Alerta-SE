@@ -15,6 +15,16 @@ export interface StatusHistoryEntry {
   notes: string | null;
   event_id: string;
   created_at: Date;
+  /**
+   * 2026-10-06-incident-images-read-path (D6) — actor name resolved
+   * server-side via `LEFT JOIN users` on the backend; the wire is
+   * `changed_by_name` (snake_case, see `StatusHistoryEntity` and
+   * `StatusHistoryService.findByIncident`). `null` when the actor
+   * was the system (no user id) or the actor's `users` row was
+   * GDPR-soft-deleted — the timeline surfaces `'sistema'` in that
+   * case.
+   */
+  changed_by_name?: string | null;
 }
 
 // Envelope returned by `GET /incidents/:incidentId/status-history`.

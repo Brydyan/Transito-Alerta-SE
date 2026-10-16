@@ -40,7 +40,11 @@
           Reportada por {{ inc.is_anonymous ? 'Autor anónimo' : (inc.citizen?.full_name || 'Ciudadano no disponible') }}
         </p>
         <div class="mt-2 flex items-center gap-2 flex-wrap">
-          <ui-badge [variant]="badgeStatusFor(inc.status)" />
+          <ui-badge
+            [variant]="badgeStatusFor(inc.status)"
+            [label]="mapStatusLabel(inc.status)"
+            data-testid="status-badge"
+          />
           <ui-badge [variant]="badgePriorityFor(inc.priority)" />
           @if (inc.closed_reason) {
             <span class="text-xs text-slate-500 italic" data-testid="closed-reason">

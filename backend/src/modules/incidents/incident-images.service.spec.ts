@@ -1,11 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, StreamableFile, UnprocessableEntityException } from '@nestjs/common';
 import { IncidentImagesService } from './incident-images.service';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
 import { IncidentImageEntity } from './entities/incident-image.entity';
 import { IncidentsRepository } from './incidents.repository';
 import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
+import { STORAGE_CLIENT } from '../../infra/storage/storage-client.interface';
 
 const makeFile = (mime = 'image/jpeg'): MulterFile => ({
   originalname: 'photo.jpg',
@@ -37,8 +38,12 @@ const makeIncident = (citizenId = 'user-1') => ({
 const makeSavedImage = (overrides: Partial<IncidentImageEntity> = {}): IncidentImageEntity => ({
   id: 'img-1',
   incidentId: 'inc-1',
+  // 2026-10-06-incident-images-read-path (D3) — `url` removed from
+  // the entity; the byte route is the only resolution path. The
+  // storage client's `upload()` still returns a URL (interface
+  // contract — `StorageUploadResult`), but the service no longer
+  // persists it.
   storageKey: 'incidents/inc-1/uuid-photo.jpg',
-  url: 'https://storage.example.com/incidents/inc-1/uuid-photo.jpg?sig=abc',
   mimeType: 'image/jpeg',
   fileSize: 1024,
   createdAt: new Date(),
@@ -56,6 +61,13 @@ describe('IncidentImagesService', () => {
   // usan en `callerPermissions`) para mantener los asserts de auth
   // exactamente como estaban antes del fix.
   let permissionLookup: { getUuid: jest.Mock; invalidate: jest.Mock };
+  // 2026-10-06-incident-images-read-path (D4) — the service now
+  // also injects STORAGE_CLIENT to call `getSignedUrl` for the byte
+  // route. Lifted to describe scope so nested describe blocks
+  // (`getImageFile`) can read it through closure (the previous
+  // `const` inside `beforeEach` was not visible to nested
+  // describe's `it()` blocks under ts-jest strict-mode checking).
+  let storageClient: { upload: jest.Mock; getSignedUrl: jest.Mock; delete: jest.Mock };
 
   beforeEach(async () => {
     imageRepo = {
@@ -78,12 +90,21 @@ describe('IncidentImagesService', () => {
       }),
       invalidate: jest.fn(),
     };
+    // 2026-10-06-incident-images-read-path (D4) — the service now
+    // also injects STORAGE_CLIENT to call `getSignedUrl` for the byte
+    // route. Stub returns a `file://` URL by default (noop behavior).
+    storageClient = {
+      upload: jest.fn(),
+      getSignedUrl: jest.fn().mockResolvedValue('file:///dev/null/test.webp'),
+      delete: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IncidentImagesService,
         { provide: getRepositoryToken(IncidentImageEntity), useValue: imageRepo },
         { provide: IncidentImageStorageService, useValue: storage },
+        { provide: STORAGE_CLIENT, useValue: storageClient },
         { provide: IncidentsRepository, useValue: incidentsRepository },
         { provide: PermissionLookupService, useValue: permissionLookup },
       ],
@@ -103,6 +124,11 @@ describe('IncidentImagesService', () => {
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('img-1');
       expect(incidentsRepository.findOne).toHaveBeenCalledWith('inc-1', { kind: 'global' });
+      // 2026-10-06-incident-images-read-path S1 — design D3
+      // mandates that the metadata list does NOT resolve signed
+      // URLs. Regression guard: anyone who later adds URL
+      // resolution to the list path will trip this assertion.
+      expect(storageClient.getSignedUrl).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when incident is not found or out of scope', async () => {
@@ -119,7 +145,7 @@ describe('IncidentImagesService', () => {
       const incident = makeIncident('user-1');
       const savedImage = makeSavedImage();
       incidentsRepository.findOne.mockResolvedValue(incident);
-      storage.upload.mockResolvedValue({ key: savedImage.storageKey, url: savedImage.url });
+      storage.upload.mockResolvedValue({ key: savedImage.storageKey, url: 'https://storage.example.com/incidents/inc-1/uuid-photo.jpg?sig=abc' });
       imageRepo.create.mockReturnValue(savedImage);
       imageRepo.save.mockResolvedValue(savedImage);
 
@@ -127,7 +153,11 @@ describe('IncidentImagesService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('img-1');
-      expect(result[0].url).toBe(savedImage.url);
+      // 2026-10-06-incident-images-read-path (D3) — DTO no longer
+      // carries `url`. The frontend resolves bytes via the byte
+      // route; the metadata list only carries id, mime_type,
+      // file_size, created_at.
+      expect(result[0]).not.toHaveProperty('url');
       expect(result[0].mime_type).toBe('image/jpeg');
     });
 
@@ -135,7 +165,10 @@ describe('IncidentImagesService', () => {
       const incident = makeIncident('other-user');
       const savedImage = makeSavedImage();
       incidentsRepository.findOne.mockResolvedValue(incident);
-      storage.upload.mockResolvedValue({ key: savedImage.storageKey, url: savedImage.url });
+      // 2026-10-06-incident-images-read-path (D3) — the storage
+      // client still returns `{ key, url }`; the service drops the
+      // URL from the persisted entity.
+      storage.upload.mockResolvedValue({ key: savedImage.storageKey, url: 'https://storage.example.com/incidents/inc-1/uuid-photo.jpg?sig=abc' });
       imageRepo.create.mockReturnValue(savedImage);
       imageRepo.save.mockResolvedValue(savedImage);
 
@@ -234,6 +267,76 @@ describe('IncidentImagesService', () => {
         service.removeFromIncident('inc-1', 'img-1', 'user-1', []),
       ).resolves.toBeUndefined();
       expect(imageRepo.delete).toHaveBeenCalledWith({ id: 'img-1' });
+    });
+  });
+
+  // 2026-10-06-incident-images-read-path (fixes-required W3) —
+  // direct service-layer coverage for `getImageFile()`. The
+  // controller spec exercises it via mock, but the service owns the
+  // authorization boundary (`image.incidentId === id` → 404 on
+  // mismatch) and the `file://` vs `http(s)` dispatch — both must
+  // be unit-tested at this layer.
+  describe('getImageFile()', () => {
+    it('throws NotFoundException when image does not belong to the given incident (auth boundary)', async () => {
+      // The service refuses to leak existence across incidents —
+      // it returns the same 404 whether the image belongs to a
+      // different incident or doesn't exist at all.
+      imageRepo.findOne.mockResolvedValueOnce({
+        ...makeSavedImage(),
+        incidentId: 'other-incident',
+      });
+
+      await expect(service.getImageFile('inc-1', 'img-1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      // Storage client MUST NOT be called when the boundary rejects.
+      expect(storageClient.getSignedUrl).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the image does not exist', async () => {
+      imageRepo.findOne.mockResolvedValueOnce(null);
+
+      await expect(service.getImageFile('inc-1', 'img-1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(storageClient.getSignedUrl).not.toHaveBeenCalled();
+    });
+
+    it('returns stream result when getSignedUrl returns a file:// URL (noop / local dev)', async () => {
+      // The noop client returns `file:///abs/path.webp` — the
+      // service detects the scheme and pipes the bytes through
+      // `StreamableFile`. We don't actually create a file on disk;
+      // the production code path uses `fileURLToPath` + `createReadStream`,
+      // and we assert the contract that the service hands back a
+      // `StreamableFile` (the file path resolves at runtime, not
+      // in unit tests).
+      const image = makeSavedImage();
+      imageRepo.findOne.mockResolvedValueOnce(image);
+      storageClient.getSignedUrl.mockResolvedValueOnce('file:///tmp/test.webp');
+
+      const result = await service.getImageFile('inc-1', 'img-1');
+
+      expect(result.kind).toBe('stream');
+      if (result.kind === 'stream') {
+        expect(result.mimeType).toBe('image/jpeg');
+        expect(result.file).toBeInstanceOf(StreamableFile);
+      }
+    });
+
+    it('returns redirect result when getSignedUrl returns an http(s) URL (Supabase in production)', async () => {
+      const image = makeSavedImage();
+      imageRepo.findOne.mockResolvedValueOnce(image);
+      const signedUrl =
+        'https://supabase.example.co/storage/v1/object/sign/bucket/incidents/inc-1/uuid.webp?token=abc';
+      storageClient.getSignedUrl.mockResolvedValueOnce(signedUrl);
+
+      const result = await service.getImageFile('inc-1', 'img-1');
+
+      expect(result.kind).toBe('redirect');
+      if (result.kind === 'redirect') {
+        expect(result.url).toBe(signedUrl);
+        expect(result.mimeType).toBe('image/jpeg');
+      }
     });
   });
 });
