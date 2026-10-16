@@ -22,6 +22,7 @@ import {
   FormDataResponseDto,
 } from './dto/form-data-response.dto';
 import { DepartmentRow } from '../departments/departments.repository';
+import { AuditService } from '../audit/audit.service';
 import { SYSTEM_ADMIN_ROLE_NAME, SYSTEM_ONLY_ROLES } from './role-exclusions.constants';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
@@ -62,6 +63,15 @@ export class UsersService {
     // 2026-10-10-user-onboarding-telegram-tour (D6) — departments for
     // the form-data dropdown + cross-row validation in adminCreate.
     @InjectDataSource() private readonly dataSource: DataSource,
+    // 2026-10-16 — AUD (sc-327) — every admin-side mutation
+    // (`adminCreate`, `adminUpdate`, `softDelete`) emits a
+    // `users.action` audit record inside the same transaction via
+    // the `manager` parameter; the surface mirrors `assignments` and
+    // `incidents` wiring. We don't audit the citizen self-service
+    // path (`updateProfile`) — that lives outside the admin scope
+    // and is captured separately by the AuthService when the user
+    // accepts an invitation (out of scope of this change).
+    private readonly auditService: AuditService,
   ) {}
 
   async findById(id: string): Promise<UserEntity> {
@@ -319,7 +329,7 @@ export class UsersService {
    * is persisted; its `users.phone` column was added in migration
    * 0022, so no schema change here.
    */
-  async adminCreate(dto: AdminCreateUserDto): Promise<UserEntity> {
+  async adminCreate(dto: AdminCreateUserDto, actorId: string): Promise<UserEntity> {
     let permissions: string[] = [];
     let permissionVersion = 1;
     let resolvedRoleName: string | null = null;
@@ -429,7 +439,18 @@ export class UsersService {
       permissions,
       permissionVersion,
     });
-    return this.userRepo.save(user);
+    const saved = await this.userRepo.save(user);
+    // 2026-10-16 — AUD (sc-327) — CREATE_USER. We audit AFTER the
+    // save so `resource_id` is the persisted id (the shadow-user is
+    // `is_active=false`; audit reflects the admin's intent, not the
+    // redeemed-on-invitation acceptance).
+    await this.auditService.record({
+      actorId,
+      action: 'CREATE_USER',
+      resourceType: 'users',
+      resourceId: saved.id,
+    });
+    return saved;
   }
 
   /**
@@ -569,6 +590,18 @@ export class UsersService {
     }
     const saved = await this.userRepo.save(target);
     await this.authService.invalidatePermissionCache(saved.id, saved.deviceUuid);
+    // 2026-10-16 — AUD (sc-327) — UPDATE_USER. We audit every
+    // successful update, including the no-op case (D5 — "ensure
+    // UPDATE_USER is emitted even when the diff is empty"). The
+    // `metadata` column carries the touched field names so the
+    // audit-logs UI can highlight which fields changed.
+    await this.auditService.record({
+      actorId: callerId,
+      action: 'UPDATE_USER',
+      resourceType: 'users',
+      resourceId: saved.id,
+      metadata: this.collectUpdateFields(dto),
+    });
     return saved;
   }
 
@@ -587,7 +620,7 @@ export class UsersService {
    * deterministic tombstone (`deleted+{id}@tase.invalid`) so the UNIQUE
    * constraint still holds after deletion.
    */
-  async softDelete(id: string): Promise<void> {
+  async softDelete(id: string, actorId: string): Promise<void> {
     const target = await this.findById(id);
     await this.userRepo.update(id, {
       deletedAt: new Date(),
@@ -603,5 +636,45 @@ export class UsersService {
       phone: null,
     });
     await this.authService.invalidatePermissionCache(target.id, target.deviceUuid);
+    // 2026-10-16 — AUD (sc-327) — DELETE_USER. Emitted AFTER the
+    // `update` because we want the audit row to reflect the
+    // post-soft-delete state of the target (the email is already
+    // tombstoned, `is_active=false`, etc.). Emitted for master /
+    // admin_org callers only — the controller gates the route
+    // with `@RequirePermission('DELETE')` so the row never exists
+    // for an unauthorized actor.
+    await this.auditService.record({
+      actorId,
+      action: 'DELETE_USER',
+      resourceType: 'users',
+      resourceId: id,
+    });
+  }
+
+  /**
+   * 2026-10-16 — returns the list of DTO keys the caller actually
+   * provided (not `undefined`). Used to populate
+   * `audit_events.metadata.touched_fields` on `UPDATE_USER`. Snake-
+   * case DTO field names → camelCase metadata keys so the audit-
+   * logs UI matches the column headers.
+   */
+  private collectUpdateFields(dto: AdminUpdateUserDto): Record<string, unknown> {
+    const FIELDS: Array<[string, keyof AdminUpdateUserDto]> = [
+      ['email', 'email'],
+      ['first_name', 'first_name'],
+      ['last_name', 'last_name'],
+      ['phone', 'phone'],
+      ['role_id', 'role_id'],
+      ['organization_id', 'organization_id'],
+      ['department_id', 'department_id'],
+      ['is_active', 'is_active'],
+      ['preferred_notification_channel', 'preferred_notification_channel'],
+    ];
+    const touched: Record<string, unknown> = {};
+    for (const [wire, dtoKey] of FIELDS) {
+      const v = dto[dtoKey];
+      if (v !== undefined) touched[wire] = v;
+    }
+    return touched;
   }
 }

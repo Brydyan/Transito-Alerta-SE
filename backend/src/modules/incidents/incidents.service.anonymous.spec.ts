@@ -5,6 +5,7 @@ import type { Cache } from '@nestjs/cache-manager';
 import type Redis from 'ioredis';
 import { GeofencingService } from '../geofencing/geofencing.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { AuditService } from '../audit/audit.service';
 
 import { IncidentsRepository } from './incidents.repository';
 import { IncidentsService } from './incidents.service';
@@ -33,6 +34,7 @@ describe('IncidentsService (AUD sc-327 — B.5/B.6 anonymous sealing)', () => {
   let eventEmitter: { emit: jest.Mock };
   let redis: { xadd: jest.Mock };
   let cache: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
+  let auditService: { record: jest.Mock };
   let dataSource: { query: jest.Mock; transaction: jest.Mock };
   let configService: { get: jest.Mock };
   let service: IncidentsService;
@@ -97,6 +99,11 @@ describe('IncidentsService (AUD sc-327 — B.5/B.6 anonymous sealing)', () => {
     configService = {
       get: jest.fn().mockReturnValue({ anonymousDeviceUuid: 'anonymous' }),
     };
+    // 2026-10-16 — AUD (sc-327) — `create()` records
+    // `CREATE_INCIDENT` for anonymous citizen → the masked
+    // user id is the actor. Default mock returns undefined;
+    // the per-test assertion verifies the call shape.
+    auditService = { record: jest.fn().mockResolvedValue(undefined) };
     service = new IncidentsService(
       repo as unknown as IncidentsRepository,
       // `any` para los mocks de servicios adyacentes: el
@@ -111,6 +118,7 @@ describe('IncidentsService (AUD sc-327 — B.5/B.6 anonymous sealing)', () => {
       cache as unknown as Cache,
       dataSource as unknown as DataSource,
       configService as unknown as ConfigService,
+      auditService as unknown as AuditService,
     );
 
     geofencing.resolveZone.mockResolvedValue({ zone_id: 'zone-1', zone: { id: 'zone-1' } });

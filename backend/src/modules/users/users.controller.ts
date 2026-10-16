@@ -108,8 +108,16 @@ export class UsersController {
 
   @Post()
   @RequirePermission('CREATE')
-  adminCreate(@Body() dto: AdminCreateUserDto): Promise<UserEntity> {
-    return this.usersService.adminCreate(dto);
+  adminCreate(
+    @Body() dto: AdminCreateUserDto,
+    // 2026-10-16 — AUD (sc-327) — the controller hands the
+    // caller's id to `adminCreate` so the service can emit a
+    // `CREATE_USER` audit row. `req.user!.userId` is non-null
+    // because `JwtAuthGuard` enforces a populated `AuthContext`
+    // on every authenticated route.
+    @Req() req: AuthenticatedRequest,
+  ): Promise<UserEntity> {
+    return this.usersService.adminCreate(dto, req.user!.userId);
   }
 
   @Get(':id')
@@ -143,8 +151,13 @@ export class UsersController {
   @Delete(':id')
   @RequirePermission('DELETE')
   @HttpCode(HttpStatus.NO_CONTENT)
-  adminDelete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    return this.usersService.softDelete(id);
+  adminDelete(
+    @Param('id', ParseUUIDPipe) id: string,
+    // 2026-10-16 — AUD (sc-327) — controller hands the caller id
+    // to `softDelete` so the service can emit `DELETE_USER`.
+    @Req() req: AuthenticatedRequest,
+  ): Promise<void> {
+    return this.usersService.softDelete(id, req.user!.userId);
   }
 
   /**

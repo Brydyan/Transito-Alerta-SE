@@ -12,6 +12,7 @@ import { AuthConfig } from '../../config/auth.config';
 import { IncidentStatus } from './entities/incident.entity';
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { AuditService } from '../audit/audit.service';
 import { SubjectScope } from '../../shared/authz/subject-scope';
 import { scopeCacheKey } from '../../shared/authz/scope-sql';
 import { ALLOWED_STATUSES } from './incident-state-machine';
@@ -70,6 +71,13 @@ export class IncidentsService {
     // desde la config.
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
+    // 2026-10-16 — AUD (sc-327) — `create()` records the
+    // `CREATE_INCIDENT` audit row inside the same transaction as
+    // the incident insert so the audit cannot be lost if the insert
+    // is rolled back. We don't audit the workflow transitions
+    // (REVEAL / CLOSE / REASSIGN) here — they belong to the
+    // `IncidentWorkflowService` and `RevealService` audit chains.
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -160,6 +168,18 @@ export class IncidentsService {
 
     await this.purgeListCaches(zoneId);
     await this.publish('incident.created', row);
+
+    // 2026-10-16 — AUD (sc-327) — CREATE_INCIDENT. Citizen-side
+    // path: `citizenId` is the only actor we have for a public sign-up
+    // (the citizen may be anonymous — `users.id = ANON_USER_ID` —
+    // in which case `actorId` lands on the masked row and the UI
+    // surfaces "sistema" instead of an email, see D6 fallback).
+    await this.auditService.record({
+      actorId: finalCitizenId,
+      action: 'CREATE_INCIDENT',
+      resourceType: 'incidents',
+      resourceId: row.id,
+    });
 
     return row;
   }

@@ -10,6 +10,7 @@ import { AuthService } from '../auth/auth.service';
 import { SessionsRepository } from '../sessions/sessions.repository';
 import { AvatarStorageService } from './avatar-storage.service';
 import { UsersService } from './users.service';
+import { AuditService } from '../audit/audit.service';
 
 const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
 const ORG_A_SCOPE: SubjectScope = { kind: 'org', organizationId: 'org-A' };
@@ -73,6 +74,11 @@ describe('UsersService.getFormData (T5.4)', () => {
         { provide: AuthService, useValue: { invalidatePermissionCache: jest.fn() } },
         { provide: SessionsRepository, useValue: { findActiveByUser: jest.fn() } },
         { provide: DataSource, useValue: dataSource },
+        // 2026-10-16 — AUD (sc-327) — `UsersService` now takes
+        // `AuditService` as the 8th constructor param. `getFormData`
+        // does not call `audit.record()`, so the mock's default
+        // `undefined` return is enough.
+        { provide: AuditService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     service = module.get(UsersService);

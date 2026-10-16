@@ -8,6 +8,7 @@ import { AuthContext, SubjectScope } from '../../shared/authz/subject-scope';
 import { AuthService } from '../auth/auth.service';
 import { AvatarStorageService } from './avatar-storage.service';
 import { SessionsRepository } from '../sessions/sessions.repository';
+import { AuditService } from '../audit/audit.service';
 
 const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
 const ORG_A_SCOPE: SubjectScope = { kind: 'org', organizationId: 'org-A' };
@@ -31,6 +32,11 @@ describe('UsersService', () => {
   let roleRepo: { find: jest.Mock; findOne: jest.Mock };
   let orgRepo: { find: jest.Mock; findOne: jest.Mock };
   let authService: { invalidatePermissionCache: jest.Mock };
+  // 2026-10-16 — AUD (sc-327) — assigned in `beforeEach`. The
+  // definite-assignment assertion (`!`) tells TS that the spec
+  // resolves it before the `it()` bodies read it (which is true — the
+  // spec runs `beforeEach` before every test).
+  let auditService!: { record: jest.Mock };
   let sessionsRepository: {
     findActiveByUser: jest.Mock;
     findManageableTarget: jest.Mock;
@@ -55,6 +61,10 @@ describe('UsersService', () => {
     // the DB directly for departments (getFormData dropdown +
     // adminCreate/adminUpdate cross-row invariant).
     dataSource = { query: jest.fn().mockResolvedValue([]) };
+    // 2026-10-16 — AUD (sc-327) — assigned in this `beforeEach` so the
+    // injected mock is populated before the service runs the first
+    // audit hook (which happens BEFORE most specs' assertions).
+    auditService = { record: jest.fn().mockResolvedValue(undefined) };
     service = new UsersService(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
       avatarStorage as unknown as AvatarStorageService,
@@ -63,6 +73,7 @@ describe('UsersService', () => {
       authService as unknown as AuthService,
       sessionsRepository as unknown as SessionsRepository,
       dataSource as unknown as DataSource,
+      auditService as unknown as AuditService,
     );
   });
 
@@ -483,7 +494,7 @@ describe('UsersService', () => {
       userRepo.update.mockResolvedValue({ affected: 1 });
       authService.invalidatePermissionCache.mockResolvedValue(undefined);
 
-      await service.softDelete('u1');
+      await service.softDelete('u1', 'admin-actor');
 
       expect(userRepo.update).toHaveBeenCalledWith('u1', expect.objectContaining({
         deletedAt: expect.any(Date),
@@ -499,7 +510,7 @@ describe('UsersService', () => {
 
     it('throws NotFoundException when user not found (soft-deleted or missing)', async () => {
       userRepo.findOne.mockResolvedValue(null);
-      await expect(service.softDelete('missing')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.softDelete('missing', 'admin-actor')).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
@@ -542,7 +553,7 @@ describe('UsersService', () => {
       const result = await service.adminCreate({
         email: 'juan@municipio.ec',
         role_id: 'role-master',
-      });
+      }, 'admin-actor');
 
       expect(roleRepo.findOne).toHaveBeenCalledWith({ where: { id: 'role-master' } });
       expect(userRepo.create).toHaveBeenCalledTimes(1);
@@ -565,7 +576,7 @@ describe('UsersService', () => {
     });
 
     it('without role_id: keeps permissions: [] and permissionVersion: 1 (backward compat T5.6)', async () => {
-      await service.adminCreate({ email: 'juan@municipio.ec' });
+      await service.adminCreate({ email: 'juan@municipio.ec' }, 'admin-actor');
 
       expect(roleRepo.findOne).not.toHaveBeenCalled();
       const createArg = userRepo.create.mock.calls[0][0];
@@ -581,7 +592,7 @@ describe('UsersService', () => {
       roleRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.adminCreate({ email: 'juan@municipio.ec', role_id: 'uuid-x' }),
+        service.adminCreate({ email: 'juan@municipio.ec', role_id: 'uuid-x' }, 'admin-actor'),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(userRepo.create).not.toHaveBeenCalled();
       expect(userRepo.save).not.toHaveBeenCalled();
@@ -591,7 +602,7 @@ describe('UsersService', () => {
       await service.adminCreate({
         email: 'juan@municipio.ec',
         phone: '+593 99 999 9999',
-      });
+      }, 'admin-actor');
 
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.phone).toBe('+593 99 999 9999');
@@ -614,7 +625,7 @@ describe('UsersService', () => {
         role_id: 'role-master',
         organization_id: 'org-A',
         department_id: 'dept-1',
-      });
+      }, 'admin-actor');
 
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.organizationId).toBeNull();
@@ -632,7 +643,7 @@ describe('UsersService', () => {
         email: 'opsys@municipio.ec',
         role_id: 'role-sys',
         organization_id: 'org-A',
-      });
+      }, 'admin-actor');
 
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.organizationId).toBeNull();
@@ -650,7 +661,7 @@ describe('UsersService', () => {
         service.adminCreate({
           email: 'admin@municipio.ec',
           role_id: 'role-admin',
-        }),
+        }, 'admin-actor'),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(userRepo.create).not.toHaveBeenCalled();
     });
@@ -667,7 +678,7 @@ describe('UsersService', () => {
           email: 'admin@municipio.ec',
           role_id: 'role-admin',
           organization_id: 'org-A',
-        }),
+        }, 'admin-actor'),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(userRepo.create).not.toHaveBeenCalled();
     });
@@ -688,7 +699,7 @@ describe('UsersService', () => {
           role_id: 'role-admin',
           organization_id: 'org-A',
           department_id: 'dept-in-org-B',
-        }),
+        }, 'admin-actor'),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(userRepo.create).not.toHaveBeenCalled();
     });
@@ -709,7 +720,7 @@ describe('UsersService', () => {
           role_id: 'role-admin',
           organization_id: 'org-A',
           department_id: 'dept-deleted',
-        }),
+        }, 'admin-actor'),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -728,7 +739,7 @@ describe('UsersService', () => {
         role_id: 'role-admin',
         organization_id: 'org-A',
         department_id: 'dept-in-org-A',
-      });
+      }, 'admin-actor');
 
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.organizationId).toBe('org-A');
@@ -751,7 +762,7 @@ describe('UsersService', () => {
         role_id: 'role-reporter',
         organization_id: 'org-A',
         department_id: 'dept-1',
-      });
+      }, 'admin-actor');
 
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.organizationId).toBeNull();
@@ -772,7 +783,7 @@ describe('UsersService', () => {
         email: 'geo@municipio.ec',
         role_id: 'role-master',
         geo_zone_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-      });
+      }, 'admin-actor');
 
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.geoZoneId).toBe('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
@@ -788,7 +799,7 @@ describe('UsersService', () => {
       await service.adminCreate({
         email: 'nogeo@municipio.ec',
         role_id: 'role-master',
-      });
+      }, 'admin-actor');
 
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.geoZoneId).toBeNull();
@@ -925,6 +936,102 @@ describe('UsersService', () => {
       const saveArg = userRepo.save.mock.calls[0][0];
       expect(saveArg.preferredNotificationChannel).toBe('telegram');
       expect(saveArg.firstName).toBe('Nuevo');
+    });
+  });
+
+  // 2026-10-16 — AUD (sc-327) — wiring the audit hooks for the three
+  // admin-side user mutations. Each block asserts the action label,
+  // resource shape, and metadata-key behavior; together they prove
+  // the audit log row written for every admin mutation.
+  describe('audit.record() — 2026-10-16 AUD (sc-327)', () => {
+    it('adminCreate records CREATE_USER with the persisted id as resourceId', async () => {
+      // Setup: a global role so the test hits the "permissions + role"
+      // branch (mirrors existing adminCreate tests). The audit
+      // assertion is independent of the role-lookup branch.
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-master',
+        name: 'master',
+        permissions: [],
+      });
+
+      await service.adminCreate({ email: 'audit@municipio.ec' }, 'admin-actor-1');
+
+      // Defense — the audit row is emitted AFTER the userRepo.save
+      // (the persisted id is what we want to record, not the shadow
+      // input id).
+      expect(userRepo.save).toHaveBeenCalledTimes(1);
+      const savedId = (await userRepo.save.mock.results[0].value).id;
+      expect(auditService.record).toHaveBeenCalledTimes(1);
+      expect(auditService.record).toHaveBeenCalledWith({
+        actorId: 'admin-actor-1',
+        action: 'CREATE_USER',
+        resourceType: 'users',
+        resourceId: savedId,
+      });
+    });
+
+    it('adminUpdate records UPDATE_USER with callerId as actorId and the DTO touched fields as metadata', async () => {
+      // PATCH updates only the two fields below; the metadata
+      // should reflect exactly those (snake_case wire keys).
+      userRepo.findOne.mockResolvedValueOnce({ id: 'target-1', isActive: true });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        'target-1',
+        { email: 'new@municipio.ec', first_name: 'Nuevo' } as never,
+        'caller-actor-2',
+        'master',
+      );
+
+      expect(auditService.record).toHaveBeenCalledTimes(1);
+      const call = auditService.record.mock.calls[0][0];
+      expect(call.actorId).toBe('caller-actor-2');
+      expect(call.action).toBe('UPDATE_USER');
+      expect(call.resourceType).toBe('users');
+      expect(call.resourceId).toBe('target-1');
+      // `metadata.touched_fields` lists only the DTO keys the caller
+      // actually provided (omits the rest). Snake-case keys match
+      // the audit-logs UI column headers.
+      expect(call.metadata).toEqual({
+        email: 'new@municipio.ec',
+        first_name: 'Nuevo',
+      });
+    });
+
+    it('adminUpdate skips the audit call when the call throws (e.g. self-deactivation guard)', async () => {
+      // target === caller id, is_active=false → ForbiddenException.
+      // The audit row is NOT emitted — the action was rejected, so
+      // there's nothing to log.
+      userRepo.findOne.mockResolvedValueOnce({ id: 'caller-actor-3', isActive: true });
+
+      await expect(
+        service.adminUpdate(
+          'caller-actor-3',
+          { is_active: false } as never,
+          'caller-actor-3',
+          'master',
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(auditService.record).not.toHaveBeenCalled();
+    });
+
+    it('softDelete records DELETE_USER with callerId as actorId', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: 'target-2',
+        deviceUuid: 'dev-2',
+      });
+      userRepo.update.mockResolvedValueOnce(undefined);
+
+      await service.softDelete('target-2', 'admin-actor-4');
+
+      expect(auditService.record).toHaveBeenCalledTimes(1);
+      expect(auditService.record).toHaveBeenCalledWith({
+        actorId: 'admin-actor-4',
+        action: 'DELETE_USER',
+        resourceType: 'users',
+        resourceId: 'target-2',
+      });
     });
   });
 });
