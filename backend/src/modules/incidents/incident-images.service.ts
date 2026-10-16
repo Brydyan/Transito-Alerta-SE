@@ -1,16 +1,21 @@
 import {
   ForbiddenException,
+  Inject,
   Injectable,
-  Logger,
   NotFoundException,
+  StreamableFile,
   UnprocessableEntityException,
+  Logger,
 } from '@nestjs/common';
+import { fileURLToPath } from 'url';
+import { createReadStream } from 'fs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IncidentImageEntity } from './entities/incident-image.entity';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
 import { IncidentImageDto } from './dto/incident-image.dto';
 import { IncidentsRepository } from './incidents.repository';
+import { IStorageClient, STORAGE_CLIENT } from '../../infra/storage/storage-client.interface';
 import { SubjectScope } from '../../shared/authz/subject-scope';
 import { hasPermission } from '../../shared/guards/permission.guard';
 import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
@@ -33,6 +38,7 @@ export class IncidentImagesService {
     @InjectRepository(IncidentImageEntity)
     private readonly imageRepo: Repository<IncidentImageEntity>,
     private readonly storage: IncidentImageStorageService,
+    @Inject(STORAGE_CLIENT) private readonly storageClient: IStorageClient,
     private readonly incidentsRepository: IncidentsRepository,
     // F6 fix: las `callerPermissions` son UUIDs (post-0051).
     // El check `includes('CREATE incident-images')` ya no
@@ -50,9 +56,15 @@ export class IncidentImagesService {
       where: { incidentId },
       order: { createdAt: 'ASC' },
     });
+    // 2026-10-06-incident-images-read-path (D3) — the metadata DTO
+    // no longer carries `url`. The frontend ALWAYS resolves the
+    // image via the byte route (`GET /:id/images/:imageId/file`)
+    // — see D4 / `incident-images.controller.ts`. Listing them
+    // server-side avoids a second request to `getSignedUrl` and
+    // sidesteps the local-dev `file://` block by piping bytes
+    // through the backend instead.
     return images.map((img) => ({
       id: img.id,
-      url: img.url,
       mime_type: img.mimeType,
       file_size: img.fileSize,
       created_at: img.createdAt,
@@ -87,18 +99,23 @@ export class IncidentImagesService {
 
     const results: IncidentImageDto[] = [];
     for (const file of files) {
-      const { key, url } = await this.storage.upload(incidentId, file);
+      // 2026-10-06-incident-images-read-path (D3) — only the storage
+      // key is persisted. The `STORAGE_CLIENT.upload` still returns
+      // `{ key, url }` (interface contract — see
+      // `StorageUploadResult`), but the URL is intentionally NOT
+      // stored: it can be regenerated through `getSignedUrl` and the
+      // pre-change stub was the source of stale `storage.example.com`
+      // strings that the browser could never render.
+      const { key } = await this.storage.upload(incidentId, file);
       const entity = this.imageRepo.create({
         incidentId,
         storageKey: key,
-        url,
         mimeType: file.mimetype,
         fileSize: file.size,
       });
       const saved = await this.imageRepo.save(entity);
       results.push({
         id: saved.id,
-        url: saved.url,
         mime_type: saved.mimeType,
         file_size: saved.fileSize,
         created_at: saved.createdAt,
@@ -140,5 +157,51 @@ export class IncidentImagesService {
     }
 
     await this.imageRepo.delete({ id: imageId });
+  }
+
+  /**
+   * 2026-10-06-incident-images-read-path (D3/D4) — byte route
+   * service. Returns either:
+   *   - a `StreamableFile` of the local bytes when the storage
+   *     provider is `noop` (a `file://` URL the browser would
+   *     block outright — D3 rationale), or
+   *   - `{ kind: 'redirect', url }` when the provider hands back
+   *     an http(s) URL (Supabase in production).
+   *
+   * The caller (controller) chooses what to do with the result.
+   * `image.incidentId === incidentId` is enforced first as the
+   * authorization boundary: a caller who knows one image UUID
+   * cannot read another incident's image by guessing the route.
+   */
+  async getImageFile(
+    incidentId: string,
+    imageId: string,
+  ): Promise<
+    | { kind: 'stream'; file: StreamableFile; mimeType: string }
+    | { kind: 'redirect'; url: string; mimeType: string }
+  > {
+    const image = await this.imageRepo.findOne({ where: { id: imageId } });
+    // 2026-10-06-incident-images-read-path (D4) — the mismatch
+    // case returns 404 without leaking whether the image exists
+    // on a different incident (same response as "not found").
+    if (!image || image.incidentId !== incidentId) {
+      throw new NotFoundException(`Image ${imageId} not found on incident ${incidentId}`);
+    }
+
+    const signedUrl = await this.storageClient.getSignedUrl(image.storageKey);
+
+    if (signedUrl.startsWith('file://')) {
+      // NoopStorageClient returns `file://{absPath}` — pipe the file
+      // through Express instead of redirecting, because browsers
+      // strictly block `file://` for security (D3 rationale).
+      const absPath = fileURLToPath(signedUrl);
+      return {
+        kind: 'stream',
+        file: new StreamableFile(createReadStream(absPath)),
+        mimeType: image.mimeType,
+      };
+    }
+
+    return { kind: 'redirect', url: signedUrl, mimeType: image.mimeType };
   }
 }

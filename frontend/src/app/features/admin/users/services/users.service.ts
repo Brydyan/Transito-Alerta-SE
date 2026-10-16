@@ -54,6 +54,12 @@ export class UsersService {
       role_id?: string;
       organization_id?: string | null;
       is_active?: boolean;
+      // 2026-10-15-user-status-notif-channel (S2) — preferred
+      // notification channel. Optional on the wire because the
+      // column was added by migration 0033 and older payloads from
+      // a still-0032 environment won't carry it; the service
+      // defaults to `'email'` to match the DB DEFAULT.
+      preferred_notification_channel?: string;
     }
     return this.http
       .get<{ items: UsersWireItem[]; total: number }>(this.usersUrl, { params, withCredentials: true })
@@ -73,6 +79,11 @@ export class UsersService {
             // las filas aparecen como "inactivo" (SC-209 lesson,
             // D-frontend-9 del F6 rediseño).
             isActive: item.is_active,
+            // 2026-10-15-user-status-notif-channel (S2) — wire is
+            // snake_case; without this projection the list would
+            // never show the value (SC-209 lesson — the DTO/interface
+            // and the mapper have to agree).
+            preferredNotificationChannel: item.preferred_notification_channel ?? 'email',
           })),
           meta: {
             total: res.total,
@@ -113,6 +124,14 @@ export class UsersService {
         role_id?: string;
         organization_id?: string | null;
         is_active?: boolean;
+        // 2026-10-15-user-status-notif-channel (verify-report W1) —
+        // The detail load shape omitted `preferred_notification_channel`,
+        // so the edit form's `userForm.patchValue({ preferredNotificationChannel:
+        // user.preferredNotificationChannel ?? 'email' })` always fell
+        // back to `'email'` — wiping out a persisted `'telegram'`
+        // preference on every Master edit. Added the wire alias and
+        // projection (with the DB-default fallback).
+        preferred_notification_channel?: string;
         permissions?: string[];
       }>(`${this.usersUrl}/${id}`, { withCredentials: true })
       .pipe(
@@ -127,6 +146,12 @@ export class UsersService {
             apellidos: raw.last_name ?? '',
             telefono: raw.phone ?? '',
             isActive: raw.is_active ?? false,
+            // 2026-10-15-user-status-notif-channel (W1) — project the
+            // snake_case wire alias onto the camelCase entity field.
+            // `?? 'email'` mirrors the DB DEFAULT on the column so
+            // users fetched before 0033 (no column → no wire field)
+            // still load sensibly.
+            preferredNotificationChannel: raw.preferred_notification_channel ?? 'email',
             avatar: null as UserDetail['avatar'],
             rol:
               roleId && roleName
@@ -364,6 +389,19 @@ export class UsersService {
     if (payload.telefono !== undefined) body['phone'] = payload.telefono;
     if (payload.rolId !== undefined && payload.rolId !== null) body['role_id'] = payload.rolId;
     if (payload.organizationId !== undefined) body['organization_id'] = payload.organizationId;
+    // 2026-10-15-user-status-notif-channel — Master-only field. The
+    // form only sends this when `isMaster() === true` AND the target
+    // is not the caller; the backend service applies its own
+    // self-deactivation guard and silently ignores the field for
+    // non-Master callers (defense in depth — never rely on the form
+    // alone). Wire: `is_active`.
+    if (payload.isActive !== undefined) body['is_active'] = payload.isActive;
+    // 2026-10-15-user-status-notif-channel (S2) — preferred channel.
+    // The DTO `@IsIn(['email', 'telegram'])` rejects anything else
+    // with 400, so we just pass the string through.
+    if (payload.preferredNotificationChannel !== undefined) {
+      body['preferred_notification_channel'] = payload.preferredNotificationChannel;
+    }
 
     if (file) {
       // Avatar: sube el archivo en un FormData aparte. El backend

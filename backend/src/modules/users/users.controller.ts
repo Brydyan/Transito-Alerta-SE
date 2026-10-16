@@ -123,8 +123,21 @@ export class UsersController {
   adminUpdate(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AdminUpdateUserDto,
+    // 2026-10-15-user-status-notif-channel — the new `is_active` field
+    // is Master-only at the service layer (self-deactivation guard +
+    // role gate). The controller hands `req.user!.userId` and
+    // `req.user!.roleName` to the service so the guard works without
+    // a second round-trip to the auth layer. `roleName` is nullable on
+    // `AuthContext`; an absent role cannot be master, so the service
+    // guard naturally drops `is_active`.
+    @Req() req: AuthenticatedRequest,
   ): Promise<UserEntity> {
-    return this.usersService.adminUpdate(id, dto);
+    return this.usersService.adminUpdate(
+      id,
+      dto,
+      req.user!.userId,
+      req.user!.roleName ?? '',
+    );
   }
 
   @Delete(':id')

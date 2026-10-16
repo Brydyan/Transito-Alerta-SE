@@ -1,5 +1,7 @@
 import {
+  IsBoolean,
   IsEmail,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -81,4 +83,30 @@ export class AdminUpdateUserDto {
   @IsOptional()
   @IsUUID()
   department_id?: string;
+
+  /**
+   * 2026-10-15-user-status-notif-channel (S1) — Master-only toggle.
+   * The wire field is `is_active` (snake_case, matches the rest of
+   * the DTO). The service enforces Master-only application AND a
+   * self-deactivation guard (`ForbiddenException`) — see
+   * `UsersService.adminUpdate()`. Non-master callers that send the
+   * field have it silently ignored (spec S1 escenario "Non-master
+   * sends is_active field (field ignored)").
+   */
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+
+  /**
+   * 2026-10-15-user-status-notif-channel (S2) — preferred notification
+   * channel preference. Wire `preferred_notification_channel`. The DTO
+   * uses `@IsIn(['email', 'telegram'])` so an invalid value like
+   * `'sms'` is rejected at the validation pipe with 400 — see
+   * `ValidationPipe` global `forbidNonWhitelisted`. Allowed today;
+   * additional channels can be added without an ALTER TYPE because
+   * the underlying column is `VARCHAR(20)` (design D4).
+   */
+  @IsOptional()
+  @IsIn(['email', 'telegram'])
+  preferred_notification_channel?: string;
 }

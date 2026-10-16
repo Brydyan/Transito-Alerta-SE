@@ -124,8 +124,22 @@ export class UserEntity {
   telegramChatId!: string | null;
 
   /**
+   * 2026-10-15-user-status-notif-channel (D4) — preferred notification
+   * channel. Migration 0033 adds the column with `DEFAULT 'email'`.
+   * Allowed values today are `'email'` and `'telegram'` (validated in
+   * `AdminUpdateUserDto` via `@IsIn(['email', 'telegram'])`); a future
+   * change can extend without an ALTER TYPE because we picked VARCHAR
+   * over ENUM (design D4 — migration-friction tradeoff).
+   *
+   * Preference only — no dispatch logic lives in this change. A future
+   * listener (out of scope) will read it to decide where to send
+   * notifications.
+   */
+  @Column({ name: 'preferred_notification_channel', type: 'varchar', length: 20, default: 'email' })
+  preferredNotificationChannel!: string;
+
+  /**
    * 2026-10-10-user-onboarding-telegram-tour (D1) — FK to `departments`.
-<<<<<<< HEAD
    * The column was created by `0030_departments.sql` with
    * `ON DELETE SET NULL`, but until this change the entity had no
    * mapping, so the DTOs and the form could not persist the value.

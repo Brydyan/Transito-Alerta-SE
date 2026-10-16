@@ -736,4 +736,137 @@ describe('UsersService', () => {
       expect(createArg.geoZoneId).toBeNull();
     });
   });
+
+  // 2026-10-15-user-status-notif-channel — `adminUpdate()` accepts
+  // `is_active` (Master-only, with self-deactivation guard) and
+  // `preferred_notification_channel` (Master-only, anyone with
+  // `UPDATE users` permission — same gate as the rest of adminUpdate).
+  // Spec: openspec/changes/back/2026-10-15-user-status-notif-channel/specs/{s1-is-active-toggle,s2-notification-channel}.md
+  describe('adminUpdate() — 2026-10-15-user-status-notif-channel', () => {
+    const TARGET_ID = 'target-uuid';
+    const CALLER_ID = 'caller-uuid';
+
+    it('throws ForbiddenException when master caller tries to deactivate themselves', async () => {
+      // target === caller id, dto.is_active === false
+      userRepo.findOne.mockResolvedValueOnce({ id: CALLER_ID, isActive: true });
+
+      await expect(
+        service.adminUpdate(
+          CALLER_ID,
+          { is_active: false } as never,
+          CALLER_ID,
+          'master',
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      // Defense: nothing was persisted and no cache bust was queued.
+      expect(userRepo.save).not.toHaveBeenCalled();
+      expect(authService.invalidatePermissionCache).not.toHaveBeenCalled();
+    });
+
+    it('applies is_active = false when the target differs from the caller (master role)', async () => {
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: true });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { is_active: false } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      expect(saveArg.isActive).toBe(false);
+      expect(authService.invalidatePermissionCache).toHaveBeenCalledWith(
+        TARGET_ID,
+        undefined,
+      );
+    });
+
+    it('applies is_active = true (reactivation) for master caller', async () => {
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: false });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { is_active: true } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      expect(saveArg.isActive).toBe(true);
+    });
+
+    it('silently ignores is_active when caller is not master (defense in depth)', async () => {
+      // Non-master sends { is_active: false } — the field must be
+      // dropped so a leaked permission scope can't disable accounts.
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: true });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { is_active: false } as never,
+        CALLER_ID,
+        'admin_org',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      // Field not applied — `isActive` remains the loaded one.
+      expect(saveArg.isActive).toBe(true);
+    });
+
+    it('applies preferred_notification_channel = "telegram" when provided', async () => {
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: true });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { preferred_notification_channel: 'telegram' } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      expect(saveArg.preferredNotificationChannel).toBe('telegram');
+    });
+
+    it('applies preferred_notification_channel for non-master caller too (anyone with UPDATE users)', async () => {
+      // The channel preference is not gated on master role — the
+      // permission `UPDATE users` already gates the route. Spec
+      // S2 only requires persistence.
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: true });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { preferred_notification_channel: 'email' } as never,
+        CALLER_ID,
+        'admin_org',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      expect(saveArg.preferredNotificationChannel).toBe('email');
+    });
+
+    it('leaves preferred_notification_channel unchanged when DTO omits the field', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        isActive: true,
+        preferredNotificationChannel: 'telegram',
+      });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { first_name: 'Nuevo' } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      expect(saveArg.preferredNotificationChannel).toBe('telegram');
+      expect(saveArg.firstName).toBe('Nuevo');
+    });
+  });
 });

@@ -8,10 +8,13 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
+  Res,
+  StreamableFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -62,5 +65,37 @@ export class IncidentImagesController {
   ): Promise<void> {
     const user = req.user!;
     return this.incidentImagesService.removeFromIncident(id, imageId, user.userId, user.permissions);
+  }
+
+  /**
+   * 2026-10-06-incident-images-read-path (D3/D4) — byte route. The
+   * metadata endpoint hands the frontend image IDs; the frontend
+   * fetches the bytes from this route. The `JwtAuthGuard` is the
+   * authorization boundary (D4) — a caller with a valid JWT who
+   * guesses another incident's image UUID still gets 404 because
+   * `service.getImageFile` checks `image.incidentId === :id`.
+   *
+   * When the storage provider hands back a `file://` URL (noop —
+   * local dev), the service streams the bytes through. When the
+   * provider returns an http(s) URL (Supabase in production), the
+   * service issues a 302 redirect to a fresh signed URL.
+   */
+  @Get(':imageId/file')
+  @HttpCode(HttpStatus.OK)
+  async getFile(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('imageId', new ParseUUIDPipe()) imageId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile | void> {
+    const result = await this.incidentImagesService.getImageFile(id, imageId);
+
+    if (result.kind === 'redirect') {
+      res.redirect(HttpStatus.FOUND, result.url);
+      return;
+    }
+
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', 'inline');
+    return result.file;
   }
 }

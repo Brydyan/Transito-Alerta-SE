@@ -39,7 +39,9 @@ import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.comp
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { CommentThreadComponent } from '../components/comment-thread/comment-thread.component';
-import { IncidentImagesComponent } from '../../../shared/components/incident-images/incident-images.component';
+// 2026-10-06-incident-images-read-path (D5) — shared util that the
+// status badge (and a future timeline re-enable) delegate to.
+import { mapStatusLabel } from '../../../shared/utils/incident-status.util';
 import * as L from 'leaflet';
 
 /**
@@ -80,7 +82,6 @@ import * as L from 'leaflet';
     UiIconComponent,
     EmptyStateComponent,
     CommentThreadComponent,
-    IncidentImagesComponent,
   ],
   templateUrl: './incident-detail.component.html',
   styleUrl: './incident-detail.component.css',
@@ -306,7 +307,19 @@ export class IncidentDetailComponent implements OnInit, OnDestroy {
   }
 
   // ── Helpers de UI ────────────────────────────────────────────────
+  // 2026-10-06-incident-images-read-path (D5) — expose the shared
+  // status label helper so the template can bind `[label]` on the
+  // status badge. Function-as-property keeps the call site terse
+  // and lets Angular template check treat it as a pure call.
+  protected readonly mapStatusLabel = mapStatusLabel;
+
   badgeStatusFor(s: IncidentStatus): 'pendiente' | 'en_proceso' | 'resuelto' | 'cerrada' {
+    // 2026-10-06-incident-images-read-path (D5) — keep the
+    // variant TOKEN (lowercase, underscore-joined) here so the
+    // `ui-badge [variant]` binding stays correct. The DISPLAY
+    // label is computed by `mapStatusLabel` (used in the
+    // template's `[label]="mapStatusLabel(inc.status)"`) — one
+    // source of truth across badges and (future) timelines.
     return (
       {
         pending: 'pendiente',
