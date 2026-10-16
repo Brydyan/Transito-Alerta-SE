@@ -138,7 +138,14 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Create marker cluster group (Umbral recomendado: ~5.000 incidencias. Pasado ese límite
     // se recomienda implementar clustering o bounding box fetching directo desde el backend / PostGIS).
-    this.markerClusterGroup = L.markerClusterGroup({
+    //
+    // esbuild CJS interop: `import * as L` creates a snapshot namespace — dynamically added
+    // properties (like markerClusterGroup from the side-effect import) are NOT reflected on it.
+    // `L.default` is a live reference to the CJS module.exports, which IS patched by
+    // leaflet.markercluster. Access through it to get the actual function at runtime.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Lmc = ((L as any).default ?? L) as typeof L & { markerClusterGroup(o?: L.MarkerClusterGroupOptions): L.MarkerClusterGroup };
+    this.markerClusterGroup = Lmc.markerClusterGroup({
       chunkedLoading: true,
       maxClusterRadius: 50,
       spiderfyOnMaxZoom: true,

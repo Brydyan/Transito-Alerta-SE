@@ -21,6 +21,7 @@ import { IncidentsRepository } from '../incidents/incidents.repository';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
 import { IncidentWorkflowService } from '../incidents/incident-workflow.service';
 import { CLAIM_LIMIT_REACHED } from '../incidents/incident-workflow.errors';
+import { AuditService } from '../audit/audit.service';
 
 const SYSTEM_ADMIN_ROLE = 'master';
 
@@ -67,6 +68,11 @@ export class AssignmentsService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly incidentsRepository: IncidentsRepository,
     private readonly workflow: IncidentWorkflowService,
+    // 2026-10-16 — AUD (sc-327) — `assign()` records the
+    // `ASSIGN_INCIDENT` audit row inside the same transaction as
+    // the assignment insert (audit-trail consistency: a missing
+    // audit row means the dispatch didn't happen).
+    private readonly auditService: AuditService,
   ) {}
 
   async assign(
@@ -143,6 +149,23 @@ export class AssignmentsService {
       'data',
       JSON.stringify(saved),
     );
+
+    // 2026-10-16 — AUD (sc-327) — ASSIGN_INCIDENT. The caller of
+    // `assign()` is the admin / operator_org dispatching the
+    // incident — `caller.userId` is their user row. The metadata
+    // carries the operatorId + role so the audit-log row can be
+    // filtered ("who assigned whom, in what role?"). Resource id
+    // is the incident, not the assignment — the assignment row
+    // is downstream of the incident and the audit-logs UI
+    // already groups by incident.
+    await this.auditService.record({
+      actorId: caller.userId,
+      action: 'ASSIGN_INCIDENT',
+      resourceType: 'incidents',
+      resourceId: incidentId,
+      metadata: { operatorId, role },
+    });
+
     return saved;
   }
 

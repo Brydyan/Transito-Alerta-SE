@@ -108,6 +108,13 @@ export class UsersListComponent implements OnInit {
   readonly searchTerm = signal('');
   readonly selectedRole = signal('');
   readonly selectedOrg = signal('');
+  // 2026-10-16 — toggle "mostrar inactivos" en la lista. Por
+  // defecto el signal es `false` (lista todos los usuarios
+  // ACTIVOS — el comportamiento histórico). Cuando el admin
+  // activa el toggle, el componente setea `true` y vuelve a llamar
+  // a `loadUsers()` con `activeOnly=false` para mostrar los
+  // shadow-users pendientes de invitación.
+  readonly showInactiveOnly = signal(false);
 
   /** Lista que se muestra en la grilla — `users()` filtrada por
    *  `searchTerm` (búsqueda local) o `users()` entera. */
@@ -183,6 +190,13 @@ export class UsersListComponent implements OnInit {
         this.pageSize(),
         this.selectedRole() || undefined,
         this.selectedOrg() || undefined,
+        // 2026-10-16 — toggle "mostrar inactivos". Por defecto
+        // (signal `false`) el componente NO pasa nada y el service
+        // mapea `undefined` → no query param → el backend devuelve
+        // todos los usuarios con `isActive: true`. Cuando el
+        // toggle está activo, pasamos `false` para forzar
+        // `isActive: false` en el WHERE.
+        this.showInactiveOnly() ? false : undefined,
       )
       .pipe(
         takeUntilDestroyed(this.destroyRef),
@@ -230,6 +244,17 @@ export class UsersListComponent implements OnInit {
     this.selectedRole.set(filters.role);
     this.selectedOrg.set(filters.org);
     this.refetch();
+  }
+
+  // 2026-10-16 — toggle "mostrar inactivos". El admin marca el
+  // checkbox para listar los shadow-users pendientes de invitación;
+  // desmarcándolo vuelve a la lista histórica de usuarios activos.
+  // Reset page a 1 porque el universo de la query cambió
+  // completamente (no tiene sentido mantener el offset de página).
+  onToggleInactive(value: boolean): void {
+    this.showInactiveOnly.set(value);
+    this.currentPage.set(1);
+    this.loadUsers();
   }
 
   onPageChange(page: number): void {

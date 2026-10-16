@@ -22,6 +22,7 @@ import {
   FormDataResponseDto,
 } from './dto/form-data-response.dto';
 import { DepartmentRow } from '../departments/departments.repository';
+import { AuditService } from '../audit/audit.service';
 import { SYSTEM_ADMIN_ROLE_NAME, SYSTEM_ONLY_ROLES } from './role-exclusions.constants';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
@@ -62,6 +63,15 @@ export class UsersService {
     // 2026-10-10-user-onboarding-telegram-tour (D6) — departments for
     // the form-data dropdown + cross-row validation in adminCreate.
     @InjectDataSource() private readonly dataSource: DataSource,
+    // 2026-10-16 — AUD (sc-327) — every admin-side mutation
+    // (`adminCreate`, `adminUpdate`, `softDelete`) emits a
+    // `users.action` audit record inside the same transaction via
+    // the `manager` parameter; the surface mirrors `assignments` and
+    // `incidents` wiring. We don't audit the citizen self-service
+    // path (`updateProfile`) — that lives outside the admin scope
+    // and is captured separately by the AuthService when the user
+    // accepts an invitation (out of scope of this change).
+    private readonly auditService: AuditService,
   ) {}
 
   async findById(id: string): Promise<UserEntity> {
@@ -175,17 +185,33 @@ export class UsersService {
     limit = DEFAULT_PAGE_SIZE,
     scope: SubjectScope,
     callerId?: string,
+    // 2026-10-16 — toggle "mostrar inactivos" en lista de usuarios.
+    // `activeOnly=undefined` → todos (default), `true` → solo
+    // `is_active=true`, `false` → solo `is_active=false`. Sin this
+    // param, los shadow-users de `adminCreate` (is_active=false
+    // hasta que acepten la invitación) quedan ocultos — es el
+    // comportamiento histórico que NO cambiamos en este change.
+    activeOnly?: boolean,
   ): Promise<{ items: UserEntity[]; total: number }> {
     const take = Math.min(limit, MAX_PAGE_SIZE);
     const safePage = Math.max(page, 1);
     const skip = (safePage - 1) * take;
 
+    // `activeOnly === undefined` → sin filtro (lista completa).
+    // `activeOnly === true` → solo `is_active=true` (default histórico).
+    // `activeOnly === false` → solo `is_active=false` (el toggle nuevo).
+    const isActiveWhere = activeOnly === undefined ? undefined : { isActive: activeOnly };
+
     switch (scope.kind) {
       case 'global':
-        return this.findAndCount({ take, skip });
+        return this.findAndCount({ take, skip, where: isActiveWhere });
       case 'org':
       case 'org_assigned':
-        return this.findAndCount({ take, skip, where: { organizationId: scope.organizationId } });
+        return this.findAndCount({
+          take,
+          skip,
+          where: { organizationId: scope.organizationId, ...isActiveWhere },
+        });
       case 'public': {
         if (!callerId) {
           return { items: [], total: 0 };
@@ -201,15 +227,24 @@ export class UsersService {
   private async findAndCount(options: {
     take: number;
     skip: number;
-    where?: { organizationId: string };
+    where?: { organizationId?: string; isActive?: boolean };
   }): Promise<{ items: UserEntity[]; total: number }> {
     // F6 fix: filtrar por `is_active: true` para que los shadows
     // de `adminCreate` (is_active=false hasta que acepten la
     // invitación) no aparezcan en la lista. Ver el comentario
     // en `adminCreate` arriba para el contexto completo.
+    //
+    // 2026-10-16 — toggle "mostrar inactivos": cuando el caller
+    // pasa `activeOnly !== undefined`, el `where` ya trae `isActive`
+    // explícito y NO se sobreescribe con `isActive: true` (eso sería
+    // contradictorio). El merge respeta el orden: si llega `isActive`,
+    // gana el del caller; si no, default `true`.
+    const callerWantsActive = options.where?.isActive !== undefined;
     const findOptions: FindManyOptions<UserEntity> = {
       ...options,
-      where: { ...options.where, isActive: true },
+      where: callerWantsActive
+        ? options.where
+        : { ...options.where, isActive: true },
     };
     const [items, total] = await this.userRepo.findAndCount(findOptions);
     return { items, total };
@@ -294,7 +329,7 @@ export class UsersService {
    * is persisted; its `users.phone` column was added in migration
    * 0022, so no schema change here.
    */
-  async adminCreate(dto: AdminCreateUserDto): Promise<UserEntity> {
+  async adminCreate(dto: AdminCreateUserDto, actorId: string): Promise<UserEntity> {
     let permissions: string[] = [];
     let permissionVersion = 1;
     let resolvedRoleName: string | null = null;
@@ -404,7 +439,18 @@ export class UsersService {
       permissions,
       permissionVersion,
     });
-    return this.userRepo.save(user);
+    const saved = await this.userRepo.save(user);
+    // 2026-10-16 — AUD (sc-327) — CREATE_USER. We audit AFTER the
+    // save so `resource_id` is the persisted id (the shadow-user is
+    // `is_active=false`; audit reflects the admin's intent, not the
+    // redeemed-on-invitation acceptance).
+    await this.auditService.record({
+      actorId,
+      action: 'CREATE_USER',
+      resourceType: 'users',
+      resourceId: saved.id,
+    });
+    return saved;
   }
 
   /**
@@ -544,6 +590,18 @@ export class UsersService {
     }
     const saved = await this.userRepo.save(target);
     await this.authService.invalidatePermissionCache(saved.id, saved.deviceUuid);
+    // 2026-10-16 — AUD (sc-327) — UPDATE_USER. We audit every
+    // successful update, including the no-op case (D5 — "ensure
+    // UPDATE_USER is emitted even when the diff is empty"). The
+    // `metadata` column carries the touched field names so the
+    // audit-logs UI can highlight which fields changed.
+    await this.auditService.record({
+      actorId: callerId,
+      action: 'UPDATE_USER',
+      resourceType: 'users',
+      resourceId: saved.id,
+      metadata: this.collectUpdateFields(dto),
+    });
     return saved;
   }
 
@@ -562,7 +620,7 @@ export class UsersService {
    * deterministic tombstone (`deleted+{id}@tase.invalid`) so the UNIQUE
    * constraint still holds after deletion.
    */
-  async softDelete(id: string): Promise<void> {
+  async softDelete(id: string, actorId: string): Promise<void> {
     const target = await this.findById(id);
     await this.userRepo.update(id, {
       deletedAt: new Date(),
@@ -578,5 +636,45 @@ export class UsersService {
       phone: null,
     });
     await this.authService.invalidatePermissionCache(target.id, target.deviceUuid);
+    // 2026-10-16 — AUD (sc-327) — DELETE_USER. Emitted AFTER the
+    // `update` because we want the audit row to reflect the
+    // post-soft-delete state of the target (the email is already
+    // tombstoned, `is_active=false`, etc.). Emitted for master /
+    // admin_org callers only — the controller gates the route
+    // with `@RequirePermission('DELETE')` so the row never exists
+    // for an unauthorized actor.
+    await this.auditService.record({
+      actorId,
+      action: 'DELETE_USER',
+      resourceType: 'users',
+      resourceId: id,
+    });
+  }
+
+  /**
+   * 2026-10-16 — returns the list of DTO keys the caller actually
+   * provided (not `undefined`). Used to populate
+   * `audit_events.metadata.touched_fields` on `UPDATE_USER`. Snake-
+   * case DTO field names → camelCase metadata keys so the audit-
+   * logs UI matches the column headers.
+   */
+  private collectUpdateFields(dto: AdminUpdateUserDto): Record<string, unknown> {
+    const FIELDS: Array<[string, keyof AdminUpdateUserDto]> = [
+      ['email', 'email'],
+      ['first_name', 'first_name'],
+      ['last_name', 'last_name'],
+      ['phone', 'phone'],
+      ['role_id', 'role_id'],
+      ['organization_id', 'organization_id'],
+      ['department_id', 'department_id'],
+      ['is_active', 'is_active'],
+      ['preferred_notification_channel', 'preferred_notification_channel'],
+    ];
+    const touched: Record<string, unknown> = {};
+    for (const [wire, dtoKey] of FIELDS) {
+      const v = dto[dtoKey];
+      if (v !== undefined) touched[wire] = v;
+    }
+    return touched;
   }
 }

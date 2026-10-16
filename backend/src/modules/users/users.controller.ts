@@ -108,8 +108,16 @@ export class UsersController {
 
   @Post()
   @RequirePermission('CREATE')
-  adminCreate(@Body() dto: AdminCreateUserDto): Promise<UserEntity> {
-    return this.usersService.adminCreate(dto);
+  adminCreate(
+    @Body() dto: AdminCreateUserDto,
+    // 2026-10-16 — AUD (sc-327) — the controller hands the
+    // caller's id to `adminCreate` so the service can emit a
+    // `CREATE_USER` audit row. `req.user!.userId` is non-null
+    // because `JwtAuthGuard` enforces a populated `AuthContext`
+    // on every authenticated route.
+    @Req() req: AuthenticatedRequest,
+  ): Promise<UserEntity> {
+    return this.usersService.adminCreate(dto, req.user!.userId);
   }
 
   @Get(':id')
@@ -143,8 +151,13 @@ export class UsersController {
   @Delete(':id')
   @RequirePermission('DELETE')
   @HttpCode(HttpStatus.NO_CONTENT)
-  adminDelete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    return this.usersService.softDelete(id);
+  adminDelete(
+    @Param('id', ParseUUIDPipe) id: string,
+    // 2026-10-16 — AUD (sc-327) — controller hands the caller id
+    // to `softDelete` so the service can emit `DELETE_USER`.
+    @Req() req: AuthenticatedRequest,
+  ): Promise<void> {
+    return this.usersService.softDelete(id, req.user!.userId);
   }
 
   /**
@@ -167,12 +180,32 @@ export class UsersController {
     @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    // 2026-10-16 — toggle "mostrar inactivos" en la lista de
+    // usuarios. Wire values: `active=true` → solo activos;
+    // `active=false` → solo inactivos (shadow-users de adminCreate);
+    // ausente → todos (default histórico, isActive=true).
+    // `forbidNonWhitelisted` is NOT enabled globally here — the
+    // controller does not apply ValidationPipe for query params on
+    // this route, so unknown values (`active=foo`) fall through to
+    // `activeOnly = undefined` and the caller still gets the full
+    // list (defensive).
+    @Query('active') active?: string,
   ): Promise<{ items: UserEntity[]; total: number }> {
+    const activeOnly =
+      active === undefined
+        ? undefined
+        : active === 'true'
+          ? true
+          : active === 'false'
+            ? false
+            : undefined;
+
     return this.usersService.list(
       page ? parseInt(page, 10) : undefined,
       limit ? parseInt(limit, 10) : undefined,
       req.user!.scope,
       req.user!.userId,
+      activeOnly,
     );
   }
 

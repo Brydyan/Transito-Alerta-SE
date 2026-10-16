@@ -40,10 +40,21 @@ export class UsersService {
    * en cuanto `GET /users` los soporte (hoy el endpoint sólo lee
    * `page`/`limit`; los params extra se ignoran sin romper la request).
    */
-  getUsers(page = 1, limit = 10, role?: string, org?: string): Observable<PaginatedUsersResponse> {
+  getUsers(
+    page = 1,
+    limit = 10,
+    role?: string,
+    org?: string,
+    // 2026-10-16 — toggle "mostrar inactivos" en la lista. `undefined`
+    // → no agrega el param (lista todos, default histórico). `true`
+    // → `?active=true` (solo activos). `false` → `?active=false`
+    // (solo inactivos / pendientes — los shadow-users de adminCreate).
+    activeOnly?: boolean,
+  ): Observable<PaginatedUsersResponse> {
     let params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
     if (role) params = params.set('role', role);
     if (org) params = params.set('org', org);
+    if (activeOnly !== undefined) params = params.set('active', String(activeOnly));
     interface UsersWireItem {
       id: string;
       email: string;

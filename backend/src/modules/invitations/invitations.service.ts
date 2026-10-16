@@ -245,8 +245,40 @@ export class InvitationsService {
       );
       const permissions = roleRows[0]?.permissions ?? [];
 
+      // Shadow-user check: adminCreate pre-creates a row with is_active=false.
+      // If one exists, UPDATE it to activate it (preserves first_name, last_name,
+      // phone, department_id, geo_zone_id set by the admin). If no shadow exists
+      // (direct invitation without a prior adminCreate), INSERT a fresh row.
+      const shadowRows: Array<{ id: string }> = await manager.query(
+        `SELECT id FROM users WHERE email = $1 AND is_active = FALSE AND deleted_at IS NULL LIMIT 1`,
+        [row.email],
+      );
+      const shadow = shadowRows[0] ?? null;
+
       try {
-        // T6.5.B: include compliance fields if termsVersion is present
+        if (shadow) {
+          // Activate the shadow row in-place — all admin-supplied fields are kept.
+          const updatedRows: Array<{ id: string }> = termsVersion
+            ? await manager.query(
+                `UPDATE users
+                    SET password_hash = $1, is_active = true,
+                        terms_accepted_at = NOW(), terms_version = $2
+                  WHERE id = $3
+                  RETURNING id`,
+                [passwordHash, termsVersion, shadow.id],
+              )
+            : await manager.query(
+                `UPDATE users
+                    SET password_hash = $1, is_active = true
+                  WHERE id = $2
+                  RETURNING id`,
+                [passwordHash, shadow.id],
+              );
+          return updatedRows[0].id;
+        }
+
+        // No shadow — direct invitation flow (no prior adminCreate). T6.5.B:
+        // include compliance fields if termsVersion is present.
         const insertedRows: Array<{ id: string }> = termsVersion
           ? await manager.query(
               `INSERT INTO users (email, password_hash, role_id, organization_id, permissions, is_active, terms_accepted_at, terms_version)

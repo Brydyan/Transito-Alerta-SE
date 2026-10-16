@@ -47,6 +47,7 @@ describe('IncidentsService', () => {
   let eventEmitter: { emit: jest.Mock };
   let redis: { xadd: jest.Mock };
   let cache: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
+  let auditService: { record: jest.Mock };
   let service: IncidentsService;
 
   beforeEach(() => {
@@ -62,6 +63,10 @@ describe('IncidentsService', () => {
     eventEmitter = { emit: jest.fn() };
     redis = { xadd: jest.fn() };
     cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+    // 2026-10-16 — AUD (sc-327) — `IncidentsService.create` records
+    // `CREATE_INCIDENT`. The mock's default `undefined` return is
+    // enough — per-test overrides assert the exact call shape.
+    auditService = { record: jest.fn().mockResolvedValue(undefined) };
     service = new IncidentsService(
       repo as unknown as IncidentsRepository,
       geofencing as unknown as GeofencingService,
@@ -85,6 +90,7 @@ describe('IncidentsService', () => {
           anonymousDeviceUuid: 'anonymous',
         }),
       } as unknown as import('@nestjs/config').ConfigService,
+      auditService as unknown as import('../audit/audit.service').AuditService,
     );
   });
 
@@ -365,6 +371,38 @@ describe('IncidentsService', () => {
         expect(entry.label).toBeTruthy();
         expect(entry.label.length).toBeGreaterThan(0);
       }
+    });
+  });
+
+  // 2026-10-16 — AUD (sc-327) — `create()` records CREATE_INCIDENT.
+  // The actor is the citizen who submitted the report (or the masked
+  // ANON_USER_ID for unauthenticated public reporters — see the anonymous
+  // spec file for that branch).
+  describe('audit.record() — 2026-10-16 AUD (sc-327)', () => {
+    it('create() records CREATE_INCIDENT with the citizen as actor', async () => {
+      // Mirrors the "create happy path" shape from the test above:
+      // a resolved zone, an organization to notify, and a
+      // `repo.create` that returns a row with our persisted id.
+      // The audit assertion is the only thing this case owns.
+      geofencing.resolveZone.mockResolvedValue({ zone_id: 'zone-1', zone: { id: 'zone-1' } });
+      organizations.findNotifiedFor.mockResolvedValue([
+        { id: 'org-A', name: 'Org A', zone_id: 'zone-1', created_at: new Date() },
+      ]);
+      const row = makeRow({ id: 'inc-new', citizen_id: 'citizen-7' });
+      repo.create.mockResolvedValue(row);
+
+      await service.create(
+        { title: 'Pothole', lat: -2.2, lng: -80.8 } as unknown as Parameters<typeof service.create>[0],
+        'citizen-7',
+      );
+
+      expect(auditService.record).toHaveBeenCalledTimes(1);
+      expect(auditService.record).toHaveBeenCalledWith({
+        actorId: 'citizen-7',
+        action: 'CREATE_INCIDENT',
+        resourceType: 'incidents',
+        resourceId: 'inc-new',
+      });
     });
   });
 });

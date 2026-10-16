@@ -257,6 +257,7 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
       passwordHasher.hash.mockResolvedValue('$2b$04$fakehash');
       manager.query
         .mockResolvedValueOnce([{ permissions: ['READ incidents'] }]) // role lookup
+        .mockResolvedValueOnce([]) // shadow SELECT (no pre-created shadow → INSERT path)
         .mockResolvedValueOnce([{ id: 'new-user-1' }]); // INSERT ... RETURNING id
 
       const userId = await service.redeem(token, 'password12345');
@@ -278,8 +279,9 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
       });
       passwordHasher.hash.mockResolvedValue('$2b$04$fakehash');
       manager.query
-        .mockResolvedValueOnce([{ permissions: [] }])
-        .mockRejectedValueOnce({ code: '23505' });
+        .mockResolvedValueOnce([{ permissions: [] }]) // role lookup
+        .mockResolvedValueOnce([]) // shadow SELECT (no pre-created shadow → INSERT path)
+        .mockRejectedValueOnce({ code: '23505' }); // INSERT throws unique violation
 
       await expect(service.redeem(token, 'password12345')).rejects.toBeInstanceOf(ConflictException);
     });

@@ -62,6 +62,7 @@ describe('AssignmentsService', () => {
   };
   let eventEmitter: { emit: jest.Mock };
   let redis: { xadd: jest.Mock };
+  let auditService: { record: jest.Mock };
   let incidentsRepository: { findOne: jest.Mock };
   let workflow: {
     getMaxActiveClaimsFor: jest.Mock;
@@ -87,12 +88,17 @@ describe('AssignmentsService', () => {
       getActiveClaimCount: jest.fn().mockResolvedValue(0),
       findUserOrganizationId: jest.fn().mockImplementation(operatorIn('org-A')),
     };
+    // 2026-10-16 — AUD (sc-327) — `assign()` records
+    // `ASSIGN_INCIDENT`. Default mock resolver returns
+    // `undefined`; per-test overrides assert the exact call shape.
+    auditService = { record: jest.fn().mockResolvedValue(undefined) };
     service = new AssignmentsService(
       repo as unknown as jest.Mocked<Repository<AssignmentEntity>>,
       eventEmitter as unknown as jest.Mocked<EventEmitter2>,
       redis as unknown as jest.Mocked<Redis>,
       incidentsRepository as unknown as IncidentsRepository,
       workflow as unknown as IncidentWorkflowService,
+      auditService as unknown as import('../audit/audit.service').AuditService,
     );
   });
 
@@ -365,6 +371,45 @@ describe('AssignmentsService', () => {
       await expect(service.list('inc-1', ORG_A_SCOPE)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+
+  // 2026-10-16 — AUD (sc-327) — `assign()` records ASSIGN_INCIDENT.
+  // The actor is the caller (admin_org / operator_org dispatching the
+  // incident); metadata carries the operator + role for filtering on
+  // the audit-logs UI ("who assigned whom, in what role?").
+  describe('audit.record() — 2026-10-16 AUD (sc-327)', () => {
+    it('assign() records ASSIGN_INCIDENT with caller.userId as actor and operator+role as metadata', async () => {
+      incidentsRepository.findOne.mockResolvedValue({
+        id: 'inc-1',
+        organization_id: 'org-A',
+        priority: 'critical',
+      });
+      workflow.findUserOrganizationId.mockResolvedValue('org-A'); // operator.org
+      repo.findOne.mockResolvedValue(null); // no existing assignment
+
+      await service.assign(
+        'inc-1',
+        'op-9',
+        'primary',
+        {
+          userId: 'admin-caller-3',
+          permissions: [],
+          organizationId: 'org-A',
+          roleName: 'admin_org',
+          scope: { kind: 'org', organizationId: 'org-A' },
+          sessionId: 'sess-3',
+          isAnonymous: false,
+        },
+      );
+
+      expect(auditService.record).toHaveBeenCalledTimes(1);
+      const call = auditService.record.mock.calls[0][0];
+      expect(call.actorId).toBe('admin-caller-3');
+      expect(call.action).toBe('ASSIGN_INCIDENT');
+      expect(call.resourceType).toBe('incidents');
+      expect(call.resourceId).toBe('inc-1');
+      expect(call.metadata).toEqual({ operatorId: 'op-9', role: 'primary' });
     });
   });
 });
