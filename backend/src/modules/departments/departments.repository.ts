@@ -125,7 +125,7 @@ export class DepartmentsRepository {
    * or null when no active row matched. Frontend uses the timestamp to render
    * "deleted at HH:MM" in a confirm toast (D8 of the menus change). */
   async softDelete(id: string): Promise<{ id: string; deleted_at: Date } | null> {
-    const rows: Array<{ id: string; deleted_at: Date }> = await this.dataSource.query(
+    const [rows]: [Array<{ id: string; deleted_at: Date }>] = await this.dataSource.query(
       `UPDATE departments SET deleted_at = now()
         WHERE id = $1 AND deleted_at IS NULL
         RETURNING id, deleted_at`,
@@ -335,7 +335,7 @@ export class DepartmentsRepository {
   }
 
   async update(id: string, patch: UpdateDepartmentPatch): Promise<DepartmentRow | null> {
-    const rows: DepartmentRow[] = await this.dataSource.query(
+    const [rows]: [DepartmentRow[]] = await this.dataSource.query(
       `UPDATE departments SET
          name        = COALESCE($2, name),
          description = CASE WHEN $3::boolean THEN $4::text ELSE description END
