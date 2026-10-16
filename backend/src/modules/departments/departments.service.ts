@@ -67,7 +67,16 @@ export class DepartmentsService {
       );
     }
 
-    return this.deptRepo.create(input);
+    try {
+      return await this.deptRepo.create(input);
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === '23505') {
+        throw new ConflictException(
+          `Department name '${input.name}' already exists in this organization (UNIQUE constraint)`,
+        );
+      }
+      throw err;
+    }
   }
 
   /**
