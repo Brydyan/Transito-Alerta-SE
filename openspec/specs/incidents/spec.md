@@ -7,9 +7,9 @@ The system MUST persist incident images using the injected `STORAGE_CLIENT` and 
 - Scenario: Valid upload — GIVEN a valid image upload request WHEN `IncidentImageStorageService.upload()` is invoked THEN the bytes are written via the storage provider AND the real storage key is persisted.
 - Scenario: No fabricated URLs — GIVEN an uploaded image WHEN inspected in the database THEN it contains a `storage_key` and no hardcoded dummy URL.
 
-### Requirement: Dynamic URL Resolution on Read
-The system MUST return a freshly resolved signed URL for incident images when reading image metadata, honoring the provider's TTL.
-- Scenario: Read image metadata — GIVEN an incident with associated images WHEN `GET /incidents/:id/images` is called THEN the response includes dynamically resolved URLs using the storage client's `getSignedUrl` AND does not return stale persisted URLs.
+### Requirement: URL-Free Metadata and Byte Route Resolution
+The system MUST return incident image metadata without URL fields. The frontend MUST resolve image bytes exclusively via the dedicated byte route (`GET /incidents/:id/images/:imageId/file`). No stale or fabricated URLs are persisted or returned in the metadata response.
+- Scenario: Read image metadata — GIVEN an incident with associated images WHEN `GET /incidents/:id/images` is called THEN the response includes `{id, mime_type, file_size, created_at}` without a `url` field, confirming that URL resolution is deferred to the byte route.
 
 ### Requirement: Incident Image Byte Route
 The system MUST expose an HTTP route `GET /incidents/:id/images/:imageId/file` to serve image bytes directly to the browser.
@@ -26,7 +26,7 @@ The frontend MUST render incident images using the dynamically resolved URLs and
 
 ### Requirement: Timeline Status and Actor Presentation
 The frontend MUST display status changes using localized Spanish labels and resolve the actor's name instead of displaying raw UUIDs or wire keys.
-- Scenario: Status mapping — GIVEN raw status keys (`pending`, `in_progress`, `resolved`, `closed`) WHEN rendered in the timeline THEN they are mapped to Spanish labels (`pendiente`, `en proceso`, `resuelta`, `cerrada`) via a pure function.
+- Scenario: Status mapping — GIVEN raw status keys (`pending`, `in_progress`, `resolved`, `closed`) WHEN rendered in the timeline THEN they are mapped to Spanish labels (`Pendiente`, `En proceso`, `Resuelto`, `Cerrada`) via a pure function. The labels are capitalized and use the masculine `Resuelto` to match the existing project precedent (`dashboard.tokens.ts:52` `case 'resolved': return 'Resuelto'`).
 - Scenario: Actor name resolution — GIVEN a status history entry with a `changed_by_user_id` WHEN displayed in the timeline THEN the actor's resolved name (`changed_by_name`) is shown.
 - Scenario: System actor fallback — GIVEN a status history entry with a null actor WHEN displayed in the timeline THEN a neutral label (e.g., "sistema") is shown.
 
