@@ -74,6 +74,7 @@ Groups fused:
 | 0029 | dynamic_menus_data_migration | **Group B** (fused 2026-10-14): 10 MENU_MAP entries → menu_options + menu_option_roles; Controles option; sanitize roles matrix (soft-delete legacy names); 12 CRUD sub-menu entries; inherit parent permissions; GESTIÓN + Departamentos access matrix; fix Organizaciones/Departamentos routes; grants status-history:READ to roles with incidents:READ. Absorbed: 0055 + 0057 + 0059 + 0060 + 0061 + 0063 + 0064 + 0066 | ⏳ Pending | — | — | — |
 | 0030 | departments | **Group C2** (fused 2026-10-14): departments table (org FK CASCADE, soft delete, UNIQUE org+name); users.department_id + incidents.department_id FKs SET NULL + partial indexes; 4 departments permission rows granted to master + admin_org; department_incident_categories junction table + index. Absorbed: 0056_departments + 0057_dept_perms + 0058_dept_incident_categories | ⏳ Pending | — | — | — |
 | 0031 | emergency_dispatch | users.telegram_chat_id text NULL; assignments.cap_override_reason + cap_override_by uuid FK; incidents.reminder_count int DEFAULT 0 + last_reminded_at timestamptz NULL. No new permissions (ASSIGN already in master+admin_org per 0015). Renumbered from 0069 (2026-10-14) | ⏳ Pending | — | — | — |
+| 0032 | departments_soft_delete_unique | Drop plain UNIQUE(organization_id, name) on departments; replace with partial unique index WHERE deleted_at IS NULL. Fixes: soft-deleted dept blocks re-creation of same name in same org. | ⏳ Pending | — | — | — |
 
 ## Status legend
 
