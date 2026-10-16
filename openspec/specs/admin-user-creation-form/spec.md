@@ -281,27 +281,34 @@ disabled (different concept, future scope).
 
 ### Requirement: Initial Status and Notification Channel (FIXED)
 
-El sistema MUST mostrar los dropdowns "Estado inicial" y "Canal
-de notificaciones preferido" según el mock, con un único valor
-visible y deshabilitado.
+The new-user form MUST render the account status section with the label
+"Cuenta" (previously "Estado inicial"). The select inside this section MUST
+remain disabled and display the fixed value "Activo". No behavioral change
+is introduced by this rename.
 
-#### Scenario: Estado inicial fijo en Activo
+(Previously: The section label read "Estado inicial".)
 
-- **GIVEN** la pantalla está cargada
-- **WHEN** el admin observa el dropdown "Estado inicial"
-- **THEN** muestra "Activo" como único valor
-- **AND** el dropdown está deshabilitado
+#### Scenario: Admin opens new user form — label reads "Cuenta"
 
-#### Scenario: Canal fijo en Correo Electrónico
+- GIVEN a user with any admin-capable role navigates to `/app/admin/usuarios/new`
+- WHEN the form finishes rendering
+- THEN the account status section label reads "Cuenta"
+- AND the label "Estado inicial" is NOT present anywhere in the form
 
-- **GIVEN** la pantalla está cargada
-- **WHEN** el admin observa el dropdown "Canal de notificaciones
-  preferido"
-- **THEN** muestra "Correo Electrónico" como único valor
-- **AND** el dropdown está deshabilitado
+#### Scenario: Account status select remains disabled and shows Activo
 
----
+- GIVEN the new-user form is fully loaded
+- WHEN the admin observes the account status select inside the "Cuenta" section
+- THEN the select displays "Activo" as its value
+- AND the select is disabled (not interactive)
+- AND no other values are selectable
 
+#### Scenario: Canal fijo en Correo Electrónico (unchanged)
+
+- GIVEN the new-user form is fully loaded
+- WHEN the admin observes the "Canal de notificaciones preferido" dropdown
+- THEN it displays "Correo Electrónico" as its value
+- AND the dropdown is disabled
 ### Requirement: Form Submission and Success State
 
 El sistema MUST enviar `POST /api/users` con todos los datos y,
@@ -399,6 +406,50 @@ when no geo zone is selected.
 - THEN `POST /api/users` is called with `geo_zone_id: null` or without the field
 - AND the server returns 201
 - AND the user is created with `geo_zone_id = NULL`
+### Requirement: Account Status Toggle in User Edit Form (Master-Only)
+
+The user edit form MUST render a "Cuenta" section containing an
+active/inactive toggle when the authenticated user has the `master` role.
+The section MUST NOT be visible to non-master roles. Toggling to inactive
+MUST trigger a confirmation dialog before the PATCH is sent.
+
+#### Scenario: Master opens edit form and sees Cuenta section
+
+- GIVEN a master-role user is authenticated
+- WHEN the master opens the edit form for any staff user
+- THEN a "Cuenta" section is visible in the form
+- AND the section contains a toggle that reflects the target user's current `is_active` value
+
+#### Scenario: Master toggles user to inactive — confirmation dialog appears
+
+- GIVEN the master has the edit form open for an active user (`is_active = true`)
+- WHEN the master switches the toggle to inactive
+- THEN a confirmation dialog appears
+- AND the dialog text warns that active sessions will be invalidated
+- AND no PATCH request is sent yet
+
+#### Scenario: Master confirms deactivation
+
+- GIVEN the confirmation dialog is open
+- WHEN the master clicks the confirm action
+- THEN `PATCH /api/users/:id` is sent with body `{ "is_active": false }`
+- AND the form reflects the user as inactive after a successful 200 response
+
+#### Scenario: Master cancels deactivation
+
+- GIVEN the confirmation dialog is open
+- WHEN the master clicks the cancel action
+- THEN the dialog closes
+- AND no PATCH request is sent
+- AND the toggle reverts to its previous state (active)
+
+#### Scenario: Non-master opens edit form — Cuenta section not visible
+
+- GIVEN a user with a role other than `master` (e.g. `admin_org`) is authenticated
+- WHEN that user opens the edit form for another user
+- THEN the "Cuenta" section is NOT rendered in the form
+- AND no is_active toggle is visible
+
 ## Out of Scope (F7+)
 
 - **Geolocalización automática** (cantón/parroquia/zona — los
