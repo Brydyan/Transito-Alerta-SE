@@ -8,6 +8,7 @@ import { StorageModule } from '../../infra/storage/storage.module';
 import { AuthModule } from '../auth/auth.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { TelegramModule } from '../telegram/telegram.module';
+import { AuditModule } from '../audit/audit.module';
 import { AvatarStorageService } from './avatar-storage.service';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
@@ -31,6 +32,7 @@ import { UsersService } from './users.service';
     SessionsModule,
     StorageModule,
     TelegramModule,
+    AuditModule,
   ],
   controllers: [UsersController],
   providers: [UsersService, AvatarStorageService],
