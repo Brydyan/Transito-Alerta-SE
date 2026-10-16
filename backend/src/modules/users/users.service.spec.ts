@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { DataSource, type Repository } from 'typeorm';
 import { UsersService, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './users.service';
 import { UserEntity } from './entities/user.entity';
@@ -8,6 +8,7 @@ import { AuthContext, SubjectScope } from '../../shared/authz/subject-scope';
 import { AuthService } from '../auth/auth.service';
 import { AvatarStorageService } from './avatar-storage.service';
 import { SessionsRepository } from '../sessions/sessions.repository';
+import { TelegramLinkService } from '../telegram/telegram-link.service';
 import { AuditService } from '../audit/audit.service';
 
 const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
@@ -37,6 +38,7 @@ describe('UsersService', () => {
   // resolves it before the `it()` bodies read it (which is true — the
   // spec runs `beforeEach` before every test).
   let auditService!: { record: jest.Mock };
+  let telegramLinkService: { issueFor: jest.Mock; composeDeepLink: jest.Mock };
   let sessionsRepository: {
     findActiveByUser: jest.Mock;
     findManageableTarget: jest.Mock;
@@ -65,6 +67,14 @@ describe('UsersService', () => {
     // injected mock is populated before the service runs the first
     // audit hook (which happens BEFORE most specs' assertions).
     auditService = { record: jest.fn().mockResolvedValue(undefined) };
+    // 2026-10-16 — adminGenerateTelegramLink() delegates to
+    // `telegramLinkService.issueFor` + `composeDeepLink`. The mock's
+    // default returns a stub link; per-test overrides verify the
+    // null-link path when TELEGRAM_BOT_USERNAME is unset.
+    telegramLinkService = {
+      issueFor: jest.fn().mockResolvedValue('tok-stub'),
+      composeDeepLink: jest.fn().mockReturnValue('https://t.me/bot?start=tok-stub'),
+    };
     service = new UsersService(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
       avatarStorage as unknown as AvatarStorageService,
@@ -74,6 +84,7 @@ describe('UsersService', () => {
       sessionsRepository as unknown as SessionsRepository,
       dataSource as unknown as DataSource,
       auditService as unknown as AuditService,
+      telegramLinkService as unknown as TelegramLinkService,
     );
   });
 
@@ -561,6 +572,12 @@ describe('UsersService', () => {
       expect(createArg.permissions).toEqual(['READ dashboard', 'READ incidents']);
       expect(createArg.permissionVersion).toBe(2);
       expect(createArg.roleId).toBe('role-master');
+      // 2026-10-16 — fix for the "operador_org shows reporter" bug.
+      // Without `role: resolvedRoleName`, Postgres DEFAULT 'reporter'
+      // would clobber the chosen role on insert. The frontend reads
+      // `item.role` directly (users.service.ts:86), so a wrong value
+      // here leaked into the audit-logs / users-list view.
+      expect(createArg.role).toBe('master');
       // T7.5 fix: adminCreate crea el user en estado `is_active:
       // false` (pending). El user real se inserta via
       // `InvitationsService.redeem` cuando el destinatario acepta
@@ -606,6 +623,59 @@ describe('UsersService', () => {
 
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.phone).toBe('+593 99 999 9999');
+    });
+
+    // 2026-10-16 — phone uniqueness (migration 0036). Pre-check
+    // matches the partial-index semantics (`phone IS NOT NULL` +
+    // `deleted_at IS NULL`). Two sub-cases — conflict with another
+    // active user throws, conflict with a soft-deleted tombstone
+    // is allowed.
+    it('throws ConflictException when phone belongs to another active user', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: 'other-user',
+        email: 'maria@municipio.ec',
+        phone: '+593 99 999 9999',
+      });
+
+      await expect(
+        service.adminCreate(
+          { email: 'juan@municipio.ec', phone: '+593 99 999 9999' },
+          'admin-actor',
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      // Defense — short-circuits the insert; no role lookup, no save.
+      expect(userRepo.create).not.toHaveBeenCalled();
+      expect(roleRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('allows phone reuse against a soft-deleted tombstone (deletedAt IS NULL filter)', async () => {
+      // The pre-check filters `deletedAt: IsNull()` — a ghosted
+      // user's phone is wiped to NULL anyway (softDelete resets it)
+      // so this branch is mostly future-proofing. The mock returns
+      // null → no conflict → the adminCreate proceeds normally.
+      userRepo.findOne.mockResolvedValueOnce(null);
+
+      await service.adminCreate(
+        { email: 'juan@municipio.ec', phone: '+593 99 999 9999' },
+        'admin-actor',
+      );
+
+      expect(userRepo.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips the phone pre-check when dto.phone is undefined (no extra DB read)', async () => {
+      userRepo.findOne.mockClear();
+
+      await service.adminCreate(
+        { email: 'juan@municipio.ec' },
+        'admin-actor',
+      );
+
+      // No phone pre-check fired — the findOne for the email
+      // conflict also doesn't fire because the email is unchanged
+      // from the existing rows.
+      expect(userRepo.findOne).not.toHaveBeenCalled();
     });
   });
 
@@ -1032,6 +1102,260 @@ describe('UsersService', () => {
         resourceType: 'users',
         resourceId: 'target-2',
       });
+    });
+  });
+
+  // 2026-10-16 — phone uniqueness (migration 0036). Mirror of the
+  // email-conflict pattern in adminUpdate. The pre-check matches
+  // the partial-index semantics (`phone IS NOT NULL` + `deleted_at
+  // IS NULL`).
+  describe('adminUpdate() — phone uniqueness (migration 0036)', () => {
+    const TARGET_ID = 'target-1';
+    const CALLER_ID = 'admin-1';
+
+    function setupTarget(overrides: Record<string, unknown> = {}) {
+      userRepo.findOne.mockReset();
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: true, phone: '+593 99 111 1111', ...overrides });
+    }
+
+    it('throws ConflictException when the new phone belongs to another active user', async () => {
+      setupTarget();
+      userRepo.findOne.mockResolvedValueOnce({
+        id: 'other-user',
+        email: 'other@municipio.ec',
+        phone: '+593 99 222 2222',
+      });
+
+      await expect(
+        service.adminUpdate(
+          TARGET_ID,
+          { phone: '+593 99 222 2222' } as never,
+          CALLER_ID,
+          'master',
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      // Defense — the save never fires. Pre-check is the only DB hit.
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('allows the same phone when the caller sends the unchanged value (no-op)', async () => {
+      // dto.phone === target.phone → pre-check short-circuits.
+      setupTarget({ phone: '+593 99 111 1111' });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { phone: '+593 99 111 1111' } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      // The pre-check finds the target itself and the conflict guard
+      // (`conflict.id !== target.id`) skips — save fires normally.
+      expect(userRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows the phone update when no other user has it (findOne returns null)', async () => {
+      setupTarget();
+      userRepo.findOne.mockResolvedValueOnce(null);
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { phone: '+593 99 333 3333' } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      expect(userRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips the phone pre-check when dto.phone is undefined', async () => {
+      setupTarget();
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { email: 'new@municipio.ec' } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      // Email changed — findById + the email pre-check each fire
+      // a findOne → 2 calls total. No phone pre-check fired (no
+      // `phone` key in the DTO), so the phone-specific guard
+      // branch is never taken. The save still runs.
+      expect(userRepo.findOne).toHaveBeenCalledTimes(2);
+      expect(userRepo.save).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // 2026-10-16 — phone uniqueness in updateProfile (self-service).
+  // Pre-check would create a TOCTOU window; we let the partial
+  // index fire 23505 and translate to 409. See service.ts:updateProfile.
+  describe('updateProfile() — phone uniqueness (migration 0036)', () => {
+    it('translates Postgres 23505 to ConflictException', async () => {
+      userRepo.update.mockRejectedValueOnce({ code: '23505' });
+
+      await expect(
+        service.updateProfile('u1', { phone: '+593 99 999 9999' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('passes through non-23505 errors unchanged (no over-broad catch)', async () => {
+      const networkError = new Error('connection refused');
+      userRepo.update.mockRejectedValueOnce(networkError);
+
+      await expect(
+        service.updateProfile('u1', { phone: '+593 99 999 9999' }),
+      ).rejects.toBe(networkError);
+    });
+
+    it('does not catch when no error is thrown (happy path)', async () => {
+      userRepo.update.mockResolvedValueOnce({ affected: 1 });
+      userRepo.findOne.mockResolvedValueOnce({ id: 'u1', phone: '+593 99 999 9999' });
+
+      const result = await service.updateProfile('u1', { phone: '+593 99 999 9999' });
+
+      expect(userRepo.update).toHaveBeenCalledTimes(1);
+      expect(result.phone).toBe('+593 99 999 9999');
+    });
+  });
+
+  // 2026-10-16 — adminGenerateTelegramLink() (POST
+  // /users/:id/telegram-link). The actor's scope + rank is enforced
+  // by `assertCanManage`; we mock the user row + role row here so
+  // the assertion reads the source of truth, not the helper.
+  describe('adminGenerateTelegramLink() (2026-10-16)', () => {
+    const TARGET_ID = 'target-uuid';
+    const ACTOR: AuthContext = {
+      userId: 'admin-1',
+      permissions: [],
+      organizationId: 'org-A',
+      roleName: 'admin_org',
+      scope: { kind: 'org', organizationId: 'org-A' },
+      sessionId: 'sess-1',
+      isAnonymous: false,
+    };
+
+    it('returns { telegram_link } when the actor outranks the target', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        organizationId: 'org-A',
+        roleId: 'role-operator_org',
+      });
+      roleRepo.findOne.mockResolvedValueOnce({
+        id: 'role-operator_org',
+        name: 'operator_org',
+      });
+
+      const result = await service.adminGenerateTelegramLink(ACTOR, TARGET_ID);
+
+      expect(result).toEqual({
+        telegram_link: 'https://t.me/bot?start=tok-stub',
+      });
+      expect(telegramLinkService.issueFor).toHaveBeenCalledWith(TARGET_ID);
+      expect(telegramLinkService.composeDeepLink).toHaveBeenCalledWith('tok-stub');
+    });
+
+    it('throws NotFoundException when the target user does not exist', async () => {
+      userRepo.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.adminGenerateTelegramLink(ACTOR, 'missing-uuid'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(telegramLinkService.issueFor).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when the target role is reporter (D7 isolation)', async () => {
+      // Reporter lives at organizationId=null (citizen), which fails
+      // admin_org's `assertCanManage` BEFORE the reporter branch
+      // fires. Master outranks global → reporter, so the role check
+      // is what trips the user.
+      const masterActor: AuthContext = {
+        userId: 'master-1',
+        permissions: [],
+        organizationId: null,
+        roleName: 'master',
+        scope: { kind: 'global' },
+        sessionId: 'sess-1',
+        isAnonymous: false,
+      };
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        organizationId: null,
+        roleId: 'role-reporter',
+      });
+      roleRepo.findOne.mockResolvedValueOnce({
+        id: 'role-reporter',
+        name: 'reporter',
+      });
+
+      await expect(
+        service.adminGenerateTelegramLink(masterActor, TARGET_ID),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      // The reporter branch fires AFTER assertCanManage — the role
+      // lookup still ran (so the service can read the role name) but
+      // no token is minted.
+      expect(telegramLinkService.issueFor).not.toHaveBeenCalled();
+    });
+
+    it('returns { telegram_link: null } when composeDeepLink returns null (TELEGRAM_BOT_USERNAME unset)', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        organizationId: 'org-A',
+        roleId: 'role-operator_org',
+      });
+      roleRepo.findOne.mockResolvedValueOnce({
+        id: 'role-operator_org',
+        name: 'operator_org',
+      });
+      telegramLinkService.composeDeepLink.mockReturnValueOnce(null);
+
+      const result = await service.adminGenerateTelegramLink(ACTOR, TARGET_ID);
+
+      expect(result).toEqual({ telegram_link: null });
+    });
+
+    it('throws NotFoundException when admin_org actor targets a user from a different org (scope violation)', async () => {
+      // Gap 1 (2026-10-16) — assertCanManage enforces "admin_org
+      // sólo ve a los de su org"; este caso confirma que la regla
+      // corre antes del mint del token. Master outrankea todo y
+      // salta el branch — por eso necesitamos admin_org explícito.
+      //
+      // Por diseño D11 de `assertCanManage`: cross-org sale como
+      // 404 (`NotFoundException('User not found')`), NO 403. Un 403
+      // confirmaría que el id existe y, por eliminación, leakearía
+      // la membresía de org del target. El endpoint aplica la
+      // misma regla que el resto del surface de gestión.
+      const adminOrgActor: AuthContext = {
+        userId: 'admin-org-A',
+        permissions: [],
+        organizationId: 'org-A',
+        roleName: 'admin_org',
+        scope: { kind: 'org', organizationId: 'org-A' },
+        sessionId: 'sess-admin-A',
+        isAnonymous: false,
+      };
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        organizationId: 'org-B',
+        roleId: 'role-operator_org',
+      });
+      roleRepo.findOne.mockResolvedValueOnce({
+        id: 'role-operator_org',
+        name: 'operator_org',
+      });
+
+      await expect(
+        service.adminGenerateTelegramLink(adminOrgActor, TARGET_ID),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      // La guardia corre antes del mint — un 404 nunca emite token.
+      expect(telegramLinkService.issueFor).not.toHaveBeenCalled();
     });
   });
 });

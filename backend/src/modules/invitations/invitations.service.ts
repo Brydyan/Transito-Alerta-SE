@@ -1,4 +1,4 @@
-import { ConflictException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
@@ -22,6 +22,7 @@ import { InvitationsRepository } from './invitations.repository';
 import { TelegramLinkService } from '../telegram/telegram-link.service';
 import { getTourProfileForRole } from '../telegram/constants/tour-profiles.constants';
 import { ROLE_DISPLAY_NAMES } from '../roles/role-display-names.constants';
+import { PRODUCT_NAME } from '../mail/product-name';
 
 export interface CreateInvitationInput {
   email: string;
@@ -136,9 +137,16 @@ export class InvitationsService {
     // `redeem`. The shadow is guaranteed to exist because
     // `findByClaimedEmail` succeeded (no claimed user) and the
     // 409 `EMAIL_ALREADY_CLAIMED` path returns earlier.
+    //
+    // 2026-10-16-invitation-email-styled-template (D2) — expand the
+    // shadow SELECT to also project `first_name`; the rendered email
+    // greets the recipient by name when one is on file (adminCreate
+    // may have pre-populated the shadow). Falls back to a generic
+    // greeting when the shadow has no first name (direct invite
+    // without a prior adminCreate).
     const shadow = await this.dataSource.query<
-      Array<{ id: string }>
-    >(`SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1`, [
+      Array<{ id: string; first_name: string | null }>
+    >(`SELECT id, first_name FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1`, [
       input.email,
     ]);
     const linkToken = shadow[0]
@@ -152,9 +160,35 @@ export class InvitationsService {
     const roleProfile = getTourProfileForRole(role.name);
     const roleGuide = roleProfile ? roleProfile.tour : null;
 
+    // 2026-10-16-invitation-email-styled-template (D2) — look up the
+    // inviter's display name for the "Invitado por" row in the
+    // details card. Defensive: the actor row may be missing in
+    // pathological cases (orphan actor id) — fall back to an empty
+    // string so the template renders its own "El administrador"
+    // generic placeholder rather than a broken reference.
+    const inviterRows = await this.dataSource.query<
+      Array<{ first_name: string | null; last_name: string | null }>
+    >(
+      `SELECT first_name, last_name FROM users WHERE id = $1`,
+      [actor.userId],
+    );
+    const inviterName = inviterRows[0]
+      ? [inviterRows[0].first_name, inviterRows[0].last_name]
+          .filter(Boolean)
+          .join(' ')
+      : '';
+
     await this.mailService.enqueue({
       to: input.email,
-      subject: 'Has sido invitado a Transito Alerta SE',
+      // 2026-10-16-invitation-email-styled-template (D2) — el subject
+      // ahora nombra la organización cuando hay una, para que el
+      // invitado sepa desde la bandeja a qué equipo se le está
+      // convocando (evita el phishing-by-mistake en bandejas mixtas).
+      // El fallback es `PRODUCT_NAME` para mantener el contrato de
+      // unicidad de origen (D11).
+      subject: organizationName
+        ? `Invitación a ${PRODUCT_NAME} — ${organizationName}`
+        : `Invitación a ${PRODUCT_NAME}`,
       template: 'invitation',
       data: {
         link: `${this.mailConfig.appBaseUrl}/accept-invitation?token=${token}`,
@@ -166,6 +200,18 @@ export class InvitationsService {
         // section is the safe outcome if a future role slips in.
         telegramLink: telegramDeepLink ?? '',
         roleGuide: roleGuide ?? '',
+        // 2026-10-16-invitation-email-styled-template (D2) — la
+        // plantilla nueva usa estos campos para personalizar el
+        // saludo y la tarjeta de detalles. Todos pasan por
+        // `escapeHtml()` / `field()` en `mail-templates.ts` (R13).
+        inviterName,
+        recipientFirstName: shadow[0]?.first_name ?? '',
+        recipientEmail: input.email,
+        // ISO 8601 — `mail-templates.ts` lo formatea con `Intl` a
+        // la zona horaria de Ecuador. Vacío sólo si la fila no
+        // expone `expires_at`, lo cual no debería ocurrir en este
+        // punto (la fila se acaba de insertar con TTL 48h).
+        expiresAt: row.expires_at.toISOString(),
       },
     });
 
@@ -258,7 +304,23 @@ export class InvitationsService {
       try {
         if (shadow) {
           // Activate the shadow row in-place — all admin-supplied fields are kept.
-          const updatedRows: Array<{ id: string }> = termsVersion
+          //
+          // 2026-10-16 — bug fix: `UPDATE...RETURNING` via
+          // `manager.query()` returns the [rows[], affectedCount]
+          // TUPLE (TypeORM gotcha, same as `firstUpdatedRow()` in
+          // `invitations.repository.ts`). The previous code typed
+          // `updatedRows: Array<{ id: string }>` and read
+          // `updatedRows[0].id` directly — `updatedRows[0]` was the
+          // inner rows array, so `.id` was `undefined`, and `redeem()`
+          // returned `undefined` for the whole shadow-user path.
+          // `AuthController.acceptInvitation` then called
+          // `issueSessionForNewIdentity(undefined)` which INSERTed
+          // `user_id = null` into `user_sessions` → 500 on the route.
+          //
+          // The INSERT path below does NOT need unwrapping — that
+          // branch returns a flat array, per the same TypeORM gotcha
+          // table documented in `invitations.repository.ts`.
+          const updateResult: unknown = termsVersion
             ? await manager.query(
                 `UPDATE users
                     SET password_hash = $1, is_active = true,
@@ -274,7 +336,17 @@ export class InvitationsService {
                   RETURNING id`,
                 [passwordHash, shadow.id],
               );
-          return updatedRows[0].id;
+          const [updateRows] = updateResult as [Array<{ id: string }>, number];
+          if (!updateRows[0]?.id) {
+            // No row came back even though `shadow` existed in the
+            // same transaction — the row was deleted concurrently or
+            // never committed. Surface as 500 so the caller knows
+            // the redemption could not complete.
+            throw new InternalServerErrorException(
+              `Shadow activation UPDATE returned no rows for user ${shadow.id}`,
+            );
+          }
+          return updateRows[0].id;
         }
 
         // No shadow — direct invitation flow (no prior adminCreate). T6.5.B:

@@ -542,4 +542,28 @@ export class UsersService {
       }),
     );
   }
+
+  /**
+   * POST /api/users/:id/telegram-link — regenera el deep-link de
+   * Telegram para un usuario staff. La endpoint emite un token nuevo
+   * vía `TelegramLinkService.issueFor` y devuelve
+   * `{ telegram_link: string | null }`; cuando el bot no está
+   * configurado (`TELEGRAM_BOT_USERNAME` unset), el link es `null`
+   * y el modal muestra "Bot no configurado".
+   *
+   * Visibilidad + rank gate corren del lado del backend
+   * (`assertCanManage`): master ve a todos, admin_org sólo a su org.
+   * Reporteros → 403 (no necesitan el bot interno). La UI sólo debe
+   * invocar este método para roles staff; ocultamos el botón cuando
+   * `rol.nombre === 'reporter'` en el `UserDetailModalComponent`.
+   */
+  regenerateTelegramLink(
+    userId: string,
+  ): Observable<{ telegram_link: string | null }> {
+    return this.http.post<{ telegram_link: string | null }>(
+      `${this.usersUrl}/${userId}/telegram-link`,
+      {},
+      { withCredentials: true },
+    );
+  }
 }

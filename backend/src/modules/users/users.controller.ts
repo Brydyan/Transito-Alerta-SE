@@ -126,6 +126,25 @@ export class UsersController {
     return this.usersService.findById(id);
   }
 
+  /**
+   * 2026-10-16 — admin-side Telegram link regeneration
+   * (POST /users/:id/telegram-link). The route gate
+   * `@RequirePermission('UPDATE', 'users')` covers the capability
+   * check; `assertCanManage` (called from the service) handles the
+   * scope/rank surface so master sees all and admin_org sees only
+   * their own org — same pattern as updateOrganization. 201 by
+   * default for POST is correct here (a new token is minted every
+   * call).
+   */
+  @Post(':id/telegram-link')
+  @RequirePermission('UPDATE', 'users')
+  adminGenerateTelegramLink(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ telegram_link: string | null }> {
+    return this.usersService.adminGenerateTelegramLink(req.user!, id);
+  }
+
   @Patch(':id')
   @RequirePermission('UPDATE')
   adminUpdate(

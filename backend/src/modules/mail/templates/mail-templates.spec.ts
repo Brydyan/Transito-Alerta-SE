@@ -72,6 +72,83 @@ describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', (
 
       expect(html).not.toContain('<script>');
     });
+
+    // 2026-10-16-invitation-email-styled-template (D2) — el template
+    // pasó de un fragmento sin layout a un documento HTML completo
+    // con saludo personalizado y tarjeta de detalles. Los tests de
+    // abajo cubren los campos nuevos y las defensas de escape.
+
+    it('renders inviterName in the details card', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        organizationName: 'Santa Elena',
+        inviterName: 'Carlos Mendoza',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).toContain('Carlos Mendoza');
+      expect(html).toContain('Invitado por');
+    });
+
+    it('renders recipientFirstName in the greeting when provided', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        organizationName: '',
+        recipientFirstName: 'María',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).toContain('Hola, María');
+    });
+
+    it('falls back to generic greeting when recipientFirstName is absent', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).toContain('Hola 👋');
+      expect(html).not.toContain('Hola, ');
+    });
+
+    it('renders formatted expiresAt in the details card', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        recipientEmail: 'maria@test.com',
+        expiresAt: new Date('2026-10-15T23:59:00Z').toISOString(),
+      });
+      expect(html).toContain('UTC-5');
+      expect(html).toContain('Expira');
+    });
+
+    it('renders recipientEmail in the footer', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).toContain('maria@test.com');
+    });
+
+    it('escapes inviterName — poisoned value never reaches body unescaped', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        inviterName: '<script>alert(1)</script>',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).not.toContain('<script>');
+    });
+
+    it('returns a full HTML document (<!DOCTYPE html>)', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).toMatch(/^<!DOCTYPE html>/i);
+    });
   });
 
   describe('password-reset', () => {

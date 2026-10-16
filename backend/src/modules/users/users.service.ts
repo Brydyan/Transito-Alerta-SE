@@ -23,6 +23,7 @@ import {
 } from './dto/form-data-response.dto';
 import { DepartmentRow } from '../departments/departments.repository';
 import { AuditService } from '../audit/audit.service';
+import { TelegramLinkService } from '../telegram/telegram-link.service';
 import { SYSTEM_ADMIN_ROLE_NAME, SYSTEM_ONLY_ROLES } from './role-exclusions.constants';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
@@ -72,6 +73,12 @@ export class UsersService {
     // and is captured separately by the AuthService when the user
     // accepts an invitation (out of scope of this change).
     private readonly auditService: AuditService,
+    // 2026-10-16 — admin-side Telegram link regeneration. UsersModule
+    // already imports TelegramModule (since 2026-10-10), so the
+    // provider is in scope; this gives the service a handle on
+    // `issueFor`/`composeDeepLink` without threading it through the
+    // controller.
+    private readonly telegramLinkService: TelegramLinkService,
   ) {}
 
   async findById(id: string): Promise<UserEntity> {
@@ -165,7 +172,24 @@ export class UsersService {
   }
 
   async updateProfile(id: string, input: UpdateProfileInput): Promise<UserEntity> {
-    await this.userRepo.update(id, input);
+    // 2026-10-16 — phone uniqueness (migration 0036). The partial
+    // index fires 23505 on UPDATE when the new phone collides. We
+    // catch the raw code here instead of doing a pre-check — this
+    // is a self-service path (citizens / staff editing their own
+    // profile) where a pre-check would introduce a TOCTOU window,
+    // and the cost of a duplicate roundtrip is more visible to the
+    // user than in admin paths. The map throws through if the code
+    // isn't 23505 so the original error surfaces unchanged.
+    try {
+      await this.userRepo.update(id, input);
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === '23505') {
+        throw new ConflictException(
+          'El teléfono ya está registrado por otro usuario',
+        );
+      }
+      throw err;
+    }
     return this.findById(id);
   }
 
@@ -407,6 +431,23 @@ export class UsersService {
       departmentId = null;
     }
 
+    // 2026-10-16 — phone uniqueness pre-check (migration 0036). The
+    // partial unique index on `users.phone` enforces this at the
+    // DB level, but a pre-check gives a 409 with a clear message
+    // instead of a raw 23505 surfacing as a 500. `deletedAt: IsNull()`
+    // matches the index's `phone IS NOT NULL` semantics — soft-deleted
+    // users have their phone wiped to NULL and never collide.
+    if (dto.phone) {
+      const phoneConflict = await this.userRepo.findOne({
+        where: { phone: dto.phone, deletedAt: IsNull() },
+      });
+      if (phoneConflict) {
+        throw new ConflictException(
+          `El teléfono ${dto.phone} ya está registrado por otro usuario`,
+        );
+      }
+    }
+
     const tempDeviceUuid = `admin-bootstrap-${dto.email}-${Date.now()}`;
     const user = this.userRepo.create({
       email: dto.email,
@@ -418,6 +459,18 @@ export class UsersService {
       departmentId,
       geoZoneId: dto.geo_zone_id ?? null,
       roleId: dto.role_id ?? null,
+      // 2026-10-16 — fix: the `users.role` column has a Postgres
+      // DEFAULT of `'reporter'`. Without this line, every admin-create
+      // landed in the DB as `role='reporter'` regardless of which
+      // role was selected on the form (the FK `role_id` pointed at
+      // the right role but the denormalized `role` column lied).
+      // TypeORM only writes the columns you pass to `create()`; the
+      // DEFAULT fires for everything else. `resolvedRoleName` is
+      // already resolved above. When the caller omits `role_id` the
+      // bug-shape behavior is to keep the schema default — we
+      // explicit `'reporter'` so the row matches what the DB would
+      // write anyway.
+      role: resolvedRoleName ?? 'reporter',
       // F6 fix: el admin crea al user en estado `is_active: false`
       // ("pending"). El `is_active: true` original rompía el flow
       // de invitación: `findByClaimedEmail` (en
@@ -498,6 +551,22 @@ export class UsersService {
       if (conflict && conflict.id !== target.id) {
         throw new ConflictException(
           `El correo ${dto.email} ya está registrado por otro usuario`,
+        );
+      }
+    }
+
+    // 2026-10-16 — phone uniqueness pre-check (migration 0036).
+    // Same pattern as the email check above. `dto.phone !== target.phone`
+    // short-circuits the read when the caller sends the same value
+    // (or omits phone entirely); the `null` branch is also handled
+    // by `target.phone` being null/nullable.
+    if (dto.phone !== undefined && dto.phone !== null && dto.phone !== target.phone) {
+      const phoneConflict = await this.userRepo.findOne({
+        where: { phone: dto.phone, deletedAt: IsNull() },
+      });
+      if (phoneConflict && phoneConflict.id !== target.id) {
+        throw new ConflictException(
+          `El teléfono ${dto.phone} ya está registrado por otro usuario`,
         );
       }
     }
@@ -676,5 +745,49 @@ export class UsersService {
       if (v !== undefined) touched[wire] = v;
     }
     return touched;
+  }
+
+  // 2026-10-16 — admin-side Telegram link regeneration (POST
+  // /users/:id/telegram-link). Same visibility + rank pattern as
+  // updateOrganization: `@RequirePermission('UPDATE','users')` on the
+  // route gates capability, `assertCanManage` enforces scope/rank here.
+  // 404 on missing user, 404 on out-of-scope (assertCanManage — the
+  // D9 pattern), 403 on rank-mismatch. Reporters are explicitly
+  // rejected with 403 — D7 isolation: the staff bot is for backoffice,
+  // not citizen-facing.
+  async adminGenerateTelegramLink(
+    actor: AuthContext,
+    targetId: string,
+  ): Promise<{ telegram_link: string | null }> {
+    const target = await this.userRepo.findOne({ where: { id: targetId } });
+    if (!target) {
+      throw new NotFoundException(`User ${targetId} not found`);
+    }
+
+    const role = target.roleId
+      ? await this.roleRepo.findOne({ where: { id: target.roleId } })
+      : null;
+
+    // 404 if out of scope, 403 if actor doesn't outrank target.
+    // assertCanManage throws; we don't catch.
+    assertCanManage(actor, {
+      id: target.id,
+      organizationId: target.organizationId,
+      roleName: role?.name ?? null,
+    });
+
+    if (role?.name === 'reporter') {
+      throw new ForbiddenException(
+        'Los reporteros no pueden vincularse al bot de Telegram de gestión interna.',
+      );
+    }
+
+    const token = await this.telegramLinkService.issueFor(target.id);
+    // composeDeepLink returns null when TELEGRAM_BOT_USERNAME is
+    // unset (no-op env in dev / pre-deploy). We surface that as
+    // `telegram_link: null` — the frontend reads it and shows the
+    // "Bot de Telegram no configurado" message.
+    const telegram_link = this.telegramLinkService.composeDeepLink(token);
+    return { telegram_link };
   }
 }

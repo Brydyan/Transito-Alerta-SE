@@ -348,4 +348,49 @@ describe('UsersService (F6 new-user-form)', () => {
       req.flush({ items: [], total: 0 });
     });
   });
+
+  // 2026-10-16 — admin regenerates the Telegram deep-link via
+  // `POST /api/users/:id/telegram-link`. Wire shape
+  // `{ telegram_link: string | null }`: `null` when the bot is not
+  // configured (TELEGRAM_BOT_USERNAME unset). El método siempre
+  // envía `withCredentials: true` para que la cookie de sesión
+  // llegue al endpoint protegido.
+  describe('regenerateTelegramLink', () => {
+    it('POST /users/:id/telegram-link returns { telegram_link } when the bot is configured', () => {
+      const userId = 'user-123';
+      const mockResponse = {
+        telegram_link: 'https://t.me/tase_alert_bot?start=tok123',
+      };
+      let result: { telegram_link: string | null } | undefined;
+
+      service.regenerateTelegramLink(userId).subscribe((res) => {
+        result = res;
+      });
+
+      const req = http.expectOne(`${environment.apiUrl}/users/${userId}/telegram-link`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.withCredentials).toBe(true);
+      expect(req.request.body).toEqual({});
+      req.flush(mockResponse);
+
+      expect(result).toEqual(mockResponse);
+      expect(result?.telegram_link).toBe('https://t.me/tase_alert_bot?start=tok123');
+    });
+
+    it('POST /users/:id/telegram-link returns { telegram_link: null } when bot is not configured', () => {
+      const userId = 'user-123';
+      let result: { telegram_link: string | null } | undefined;
+
+      service.regenerateTelegramLink(userId).subscribe((res) => {
+        result = res;
+      });
+
+      const req = http.expectOne(`${environment.apiUrl}/users/${userId}/telegram-link`);
+      expect(req.request.method).toBe('POST');
+      req.flush({ telegram_link: null });
+
+      expect(result).toEqual({ telegram_link: null });
+      expect(result?.telegram_link).toBeNull();
+    });
+  });
 });

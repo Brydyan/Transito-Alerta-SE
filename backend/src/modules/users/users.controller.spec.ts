@@ -18,6 +18,10 @@ describe('UsersController', () => {
     updateOrganization: jest.Mock;
     getSessionsForSelf: jest.Mock;
     getSessionsForUser: jest.Mock;
+    // 2026-10-16 — admin-side Telegram link regeneration
+    // (POST /users/:id/telegram-link). Typed as `jest.Mock` so the
+    // `mockResolvedValueOnce(...)` call type-checks.
+    adminGenerateTelegramLink: jest.Mock;
   };
   let telegramLinkService: {
     issueFor: jest.Mock;
@@ -34,6 +38,10 @@ describe('UsersController', () => {
       updateOrganization: jest.fn(),
       getSessionsForSelf: jest.fn(),
       getSessionsForUser: jest.fn(),
+      // 2026-10-16 — admin-side Telegram link regeneration
+      // (POST /users/:id/telegram-link). The controller delegates;
+      // the service owns 404/403/reporter checks.
+      adminGenerateTelegramLink: jest.fn(),
     };
     telegramLinkService = {
       issueFor: jest.fn(),
@@ -233,4 +241,51 @@ describe('UsersController', () => {
       expect(result).toEqual([]);
     });
   });
+
+  // 2026-10-16 — adminGenerateTelegramLink() (POST
+  // /users/:id/telegram-link). The controller delegates to
+  // `usersService.adminGenerateTelegramLink(req.user!, id)` — the
+  // 404 / 403 paths live in the service, so the controller-level
+  // spec just verifies the wiring (delegate + shape).
+  describe('POST /:id/telegram-link — admin regeneration (2026-10-16)', () => {
+    it('delegates to usersService.adminGenerateTelegramLink with the caller and target id', async () => {
+      service.adminGenerateTelegramLink.mockResolvedValueOnce({
+        telegram_link: 'https://t.me/bot?start=tok-admin',
+      });
+      const actor = {
+        userId: 'admin-1', roleName: 'master', permissions: [], scope: GLOBAL_SCOPE,
+      };
+      const req = { user: actor } as unknown as AuthenticatedRequest;
+
+      const result = await controller.adminGenerateTelegramLink('target-1', req);
+
+      expect(service.adminGenerateTelegramLink).toHaveBeenCalledWith(actor, 'target-1');
+      expect(result).toEqual({ telegram_link: 'https://t.me/bot?start=tok-admin' });
+    });
+
+    it('propagates null telegram_link (TELEGRAM_BOT_USERNAME unset) without 500', async () => {
+      service.adminGenerateTelegramLink.mockResolvedValueOnce({ telegram_link: null });
+      const req = {
+        user: { userId: 'admin-1', roleName: 'master', permissions: [], scope: GLOBAL_SCOPE },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.adminGenerateTelegramLink('target-1', req);
+
+      expect(result).toEqual({ telegram_link: null });
+    });
+
+    // Gap 3 (2026-10-16) — el endpoint está protegido por
+    // `@RequirePermission('UPDATE', 'users')`. La metadata la lee
+    // el `PermissionGuard` para autorizar la acción. Sin este
+    // chequeo, un cambio de wiring en el controller podría
+    // desproteger la ruta silenciosamente.
+    it('has @RequirePermission("UPDATE", "users") metadata', () => {
+      const metadata = Reflect.getMetadata(
+        REQUIRE_PERMISSION_KEY,
+        UsersController.prototype.adminGenerateTelegramLink,
+      );
+      expect(metadata).toEqual({ action: 'UPDATE', resource: 'users' });
+    });
+  });
+
 });
