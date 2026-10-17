@@ -88,7 +88,7 @@ describe('FeedFiltersComponent — categories chips (2026-10-16)', () => {
     expect(component.selectedCategoryId()).toBeNull();
     expect(emissions.length).toBe(2);
     expect(emissions[1]).toEqual({ status: undefined });
-    expect((emissions[1] as Record<string, unknown>).incident_category_id).toBeUndefined();
+    expect((emissions[1] as Record<string, unknown>)['incident_category_id']).toBeUndefined();
   });
 
   it('CategoryTreeNodeComponent NO está en el DOM (reestructuración)', () => {
