@@ -101,7 +101,6 @@
         <th>Acción</th>
         <th>Recurso</th>
         <th>Recurso ID</th>
-        <th>Justificación</th>
       </tr>
     </thead>
     <tbody>
@@ -113,11 +112,10 @@
           <td>{{ item.action }}</td>
           <td>{{ item.resource_type }}</td>
           <td>{{ item.resource_id ?? '—' }}</td>
-          <td>{{ item.justification ?? '—' }}</td>
         </tr>
       } @empty {
         <tr>
-          <td colspan="6">
+          <td colspan="5">
             <app-empty-state
               icon="inbox"
               title="Sin eventos"
