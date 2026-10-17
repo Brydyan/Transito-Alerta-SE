@@ -209,7 +209,12 @@ describe('Invitations + password identity e2e (T3.6)', () => {
       .expect(410);
     expect(accept.body).toMatchObject({ code: 'INVITATION_EXPIRED' });
 
-    const { rows } = await env.pg.query('SELECT id FROM users WHERE email = $1', [email]);
+    // El shadow user (is_active = FALSE) fue creado por el invite helper;
+    // lo que verifica este test es que accept-invitation no lo activó.
+    const { rows } = await env.pg.query(
+      'SELECT id FROM users WHERE email = $1 AND is_active = TRUE',
+      [email],
+    );
     expect(rows).toHaveLength(0);
   });
 
