@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { signal } from '@angular/core';
 
 import { NotificationDropdownComponent } from './notification-dropdown.component';
@@ -28,7 +28,7 @@ describe('NotificationDropdownComponent (2026-10-17)', () => {
     markAllAsRead: jest.Mock;
   };
   let realtimeSubject: Subject<AppNotification>;
-  let mockRealtime: { notifications$: Subject<AppNotification> };
+  let mockRealtime: { notifications$: Observable<AppNotification> };
 
   const fixtureN = (overrides: Partial<AppNotification> = {}): AppNotification => ({
     id: 'n-1',
@@ -40,6 +40,7 @@ describe('NotificationDropdownComponent (2026-10-17)', () => {
     read: false,
     created_at: '2026-10-17T10:00:00Z',
     updated_at: '2026-10-17T10:00:00Z',
+    deleted_at: null,
     ...overrides,
   });
 

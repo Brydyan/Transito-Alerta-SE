@@ -25,17 +25,9 @@ import { AppNotification } from './notification.service';
 @Injectable({ providedIn: 'root' })
 export class RealtimeService implements OnDestroy {
   private readonly authService = inject(AuthService);
-  readonly notifications$ = new Subject<AppNotification>();
+  private readonly _notifications$ = new Subject<AppNotification>();
+  readonly notifications$: Observable<AppNotification> = this._notifications$.asObservable();
   private socket: Socket | null = null;
-
-  /**
-   * Stream de notificaciones recibidas por el gateway. El subject
-   * es interno — los consumidores se suscriben al Observable expuesto
-   * y nunca pueden emitir (no expone `next()`).
-   */
-  get notifications(): Observable<AppNotification> {
-    return this.notifications$.asObservable();
-  }
 
   /**
    * Effect de ciclo de vida: cuando hay un access token (signal `login`
@@ -106,7 +98,7 @@ export class RealtimeService implements OnDestroy {
       // de `data.id` por defense-in-depth (un heartbeat mal etiquetado
       // no debe caer en el dropdown).
       if (payload?.data?.id) {
-        this.notifications$.next(payload.data);
+        this._notifications$.next(payload.data);
       }
     });
     this.socket.on('connect_error', (err) => {
