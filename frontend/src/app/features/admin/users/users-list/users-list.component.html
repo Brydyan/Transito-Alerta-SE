@@ -65,7 +65,7 @@
         <th>Nombre completo</th>
         <th>Email</th>
         <th>Rol asignado</th>
-        <th>Organización</th>
+        <th>Departamento</th>
         <th>Estado</th>
         <th class="ui-table-cell-actions">Acciones</th>
       </tr>
@@ -99,7 +99,7 @@
               <span class="muted">Sin rol</span>
             }
           </td>
-          <td>{{ getOrganizationName(user.organizationId) }}</td>
+          <td>{{ getDepartmentName(user.departmentId) }}</td>
           <td>
             @if (statusOf(user) === 'activo') {
               <ui-badge [variant]="'resuelto'" [label]="'Activo'"></ui-badge>

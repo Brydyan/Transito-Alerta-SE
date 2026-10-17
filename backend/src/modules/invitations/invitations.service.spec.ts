@@ -140,7 +140,7 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
       expect(call.data.telegramLink).toBe(
         'https://t.me/tase_alert_bot?start=telegram-tok',
       );
-      expect(call.data.roleGuide).toContain('operator_org');
+      expect(call.data.roleGuide).toContain('Operador de Campo');
       expect(call.data.roleGuide).toContain('recibirás las tareas en Telegram');
       // 2026-10-16-invitation-email-styled-template (D2): subject
       // names the organization when one is provided; new data fields

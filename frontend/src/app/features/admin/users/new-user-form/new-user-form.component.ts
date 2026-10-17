@@ -474,7 +474,35 @@ export class NewUserFormComponent implements OnInit {
     this.isSaving.set(false);
     const status = (err instanceof HttpErrorResponse && err.status) || 0;
     if (status === 409) {
-      this.toastService.error('Email ya registrado en el sistema', 'Error');
+      // 2026-10-17 — el backend (`UsersService.adminCreate`) ahora
+      // emite `code` específico en el body del 409. Mapeamos cada
+      // caso a un toast dedicado para no engañar al admin (antes
+      // cualquier 409 decía "Email ya registrado" incluso cuando
+      // el conflicto era realmente del teléfono — el admin
+      // revisaba el email pensando que estaba libre y perdía
+      // tiempo). Fallback: si el body no tiene `code`
+      // reconocible, mantenemos el mensaje genérico para
+      // compatibilidad con backends viejos.
+      const code =
+        (err instanceof HttpErrorResponse &&
+          (err.error as { code?: string } | null)?.code) ||
+        '';
+      if (code === 'PHONE_ALREADY_REGISTERED') {
+        this.toastService.error(
+          'El teléfono ya está registrado por otro usuario',
+          'Error',
+        );
+      } else if (code === 'EMAIL_ALREADY_CLAIMED') {
+        this.toastService.error(
+          'Email ya registrado en el sistema',
+          'Error',
+        );
+      } else {
+        this.toastService.error(
+          'Email ya registrado en el sistema',
+          'Error',
+        );
+      }
     } else if (status === 403) {
       this.toastService.error(
         'No tienes permiso para crear usuarios',

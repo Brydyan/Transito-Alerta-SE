@@ -13,6 +13,15 @@ export const SESSION_REUSE_DETECTED = 'SESSION_REUSE_DETECTED';
 export const SESSION_REVOKED = 'SESSION_REVOKED';
 export const SESSION_USER_MISMATCH = 'SESSION_USER_MISMATCH';
 export const EMAIL_ALREADY_CLAIMED = 'EMAIL_ALREADY_CLAIMED';
+
+// 2026-10-17 — phone uniqueness (migration 0036) emite este código
+// cuando el pre-check en `users.service.ts:adminCreate` (y
+// `adminUpdate`) detecta que otro user activo ya tiene ese phone.
+// El frontend (`new-user-form.component.ts:onCreateError`) usa este
+// `code` para mostrar un toast específico ("Teléfono ya registrado")
+// en vez del genérico ("Email ya registrado en el sistema") que
+// mostraba antes para cualquier 409.
+export const PHONE_ALREADY_REGISTERED = 'PHONE_ALREADY_REGISTERED';
 export type SessionErrorCode =
   | typeof SESSION_REQUIRED
   | typeof SESSION_RETRY_UNAVAILABLE

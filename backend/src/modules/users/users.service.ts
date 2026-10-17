@@ -13,6 +13,7 @@ import { RoleEntity } from '../roles/entities/role.entity';
 import { OrganizationEntity } from '../organizations/entities/organization.entity';
 import { AuthContext, SubjectScope } from '../../shared/authz/subject-scope';
 import { assertCanManage, assertVisible } from '../../shared/authz/assert-can-manage';
+import { PHONE_ALREADY_REGISTERED } from '../auth/auth-errors';
 import { AuthService } from '../auth/auth.service';
 import { SessionResponseDto, toSessionResponseDto } from '../sessions/dto/session-response.dto';
 import { SessionsRepository } from '../sessions/sessions.repository';
@@ -468,9 +469,16 @@ export class UsersService {
         where: { phone: dto.phone, deletedAt: IsNull() },
       });
       if (phoneConflict) {
-        throw new ConflictException(
-          `El teléfono ${dto.phone} ya está registrado por otro usuario`,
-        );
+        // 2026-10-17 — `code: PHONE_ALREADY_REGISTERED` permite
+        // al frontend (`new-user-form.component.ts:onCreateError`)
+        // distinguir teléfono duplicado de email duplicado y
+        // mostrar el mensaje correcto. Antes mostraba "Email ya
+        // registrado" para cualquier 409, lo que confundía al
+        // admin cuando el conflicto era realmente del teléfono.
+        throw new ConflictException({
+          code: PHONE_ALREADY_REGISTERED,
+          message: `El teléfono ${dto.phone} ya está registrado por otro usuario`,
+        });
       }
     }
 

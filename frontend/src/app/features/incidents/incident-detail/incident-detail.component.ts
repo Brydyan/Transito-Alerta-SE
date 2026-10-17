@@ -20,6 +20,7 @@ import { CommentService } from '../../../core/services/comment.service';
 import { StatusHistoryService } from '../../../core/services/status-history.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../shared/components/toast/toast.service';
+import { AssignmentService } from '../../../core/services/assignment.service';
 import {
   Incident,
   IncidentStatus,
@@ -39,6 +40,7 @@ import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.comp
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { CommentThreadComponent } from '../components/comment-thread/comment-thread.component';
+import { AssignDialogComponent } from '../assign-dialog/assign-dialog.component';
 // 2026-10-06-incident-images-read-path (D5) — shared util that the
 // status badge (and a future timeline re-enable) delegate to.
 import { mapStatusLabel } from '../../../shared/utils/incident-status.util';
@@ -82,6 +84,7 @@ import * as L from 'leaflet';
     UiIconComponent,
     EmptyStateComponent,
     CommentThreadComponent,
+    AssignDialogComponent,
   ],
   templateUrl: './incident-detail.component.html',
   styleUrl: './incident-detail.component.css',
@@ -95,6 +98,10 @@ export class IncidentDetailComponent implements OnInit, OnDestroy {
   private readonly statusHistoryService = inject(StatusHistoryService);
   private readonly authService = inject(AuthService);
   private readonly toast = inject(ToastService);
+  // 2026-10-17-F7-dispatch-ui — el botón "Asignar" abre el
+  // AssignDialogComponent. El service ya tenía assign/reassign pero
+  // no se consumía desde la UI — sólo se mostraba un toast "TODO".
+  private readonly assignmentService = inject(AssignmentService);
 
   // ── Resource state ────────────────────────────────────────────────
   readonly loading = signal<boolean>(true);
@@ -102,6 +109,16 @@ export class IncidentDetailComponent implements OnInit, OnDestroy {
   readonly incident = signal<Incident | null>(null);
   readonly comments = signal<Comment[]>([]);
   readonly history = signal<StatusHistoryEntry[]>([]);
+
+  // ── F7 dispatch dialog state ─────────────────────────────────────
+  // `assignDialogOpen` toggles el `<app-assign-dialog>`. Cuando el
+  // incidente ya tiene una asignación activa, pasamos su id como
+  // `existingAssignmentId` para que el dialog use PATCH en lugar
+  // de POST (reasignar en vez de crear). El dialog cierra y emite
+  // un toast de éxito → este componente refresca el detalle via
+  // `reloadIncident()`.
+  readonly assignDialogOpen = signal<boolean>(false);
+  readonly existingAssignmentId = signal<string | null>(null);
 
   // ── UI helpers ────────────────────────────────────────────────────
   readonly currentUserId = computed(
@@ -260,15 +277,44 @@ export class IncidentDetailComponent implements OnInit, OnDestroy {
           break;
         }
       case 'assign':
-        // F3.4.8 — la asignación consume GET /available-operators
-        // y POST /assignments/:id. El endpoint de assignments no
-        // es scope de F3 (es F3.4.8 con la salvedad documentada:
-        // los operadores ocupados se filtran en backend por hoy).
-        this.toast.show(
-          'Asignación: requiere integración con módulo assignments (F3.4.8).',
-          'info',
-        );
+        // 2026-10-17-F7-dispatch-ui — abrir el modal de despacho.
+        // Cargamos el assignment activo del incidente (si existe)
+        // para que el dialog sepa si tiene que POST (asignar) o
+        // PATCH (reasignar). Si no hay assignment activo, abrimos
+        // con `existingAssignmentId = null`.
+        this.assignmentService
+          .getLatestAssignment(inc.id)
+          .subscribe({
+            next: (assignment) => {
+              this.existingAssignmentId.set(assignment?.id ?? null);
+              this.assignDialogOpen.set(true);
+            },
+            error: () => {
+              // Si falla el lookup del assignment, igual abrimos
+              // el dialog para asignación nueva. El dialog hace su
+              // propio fetch de available-operators.
+              this.existingAssignmentId.set(null);
+              this.assignDialogOpen.set(true);
+            },
+          });
         break;
+    }
+  }
+
+  /**
+   * 2026-10-17-F7-dispatch-ui — el dialog emite `closed` después
+   * de un submit exitoso o un cancel. El padre cierra el flag
+   * `assignDialogOpen` para que el `@if (open())` desmonte el
+   * componente (libera memoria del form). También recarga el
+   * detalle para reflejar el cambio de asignación.
+   */
+  onAssignDialogClosed(): void {
+    this.assignDialogOpen.set(false);
+    const inc = this.incident();
+    if (inc) {
+      this.incidentService.getIncident(inc.id).subscribe({
+        next: (refreshed) => this.incident.set(refreshed),
+      });
     }
   }
 

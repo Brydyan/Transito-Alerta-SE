@@ -64,6 +64,7 @@ export class UsersService {
       role?: string;
       role_id?: string;
       organization_id?: string | null;
+      department_id?: string | null;
       is_active?: boolean;
       // 2026-10-15-user-status-notif-channel (S2) — preferred
       // notification channel. Optional on the wire because the
@@ -85,6 +86,7 @@ export class UsersService {
             avatar: null,
             rol: item.role ? { rolId: item.role_id ?? '', nombre: item.role } : null,
             organizationId: item.organization_id,
+            departmentId: item.department_id ?? null,
             // SnakeCaseResponseInterceptor: el wire es `is_active` (snake).
             // Sin este mapeo, `u.isActive` queda `undefined` y todas
             // las filas aparecen como "inactivo" (SC-209 lesson,

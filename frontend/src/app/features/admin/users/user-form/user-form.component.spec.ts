@@ -179,7 +179,16 @@ describe('UserFormComponent (sc-340 user permissions panel)', () => {
       });
     };
 
-    it('Master + hasPendingInvitation=true: muestra el botón "Reenviar invitación"', () => {
+    it('Master + shadow (isActive=false): muestra el botón "Reenviar invitación"', () => {
+      // 2026-10-17-resend-invitation-email-fix — el botón ahora se
+      // gatea por `canShowResend = isActive === false`, no por el
+      // flag `hasPendingInvitation`. Razón: el flag lo computa el
+      // backend con EXISTS contra `invitations.email`; cuando el
+      // admin edita el email y guarda, `users.email` se actualiza
+      // al nuevo pero `invitations.email` queda con el anterior,
+      // entonces el EXISTS devuelve false → el botón desaparecía
+      // después del edit. La nueva heurística es más útil: si el
+      // user AÚN es shadow, puede recibir invitación.
       setEditingUser({ hasPendingInvitation: true });
       fixture.detectChanges();
       const btn: HTMLButtonElement | null = fixture.nativeElement.querySelector(
@@ -189,8 +198,20 @@ describe('UserFormComponent (sc-340 user permissions panel)', () => {
       expect(btn?.textContent?.trim()).toBe('Reenviar invitación');
     });
 
-    it('hasPendingInvitation=false: oculta el botón', () => {
+    it('shadow (isActive=false) + hasPendingInvitation=false: SIGUE mostrando el botón (caso del edit-email bug)', () => {
       setEditingUser({ hasPendingInvitation: false });
+      fixture.detectChanges();
+      const btn = fixture.nativeElement.querySelector(
+        '[data-testid="btn-resend-invitation"]',
+      );
+      expect(btn).toBeTruthy();
+    });
+
+    it('NO shadow (isActive=true): oculta el botón', () => {
+      // Re-set userData con isActive=true: el user ya completó
+      // el alta, no es shadow — no tiene sentido ofrecer reenviar.
+      setEditingUser({}); // carga userData con isActive=false
+      (component.userData() as unknown as { isActive: boolean }).isActive = true;
       fixture.detectChanges();
       const btn = fixture.nativeElement.querySelector(
         '[data-testid="btn-resend-invitation"]',

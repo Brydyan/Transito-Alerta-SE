@@ -297,7 +297,7 @@
                    `POST /api/admin/users/invite` con el mismo email/
                    roleId/orgId — el backend mintea un token nuevo y
                    manda el correo con el styled template. -->
-              @if (hasPendingInvitation()) {
+              @if (canShowResend()) {
                 <div class="mt-4 flex flex-col gap-2" data-testid="resend-invitation-block">
                   <button
                     type="button"
@@ -309,7 +309,7 @@
                     {{ isResending() ? 'Reenviando…' : 'Reenviar invitación' }}
                   </button>
                   <small class="text-slate-500">
-                    El usuario aún no ha aceptado su invitación.
+                    El usuario aún no completó el alta — reenvía la invitación para que pueda fijar contraseña.
                   </small>
                 </div>
               }
