@@ -427,6 +427,17 @@ export class AuthService {
      *  composer del OTP tras el login: la regla es
      *  `roleName === 'reporter' && emailVerified === false`. */
     role_name: string | null;
+    /** 2026-10-17-avatar-empty-fix — datos de perfil para que el
+     *  header del frontend componga la inicial del avatar y
+     *  muestre el nombre + email. Sin esto, `name` quedaba en
+     *  `null` y el avatar renderizaba vacío (sólo el círculo
+     *  purple sin letra). El controller los expone como
+     *  `first_name` / `last_name` / `email` / `avatar_url` en el
+     *  wire (snake_case via `SnakeCaseResponseInterceptor`). */
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    avatarUrl: string | null;
   }> {
     const user = await this.authUserRepo.findById(userId);
     if (!user) {
@@ -443,6 +454,10 @@ export class AuthService {
       permissions: permissionStrings,
       email_verified: user.emailVerifiedAt !== null,
       role_name: ctx.roleName,
+      firstName: user.firstName ?? null,
+      lastName: user.lastName ?? null,
+      email: user.email ?? null,
+      avatarUrl: user.avatarUrl ?? null,
     };
   }
 
