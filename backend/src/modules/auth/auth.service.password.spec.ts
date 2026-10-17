@@ -274,6 +274,10 @@ describe('AuthService — password identity (T3.6)', () => {
       userRepo.findOne.mockResolvedValue({
         id: 'user-1',
         deviceUuid: null,
+        firstName: 'María',
+        lastName: 'González',
+        email: 'maria@example.com',
+        avatarUrl: null,
         // El mock NO setea `emailVerifiedAt` a propósito. El booleano
         // `email_verified` se deriva de `emailVerifiedAt !== null`, así
         // que con `undefined` sale `true` (no es lo que parece).
@@ -297,11 +301,21 @@ describe('AuthService — password identity (T3.6)', () => {
       // `role_name` (vía `getAuthContextByUserId`, que ya hace
       // el JOIN con `roles`). Sin `role_name`, C.4 no puede
       // decidir el redirect al composer del OTP.
+      //
+      // 2026-10-17-avatar-empty-fix — el service ahora retorna
+      // firstName/lastName/email/avatarUrl para que el header
+      // del frontend pueda componer `name = firstName + ' ' +
+      // lastName` (la inicial del avatar). Sin esto, el avatar
+      // queda con `name = null` y renderiza vacío.
       expect(result).toEqual({
         deviceUuid: null,
         permissions: ['READ incidents'],
         email_verified: true,
         role_name: 'reporter',
+        firstName: 'María',
+        lastName: 'González',
+        email: 'maria@example.com',
+        avatarUrl: null,
       });
       expect(cache.get).toHaveBeenCalledWith('perm:v3:uid:user-1');
     });
@@ -315,6 +329,10 @@ describe('AuthService — password identity (T3.6)', () => {
       userRepo.findOne.mockResolvedValue({
         id: 'user-2',
         deviceUuid: null,
+        firstName: null,
+        lastName: null,
+        email: null,
+        avatarUrl: null,
         emailVerifiedAt: null,
       });
       dataSource.query.mockResolvedValue([
@@ -331,6 +349,13 @@ describe('AuthService — password identity (T3.6)', () => {
 
       expect(result.email_verified).toBe(false);
       expect(result.role_name).toBe('reporter');
+      // 2026-10-17-avatar-empty-fix — los datos de perfil pueden
+      // ser null. El service los expone tal cual (sin reescribir),
+      // el frontend compone `name` con fallback al email.
+      expect(result.firstName).toBeNull();
+      expect(result.lastName).toBeNull();
+      expect(result.email).toBeNull();
+      expect(result.avatarUrl).toBeNull();
     });
   });
 

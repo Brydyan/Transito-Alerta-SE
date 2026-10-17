@@ -476,6 +476,90 @@ describe('AuthService', () => {
     expect(service.user()?.permissions).toEqual(['READ menu-options', 'READ incidents']);
   });
 
+  // 2026-10-17-avatar-empty-fix — `name` se compone de first_name +
+  // last_name, con fallback al email. Antes el signal hardcodeaba
+  // `name: null` → el avatar del header renderizaba cadena vacía.
+  it('avatar: fetchUser compone name = first_name + " " + last_name', () => {
+    service.login({ device_uuid: 'dev-uuid-1' }).subscribe();
+    http.expectOne(`${apiUrl}/login`).flush(tokens);
+    http.expectOne(`${apiUrl}/me`).flush({
+      user_id: 'user-1',
+      device_uuid: 'dev-uuid-1',
+      permissions: [],
+      first_name: 'María',
+      last_name: 'González',
+      email: 'maria@example.com',
+      avatar_url: null,
+    });
+    expect(service.user()?.name).toBe('María González');
+    expect(service.user()?.email).toBe('maria@example.com');
+  });
+
+  it('avatar: si falta last_name, name = first_name solo', () => {
+    service.login({ device_uuid: 'dev-uuid-1' }).subscribe();
+    http.expectOne(`${apiUrl}/login`).flush(tokens);
+    http.expectOne(`${apiUrl}/me`).flush({
+      user_id: 'user-1',
+      device_uuid: 'dev-uuid-1',
+      permissions: [],
+      first_name: 'SoloNombre',
+      last_name: null,
+      email: 'solo@example.com',
+      avatar_url: null,
+    });
+    expect(service.user()?.name).toBe('SoloNombre');
+  });
+
+  it('avatar: si faltan first_name y last_name, name = email como fallback', () => {
+    service.login({ device_uuid: 'dev-uuid-1' }).subscribe();
+    http.expectOne(`${apiUrl}/login`).flush(tokens);
+    http.expectOne(`${apiUrl}/me`).flush({
+      user_id: 'user-1',
+      device_uuid: 'dev-uuid-1',
+      permissions: [],
+      first_name: null,
+      last_name: null,
+      email: 'fallback@example.com',
+      avatar_url: null,
+    });
+    expect(service.user()?.name).toBe('fallback@example.com');
+  });
+
+  it('avatar: si todo es null, name queda null (el header renderiza círculo vacío pero presente)', () => {
+    // Caso borde: user creado sin first_name/last_name/email. El
+    // header muestra el círculo purple sin letra. No rompe — el
+    // `?.charAt(0)?.toUpperCase()` retorna cadena vacía.
+    service.login({ device_uuid: 'dev-uuid-1' }).subscribe();
+    http.expectOne(`${apiUrl}/login`).flush(tokens);
+    http.expectOne(`${apiUrl}/me`).flush({
+      user_id: 'user-1',
+      device_uuid: 'dev-uuid-1',
+      permissions: [],
+      first_name: null,
+      last_name: null,
+      email: null,
+      avatar_url: null,
+    });
+    expect(service.user()?.name).toBeNull();
+    expect(service.user()?.email).toBeNull();
+  });
+
+  it('avatar: email del wire también se popula (no más null hardcoded)', () => {
+    service.login({ device_uuid: 'dev-uuid-1' }).subscribe();
+    http.expectOne(`${apiUrl}/login`).flush(tokens);
+    http.expectOne(`${apiUrl}/me`).flush({
+      user_id: 'user-1',
+      device_uuid: 'dev-uuid-1',
+      permissions: [],
+      first_name: null,
+      last_name: null,
+      email: 'visible@example.com',
+      avatar_url: null,
+    });
+    // Antes del fix: `email: null` hardcoded. Ahora: 'visible@example.com'.
+    expect(service.user()?.email).toBe('visible@example.com');
+  });
+
   // 2026-10-16-forgot-reset-password-flow — métodos públicos del
   // flow "¿Olvidaste tu contraseña?". El backend (`AuthController`)
   // expone `POST /auth/password-reset` (siempre 200, design D9 —
