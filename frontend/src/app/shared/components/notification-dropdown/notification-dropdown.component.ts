@@ -171,13 +171,9 @@ export class NotificationDropdownComponent implements OnInit {
   }
 
   @HostListener('document:click', ['$event.target'])
-  onDocumentClick(target: EventTarget | null): void {
+  onDocumentClick(target: Node | null): void {
     if (!target) return;
-    // Cast: en runtime, los clicks del DOM siempre llegan como
-    // Element (subtype de EventTarget). El tipo de Angular es
-    // EventTarget | null porque en teoría un SyntheticEvent puede
-    // llegar sin target en edge cases.
-    const element = target as Node;
+    const element = target;
     if (this.open() && !this.elRef.nativeElement.contains(element)) {
       this.open.set(false);
     }

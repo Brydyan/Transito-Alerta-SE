@@ -2,7 +2,6 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
-import { signal } from '@angular/core';
 
 import { NotificationDropdownComponent } from './notification-dropdown.component';
 import {
@@ -125,7 +124,6 @@ describe('NotificationDropdownComponent (2026-10-17)', () => {
   });
 
   it('click en notificación → markAsRead + navega + cierra dropdown', () => {
-    const navSpy = jest.spyOn(component, 'onNotificationClick');
     component.toggle();
     component.onNotificationClick(fixtureN({ id: 'n-1', incident_id: 'inc-42' }));
 
