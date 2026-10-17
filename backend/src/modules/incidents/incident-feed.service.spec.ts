@@ -239,6 +239,12 @@ describe('IncidentFeedService', () => {
         cachedItem({ id: 'r-2', incident_category_id: 'cat-B' }),
         cachedItem({ id: 'r-3', incident_category_id: 'cat-A' }),
       ]);
+      // 2026-10-16-categories-chips-restructure — el filter del
+      // cache también expande al subárbol vía `getDescendantIds`.
+      // Sin esto, seleccionar la raíz "cat-A" no matchearía si el
+      // caller pasó un filter de raíz con `parent_id` que apunta a
+      // subcategorías.
+      categoriesRepository.getDescendantIds.mockResolvedValueOnce(['cat-A']);
 
       const result = await service.getCitizenFeed({
         incident_category_id: 'cat-A',
@@ -313,7 +319,7 @@ describe('IncidentFeedService', () => {
       expect(selectSql).toContain('i.category_id = ANY($');
       expect(selectSql).toContain('::uuid[]');
       expect(selectParams).toContain('critical');
-      expect(selectParams).toContain(['cat-X']); // ANY espera array
+      expect(selectParams).toContainEqual(['cat-X']); // ANY espera array
     });
   });
 

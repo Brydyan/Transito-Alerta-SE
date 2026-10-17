@@ -203,7 +203,19 @@ export class IncidentFeedService {
       // getStaffFeed: apply priority and incident_category_id to the
       // cached feed as well.
       if (query.priority) items = items.filter((i) => i.priority === query.priority);
-      if (query.incident_category_id) items = items.filter((i) => i.incident_category_id === query.incident_category_id);
+      // 2026-10-16-categories-chips-restructure — el filtro del cache
+      // también necesita expansión (los items apuntan a subcategorías).
+      // Si la CTE devuelve [] (categoría deleted), no se aplica el
+      // filtro para evitar false-positive.
+      if (query.incident_category_id) {
+        const categoryIds = await this.categoriesRepository.getDescendantIds(
+          query.incident_category_id,
+        );
+        if (categoryIds.length > 0) {
+          const categoryIdSet = new Set(categoryIds);
+          items = items.filter((i) => i.incident_category_id && categoryIdSet.has(i.incident_category_id));
+        }
+      }
       if (query.zone_id) {
         // Fix: resolve zone hierarchy to include all child zones
         const zoneIds = await this.resolveZoneHierarchy(query.zone_id);
@@ -226,7 +238,19 @@ export class IncidentFeedService {
     // getStaffFeed: apply priority and incident_category_id to the
     // SQL fallback too.
     if (query.priority) { params.push(query.priority); conditions.push(`i.priority = $${params.length}`); }
-    if (query.incident_category_id) { params.push(query.incident_category_id); conditions.push(`i.category_id = $${params.length}`); }
+    // 2026-10-16-categories-chips-restructure — expandir al subárbol.
+    // Mismo patrón que `getStaffFeed` (líneas ~89-110) y que el
+    // filter del cache (líneas ~206). Array vacío (categoría deleted)
+    // → no se agrega la cláusula para evitar 0-row siempre.
+    if (query.incident_category_id) {
+      const categoryIds = await this.categoriesRepository.getDescendantIds(
+        query.incident_category_id,
+      );
+      if (categoryIds.length > 0) {
+        params.push(categoryIds);
+        conditions.push(`i.category_id = ANY($${params.length}::uuid[])`);
+      }
+    }
     if (query.zone_id) {
       // Fix: resolve zone hierarchy to include all child zones
       const zoneIds = await this.resolveZoneHierarchy(query.zone_id);
