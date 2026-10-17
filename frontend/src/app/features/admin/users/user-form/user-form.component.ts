@@ -119,18 +119,40 @@ export class UserFormComponent implements OnInit, OnDestroy {
   });
 
   /**
-   * 2026-10-16-resend-invitation (D4) — gate del botón. Sólo visible
-   * cuando (a) el caller es Master, (b) estamos editando (no create),
-   * (c) el target tiene una invitación pendiente. La condición (c) se
-   * cumple sólo para shadow users — un usuario desactivado por Master
-   * (también `isActive = false`) NO tiene invitación pendiente, así
-   * que el botón no aparece (no tendría sentido reenviarle el mail).
+   * 2026-10-16-resend-invitation (D4) — gate del botón. Visible cuando
+   * (a) el caller es Master, (b) estamos editando (no create), y
+   * (c) el target sigue siendo un candidato válido para invitación.
    *
-   * El flag se computa desde `userData()` (signal cargado por
-   * `loadUserData()`); `false` mientras no haya carga (default).
+   * Antes era estricto: `userData().hasPendingInvitation === true`.
+   * Pero ese flag lo computa el backend con la query EXISTS contra
+   * `invitations.email` — cuando el admin cambia el email del user y
+   * guarda, `users.email` se actualiza al nuevo pero `invitations.email`
+   * queda apuntando al viejo. La query EXISTS busca por el email nuevo y
+   * devuelve false → el botón desaparecía después de un edit de email.
+   *
+   * La fix: el botón aparece cuando el target es shadow (isActive=false).
+   * Shadow significa "el user todavía no completó el alta vía
+   * `redeem()`" — y por construcción eso siempre amerita invitación
+   * (o reenvío de la misma). El flag backend se mantiene como pista
+   * informativa ("¿hay una invitación viva para ESTE email?"), pero
+   * no es lo que gate del botón.
+   *
+   * El template consume `canShowResend()` (computed, no este).
    */
   readonly hasPendingInvitation = computed<boolean>(() => {
     return this.userData()?.hasPendingInvitation === true;
+  });
+
+  /**
+   * 2026-10-17-resend-invitation-email-fix — gate efectivo del botón
+   * "Reenviar invitación". Independiente de si el flag
+   * `hasPendingInvitation` cambió al editar email (bug reportado).
+   * Sólo requiere que el target sea shadow (`isActive === false`).
+   * El caller (Master) puede reenviar invitación a cualquier shadow
+   * user — el backend regenera el token con el email ACTUAL del user.
+   */
+  readonly canShowResend = computed<boolean>(() => {
+    return this.userData()?.isActive === false;
   });
 
   /**
@@ -417,9 +439,18 @@ export class UserFormComponent implements OnInit, OnDestroy {
     const user = this.userData();
     if (!user) return;
     this.isResending.set(true);
+    // 2026-10-17-resend-invitation-email-fix — el email sale del
+    // FORM (no de `userData`). Si el admin editó el email y guarda,
+    // `userData.email` queda con el email viejo. Reenviar al email
+    // viejo sería un no-op: la invitación sigue apuntando ahí. Mejor
+    // reenviar al email ACTUAL del form, que es lo que el admin ve.
+    // Fallback: si el form no tiene email (test sin patchValue),
+    // usamos el del `userData` cargado.
+    const rawFormEmail = (this.userForm.value.email ?? '').trim();
+    const formEmail = rawFormEmail.length > 0 ? rawFormEmail : user.email;
     this.invitationsService
       .invite({
-        email: user.email,
+        email: formEmail,
         roleId: user.rol?.rolId ?? null,
         organizationId: user.organizationId ?? null,
       })
