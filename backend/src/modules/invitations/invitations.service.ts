@@ -1,4 +1,4 @@
-import { ConflictException, HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { ConflictException, HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
@@ -116,6 +116,34 @@ export class InvitationsService {
       });
     }
 
+    // 2026-10-16-invitations-shadow-guard (Opción A) — el flujo normal
+    // SIEMPRE llama `POST /api/users` antes que
+    // `POST /api/admin/users/invite`, así que el shadow existe. Pero
+    // si el caller skipea el alta y manda el invite directo, el token
+    // Telegram saldría `null` y la sección de Telegram se omite
+    // silenciosamente en el correo — UX rota. Esta guarda falla
+    // rápido con 422 antes de generar token, mandar el correo, o dejar
+    // una fila pending colgada en la tabla.
+    //
+    // El SELECT filtra `is_active = FALSE` para tomar únicamente el
+    // shadow (no un user activo, no un soft-deleted). Si
+    // `findByClaimedEmail` arriba ya pasó, el row pendiente de
+    // insertar la invitación es necesariamente el shadow.
+    const shadowRows = await this.dataSource.query<
+      Array<{ id: string; first_name: string | null }>
+    >(
+      `SELECT id, first_name FROM users
+        WHERE email = $1 AND is_active = FALSE AND deleted_at IS NULL
+        LIMIT 1`,
+      [input.email],
+    );
+    if (!shadowRows[0]) {
+      throw new UnprocessableEntityException({
+        code: 'SHADOW_USER_NOT_FOUND',
+        message: 'El usuario debe ser creado antes de enviar la invitación.',
+      });
+    }
+
     const token = generateToken();
     const tokenHash = sha256Hex(token);
 
@@ -131,30 +159,19 @@ export class InvitationsService {
       ? (await this.organizationRepo.findOne({ where: { id: input.organizationId } }))?.name ?? null
       : null;
 
-    // 2026-10-10-user-onboarding-telegram-tour (D2/R3/R6) — the
-    // shadow user row was created in adminCreate; we look it up
-    // here so the link token maps to the same id that survives
-    // `redeem`. The shadow is guaranteed to exist because
-    // `findByClaimedEmail` succeeded (no claimed user) and the
-    // 409 `EMAIL_ALREADY_CLAIMED` path returns earlier.
+    // 2026-10-10-user-onboarding-telegram-tour (D2/R3/R6) — el shadow
+    // user row fue creado por `adminCreate`; lo consultamos arriba
+    // (línea ~120) para que el link token mapee al mismo id que
+    // sobrevive `redeem`. La guarda 422 SHADOW_USER_NOT_FOUND ya
+    // garantizó que `shadowRows[0]` existe, así que reusamos el row
+    // directamente — sin una segunda query.
     //
-    // 2026-10-16-invitation-email-styled-template (D2) — expand the
-    // shadow SELECT to also project `first_name`; the rendered email
-    // greets the recipient by name when one is on file (adminCreate
-    // may have pre-populated the shadow). Falls back to a generic
-    // greeting when the shadow has no first name (direct invite
-    // without a prior adminCreate).
-    const shadow = await this.dataSource.query<
-      Array<{ id: string; first_name: string | null }>
-    >(`SELECT id, first_name FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1`, [
-      input.email,
-    ]);
-    const linkToken = shadow[0]
-      ? await this.telegramLink.issueFor(shadow[0].id)
-      : null;
-    const telegramDeepLink = linkToken
-      ? this.telegramLink.composeDeepLink(linkToken)
-      : null;
+    // 2026-10-16-invitation-email-styled-template (D2) — `first_name`
+    // se proyecta para personalizar el saludo del correo; cae a
+    // greeting genérico cuando el shadow no tiene nombre (invitación
+    // directa sin adminCreate previo).
+    const linkToken = await this.telegramLink.issueFor(shadowRows[0].id);
+    const telegramDeepLink = this.telegramLink.composeDeepLink(linkToken);
     // The role guide text is the same body the bot will send after
     // the user links their Telegram chat — same source, no drift.
     const roleProfile = getTourProfileForRole(role.name);
@@ -205,7 +222,7 @@ export class InvitationsService {
         // saludo y la tarjeta de detalles. Todos pasan por
         // `escapeHtml()` / `field()` en `mail-templates.ts` (R13).
         inviterName,
-        recipientFirstName: shadow[0]?.first_name ?? '',
+        recipientFirstName: shadowRows[0]?.first_name ?? '',
         recipientEmail: input.email,
         // ISO 8601 — `mail-templates.ts` lo formatea con `Intl` a
         // la zona horaria de Ecuador. Vacío sólo si la fila no
