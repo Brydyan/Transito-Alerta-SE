@@ -2,6 +2,7 @@ import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { of, throwError, Subject } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 
 import { NewUserFormComponent } from './new-user-form.component';
 import { UsersService } from '../services/users.service';
@@ -10,6 +11,7 @@ import { ToastService } from '../../../../shared/components/toast/toast.service'
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { NewUserFormData, RolePermissionsView, Department } from '../models/user.interface';
 import { GeoZoneService } from '../../../catalogs/locations/services/geo-zone.service';
+import { AuthService } from '../../../../core/services/auth.service';
 
 /**
  * F6 (`2026-09-08-f6-new-user-form`) — contrato del
@@ -43,6 +45,7 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
   };
   let mockDialogService: { confirm: jest.Mock };
   let mockGeoZoneService: { getFormData: jest.Mock };
+  let mockAuthService: { currentUser: ReturnType<typeof signal<{ roleName: string | null; name: string | null } | null>> };
   let router: Router;
 
   /** Defaults de lookups: 2 roles sectoriales + 1 global + ciudadano + 1 org + 2 departamentos. */
@@ -83,6 +86,14 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
         ],
       })),
     };
+    // Default: caller is admin_org (not master). El canal de
+    // notificaciones está deshabilitado para no-Master y el payload
+    // omite el campo. Tests del describe "Master-only" reescriben el
+    // signal antes de `fixture.detectChanges()` para validar el otro
+    // camino.
+    mockAuthService = {
+      currentUser: signal({ roleName: 'admin_org', name: 'Test Admin' }),
+    };
 
     await TestBed.configureTestingModule({
       imports: [NewUserFormComponent],
@@ -93,6 +104,7 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
         { provide: ToastService, useValue: mockToastService },
         { provide: ConfirmDialogService, useValue: mockDialogService },
         { provide: GeoZoneService, useValue: mockGeoZoneService },
+        { provide: AuthService, useValue: mockAuthService },
       ],
     }).compileComponents();
 
@@ -718,6 +730,82 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
       expect(mockUsersService.createUserJson).toHaveBeenCalledWith(
         expect.objectContaining({ geo_zone_id: null }),
       );
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // 2026-10-16-new-user-form-notif-channel — el campo "Canal de
+  // notificaciones preferido" deja de ser F7-placeholder: Master lo
+  // configura en alta; admin_org lo ve deshabilitado con hint. El
+  // payload del submit incluye `preferred_notification_channel`
+  // SOLO cuando el caller es Master (defensa en profundidad — el
+  // DTO del backend acepta el campo, pero el form lo filtra para
+  // mantener el surface area coherente con la regla "isActive es
+  // Master-only").
+  // -------------------------------------------------------------------
+  describe('N.7 — canal de notificaciones (Master-only)', () => {
+    /** Helper: setea el form al mínimo válido. */
+    const setValid = (overrides: Partial<NewUserFormData> = {}) => {
+      component.formData.update((d) => ({
+        ...d,
+        firstName: 'Juan',
+        lastName: 'Pérez',
+        email: 'juan@municipio.gob.ec',
+        ...overrides,
+      }));
+    };
+
+    it('Master: el selector de canal está habilitado', () => {
+      mockAuthService.currentUser.set({ roleName: 'master', name: 'Root' });
+      init();
+      expect(component.isMaster()).toBe(true);
+      fixture.detectChanges();
+      const select: HTMLSelectElement = fixture.nativeElement.querySelector(
+        '[data-testid="select-channel"]',
+      );
+      expect(select).toBeTruthy();
+      expect(select.disabled).toBe(false);
+    });
+
+    it('Master: cambiar canal a "telegram" actualiza formData().notificationChannel', () => {
+      mockAuthService.currentUser.set({ roleName: 'master', name: 'Root' });
+      init();
+      component.onNotificationChannelChange('telegram');
+      expect(component.formData().notificationChannel).toBe('telegram');
+    });
+
+    it('no-Master: el selector de canal está deshabilitado y formData arranca en "email"', () => {
+      // Default del beforeEach = admin_org. isMaster() = false.
+      init();
+      expect(component.isMaster()).toBe(false);
+      expect(component.formData().notificationChannel).toBe('email');
+      fixture.detectChanges();
+      const select: HTMLSelectElement = fixture.nativeElement.querySelector(
+        '[data-testid="select-channel"]',
+      );
+      expect(select).toBeTruthy();
+      expect(select.disabled).toBe(true);
+    });
+
+    it('Master: onSubmit envía preferred_notification_channel en el payload', () => {
+      mockAuthService.currentUser.set({ roleName: 'master', name: 'Root' });
+      init();
+      setValid({ notificationChannel: 'telegram' });
+      component.onSubmit();
+      expect(mockUsersService.createUserJson).toHaveBeenCalledWith(
+        expect.objectContaining({ preferred_notification_channel: 'telegram' }),
+      );
+    });
+
+    it('no-Master: onSubmit NO envía preferred_notification_channel en el payload', () => {
+      // admin_org — el form no manda el campo aunque el signal
+      // estuviera en 'telegram' (defense in depth del form: aunque un
+      // admin_org lograra mutar el signal, el submit no propaga).
+      init();
+      setValid({ notificationChannel: 'telegram' });
+      component.onSubmit();
+      const callArg = mockUsersService.createUserJson.mock.calls[0][0];
+      expect(callArg).not.toHaveProperty('preferred_notification_channel');
     });
   });
 });

@@ -31,6 +31,7 @@ import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-hea
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
 import { GeoZoneService } from '../../../catalogs/locations/services/geo-zone.service';
 import { IGeoZoneFormData } from '../../../catalogs/locations/interfaces/igeo-zone.interface';
+import { AuthService } from '../../../../core/services/auth.service';
 
 const AVATAR_MIME_ALLOWED = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
@@ -69,6 +70,11 @@ export class NewUserFormComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly geoZoneService = inject(GeoZoneService);
+  // 2026-10-16-new-user-form-notif-channel (D1) — el selector de canal
+  // y el gate del payload usan el rol del caller. Master puede editarlo
+  // y mandarlo en el submit; admin_org lo ve deshabilitado y el form
+  // nunca propaga el campo.
+  private readonly authService = inject(AuthService);
 
   // ---- Estado del formulario (D-frontend-3) -------------------------
   readonly formData = signal<NewUserFormData>({ ...DEFAULT_NEW_USER_FORM });
@@ -171,6 +177,20 @@ export class NewUserFormComponent implements OnInit {
     if (!d.roleId) return false;
     const role = this.roles().find((r) => r.id === d.roleId);
     return !!role && (SECTIONAL_ROLES as readonly string[]).includes(role.name);
+  });
+
+  /**
+   * 2026-10-16-new-user-form-notif-channel (D1) — el canal de
+   * notificaciones y el campo `preferred_notification_channel` del
+   * payload son Master-only. La comparación es case-insensitive
+   * (`roleName` puede llegar como `'Master'` o `'master'` desde el
+   * backend según el seed). `currentUser()` puede ser `null`
+   * brevemente al hidratar la sesión — el `?.` cortocircuita a `false`
+   * en ese caso.
+   */
+  readonly isMaster = computed<boolean>(() => {
+    const roleName = this.authService.currentUser()?.roleName;
+    return typeof roleName === 'string' && roleName.toLowerCase() === 'master';
   });
 
   // ---- Lifecycle ----------------------------------------------------
@@ -285,6 +305,19 @@ export class NewUserFormComponent implements OnInit {
   }
 
   /**
+   * 2026-10-16-new-user-form-notif-channel (D1) — handler del selector
+   * de canal. Mismo patrón que `onSendInvitationChange`: spread del
+   * signal con la nueva rama. El template ya condiciona el binding al
+   * `disabled` al gate Master — si un no-Master dispara este handler
+   * (no debería: el select está disabled), el signal muta pero el
+   * submit filtra el campo vía `isMaster()` y nunca lo manda al
+   * backend. Defense in depth.
+   */
+  onNotificationChannelChange(value: 'email' | 'telegram'): void {
+    this.formData.update((d) => ({ ...d, notificationChannel: value }));
+  }
+
+  /**
    * D-frontend-3 — un único `signal<NewUserFormData>`. Cada input
    * actualiza el signal con un spread; no usamos `FormGroup` por
    * consistencia con `UsersListComponent` (D-frontend-3).
@@ -353,6 +386,13 @@ export class NewUserFormComponent implements OnInit {
       organization_id: d.organizationId,
       department_id: d.departmentId,
       geo_zone_id: d.geoZoneId,
+      // 2026-10-16-new-user-form-notif-channel (D1) — gate Master.
+      // El backend acepta el campo, pero el form filtra el envío
+      // para mantener el surface area coherente con la regla "isActive
+      // también es Master-only" (defense in depth del lado cliente).
+      ...(this.isMaster() && {
+        preferred_notification_channel: d.notificationChannel,
+      }),
     };
 
     this.usersService
@@ -399,11 +439,29 @@ export class NewUserFormComponent implements OnInit {
         .subscribe({
           next: () => this.onSuccess(),
           error: (err: unknown) => {
-            const msg = this.inviteErrorMessage(err);
-            this.toastService.warning(
-              `Usuario creado, pero la invitación no se envió (${msg}). Podés reinvitarlo desde la lista.`,
-              'Aviso',
-            );
+            // 2026-10-16-invitations-shadow-guard (Opción A) — si el
+            // backend devuelve 422 SHADOW_USER_NOT_FOUND, el `POST
+            // /api/users` previo NO dejó el shadow row en la base
+            // (algo se rompió entre el alta y el invite). El mensaje
+            // genérico dice "podés reinvitarlo", pero reinvitar
+            // tampoco funciona sin el shadow — guiamos al usuario a
+            // reintentar el alta completa.
+            const isShadowMissing =
+              err instanceof HttpErrorResponse &&
+              err.status === 422 &&
+              (err.error as { code?: string } | null)?.code === 'SHADOW_USER_NOT_FOUND';
+            if (isShadowMissing) {
+              this.toastService.warning(
+                'No se pudo enviar la invitación: el usuario no fue creado correctamente. Intentá de nuevo.',
+                'Aviso',
+              );
+            } else {
+              const msg = this.inviteErrorMessage(err);
+              this.toastService.warning(
+                `Usuario creado, pero la invitación no se envió (${msg}). Podés reinvitarlo desde la lista.`,
+                'Aviso',
+              );
+            }
             this.onSuccess();
           },
         });

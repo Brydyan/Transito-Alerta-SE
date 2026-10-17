@@ -200,6 +200,18 @@ export interface User {
 export interface UserDetail extends User {
   permisosDirectos: DirectPermission[];
   permisosRol: { recurso: string; accion: string }[];
+  /**
+   * 2026-10-16-resend-invitation (D1) — true cuando hay una
+   * invitación pendiente (no aceptada, no expirada) para el email
+   * del usuario. El backend lo proyecta en `GET /api/users/:id`
+   * vía `UsersService.findByIdWithPendingFlag`. El form de edición
+   * muestra el botón "Reenviar invitación" sólo cuando es Master
+   * Y este flag es `true` (combinar con `isActive === false` no
+   * alcanza: un usuario desactivado por Master también tiene
+   * `isActive === false` pero ya tiene cuenta y no tiene sentido
+   * reenviarle una invitación).
+   */
+  hasPendingInvitation: boolean;
 }
 
 export type PaginatedUsersMeta = PaginatedMeta;
@@ -340,7 +352,13 @@ export interface NewUserFormData {
   roleId: string | null;
   sendInvitation: boolean;
   initialStatus: 'activo';
-  notificationChannel: 'email';
+  /**
+   * 2026-10-16-new-user-form-notif-channel (D1) — el canal preferido
+   * del nuevo staff user. `'email'` por default (mismo DEFAULT que la
+   * columna DB desde migración 0033). Master puede cambiarlo a
+   * `'telegram'` desde el form; admin_org ve el campo deshabilitado.
+   */
+  notificationChannel: 'email' | 'telegram';
 }
 
 /**
@@ -404,4 +422,13 @@ export interface CreateUserJsonPayload {
   department_id: string | null;
   /** sc-446 (Alcance Territorial) — optional geo zone FK. NULL when not selected. */
   geo_zone_id: string | null;
+  /**
+   * 2026-10-16-new-user-form-notif-channel (D1) — canal preferido del
+   * nuevo staff user. El form sólo lo manda cuando el caller es Master
+   * (gate client-side en `NewUserFormComponent.isMaster()`); admin_org
+   * nunca lo envía. El backend (`AdminCreateUserDto`) lo acepta y lo
+   * persiste via `UsersService.adminCreate` con fallback a `'email'`
+   * cuando se omite.
+   */
+  preferred_notification_channel?: 'email' | 'telegram';
 }
