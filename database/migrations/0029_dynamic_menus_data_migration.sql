@@ -124,18 +124,38 @@ ON CONFLICT (id) DO NOTHING;
 -- ════════════════════════════════════════════════════════════════════════
 -- 4. menu_option_roles — complete matrix from day one
 --
--- Role rules (post-0063 canonical state):
---   all-staff (master, agent_system, admin_org, operator_org):
---     Dashboard, INCIDENCIAS group + its leaves, CATÁLOGOS group + its leaves
---   management-only (master, agent_system):
---     GESTIÓN group, Usuarios, Roles  [0029 original]
---   GESTIÓN extended (+ admin_org, operator_org per 0063):
---     GESTIÓN root, Organizaciones, Org CRUD leaves, Ubicaciones, Cat leaves
---   Departamentos (0063): master+agent_system CAN write, admin_org read-only
---   Controles (0057): master CAN write, agent_system read-only
+-- Role rules (canonical state — 2026-10-17 lockdown):
+--   operator_org (sólo despacho de incidentes, no gestión):
+--     Dashboard, INCIDENCIAS group + 4 leaves (Inicio, Lista,
+--     Mapa, Reportar). NO GESTIÓN, NO CATÁLOGOS, no Organizaciones,
+--     no Departamentos, no Controles.
+--   admin_org (despachador + admin de su propia org):
+--     Dashboard, INCIDENCIAS group + 4 leaves, CATÁLOGOS (read),
+--     Organizaciones, Organizaciones CRUD. NO Departamentos write,
+--     NO Controles, NO Usuarios, NO Roles.
+--   master + agent_system (control total):
+--     Todos los menús, según F5.5.5.
+--   Departamentos: master+agent_system CAN write, admin_org read-only.
+--   Controles: master CAN write, agent_system read-only.
+--
+-- 2026-10-17 — se corrigió la asignación de operator_org (antes
+-- incluía GESTIÓN root, Organizaciones y CATÁLOGOS group por
+-- error — el comment "0063 added admin_org + operator_org" era
+-- engañoso y no correspondía al estado canónico). El cambio es
+-- idempotente (DELETE antes de INSERT con el mismo predicado de role).
+-- Aplicable en staging sin pérdida funcional; si ya está aplicada
+-- en producción, agregar una migración 0037 para DELETE de los
+-- accesos indebidos.
 -- ════════════════════════════════════════════════════════════════════════
 
--- ── Dashboard + INCIDENCIAS group + its 4 leaves: all 4 staff roles ─────
+-- ── Dashboard + INCIDENCIAS group + 3 of 4 leaves: all 4 staff roles ─────
+-- 2026-10-17-reportar-operator-org-block — Reportar (la 4ª hoja
+-- de INCIDENCIAS) NO se incluye aquí. operator_org (despachador)
+-- no debe tener acceso al alta de incidentes — el backend rechaza
+-- `POST /incidents` con 403 CREATE incidents sin que el menú pueda
+-- mostrar el botón. Decisión de negocio: el alta es para ciudadanos
+-- (vía /reportar sin sesión) y roles con CREATE incidents (master,
+-- agent_system, admin_org). Ver bloque siguiente.
 INSERT INTO menu_option_roles (menu_option_id, role_id, can_read, can_write)
 SELECT mo.id, r.id, true, false
 FROM menu_options mo
@@ -145,18 +165,34 @@ WHERE mo.id IN (
   'a0000000-0000-0000-0000-000000000001',  -- INCIDENCIAS group
   'b0000000-0000-0000-0000-000000000002',  -- Inicio
   'b0000000-0000-0000-0000-000000000003',  -- Lista de Incidencias
-  'b0000000-0000-0000-0000-000000000004',  -- Mapa
-  'b0000000-0000-0000-0000-000000000005'   -- Reportar
+  'b0000000-0000-0000-0000-000000000004'   -- Mapa
 )
 AND r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
 AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
--- ── GESTIÓN root: all 4 staff (0063 added admin_org + operator_org) ─────
+-- ── Reportar: staff con CREATE incidents (master, agent_system, admin_org) ──
+-- 2026-10-17 — operator_org excluido. El backend valida CREATE incidents
+-- en el controller con `@RequirePermission('CREATE')`; el menú debe
+-- reflejar la capacidad efectiva del rol. Si el menú mostrara Reportar
+-- pero el POST devolviera 403, el usuario vería un error genérico
+-- sin contexto (bug que el reporte del user describe).
+INSERT INTO menu_option_roles (menu_option_id, role_id, can_read, can_write)
+SELECT 'b0000000-0000-0000-0000-000000000005', r.id, true, false
+FROM roles r
+WHERE r.name IN ('master', 'agent_system', 'admin_org')
+  AND r.deleted_at IS NULL
+ON CONFLICT (menu_option_id, role_id) DO NOTHING;
+
+-- ── GESTIÓN root: management-only (master + agent_system) ─────────
+-- 2026-10-17 — antes incluía admin_org + operator_org por error.
+-- admin_org tiene visibilidad de Organizaciones + Departamentos (read)
+-- a través del scope, pero NO necesita ver el group GESTIÓN entero;
+-- operator_org (despachador) tampoco.
 INSERT INTO menu_option_roles (menu_option_id, role_id, can_read, can_write)
 SELECT 'a0000000-0000-0000-0000-000000000002', r.id, true, false
 FROM roles r
-WHERE r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
+WHERE r.name IN ('master', 'agent_system')
   AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO UPDATE
   SET can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write;
@@ -189,7 +225,9 @@ AND r.name IN ('master', 'agent_system')
 AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
--- ── Organizaciones + its CRUD leaves: all 4 staff ────────────────────────
+-- ── Organizaciones + CRUD leaves: master + agent_system + admin_org ────
+-- 2026-10-17 — admin_org ve Organizaciones para gestionar la propia
+-- (scope aplica en backend), operator_org NO.
 INSERT INTO menu_option_roles (menu_option_id, role_id, can_read, can_write)
 SELECT mo.id, r.id, true, false
 FROM menu_options mo
@@ -199,7 +237,7 @@ WHERE mo.id IN (
   'c0000000-0000-0000-0000-000000000005',  -- Crear organización
   'c0000000-0000-0000-0000-000000000006'   -- Editar organización
 )
-AND r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
+AND r.name IN ('master', 'agent_system', 'admin_org')
 AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
@@ -242,7 +280,10 @@ WHERE r.name IN ('master', 'agent_system')
   AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
--- ── CATÁLOGOS group + Categorías + Ubicaciones + their CRUD leaves ───────
+-- ── CATÁLOGOS group + Categorías + Ubicaciones + CRUD leaves ─────────
+-- 2026-10-17 — admin_org sí ve CATÁLOGOS (gestiona su org);
+-- operator_org NO (no gestiona configuración, sólo despacha
+-- incidentes). Master + agent_system siguen con acceso total.
 INSERT INTO menu_option_roles (menu_option_id, role_id, can_read, can_write)
 SELECT mo.id, r.id, true, false
 FROM menu_options mo
@@ -256,7 +297,7 @@ WHERE mo.id IN (
   'c0000000-0000-0000-0000-000000000011',  -- Crear categoría
   'c0000000-0000-0000-0000-000000000012'   -- Editar categoría
 )
-AND r.name IN ('master', 'agent_system', 'admin_org', 'operator_org')
+AND r.name IN ('master', 'agent_system', 'admin_org')
 AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
