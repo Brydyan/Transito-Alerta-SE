@@ -17,6 +17,11 @@ describe('MainLayout', () => {
       isAuthenticated: signal(true),
       currentUser: signal({ name: 'Test User', roleName: 'Admin' }),
       token: signal('mock-token'),
+      // 2026-10-17-header-notification-dropdown — RealtimeService
+      // lee `accessToken()` en su `effect` (el MainLayout importa
+      // el Header que importa el dropdown que importa el realtime
+      // service). Sin esto truena con `accessToken is not a function`.
+      accessToken: signal('mock-token'),
       sid: signal('mock-sid'),
       tokenCreatedAt: signal(new Date().toISOString()),
       tokenExpiresAt: signal(new Date().toISOString()),

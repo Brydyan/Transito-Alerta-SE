@@ -105,6 +105,19 @@ describe('VerifyOtpComponent (REG sc-325 C.6)', () => {
     expect(component.otpForm.valid).toBe(false);
   });
 
+  // 2026-10-17-form-input-fix — antes el template usaba
+  // `class="form-input"` (clase inexistente en `_forms.css`). El
+  // OTP input colapsaba a altura 0 y el label no se veía.
+  it('2026-10-17: el input del OTP usa `form-control` (no `form-input`)', () => {
+    const { fixture } = setup();
+    const input = fixture.nativeElement.querySelector(
+      'input[formControlName="otp"]',
+    ) as HTMLInputElement | null;
+    expect(input).toBeTruthy();
+    expect(input?.classList.contains('form-input')).toBe(false);
+    expect(input?.classList.contains('form-control')).toBe(true);
+  });
+
   it('C.6: con form vacío, submit() NO llama al servidor (validación cliente)', () => {
     const { component, http } = setup();
     component.submit();

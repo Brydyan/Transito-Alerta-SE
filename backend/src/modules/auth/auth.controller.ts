@@ -182,10 +182,19 @@ export class AuthController {
      *  para el dispositivo anónimo. El frontend usa esto en C.4
      *  para decidir el redirect post-login. */
     role_name: string | null;
+    /** 2026-10-17-avatar-empty-fix — datos de perfil para que el
+     *  header del frontend componga la inicial del avatar y
+     *  muestre nombre + email. Wire snake_case (igual que el resto
+     *  de la respuesta vía `SnakeCaseResponseInterceptor`). Si
+     *  `first_name` es `null`, el frontend usa `email` como
+     *  fallback para componer `name`. */
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    avatar_url: string | null;
   }> {
     const userId = req.user!.userId;
-    const { deviceUuid, permissions, email_verified, role_name } =
-      await this.authService.getMe(userId);
+    const me = await this.authService.getMe(userId);
     // F6 (sin doble traducción): `getMe()` ya devuelve `permissions`
     // como strings "ACTION resource" (UUIDs → nombres). Re-traducir
     // aquí con `getPermissionNames()` trata strings como si fueran
@@ -194,14 +203,18 @@ export class AuthController {
     // vacíos para TODOS los roles → dashboard. `permission_names`
     // es el mismo contenido que `permissions`; se expone como alias
     // para no romper el consumidor que prefiere ese campo.
-    const permission_names = permissions;
+    const permission_names = me.permissions;
     return {
       user_id: userId,
-      device_uuid: deviceUuid,
-      permissions,
+      device_uuid: me.deviceUuid,
+      permissions: me.permissions,
       permission_names,
-      email_verified,
-      role_name,
+      email_verified: me.email_verified,
+      role_name: me.role_name,
+      first_name: me.firstName,
+      last_name: me.lastName,
+      email: me.email,
+      avatar_url: me.avatarUrl,
     };
   }
 

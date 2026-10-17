@@ -179,6 +179,13 @@ describe('AuthController', () => {
         // C.4 (`roleName === 'reporter'`) pueda disparar el
         // redirect al composer del OTP.
         role_name: 'reporter',
+        // 2026-10-17-avatar-empty-fix — datos de perfil para que
+        // el header del frontend pueda componer la inicial del
+        // avatar (user.name) en lugar de `null`.
+        firstName: 'María',
+        lastName: 'González',
+        email: 'maria@example.com',
+        avatarUrl: null,
       });
       const req = {
         user: { userId: 'user-1', permissions: [], sessionId: 'sid-1', isAnonymous: false },
@@ -198,7 +205,38 @@ describe('AuthController', () => {
         permission_names: ['READ incidents', 'CREATE incidents'],
         email_verified: false,
         role_name: 'reporter',
+        first_name: 'María',
+        last_name: 'González',
+        email: 'maria@example.com',
+        avatar_url: null,
       });
+    });
+
+    // 2026-10-17-avatar-empty-fix — caso del user sin avatar_url
+    // (operator_org, reporter sin foto). La inicial del nombre se
+    // compone con first_name + last_name. email es null cuando el
+    // user fue creado sin correo visible (anónimo).
+    it('avatar vacío: retorna first_name/last_name/avatar_url nulls correctamente', async () => {
+      authService.getMe.mockResolvedValue({
+        deviceUuid: 'device-op',
+        permissions: ['READ incidents', 'UPDATE incidents'],
+        email_verified: true,
+        role_name: 'operator_org',
+        firstName: null,
+        lastName: null,
+        email: null,
+        avatarUrl: null,
+      });
+      const req = {
+        user: { userId: 'user-op', permissions: [], sessionId: 'sid-op', isAnonymous: false },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.me(req);
+
+      expect(result.first_name).toBeNull();
+      expect(result.last_name).toBeNull();
+      expect(result.email).toBeNull();
+      expect(result.avatar_url).toBeNull();
     });
 
     it('C.1: el booleano `email_verified` refleja la verificación del usuario', async () => {

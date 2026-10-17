@@ -274,8 +274,23 @@ export class AuthService {
         tap((me) => {
           this.user.set({
             id: me.user_id,
-            email: null,
-            name: null,
+            // 2026-10-17-avatar-empty-fix — antes `email` se
+            // hardcodeaba en `null`. Ahora lo leemos del wire
+            // (snake_case del backend). Si es null, el header
+            // compone `name` con fallback.
+            email: me.email ?? null,
+            // 2026-10-17-avatar-empty-fix — `name` se compone de
+            // `first_name + ' ' + last_name` (estándar del repo).
+            // Fallbacks: si falta uno, usamos el otro; si faltan
+            // ambos, usamos email; si todo es null, queda null
+            // (no se renderiza inicial pero el círculo purple
+            // sigue visible). El header renderiza
+            // `user.name?.charAt(0)?.toUpperCase()` para la
+            // inicial — antes era siempre cadena vacía.
+            name:
+              me.first_name && me.last_name
+                ? `${me.first_name} ${me.last_name}`
+                : (me.first_name ?? me.last_name ?? me.email ?? null),
             roleId: null,
             // REG (sc-325) Fix A (ronda 10) — el nombre del rol
             // llega por la misma llamada a `/me`. Antes de este

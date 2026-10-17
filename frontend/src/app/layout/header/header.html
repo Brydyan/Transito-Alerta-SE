@@ -13,21 +13,13 @@
 
     <!-- Right Side Icons -->
     <div class="flex items-center ml-auto gap-4">
-      <button class="btn-icon p-1 text-slate-500 bg-transparent border-none" aria-label="Buscar">
-        <ui-icon name="search" [size]="20" />
-      </button>
-      <button
-        class="btn-icon p-1 text-slate-500 bg-transparent border-none relative"
-        aria-label="Notificaciones"
-      >
-        <ui-icon name="bell" [size]="20" />
-        <!-- Optional notification dot -->
-        <span
-          class="absolute top-1 right-1 w-2.5 h-2.5 bg-prio-high border-2 border-white rounded-full"
-        >
-          <span class="sr-only">New alerts</span>
-        </span>
-      </button>
+      <!-- 2026-10-17-header-notification-dropdown — antes había un
+           botón campana estático con punto rojo hardcodeado. Ahora es
+           un dropdown funcional (badge dinámico, lista, navegación
+           al click, "Marcar todo como leído"). El ícono de lupa
+           (`<button aria-label="Buscar">`) se quitó: no tenía handler
+           y la búsqueda no es scope del header actual. -->
+      <app-notification-dropdown />
       <button class="btn-icon p-1 text-slate-500 bg-transparent border-none" aria-label="Modo oscuro">
         <ui-icon name="moon" [size]="20" />
       </button>
