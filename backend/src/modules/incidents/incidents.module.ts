@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { GeofencingModule } from '../geofencing/geofencing.module';
+import { IncidentCategoriesModule } from '../incident-categories/incident-categories.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { AuditModule } from '../audit/audit.module';
 import { StorageModule } from '../../infra/storage/storage.module';
@@ -61,6 +62,7 @@ import { RevealService } from './reveal.service';
 @Module({
   imports: [
     GeofencingModule,
+    IncidentCategoriesModule,
     OrganizationsModule,
     StorageModule,
     // AUD (sc-327): el módulo importa `AuditModule` para registrar
