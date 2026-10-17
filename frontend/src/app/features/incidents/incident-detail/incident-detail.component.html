@@ -158,4 +158,17 @@
       (commentsChanged)="onCommentsChanged($event)"
     />
   </ui-card>
+
+  <!-- 2026-10-17-F7-dispatch-ui — modal de despacho / reasignación
+       (F7 emergency-dispatch). Se abre cuando el admin_org hace
+       click en "Asignar". El dialog se cierra solo después de un
+       submit exitoso; en error mantiene el dialog abierto para que
+       el admin corrija el override_reason o reintente. -->
+  <app-assign-dialog
+    [incidentId]="inc.id"
+    [incidentPriority]="inc.priority"
+    [existingAssignmentId]="existingAssignmentId()"
+    [open]="assignDialogOpen()"
+    (closed)="onAssignDialogClosed()"
+  />
 }
