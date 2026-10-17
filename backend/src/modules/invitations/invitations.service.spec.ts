@@ -152,7 +152,7 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
       expect(call.data.recipientEmail).toBe('a@b.com');
       expect(typeof call.data.expiresAt).toBe('string');
       expect(call.data.expiresAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    });
+});
 
     // 2026-10-16-invitations-shadow-guard (Opción A) — el flujo
     // normal SIEMPRE llama `POST /api/users` antes que

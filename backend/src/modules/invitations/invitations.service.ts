@@ -159,7 +159,7 @@ export class InvitationsService {
       ? (await this.organizationRepo.findOne({ where: { id: input.organizationId } }))?.name ?? null
       : null;
 
-    // 2026-10-10-user-onboarding-telegram-tour (D2/R3/R6) — el shadow
+// 2026-10-10-user-onboarding-telegram-tour (D2/R3/R6) — el shadow
     // user row fue creado por `adminCreate`; lo consultamos arriba
     // (línea ~120) para que el link token mapee al mismo id que
     // sobrevive `redeem`. La guarda 422 SHADOW_USER_NOT_FOUND ya
@@ -222,7 +222,7 @@ export class InvitationsService {
         // saludo y la tarjeta de detalles. Todos pasan por
         // `escapeHtml()` / `field()` en `mail-templates.ts` (R13).
         inviterName,
-        recipientFirstName: shadowRows[0]?.first_name ?? '',
+recipientFirstName: shadowRows[0]?.first_name ?? '',
         recipientEmail: input.email,
         // ISO 8601 — `mail-templates.ts` lo formatea con `Intl` a
         // la zona horaria de Ecuador. Vacío sólo si la fila no
