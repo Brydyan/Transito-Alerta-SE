@@ -122,8 +122,13 @@ export class UsersController {
 
   @Get(':id')
   @RequirePermission('READ')
-  adminShow(@Param('id', ParseUUIDPipe) id: string): Promise<UserEntity> {
-    return this.usersService.findById(id);
+  adminShow(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<UserEntity & { hasPendingInvitation: boolean }> {
+    // 2026-10-16-resend-invitation (D1) — el form de edición usa el
+    // flag `hasPendingInvitation` para mostrar el botón "Reenviar
+    // invitación". El EXISTS extra no afecta a callers no-admin.
+    return this.usersService.findByIdWithPendingFlag(id);
   }
 
   /**

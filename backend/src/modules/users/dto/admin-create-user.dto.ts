@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 /**
  * T5.6 — body for `POST /api/users` (admin create). Delegates the actual
@@ -66,4 +66,21 @@ export class AdminCreateUserDto {
   @IsString()
   @MaxLength(50)
   last_name?: string;
+
+  /**
+   * 2026-10-16-new-user-form-notif-channel (D1) — canal preferido
+   * del nuevo staff user. El form lo manda solo cuando el caller es
+   * Master (`isMaster()` gate en el frontend); el backend acepta el
+   * campo y lo persiste sin chequeos extra porque el DTO ya filtra
+   * por `@IsIn(['email', 'telegram'])`. Mismo patrón que
+   * `AdminUpdateUserDto.preferred_notification_channel`.
+   *
+   * Default: la columna DB (`preferred_notification_channel`) tiene
+   * DEFAULT `'email'` desde migration 0033; el service hace fallback
+   * explícito a `'email'` cuando el caller omite el campo (mismo
+   * contrato que el update).
+   */
+  @IsOptional()
+  @IsIn(['email', 'telegram'])
+  preferred_notification_channel?: 'email' | 'telegram';
 }
