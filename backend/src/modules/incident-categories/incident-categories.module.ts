@@ -16,6 +16,6 @@ import { IncidentCategoriesService } from './incident-categories.service';
   imports: [TypeOrmModule.forFeature([IncidentCategoryEntity])],
   controllers: [IncidentCategoriesController],
   providers: [IncidentCategoriesService, IncidentCategoriesRepository],
-  exports: [IncidentCategoriesService],
+  exports: [IncidentCategoriesService, IncidentCategoriesRepository],
 })
 export class IncidentCategoriesModule {}

@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AuthContext } from '../../shared/authz/subject-scope';
 import { FeedQueryDto } from './dto/feed-query.dto';
 import { FeedItemDto, FeedResponseDto } from './dto/stats-response.dto';
+import { IncidentCategoriesRepository } from '../incident-categories/incident-categories.repository';
 
 const STAFF_ROLES = ['master', 'admin_org', 'operator_org', 'agent_system'];
 const CITIZEN_FEED_KEY = 'feed:incidents';
@@ -16,6 +17,11 @@ export class IncidentFeedService {
   constructor(
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    // 2026-10-16-categories-chips-restructure — el feed filtra por
+    // categoría expandiendo al subárbol (root + descendientes) para
+    // que los incidents apunten a subcategorías cuando el caller
+    // selecciona la raíz. La CTE vive en el repo para no duplicar SQL.
+    private readonly categoriesRepository: IncidentCategoriesRepository,
   ) {}
 
   isStaffRole(user: AuthContext): boolean {
@@ -81,8 +87,21 @@ export class IncidentFeedService {
       }
     }
     if (query.incident_category_id) {
-      params.push(query.incident_category_id);
-      conditions.push(`i.category_id = $${params.length}`);
+      // 2026-10-16-categories-chips-restructure — expandir al subárbol.
+      // Los incidents apuntan a subcategorías, no a raíces: una
+      // equality exacta devolvería 0 filas para "Siniestros Viales".
+      // El patrón espejo de `resolveZoneHierarchy` (líneas 71–82):
+      // CTE → array de IDs → `i.category_id = ANY($N::uuid[])`.
+      // Array vacío (categoría deleted entre render y request) →
+      // omitir la cláusula en lugar de agregar un `ANY([])` que
+      // devolvería 0 filas siempre.
+      const categoryIds = await this.categoriesRepository.getDescendantIds(
+        query.incident_category_id,
+      );
+      if (categoryIds.length > 0) {
+        params.push(categoryIds);
+        conditions.push(`i.category_id = ANY($${params.length}::uuid[])`);
+      }
     }
     if (query.bbox) {
       const parts = query.bbox.split(',').map(Number);
@@ -184,7 +203,19 @@ export class IncidentFeedService {
       // getStaffFeed: apply priority and incident_category_id to the
       // cached feed as well.
       if (query.priority) items = items.filter((i) => i.priority === query.priority);
-      if (query.incident_category_id) items = items.filter((i) => i.incident_category_id === query.incident_category_id);
+      // 2026-10-16-categories-chips-restructure — el filtro del cache
+      // también necesita expansión (los items apuntan a subcategorías).
+      // Si la CTE devuelve [] (categoría deleted), no se aplica el
+      // filtro para evitar false-positive.
+      if (query.incident_category_id) {
+        const categoryIds = await this.categoriesRepository.getDescendantIds(
+          query.incident_category_id,
+        );
+        if (categoryIds.length > 0) {
+          const categoryIdSet = new Set(categoryIds);
+          items = items.filter((i) => i.incident_category_id && categoryIdSet.has(i.incident_category_id));
+        }
+      }
       if (query.zone_id) {
         // Fix: resolve zone hierarchy to include all child zones
         const zoneIds = await this.resolveZoneHierarchy(query.zone_id);
@@ -207,7 +238,19 @@ export class IncidentFeedService {
     // getStaffFeed: apply priority and incident_category_id to the
     // SQL fallback too.
     if (query.priority) { params.push(query.priority); conditions.push(`i.priority = $${params.length}`); }
-    if (query.incident_category_id) { params.push(query.incident_category_id); conditions.push(`i.category_id = $${params.length}`); }
+    // 2026-10-16-categories-chips-restructure — expandir al subárbol.
+    // Mismo patrón que `getStaffFeed` (líneas ~89-110) y que el
+    // filter del cache (líneas ~206). Array vacío (categoría deleted)
+    // → no se agrega la cláusula para evitar 0-row siempre.
+    if (query.incident_category_id) {
+      const categoryIds = await this.categoriesRepository.getDescendantIds(
+        query.incident_category_id,
+      );
+      if (categoryIds.length > 0) {
+        params.push(categoryIds);
+        conditions.push(`i.category_id = ANY($${params.length}::uuid[])`);
+      }
+    }
     if (query.zone_id) {
       // Fix: resolve zone hierarchy to include all child zones
       const zoneIds = await this.resolveZoneHierarchy(query.zone_id);

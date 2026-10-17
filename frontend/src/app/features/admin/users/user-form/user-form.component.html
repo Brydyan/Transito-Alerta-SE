@@ -285,6 +285,34 @@
                   </small>
                 </div>
               </div>
+
+              <!-- 2026-10-16-resend-invitation (D4, D5) — botón
+                   visible sólo cuando (a) el caller es Master — ya
+                   estamos dentro del `@if (isMaster() && isEditing())`
+                   padre, (b) el target tiene una invitación pendiente
+                   (`hasPendingInvitation`). El gate doble (Master +
+                   hasPendingInvitation) evita que aparezca para
+                   usuarios desactivados (también `isActive = false`
+                   pero ya tienen cuenta). El reenvío llama
+                   `POST /api/admin/users/invite` con el mismo email/
+                   roleId/orgId — el backend mintea un token nuevo y
+                   manda el correo con el styled template. -->
+              @if (hasPendingInvitation()) {
+                <div class="mt-4 flex flex-col gap-2" data-testid="resend-invitation-block">
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary font-medium"
+                    data-testid="btn-resend-invitation"
+                    [disabled]="isResending()"
+                    (click)="resendInvitation()"
+                  >
+                    {{ isResending() ? 'Reenviando…' : 'Reenviar invitación' }}
+                  </button>
+                  <small class="text-slate-500">
+                    El usuario aún no ha aceptado su invitación.
+                  </small>
+                </div>
+              }
             </div>
           }
 

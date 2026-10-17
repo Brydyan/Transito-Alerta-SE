@@ -220,6 +220,13 @@ describe('Invitations + Sessions — real-infra integration (T3.6)', () => {
       const role = await roleId('operator_org');
       const email = `outbox-invite-${randomUUID()}@example.com`;
 
+      // createInvitation requiere un shadow user (is_active = FALSE) con ese
+      // email — el flujo real lo crea vía POST /api/users antes del invite.
+      await env.pg.query(
+        `INSERT INTO users (id, email, is_active) VALUES ($1, $2, FALSE)`,
+        [randomUUID(), email],
+      );
+
       const actor: AuthContext = {
         userId: inviterId,
         permissions: ['CREATE invitations'],

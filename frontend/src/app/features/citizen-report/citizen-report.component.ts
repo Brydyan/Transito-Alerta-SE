@@ -54,7 +54,15 @@ export class CitizenReportComponent implements OnInit, OnDestroy {
     this.form = this.fb.group({
       title: ['', Validators.required],
       description: [''],
-      priority: ['medium', Validators.required],
+      // 2026-10-16-citizen-report-step-restructure — `priority` ya
+      // no es seleccionable por el ciudadano (era engañoso: la
+      // prioridad se deriva de la subcategoría). El control
+      // sigue existiendo en el form porque el backend lo necesita
+      // y porque `categoryId.valueChanges` (más abajo) lo popula
+      // automáticamente desde `cat.priority`. Sin `Validators.required`
+      // — el default 'medium' es un placeholder mientras el usuario
+      // no haya elegido categoría.
+      priority: ['medium'],
       categoryId: ['', Validators.required],
       isAnonymous: [false]
     });

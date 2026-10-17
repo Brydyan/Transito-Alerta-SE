@@ -677,6 +677,37 @@ describe('UsersService', () => {
       // from the existing rows.
       expect(userRepo.findOne).not.toHaveBeenCalled();
     });
+
+    // 2026-10-16 — `preferred_notification_channel` en alta. La columna
+    // existe desde migración 0033 con DEFAULT 'email'. El DTO acepta
+    // el campo opcional ('email' | 'telegram'); el service debe
+    // persistirlo en la entity (sin esto el form es paralelo al backend
+    // y el canal nunca se guarda).
+    it('persists preferred_notification_channel: "telegram" onto the shadow row', async () => {
+      await service.adminCreate(
+        {
+          email: 'juan@municipio.ec',
+          preferred_notification_channel: 'telegram',
+        },
+        'admin-actor',
+      );
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.preferredNotificationChannel).toBe('telegram');
+    });
+
+    it('defaults preferred_notification_channel to "email" when the DTO omits the field', async () => {
+      await service.adminCreate(
+        { email: 'juan@municipio.ec' },
+        'admin-actor',
+      );
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      // Mirror del DB DEFAULT — el shadow se crea con 'email' cuando
+      // el caller no envía nada. `null` haría que la columna caiga al
+      // DEFAULT Postgres (también 'email'), pero explícito es mejor.
+      expect(createArg.preferredNotificationChannel).toBe('email');
+    });
   });
 
   // F7 — 2026-10-10-user-onboarding-telegram-tour (D1). The role-policy
@@ -1356,6 +1387,65 @@ describe('UsersService', () => {
 
       // La guardia corre antes del mint — un 404 nunca emite token.
       expect(telegramLinkService.issueFor).not.toHaveBeenCalled();
+    });
+  });
+
+  // 2026-10-16-resend-invitation (D1) — `findByIdWithPendingFlag(id)`
+  // devuelve `UserEntity & { hasPendingInvitation: boolean }`. El flag
+  // se computa con un EXISTS contra la tabla `invitations` filtrada
+  // por email + accepted_at IS NULL + expires_at > NOW(). El método es
+  // separado de `findById` (que siguen usando login/sessions/etc) para
+  // no pagar el costo del EXISTS en cada lookup no-admin.
+  describe('findByIdWithPendingFlag() — hasPendingInvitation (2026-10-16)', () => {
+    const TARGET_USER = {
+      id: 'shadow-1',
+      email: 'shadow@b.com',
+      firstName: 'Shadow',
+      lastName: 'User',
+      roleId: 'role-1',
+    };
+
+    it('returns hasPendingInvitation: true when an unexpired pending invitation exists', async () => {
+      userRepo.findOne.mockResolvedValueOnce(TARGET_USER);
+      dataSource.query.mockResolvedValueOnce([{ value: true }]);
+
+      const result = await service.findByIdWithPendingFlag('shadow-1');
+
+      expect(result).toEqual({ ...TARGET_USER, hasPendingInvitation: true });
+      expect(dataSource.query).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT EXISTS'),
+        ['shadow@b.com'],
+      );
+    });
+
+    it('returns hasPendingInvitation: false when no invitation exists', async () => {
+      userRepo.findOne.mockResolvedValueOnce(TARGET_USER);
+      dataSource.query.mockResolvedValueOnce([{ value: false }]);
+
+      const result = await service.findByIdWithPendingFlag('shadow-1');
+
+      expect(result.hasPendingInvitation).toBe(false);
+    });
+
+    it('returns hasPendingInvitation: false when the only invitation is expired', async () => {
+      // El EXISTS filtra `expires_at > NOW()` server-side — la query
+      // devuelve `false` aunque la tabla tenga filas expiradas.
+      userRepo.findOne.mockResolvedValueOnce(TARGET_USER);
+      dataSource.query.mockResolvedValueOnce([{ value: false }]);
+
+      const result = await service.findByIdWithPendingFlag('shadow-1');
+
+      expect(result.hasPendingInvitation).toBe(false);
+    });
+
+    it('throws NotFoundException when the user does not exist', async () => {
+      userRepo.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.findByIdWithPendingFlag('missing'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      // Nunca consultamos invitations si el user no existe.
+      expect(dataSource.query).not.toHaveBeenCalled();
     });
   });
 });

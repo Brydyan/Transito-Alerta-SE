@@ -91,6 +91,32 @@ export class UsersService {
   }
 
   /**
+   * 2026-10-16-resend-invitation (D1) — variante de `findById` que
+   * además calcula `hasPendingInvitation` para alimentar el botón
+   * "Reenviar invitación" del `UserFormComponent`. El EXISTS filtra
+   * `accepted_at IS NULL AND expires_at > NOW()` — sólo cuenta
+   * invitaciones realmente vivas (no expiradas, no consumidas).
+   *
+   * Separado de `findById` para que el costo del EXISTS no se pague
+   * en cada lookup no-admin (login, sessions, etc).
+   */
+  async findByIdWithPendingFlag(
+    id: string,
+  ): Promise<UserEntity & { hasPendingInvitation: boolean }> {
+    const user = await this.findById(id);
+    const rows = await this.dataSource.query<Array<{ value: boolean }>>(
+      `SELECT EXISTS (
+         SELECT 1 FROM invitations
+           WHERE email = $1
+             AND accepted_at IS NULL
+             AND expires_at > NOW()
+       ) AS value`,
+      [user.email],
+    );
+    return { ...user, hasPendingInvitation: rows[0]?.value === true };
+  }
+
+  /**
    * T5.4 — reference data for user-management forms.
    * System admins see every role and every org. Everyone else gets the
    * system-only roles filtered out and only their own organization.
@@ -491,6 +517,14 @@ export class UsersService {
       isActive: false,
       permissions,
       permissionVersion,
+      // 2026-10-16-new-user-form-notif-channel (D1) — persistir el
+      // canal preferido que el form envía solo cuando el caller es
+      // Master. La columna DB tiene DEFAULT `'email'` desde migración
+      // 0033; el fallback explícito mantiene el contrato simétrico
+      // con `adminUpdate` (que también defaulta a `'email'`) y evita
+      // que un DTO malformado quede con `null` y dispare el DEFAULT
+      // de Postgres en lugar del valor pensado por el caller.
+      preferredNotificationChannel: dto.preferred_notification_channel ?? 'email',
     });
     const saved = await this.userRepo.save(user);
     // 2026-10-16 — AUD (sc-327) — CREATE_USER. We audit AFTER the

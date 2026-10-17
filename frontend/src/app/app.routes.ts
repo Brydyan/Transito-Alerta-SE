@@ -27,6 +27,31 @@ export const routes: Routes = [
       ),
     canActivate: [guestGuard],
   },
+  // 2026-10-16-forgot-reset-password-flow — "¿Olvidaste tu
+  // contraseña?" (raíz, no `/auth/`). `guestGuard` porque el
+  // visitante llega sin sesión; un usuario autenticado cae al
+  // dashboard (decisión coherente con `login` y `registro`).
+  {
+    path: 'forgot-password',
+    loadComponent: () =>
+      import(
+        './features/auth/forgot-password/forgot-password.component'
+      ).then((m) => m.ForgotPasswordComponent),
+    canActivate: [guestGuard],
+  },
+  // 2026-10-16-forgot-reset-password-flow — destino del link
+  // del email (raíz, no `/auth/`). SIN `guestGuard` porque un
+  // usuario autenticado que cambia la contraseña desde su perfil
+  // también puede terminar acá — la pantalla deshabilita el form
+  // si no hay token, pero el guard de ruta no aplica a
+  // autenticados.
+  {
+    path: 'reset-password',
+    loadComponent: () =>
+      import(
+        './features/auth/reset-password/reset-password.component'
+      ).then((m) => m.ResetPasswordComponent),
+  },
   // REG (sc-325) — Fix 9 (ronda 6): destino de la navegación de
   // `register.component.ts:onSubmit` al alta exitosa. Sin esta
   // ruta, el ciudadano cae en el comodín `path: '**'` y termina

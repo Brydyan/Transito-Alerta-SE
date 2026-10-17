@@ -29,11 +29,22 @@ describe('IncidentFeedService', () => {
   let ds: { query: jest.Mock };
   let cache: MockCache;
   let service: IncidentFeedService;
+  // 2026-10-16-categories-chips-restructure — expuesto a los tests
+  // para que puedan sobreescribir el comportamiento default de la
+  // CTE con `mockResolvedValueOnce`.
+  let categoriesRepository: { getDescendantIds: jest.Mock };
 
   beforeEach(() => {
     ds = { query: jest.fn() };
     cache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn() };
-    service = new IncidentFeedService(ds as unknown as DataSource, cache as unknown as never);
+    categoriesRepository = {
+      getDescendantIds: jest.fn().mockResolvedValue([]),
+    };
+    service = new IncidentFeedService(
+      ds as unknown as DataSource,
+      cache as unknown as never,
+      categoriesRepository as never,
+    );
   });
 
   describe('getStaffFeed', () => {
@@ -228,6 +239,12 @@ describe('IncidentFeedService', () => {
         cachedItem({ id: 'r-2', incident_category_id: 'cat-B' }),
         cachedItem({ id: 'r-3', incident_category_id: 'cat-A' }),
       ]);
+      // 2026-10-16-categories-chips-restructure — el filter del
+      // cache también expande al subárbol vía `getDescendantIds`.
+      // Sin esto, seleccionar la raíz "cat-A" no matchearía si el
+      // caller pasó un filter de raíz con `parent_id` que apunta a
+      // subcategorías.
+      categoriesRepository.getDescendantIds.mockResolvedValueOnce(['cat-A']);
 
       const result = await service.getCitizenFeed({
         incident_category_id: 'cat-A',
@@ -278,7 +295,12 @@ describe('IncidentFeedService', () => {
     it('fallback: SQL includes i.priority and i.category_id clauses', async () => {
       cache.get.mockResolvedValue(undefined);
 
-      // No zone_id provided, so resolveZoneHierarchy is skipped.
+      // 2026-10-16-categories-chips-restructure — el filtro de
+      // categoría pasa por `categoriesRepository.getDescendantIds()`
+      // y se aplica con `i.category_id = ANY($N::uuid[])`, no con
+      // equality exacta. La subcategoría hoja devuelve 1 sólo ID —
+      // el ANY recibe un array de un elemento.
+      categoriesRepository.getDescendantIds.mockResolvedValueOnce(['cat-X']);
       ds.query
         .mockResolvedValueOnce([]) // SELECT (call 0)
         .mockResolvedValueOnce([{ count: '0' }]); // COUNT (call 1)
@@ -294,9 +316,99 @@ describe('IncidentFeedService', () => {
       const selectParams = (ds.query.mock.calls[0] as [string, unknown[]])[1];
 
       expect(selectSql).toContain('i.priority = $');
-      expect(selectSql).toContain('i.category_id = $');
+      expect(selectSql).toContain('i.category_id = ANY($');
+      expect(selectSql).toContain('::uuid[]');
       expect(selectParams).toContain('critical');
-      expect(selectParams).toContain('cat-X');
+      expect(selectParams).toContainEqual(['cat-X']); // ANY espera array
+    });
+  });
+
+  // 2026-10-16-categories-chips-restructure — el filtro de categorías
+  // raíz debe expandir al subárbol entero via la CTE recursiva
+  // (`IncidentCategoriesRepository.getDescendantIds`). Sin esto, los
+  // incidents que apuntan a subcategorías ("Choque simple", etc.)
+  // quedan fuera cuando el usuario selecciona la raíz.
+  describe('categories hierarchy expansion (2026-10-16)', () => {
+    let categoriesRepository: { getDescendantIds: jest.Mock };
+
+    beforeEach(() => {
+      categoriesRepository = {
+        getDescendantIds: jest.fn().mockResolvedValue([]),
+      };
+      service = new IncidentFeedService(
+        ds as unknown as DataSource,
+        cache as unknown as never,
+        categoriesRepository as never,
+      );
+    });
+
+    it('raíz: expande a root + 3 children → SQL usa ANY con los 4 IDs', async () => {
+      categoriesRepository.getDescendantIds.mockResolvedValueOnce([
+        'cat-root',
+        'cat-child-1',
+        'cat-child-2',
+        'cat-child-3',
+      ]);
+      ds.query
+        .mockResolvedValueOnce([]) // SELECT
+        .mockResolvedValueOnce([{ count: '0' }]); // COUNT
+
+      await service.getStaffFeed({
+        incident_category_id: 'cat-root',
+        page: 1,
+        per_page: 10,
+      } as Filters, ORG_OPERATOR);
+
+      // El primer mockResolvedValueOnce NO es una query al servicio
+      // — es la respuesta de getDescendantIds. Las queries reales
+      // son las llamadas 2 y 3 (SELECT + COUNT).
+      const selectSql = (ds.query.mock.calls[0] as [string, unknown[]])[0];
+      const selectParams = (ds.query.mock.calls[0] as [string, unknown[]])[1];
+      expect(selectSql).toContain('i.category_id = ANY($');
+      expect(selectSql).toContain('::uuid[]');
+      expect(selectParams).toContainEqual([
+        'cat-root',
+        'cat-child-1',
+        'cat-child-2',
+        'cat-child-3',
+      ]);
+      expect(categoriesRepository.getDescendantIds).toHaveBeenCalledWith('cat-root');
+    });
+
+    it('subcategoría directamente: devuelve 1 ID (self) → SQL usa ANY con 1 elemento', async () => {
+      categoriesRepository.getDescendantIds.mockResolvedValueOnce(['cat-leaf']);
+      ds.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ count: '0' }]);
+
+      await service.getStaffFeed({
+        incident_category_id: 'cat-leaf',
+        page: 1,
+        per_page: 10,
+      } as Filters, ORG_OPERATOR);
+
+      const selectParams = (ds.query.mock.calls[0] as [string, unknown[]])[1];
+      expect(selectParams).toContainEqual(['cat-leaf']);
+    });
+
+    it('getDescendantIds devuelve []: no se agrega filtro de categoría (no rompe el query)', async () => {
+      // Categoría marcada como deleted entre el render del chip y
+      // el request → la CTE devuelve 0 IDs. El filtro no se agrega
+      // al WHERE (un `category_id = ANY()` con array vacío daría
+      // 0 resultados siempre, false-positive para el caller).
+      categoriesRepository.getDescendantIds.mockResolvedValueOnce([]);
+      ds.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ count: '0' }]);
+
+      await service.getStaffFeed({
+        incident_category_id: 'cat-deleted',
+        page: 1,
+        per_page: 10,
+      } as Filters, ORG_OPERATOR);
+
+      const selectSql = (ds.query.mock.calls[0] as [string, unknown[]])[0];
+      expect(selectSql).not.toContain('i.category_id = ANY($');
     });
   });
 });

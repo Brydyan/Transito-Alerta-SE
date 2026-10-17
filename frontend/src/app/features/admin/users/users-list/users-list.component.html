@@ -63,7 +63,7 @@
       <tr>
         <th>Foto</th>
         <th>Nombre completo</th>
-        <th>Email / Contacto</th>
+        <th>Email</th>
         <th>Rol asignado</th>
         <th>Organización</th>
         <th>Estado</th>
@@ -88,13 +88,9 @@
           </td>
           <td>
             <div class="ui-table-title">{{ user.nombres }} {{ user.apellidos }}</div>
-            <div class="ui-table-subtitle">ID #{{ user.usuarioId }}</div>
           </td>
           <td>
             <div class="ui-table-title">{{ user.email }}</div>
-            @if (user.telefono) {
-              <div class="ui-table-subtitle">{{ user.telefono }}</div>
-            }
           </td>
           <td>
             @if (user.rol) {

@@ -188,6 +188,31 @@ export class AuthService {
       .pipe(catchError((err) => this.handleError(err)));
   }
 
+  // 2026-10-16-forgot-reset-password-flow — inicio del flow
+  // "¿Olvidaste tu contraseña?". El backend responde SIEMPRE 200
+  // (design D9) para no leakear si el email existe o no — la
+  // pantalla muestra el mismo mensaje genérico en ambos casos.
+  // El `http.post` se subscribe al final del pipe; el componente
+  // no necesita lógica adicional de errores (4xx no debería
+  // ocurrir en flujo normal; si ocurre, el `catchError` global
+  // lo formatea).
+  requestPasswordReset(email: string): Observable<void> {
+    return this.http
+      .post<void>(`${this.API_URL}/password-reset`, { email })
+      .pipe(catchError((err) => this.handleError(err)));
+  }
+
+  // 2026-10-16-forgot-reset-password-flow — confirmación del flow.
+  // El backend rota `password_hash`, consume el token (one-shot)
+  // y revoca todas las sesiones activas del usuario. 410 si el
+  // token expiró o ya se usó, 404 si el token nunca existió. La
+  // pantalla mapea cada status code a un mensaje dedicado.
+  confirmPasswordReset(token: string, password: string): Observable<void> {
+    return this.http
+      .post<void>(`${this.API_URL}/password-reset/confirm`, { token, password })
+      .pipe(catchError((err) => this.handleError(err)));
+  }
+
   // ───── A.3 — Refresh (single-flight, body-based per backend contract) ─────
   refresh(): Observable<AuthTokens> {
     if (this.refreshInProgress$) {

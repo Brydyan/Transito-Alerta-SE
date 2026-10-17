@@ -2,14 +2,24 @@ import { Component, EventEmitter, OnInit, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IncidentStatus, IncidentListFilters } from '../../../../../core/models/incident.model';
 import { IncidentCategoryService } from '../../../../catalogs/incident-categories/services/incident-category.service';
-import { CategoryTreeNodeComponent, CategoryNode } from './category-tree-node.component';
+import { IIncidentCategory } from '../../../../catalogs/incident-categories/interfaces/iincident-category.interface';
 
-export type { CategoryNode };
-
+/**
+ * FeedFiltersComponent — citizen feed (`/app/inicio`).
+ *
+ * 2026-10-16-categories-chips-restructure — el filtro CATEGORÍAS pasó
+ * de un árbol recursivo tri-state (CategoryTreeNodeComponent) a
+ * chips seleccionables con las 5 categorías raíz, con el mismo
+ * patrón visual que los chips de estado. La selección emite
+ * `incident_category_id` al backend (antes era un DEBT silenciado);
+ * el backend (`IncidentFeedService`) expande la raíz al subárbol
+ * completo via CTE para que los incidents que apuntan a
+ * subcategorías también matcheen.
+ */
 @Component({
   selector: 'app-feed-filters',
   standalone: true,
-  imports: [CommonModule, CategoryTreeNodeComponent],
+  imports: [CommonModule],
   templateUrl: './feed-filters.component.html'
 })
 export class FeedFiltersComponent implements OnInit {
@@ -21,105 +31,55 @@ export class FeedFiltersComponent implements OnInit {
     { label: 'Pendiente', value: 'pending' },
     { label: 'En proceso', value: 'in_progress' },
     { label: 'Resuelto', value: 'resolved' },
-    // closed not usually shown in active feed, but we can add it if needed
   ];
 
   selectedStatus: IncidentStatus | undefined = undefined;
-  
-  categoryNodes = signal<CategoryNode[]>([]);
+
+  /**
+   * 2026-10-16 — sólo las categorías raíz (`parent_id === null`)
+   * son visibles como chips. Subcategorías se manejan via la
+   * expansión CTE del backend, no en el cliente. Cargar las 500
+   * (per_page) y filtrar en cliente es trivial; armar el árbol
+   * recursivo previo era O(n²) sin ganancia real.
+   */
+  readonly rootCategories = signal<IIncidentCategory[]>([]);
+  readonly selectedCategoryId = signal<string | null>(null);
 
   constructor(private categoryService: IncidentCategoryService) {}
 
   ngOnInit() {
     this.categoryService.list({ per_page: 500 }).subscribe((result) => {
-      this.categoryNodes.set(this.buildTree(result.items));
+      this.rootCategories.set(
+        result.items.filter((c) => c.parent_id === null),
+      );
     });
   }
 
-  buildTree(items: import('../../../../catalogs/incident-categories/interfaces/iincident-category.interface').IIncidentCategory[]): CategoryNode[] {
-    const map = new Map<string, CategoryNode>();
-    const roots: CategoryNode[] = [];
-    
-    // Create nodes
-    for (const item of items) {
-      map.set(item.id, { category: item, children: [], selected: false, indeterminate: false });
-    }
-    
-    // Link nodes
-    for (const item of items) {
-      const node = map.get(item.id)!;
-      if (item.parent_id && map.has(item.parent_id)) {
-        map.get(item.parent_id)!.children.push(node);
-      } else {
-        roots.push(node);
-      }
-    }
-    return roots;
-  }
-
-  setStatus(status: IncidentStatus | undefined) {
+  setStatus(status: IncidentStatus | undefined): void {
     this.selectedStatus = status;
     this.emitFilters();
   }
 
-  toggleNode(node: CategoryNode) {
-    node.selected = !node.selected;
-    node.indeterminate = false;
-    this.setChildrenState(node, node.selected);
-    this.updateParentsState();
+  /**
+   * Toggle de chip: si ya está seleccionado, deselecciona (null).
+   * Emite en ambos sentidos — `filtersChanged` siempre lleva el
+   * estado actual, no requiere que el consumer reste filtros.
+   */
+  setCategory(id: string): void {
+    this.selectedCategoryId.update((prev) => (prev === id ? null : id));
     this.emitFilters();
   }
 
-  setChildrenState(node: CategoryNode, selected: boolean) {
-    for (const child of node.children) {
-      child.selected = selected;
-      child.indeterminate = false;
-      this.setChildrenState(child, selected);
-    }
-  }
-
-  updateParentsState() {
-    for (const root of this.categoryNodes()) {
-      this.updateNodeState(root);
-    }
-  }
-
-  updateNodeState(node: CategoryNode): { all: boolean; any: boolean } {
-    if (node.children.length === 0) {
-      node.indeterminate = false;
-      return { all: node.selected, any: node.selected };
-    }
-
-    let all = true;
-    let any = false;
-
-    for (const child of node.children) {
-      const state = this.updateNodeState(child);
-      if (!state.all) all = false;
-      if (state.any) any = true;
-    }
-
-    if (all) {
-      node.selected = true;
-      node.indeterminate = false;
-    } else if (any) {
-      node.selected = false;
-      node.indeterminate = true;
-    } else {
-      node.selected = false;
-      node.indeterminate = false;
-    }
-
-    return { all, any };
-  }
-
-  emitFilters() {
-    const filters: IncidentListFilters = {};
-    if (this.selectedStatus) {
-      filters.status = this.selectedStatus;
-    }
-    // DEBT: when backend supports category_id, we extract selected IDs here.
-    // For now we just emit what is supported by the interface.
-    this.filtersChanged.emit(filters);
+  /**
+   * 2026-10-16 — el DEBT viejo desapareció. Wireamos
+   * `incident_category_id` directamente al output — el backend
+   * (`IncidentFeedService`) se encarga de expandir al subárbol
+   * vía `getDescendantIds`.
+   */
+  private emitFilters(): void {
+    this.filtersChanged.emit({
+      status: this.selectedStatus ?? undefined,
+      incident_category_id: this.selectedCategoryId() ?? undefined,
+    });
   }
 }

@@ -368,27 +368,52 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label for="new-user-initial-status" class="form-label">Cuenta</label>
-          <select
-            id="new-user-initial-status"
-            class="form-control"
-            disabled
-            title="Disponible en F7"
-            data-testid="select-initial-status"
+          <!-- 2026-10-16-new-user-form-notif-channel (D2) — la cuenta
+               NO es editable: `UsersService.adminCreate()` hardwirea
+               `isActive: false` por diseño (shadow pending hasta que
+               el destinatario acepte la invitación via `redeem()`).
+               Si mandáramos `is_active: true` acá, el flujo
+               `POST /api/admin/users/invite` devolvería 409
+               `EMAIL_ALREADY_CLAIMED` porque `findByClaimedEmail`
+               filtra `is_active = TRUE`. El campo queda como
+               información visible, sin control editable. -->
+          <p
+            class="form-hint"
+            style="margin:0;font-size:0.85rem;color:#6B7280"
+            data-testid="hint-account-status"
           >
-            <option>Activo</option>
-          </select>
+            Se activará al aceptar la invitación
+          </p>
         </div>
         <div>
           <label for="new-user-channel" class="form-label">Canal de notificaciones preferido</label>
+          <!-- 2026-10-16-new-user-form-notif-channel (D1) — el canal
+               se habilita para Master. El select usa `[disabled]`
+               con el gate `isMaster()`; el backend acepta el campo
+               (validación `@IsIn(['email','telegram'])` en el DTO),
+               pero el form sólo lo manda al submit cuando el caller
+               es Master (`...(this.isMaster() && {...})` en
+               `onSubmit()`). Defense in depth. -->
           <select
             id="new-user-channel"
             class="form-control"
-            disabled
-            title="Disponible en F7"
             data-testid="select-channel"
+            [value]="formData().notificationChannel"
+            [disabled]="!isMaster()"
+            (change)="onNotificationChannelChange($any($event.target).value)"
           >
-            <option>Correo Electrónico</option>
+            <option value="email">Correo Electrónico</option>
+            <option value="telegram">Telegram</option>
           </select>
+          @if (!isMaster()) {
+            <p
+              class="form-hint"
+              style="margin:4px 0 0;font-size:0.8rem;color:#9CA3AF"
+              data-testid="hint-channel-master-only"
+            >
+              Solo el Master puede configurar este campo
+            </p>
+          }
         </div>
       </div>
     </div>

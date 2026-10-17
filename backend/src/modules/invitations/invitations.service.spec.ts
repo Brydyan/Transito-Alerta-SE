@@ -152,6 +152,49 @@ describe('InvitationsService (T3.6 design §3.5, mocked repository)', () => {
       expect(call.data.recipientEmail).toBe('a@b.com');
       expect(typeof call.data.expiresAt).toBe('string');
       expect(call.data.expiresAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+});
+
+    // 2026-10-16-invitations-shadow-guard (Opción A) — el flujo
+    // normal SIEMPRE llama `POST /api/users` antes que
+    // `POST /api/admin/users/invite`, así que el shadow existe. Pero
+    // si el caller skipea el alta y manda el invite directo, el
+    // token Telegram saldría `null` y la sección de Telegram se omite
+    // silenciosamente en el correo — UX rota. Esta guarda falla
+    // rápido con 422 antes de generar token, mandar el correo, o
+    // dejar una fila pending colgada en la tabla.
+    it('throws 422 SHADOW_USER_NOT_FOUND when no shadow user exists for the email', async () => {
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operator_org' });
+      organizationRepo.findOne.mockResolvedValue({ id: 'org-1', name: 'Santa Elena' });
+      invitationsRepository.findByClaimedEmail.mockResolvedValue(null);
+      invitationsRepository.insertPending.mockResolvedValue({
+        id: 'inv-1',
+        email: 'orphan@x.com',
+        role_id: 'role-1',
+        organization_id: 'org-1',
+        expires_at: new Date(),
+        created_at: new Date(),
+      });
+      // 2026-10-10-user-onboarding-telegram-tour: shadow SELECT. Sin
+      // adminCreate previo, no hay row → `[]`. La guarda debe
+      // cortocircuitar con 422 antes de que se llame `issueFor`,
+      // `insertPending`, o `enqueue`.
+      dataSource.query.mockResolvedValueOnce([]);
+
+      await expect(
+        service.createInvitation(actor(), {
+          email: 'orphan@x.com',
+          roleId: 'role-1',
+          organizationId: 'org-1',
+        }),
+      ).rejects.toMatchObject({
+        status: 422,
+        response: { code: 'SHADOW_USER_NOT_FOUND' },
+      });
+
+      // La guarda corta ANTES de insertPending y ANTES del mail —
+      // sin token pending colgado, sin correo con token Telegram null.
+      expect(invitationsRepository.insertPending).not.toHaveBeenCalled();
+      expect(mailService.enqueue).not.toHaveBeenCalled();
     });
   });
 

@@ -20,7 +20,9 @@ import {
 } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { forkJoin, of, Subscription } from 'rxjs';
+import { finalize } from 'rxjs/operators';
 import { UsersService } from '../services/users.service';
+import { InvitationsService } from '../services/invitations.service';
 import {
   Role,
   PermissionItem,
@@ -66,6 +68,7 @@ export function ecuadorPhoneValidator(): ValidatorFn {
 })
 export class UserFormComponent implements OnInit, OnDestroy {
   private readonly usersService = inject(UsersService);
+  private readonly invitationsService = inject(InvitationsService);
   private readonly toastService = inject(ToastService);
   // 2026-10-15-user-status-notif-channel (S3) — confirm before
   // deactivating an active user. The dialog returns a Subject<boolean>;
@@ -114,6 +117,37 @@ export class UserFormComponent implements OnInit, OnDestroy {
     const caller = this.authService.currentUser()?.id;
     return !!caller && caller === this.userId;
   });
+
+  /**
+   * 2026-10-16-resend-invitation (D4) — gate del botón. Sólo visible
+   * cuando (a) el caller es Master, (b) estamos editando (no create),
+   * (c) el target tiene una invitación pendiente. La condición (c) se
+   * cumple sólo para shadow users — un usuario desactivado por Master
+   * (también `isActive = false`) NO tiene invitación pendiente, así
+   * que el botón no aparece (no tendría sentido reenviarle el mail).
+   *
+   * El flag se computa desde `userData()` (signal cargado por
+   * `loadUserData()`); `false` mientras no haya carga (default).
+   */
+  readonly hasPendingInvitation = computed<boolean>(() => {
+    return this.userData()?.hasPendingInvitation === true;
+  });
+
+  /**
+   * 2026-10-16-resend-invitation (D5) — `true` mientras la request de
+   * reenvío está en vuelo. Libera en `finalize()` así cubrimos éxito
+   * y error sin dos ramas duplicadas.
+   */
+  readonly isResending = signal<boolean>(false);
+
+  /**
+   * 2026-10-16-resend-invitation (D4) — copia del último `UserDetail`
+   * cargado por `loadUserData()`. La fuente de verdad para campos que
+   * NO viven en el `FormGroup` (ej. `hasPendingInvitation`, que el
+   * backend proyecta pero el form no edita — sólo lo lee para
+   * mostrar/ocultar el botón). `null` mientras no haya carga.
+   */
+  readonly userData = signal<UserDetail | null>(null);
 
   readonly isLoading = signal(false);
   readonly isSaving = signal(false);
@@ -221,6 +255,11 @@ export class UserFormComponent implements OnInit, OnDestroy {
         this.organizations.set(organizations);
 
         if (user) {
+          // 2026-10-16-resend-invitation (D4) — persistir el row
+          // completo en `userData` para que signals derivados
+          // (`hasPendingInvitation`) lean campos que NO viven en el
+          // FormGroup.
+          this.userData.set(user);
           if (user.avatar?.url) {
             this.avatarPreview.set(user.avatar.url);
           }
@@ -355,6 +394,42 @@ export class UserFormComponent implements OnInit, OnDestroy {
    * We also disable the toggle visually via `[disabled]` in the
    * template when `isSelfEdit()`.
    */
+
+  /**
+   * 2026-10-16-resend-invitation (D4) — reenvía la invitación al
+   * target actual llamando a `InvitationsService.invite()` (mismo
+   * endpoint que el alta inicial; el backend permite múltiples
+   * invitaciones pendientes para el mismo email y la guarda
+   * SHADOW_USER_NOT_FOUND sigue permitiendo el flujo normal —
+   * adminCreate persiste el shadow, así que reenviar siempre
+   * encuentra el row).
+   *
+   * El botón sólo es visible cuando `isMaster() && isEditing() &&
+   * hasPendingInvitation()` (gates en el template); el guard
+   * defensivo `if (!user) return` cubre el caso borde de que el
+   * signal aún no haya cargado el user (no debería pasar, pero
+   * cuesta cero).
+   *
+   * `finalize()` libera el spinner en ambos paths (éxito y error)
+   * — un solo lugar para el reset.
+   */
+  resendInvitation(): void {
+    const user = this.userData();
+    if (!user) return;
+    this.isResending.set(true);
+    this.invitationsService
+      .invite({
+        email: user.email,
+        roleId: user.rol?.rolId ?? null,
+        organizationId: user.organizationId ?? null,
+      })
+      .pipe(finalize(() => this.isResending.set(false)))
+      .subscribe({
+        next: () => this.toastService.success('Invitación reenviada correctamente.'),
+        error: () => this.toastService.error('No se pudo reenviar la invitación.'),
+      });
+  }
+
   onToggleActive(event: Event): void {
     const target = event.target as HTMLInputElement;
     const nextActive = target.checked;

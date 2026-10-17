@@ -67,6 +67,14 @@ describe('Invitations + password identity e2e (T3.6)', () => {
     const enqueueSpy = jest.spyOn(mailService, 'enqueue');
     const role = await roleId(roleName);
 
+    // createInvitation requiere un shadow user (is_active = FALSE) con ese
+    // email — el flujo real lo crea vía POST /api/users antes del invite.
+    await request(env.httpServer)
+      .post('/api/users')
+      .set({ Authorization: `Bearer ${adminAccessToken}` })
+      .send({ email })
+      .expect(201);
+
     const response = await request(env.httpServer)
       .post('/api/admin/users/invite')
       .set({ Authorization: `Bearer ${adminAccessToken}` })
@@ -98,9 +106,10 @@ describe('Invitations + password identity e2e (T3.6)', () => {
   }
 
   async function admin(): Promise<string> {
-    const user = await env.provisionUser(['CREATE invitations', 'READ invitations', 'DELETE invitations'], {
-      roleName: 'master',
-    });
+    const user = await env.provisionUser(
+      ['CREATE invitations', 'READ invitations', 'DELETE invitations', 'CREATE users'],
+      { roleName: 'master' },
+    );
     return user.accessToken;
   }
 
@@ -200,7 +209,12 @@ describe('Invitations + password identity e2e (T3.6)', () => {
       .expect(410);
     expect(accept.body).toMatchObject({ code: 'INVITATION_EXPIRED' });
 
-    const { rows } = await env.pg.query('SELECT id FROM users WHERE email = $1', [email]);
+    // El shadow user (is_active = FALSE) fue creado por el invite helper;
+    // lo que verifica este test es que accept-invitation no lo activó.
+    const { rows } = await env.pg.query(
+      'SELECT id FROM users WHERE email = $1 AND is_active = TRUE',
+      [email],
+    );
     expect(rows).toHaveLength(0);
   });
 

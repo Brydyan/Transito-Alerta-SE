@@ -48,15 +48,11 @@
               <label class="form-label" for="title">Título</label>
               <input id="title" type="text" formControlName="title" class="form-control" placeholder="Ej: Bache en Av. Principal" />
             </div>
-            <div>
-              <label class="form-label" for="priority">Prioridad</label>
-              <select id="priority" formControlName="priority" class="form-select">
-                <option value="low">Baja</option>
-                <option value="medium">Media</option>
-                <option value="high">Alta</option>
-                <option value="critical">Crítica (Emergencia)</option>
-              </select>
-            </div>
+            <!-- 2026-10-16-citizen-report-step-restructure — el selector de
+             prioridad manual se quitó: era engañoso para el ciudadano
+             (la prioridad se deriva automáticamente de la subcategoría
+             que elige en el Paso 2). El control FormControl vive
+             en el form porque el backend lo necesita. -->
             <div>
               <label class="form-label" for="description">Descripción</label>
               <textarea id="description" formControlName="description" rows="4" class="form-control" placeholder="Describe brevemente el incidente..."></textarea>
@@ -78,10 +74,80 @@
                 }
               </select>
               <p class="form-text">Solo puedes seleccionar categorías hoja (sin subcategorías).</p>
+              <!-- 2026-10-16-citizen-report-step-restructure — badge informativo.
+               Aparece cuando hay categoría Y la suscripción
+               `categoryId.valueChanges` ya pobló `priority` desde la
+               subcategoría. El color escala con severidad para
+               reforzar visualmente (mismo lenguaje que el resto del
+               shell). El ciudadano NO edita el valor — es un read-only
+               derivado. -->
+              @if (form.get('priority')?.value && form.get('categoryId')?.value) {
+                <div class="flex items-center gap-2 mt-1" data-testid="priority-badge">
+                  <span class="text-xs text-slate-500">Prioridad asignada:</span>
+                  <span
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                    [ngClass]="{
+                      'bg-red-100 text-red-700': form.get('priority')?.value === 'critical',
+                      'bg-orange-100 text-orange-700': form.get('priority')?.value === 'high',
+                      'bg-yellow-100 text-yellow-700': form.get('priority')?.value === 'medium',
+                      'bg-green-100 text-green-700': form.get('priority')?.value === 'low'
+                    }"
+                  >
+                    {{ form.get('priority')?.value === 'critical' ? 'Crítica' :
+                       form.get('priority')?.value === 'high' ? 'Alta' :
+                       form.get('priority')?.value === 'medium' ? 'Media' : 'Baja' }}
+                  </span>
+                </div>
+              }
             </div>
+            <!-- 2026-10-16-citizen-report-step-restructure — el input de
+             galería (comportamiento previo) se complementa con un
+             botón "Tomar foto" (`capture="environment"`). Ambos
+             inputs viven dentro de un `<label>` (mismo handler
+             `onPhotosSelected`). El label mantiene el estilo del
+             shell pero oculta el input con `sr-only`. Cuando se
+             llega al límite de 5 fotos, ambos botones se deshabilitan
+             vía `[class.pointer-events-none]`. -->
             <div>
               <label class="form-label">Adjuntos (máx 5)</label>
-              <input type="file" accept="image/*" multiple (change)="onPhotosSelected($event)" [disabled]="selectedPhotos.length >= 5" class="form-control" />
+              <div class="flex gap-2 flex-wrap">
+                <label
+                  class="btn btn-secondary btn-sm cursor-pointer flex items-center gap-1.5"
+                  [class.opacity-50]="selectedPhotos.length >= 5"
+                  [class.pointer-events-none]="selectedPhotos.length >= 5"
+                  data-testid="btn-attach-gallery"
+                >
+                  <ui-icon name="paperclip" [size]="14" [strokeWidth]="2" />
+                  Adjuntar imagen
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    class="sr-only"
+                    (change)="onPhotosSelected($event)"
+                    [disabled]="selectedPhotos.length >= 5"
+                    data-testid="input-gallery"
+                  />
+                </label>
+                <label
+                  class="btn btn-secondary btn-sm cursor-pointer flex items-center gap-1.5"
+                  [class.opacity-50]="selectedPhotos.length >= 5"
+                  [class.pointer-events-none]="selectedPhotos.length >= 5"
+                  data-testid="btn-attach-camera"
+                >
+                  <ui-icon name="camera" [size]="14" [strokeWidth]="2" />
+                  Tomar foto
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    class="sr-only"
+                    (change)="onPhotosSelected($event)"
+                    [disabled]="selectedPhotos.length >= 5"
+                    data-testid="input-camera"
+                  />
+                </label>
+              </div>
               <div class="flex flex-wrap gap-2 mt-3">
                 @for (preview of photoPreviews; track $index; let i = $index) {
                   <div class="relative">
@@ -90,6 +156,7 @@
                   </div>
                 }
               </div>
+              <p class="form-text">Solo puedes adjuntar imágenes (máximo 5).</p>
             </div>
           </div>
         </ui-card>

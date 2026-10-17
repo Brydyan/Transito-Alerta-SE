@@ -82,6 +82,36 @@ export class IncidentCategoriesRepository {
   }
 
   /**
+   * 2026-10-16-categories-chips-restructure — IDs planos del subárbol
+   * rooted en `rootId` (incluye el root y todos sus descendientes).
+   * Reusa la misma CTE que `listFlat(rootId)` pero proyecta sólo `id`.
+   *
+   * Pensado para alimentar `WHERE i.category_id = ANY($N::uuid[])`
+   * en el feed: cuando el usuario selecciona la raíz "Siniestros
+   * Viales" los incidents apuntan a subcategorías ("Choque simple",
+   * "Atropello", ...) — sin expansión devolvería 0 filas.
+   *
+   * Devuelve `[]` cuando el root fue marcado como `deleted_at` (la
+   * CTE filtra esos nodos). El caller debe interpretar el array
+   * vacío como "no aplicar filtro" para evitar un falso 0-row.
+   */
+  async getDescendantIds(rootId: string): Promise<string[]> {
+    const rows: Array<{ id: string }> = await this.dataSource.query(
+      `WITH RECURSIVE subtree AS (
+         SELECT id FROM incident_categories
+         WHERE id = $1 AND deleted_at IS NULL
+         UNION ALL
+         SELECT c.id FROM incident_categories c
+         INNER JOIN subtree s ON c.parent_id = s.id
+         WHERE c.deleted_at IS NULL
+       )
+       SELECT id FROM subtree`,
+      [rootId],
+    );
+    return rows.map((r) => r.id);
+  }
+
+  /**
    * Ancestor walk from `proposedParentId` up to the root (design D4),
    * meant to run inside the same transaction as the write that calls it.
    * Returns `false` if `categoryId` (the category being created/updated,
