@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { AuthContext } from '../../shared/authz/subject-scope';
 import { FeedQueryDto } from './dto/feed-query.dto';
 import { FeedItemDto, FeedResponseDto } from './dto/stats-response.dto';
+import { IncidentCategoriesRepository } from '../incident-categories/incident-categories.repository';
 
 const STAFF_ROLES = ['master', 'admin_org', 'operator_org', 'agent_system'];
 const CITIZEN_FEED_KEY = 'feed:incidents';
@@ -16,6 +17,11 @@ export class IncidentFeedService {
   constructor(
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    // 2026-10-16-categories-chips-restructure — el feed filtra por
+    // categoría expandiendo al subárbol (root + descendientes) para
+    // que los incidents apunten a subcategorías cuando el caller
+    // selecciona la raíz. La CTE vive en el repo para no duplicar SQL.
+    private readonly categoriesRepository: IncidentCategoriesRepository,
   ) {}
 
   isStaffRole(user: AuthContext): boolean {
@@ -81,8 +87,21 @@ export class IncidentFeedService {
       }
     }
     if (query.incident_category_id) {
-      params.push(query.incident_category_id);
-      conditions.push(`i.category_id = $${params.length}`);
+      // 2026-10-16-categories-chips-restructure — expandir al subárbol.
+      // Los incidents apuntan a subcategorías, no a raíces: una
+      // equality exacta devolvería 0 filas para "Siniestros Viales".
+      // El patrón espejo de `resolveZoneHierarchy` (líneas 71–82):
+      // CTE → array de IDs → `i.category_id = ANY($N::uuid[])`.
+      // Array vacío (categoría deleted entre render y request) →
+      // omitir la cláusula en lugar de agregar un `ANY([])` que
+      // devolvería 0 filas siempre.
+      const categoryIds = await this.categoriesRepository.getDescendantIds(
+        query.incident_category_id,
+      );
+      if (categoryIds.length > 0) {
+        params.push(categoryIds);
+        conditions.push(`i.category_id = ANY($${params.length}::uuid[])`);
+      }
     }
     if (query.bbox) {
       const parts = query.bbox.split(',').map(Number);
