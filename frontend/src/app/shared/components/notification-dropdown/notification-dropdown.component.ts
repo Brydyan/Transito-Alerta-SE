@@ -171,9 +171,9 @@ export class NotificationDropdownComponent implements OnInit {
   }
 
   @HostListener('document:click', ['$event.target'])
-  onDocumentClick(target: Node | null): void {
+  onDocumentClick(target: unknown): void {
     if (!target) return;
-    const element = target;
+    const element = target as Node;
     if (this.open() && !this.elRef.nativeElement.contains(element)) {
       this.open.set(false);
     }
