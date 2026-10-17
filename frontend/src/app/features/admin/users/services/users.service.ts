@@ -144,6 +144,12 @@ export class UsersService {
         // projection (with the DB-default fallback).
         preferred_notification_channel?: string;
         permissions?: string[];
+        // 2026-10-16-resend-invitation (D1) — el backend
+        // (`UsersService.findByIdWithPendingFlag`) proyecta el flag
+        // sobre `GET /api/users/:id`. Default `false` para shapes
+        // viejos (el endpoint nuevo lo agrega en este mismo change;
+        // cualquier rama sin el campo trata como "no hay pendiente").
+        has_pending_invitation?: boolean;
       }>(`${this.usersUrl}/${id}`, { withCredentials: true })
       .pipe(
         map((raw) => {
@@ -176,6 +182,10 @@ export class UsersService {
             // listas, se cargan vía los endpoints dedicados.
             permisosDirectos: [] as UserDetail['permisosDirectos'],
             permisosRol: [] as UserDetail['permisosRol'],
+            // 2026-10-16-resend-invitation (D1) — proyección
+            // snake→camel del flag. `?? false` cubre shapes viejos
+            // donde el endpoint aún no devolvía el campo.
+            hasPendingInvitation: raw.has_pending_invitation ?? false,
           } satisfies UserDetail;
         }),
       );

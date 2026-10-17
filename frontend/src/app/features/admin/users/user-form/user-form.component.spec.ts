@@ -1,12 +1,13 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { FormBuilder } from '@angular/forms';
-import { of } from 'rxjs';
+import { of, throwError, Subject } from 'rxjs';
 
 import { UserFormComponent } from './user-form.component';
 import { UsersService } from '../services/users.service';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { AuthService } from '../../../../core/services/auth.service';
+import { InvitationsService } from '../services/invitations.service';
 import type { PermissionItem } from '../models/user.interface';
 
 /**
@@ -29,6 +30,8 @@ describe('UserFormComponent (sc-340 user permissions panel)', () => {
     getOrganizations: jest.Mock;
     getRoleById: jest.Mock;
   };
+  let mockInvitationsService: { invite: jest.Mock };
+  let mockToastService: { success: jest.Mock; error: jest.Mock; warning: jest.Mock };
 
   beforeEach(async () => {
     mockUsersService = {
@@ -38,6 +41,8 @@ describe('UserFormComponent (sc-340 user permissions panel)', () => {
       getOrganizations: jest.fn().mockReturnValue(of([])),
       getRoleById: jest.fn().mockReturnValue(of({ rolId: '', nombre: '', permisos: [] })),
     };
+    mockInvitationsService = { invite: jest.fn().mockReturnValue(of({ id: 'inv-1' })) };
+    mockToastService = { success: jest.fn(), error: jest.fn(), warning: jest.fn() };
 
     await TestBed.configureTestingModule({
       imports: [UserFormComponent],
@@ -45,7 +50,8 @@ describe('UserFormComponent (sc-340 user permissions panel)', () => {
         provideRouter([]),
         FormBuilder,
         { provide: UsersService, useValue: mockUsersService },
-        { provide: ToastService, useValue: { success: jest.fn(), error: jest.fn() } },
+        { provide: InvitationsService, useValue: mockInvitationsService },
+        { provide: ToastService, useValue: mockToastService },
         {
           provide: AuthService,
           useValue: { currentUser: jest.fn().mockReturnValue({ id: 'admin-1', roleName: 'master' }) },
@@ -125,6 +131,122 @@ describe('UserFormComponent (sc-340 user permissions panel)', () => {
         ) as NodeListOf<HTMLElement>,
       ).map((el) => el.getAttribute('id') ?? '');
       expect(ids).toEqual(['user-perm-perm-uuid-1', 'user-perm-perm-uuid-2']);
+    });
+  });
+
+  // 2026-10-16-resend-invitation (D4, D5) — botón "Reenviar invitación"
+  // en la sección Cuenta del form de edición, visible sólo cuando
+  // (a) el caller es Master, (b) el target es edit (no create),
+  // (c) hay una invitación pendiente (no aceptada, no expirada).
+  // El click llama `InvitationsService.invite()` con el email/roleId/
+  // organizationId del target.
+  describe('2026-10-16-resend-invitation', () => {
+    /** Helper: setea `userData` + fuerza edit mode.
+     *
+     * El `userId` se evalúa una sola vez en la declaración de clase
+     * (`readonly userId = route.snapshot.paramMap.get('id')`), con el
+     * mock default de `:id = null` del `beforeEach`. Cambiar el mock
+     * después NO afecta el `userId` ya capturado, así que forzamos
+     * `component.userId` via cast. Esto testea los gates del template
+     * sin depender del flow de carga real (ya cubierto por
+     * `users.service.spec.ts`).
+     */
+    const setEditingUser = (overrides: Partial<{
+      hasPendingInvitation: boolean;
+      email: string;
+      roleId: string;
+      organizationId: string | null;
+      roleName: string;
+    }> = {}) => {
+      // Forzar edit mode: `readonly userId` acepta el cast aquí
+      // porque en runtime el field es reasignable (TS readonly es
+      // compile-time only).
+      (component as unknown as { userId: string }).userId = 'u-target';
+      component.userData.set({
+        usuarioId: 'u-target',
+        email: overrides.email ?? 'shadow@x.com',
+        nombres: 'Shadow',
+        apellidos: 'User',
+        telefono: '',
+        isActive: false,
+        preferredNotificationChannel: 'email',
+        avatar: null,
+        rol: { rolId: overrides.roleId ?? 'role-1', nombre: overrides.roleName ?? 'operator_org' },
+        organizationId: overrides.organizationId ?? 'org-1',
+        permisosDirectos: [],
+        permisosRol: [],
+        hasPendingInvitation: overrides.hasPendingInvitation ?? false,
+      });
+    };
+
+    it('Master + hasPendingInvitation=true: muestra el botón "Reenviar invitación"', () => {
+      setEditingUser({ hasPendingInvitation: true });
+      fixture.detectChanges();
+      const btn: HTMLButtonElement | null = fixture.nativeElement.querySelector(
+        '[data-testid="btn-resend-invitation"]',
+      );
+      expect(btn).toBeTruthy();
+      expect(btn?.textContent?.trim()).toBe('Reenviar invitación');
+    });
+
+    it('hasPendingInvitation=false: oculta el botón', () => {
+      setEditingUser({ hasPendingInvitation: false });
+      fixture.detectChanges();
+      const btn = fixture.nativeElement.querySelector(
+        '[data-testid="btn-resend-invitation"]',
+      );
+      expect(btn).toBeNull();
+    });
+
+    it('no-Master: oculta el botón (la sección Cuenta ya está oculta, pero el flag doble protege)', () => {
+      const auth = TestBed.inject(AuthService) as unknown as {
+        currentUser: jest.Mock;
+      };
+      auth.currentUser.mockReturnValue({ id: 'admin-1', roleName: 'admin_org' });
+      setEditingUser({ hasPendingInvitation: true });
+      fixture.detectChanges();
+      const btn = fixture.nativeElement.querySelector(
+        '[data-testid="btn-resend-invitation"]',
+      );
+      expect(btn).toBeNull();
+    });
+
+    it('click llama InvitationsService.invite() con email/roleId/organizationId', () => {
+      setEditingUser({
+        email: 'shadow@x.com',
+        roleId: 'role-1',
+        organizationId: 'org-1',
+        hasPendingInvitation: true,
+      });
+      fixture.detectChanges();
+      component.resendInvitation();
+      expect(mockInvitationsService.invite).toHaveBeenCalledWith({
+        email: 'shadow@x.com',
+        roleId: 'role-1',
+        organizationId: 'org-1',
+      });
+    });
+
+    it('invite OK: muestra toast de éxito', () => {
+      setEditingUser({ hasPendingInvitation: true });
+      fixture.detectChanges();
+      component.resendInvitation();
+      expect(mockToastService.success).toHaveBeenCalledWith(
+        'Invitación reenviada correctamente.',
+      );
+    });
+
+    it('invite error: muestra toast de error y libera el spinner', () => {
+      setEditingUser({ hasPendingInvitation: true });
+      fixture.detectChanges();
+      mockInvitationsService.invite.mockReturnValueOnce(
+        throwError(() => new Error('boom')),
+      );
+      component.resendInvitation();
+      expect(mockToastService.error).toHaveBeenCalledWith(
+        'No se pudo reenviar la invitación.',
+      );
+      expect(component.isResending()).toBe(false);
     });
   });
 });
