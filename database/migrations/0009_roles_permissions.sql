@@ -148,13 +148,19 @@ INSERT INTO roles (name, description, permissions) VALUES (
 ) ON CONFLICT (name) DO NOTHING;
 
 -- admin_organizacion → renamed to admin_org by 0040. Org-scoped admin.
+-- 2026-10-17 (admin_org) — agregado "UPDATE assignments" para que admin_org
+-- pueda reasignar incidencias vía PATCH /api/assignments/:id. Sin este
+-- permiso, admin_org recibe 403 al intentar reasignar un operador
+-- ocupado. Idempotente vía ON CONFLICT; el seed inicial queda
+-- alineado con la migración 0037 (que agrega el permiso en staging
+-- / prod donde este seed ya está aplicado).
 INSERT INTO roles (name, description, permissions) VALUES (
   'admin_organizacion',
   'Organization administrator — org scope',
   '["READ incidents",    "CREATE incidents",   "UPDATE incidents",   "DELETE incidents",
     "CLOSE incidents",
     "READ comments",     "CREATE comments",    "UPDATE comments",    "DELETE comments",
-    "READ assignments",  "ASSIGN assignments",
+    "READ assignments",  "ASSIGN assignments",  "UPDATE assignments",
     "READ users",        "CREATE users",       "UPDATE users",       "DELETE users",
     "READ roles",        "ASSIGN roles",
     "READ permissions",
