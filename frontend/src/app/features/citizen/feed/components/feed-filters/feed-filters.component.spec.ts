@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Subject, of } from 'rxjs';
+import { of } from 'rxjs';
 import { FeedFiltersComponent } from './feed-filters.component';
 import { IncidentCategoryService } from '../../../../catalogs/incident-categories/services/incident-category.service';
 import { IIncidentCategory } from '../../../../catalogs/incident-categories/interfaces/iincident-category.interface';

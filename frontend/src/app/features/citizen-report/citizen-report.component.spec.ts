@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { waitFor } from '@testing-library/angular';
 import { ReactiveFormsModule } from '@angular/forms';
 import { of, throwError } from 'rxjs';

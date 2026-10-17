@@ -1,7 +1,7 @@
-import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { FormBuilder } from '@angular/forms';
-import { of, throwError, Subject } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { UserFormComponent } from './user-form.component';
 import { UsersService } from '../services/users.service';
