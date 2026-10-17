@@ -637,12 +637,19 @@ describe('UsersService', () => {
         phone: '+593 99 999 9999',
       });
 
+      // 2026-10-17 — el 409 incluye `code: 'PHONE_ALREADY_REGISTERED'`
+      // para que el frontend pueda distinguir email duplicado vs
+      // teléfono duplicado en el toast (antes mostraba "Email ya
+      // registrado" para ambos casos).
       await expect(
         service.adminCreate(
           { email: 'juan@municipio.ec', phone: '+593 99 999 9999' },
           'admin-actor',
         ),
-      ).rejects.toBeInstanceOf(ConflictException);
+      ).rejects.toMatchObject({
+        status: 409,
+        response: { code: 'PHONE_ALREADY_REGISTERED' },
+      });
 
       // Defense — short-circuits the insert; no role lookup, no save.
       expect(userRepo.create).not.toHaveBeenCalled();

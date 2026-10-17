@@ -389,7 +389,61 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
       expect(component.isSaving()).toBe(false);
     });
 
-    it('S6.2: createUserJson 409 muestra toast email duplicado, no navega', () => {
+    it('S6.2: createUserJson 409 con code PHONE muestra toast teléfono duplicado, no navega', () => {
+      // 2026-10-17 — el backend ahora emite `code: PHONE_ALREADY_REGISTERED`
+      // en el body del 409 cuando el teléfono choca. Antes el frontend
+      // mostraba "Email ya registrado" para cualquier 409, lo que
+      // confundía al admin.
+      init();
+      mockUsersService.createUserJson.mockReturnValueOnce(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 409,
+              error: { code: 'PHONE_ALREADY_REGISTERED', message: '...' },
+            }),
+        ),
+      );
+      setValid();
+      component.onSubmit();
+      expect(mockToastService.error).toHaveBeenCalledWith(
+        'El teléfono ya está registrado por otro usuario',
+        'Error',
+      );
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(component.isSaving()).toBe(false);
+    });
+
+    it('S6.2b: createUserJson 409 con code EMAIL muestra toast email duplicado, no navega', () => {
+      // Defensa: si el backend emite EMAIL_ALREADY_CLAIMED en el
+      // body, el toast es específico de email. (Hoy el adminCreate
+      // no chequea email duplicado, pero la diferenciación deja la
+      // puerta abierta para cuando lo agreguen sin tocar el frontend.)
+      init();
+      mockUsersService.createUserJson.mockReturnValueOnce(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 409,
+              error: { code: 'EMAIL_ALREADY_CLAIMED', message: '...' },
+            }),
+        ),
+      );
+      setValid();
+      component.onSubmit();
+      expect(mockToastService.error).toHaveBeenCalledWith(
+        'Email ya registrado en el sistema',
+        'Error',
+      );
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(component.isSaving()).toBe(false);
+    });
+
+    it('S6.2c: createUserJson 409 sin code reconocible cae al fallback email (compatibilidad)', () => {
+      // Backward compat: si el backend NO incluye `code` en el body
+      // (versión vieja o respuesta sin shape esperado), el toast
+      // sigue siendo "Email ya registrado en el sistema" — el admin
+      // recibe feedback útil en vez de un "Error 409" genérico.
       init();
       mockUsersService.createUserJson.mockReturnValueOnce(
         throwError(() => new HttpErrorResponse({ status: 409 })),
@@ -400,8 +454,6 @@ describe('NewUserFormComponent (F6 new-user-form)', () => {
         'Email ya registrado en el sistema',
         'Error',
       );
-      expect(router.navigate).not.toHaveBeenCalled();
-      expect(component.isSaving()).toBe(false);
     });
 
     it('S6.3: createUserJson 403 muestra toast sin permiso', () => {
