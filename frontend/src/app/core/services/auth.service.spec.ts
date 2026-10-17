@@ -475,4 +475,37 @@ describe('AuthService', () => {
     });
     expect(service.user()?.permissions).toEqual(['READ menu-options', 'READ incidents']);
   });
+
+  // 2026-10-16-forgot-reset-password-flow — métodos públicos del
+  // flow "¿Olvidaste tu contraseña?". El backend (`AuthController`)
+  // expone `POST /auth/password-reset` (siempre 200, design D9 —
+  // no leakea existencia del email) y `POST /auth/password-reset/confirm`
+  // (consume el token, rota el hash, revoca sesiones). Los wrappers
+  // son thin: pasan email / {token, password} sin pre-procesar.
+  describe('password reset flow (2026-10-16)', () => {
+    it('requestPasswordReset(email) POST a /auth/password-reset con { email }', () => {
+      let result: unknown;
+      service.requestPasswordReset('maria@x.com').subscribe((r) => (result = r));
+
+      const req = http.expectOne(`${apiUrl}/password-reset`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ email: 'maria@x.com' });
+      req.flush(null);
+      expect(result).toBeNull();
+    });
+
+    it('confirmPasswordReset(token, password) POST a /auth/password-reset/confirm con { token, password }', () => {
+      let result: unknown;
+      service.confirmPasswordReset('tok-abc', 'NewPass123!').subscribe((r) => (result = r));
+
+      const req = http.expectOne(`${apiUrl}/password-reset/confirm`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({
+        token: 'tok-abc',
+        password: 'NewPass123!',
+      });
+      req.flush(null);
+      expect(result).toBeNull();
+    });
+  });
 });

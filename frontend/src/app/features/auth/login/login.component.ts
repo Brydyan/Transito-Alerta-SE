@@ -4,6 +4,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 // Import updated AuthService
 import { AuthService } from '../../../core/services/auth.service';
+import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 import {
   fadeAnimation,
   slideUpAnimation,
@@ -13,7 +14,7 @@ import {
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, UiIconComponent],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
   animations: [fadeAnimation, slideUpAnimation, staggerFormElements],
@@ -29,6 +30,16 @@ export class LoginComponent {
   readonly submitted = signal(false);
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
+  // 2026-10-16-password-visibility-toggle — toggle que cambia
+  // `type="password"` ↔ `type="text"` en el input. Default false
+  // (oculto) — el standard de la industria es no mostrar la
+  // contraseña por defecto, especialmente en pantallas públicas.
+  readonly showPassword = signal(false);
+
+  /** 2026-10-16 — flip del `showPassword`. */
+  togglePassword(): void {
+    this.showPassword.update((v) => !v);
+  }
 
   constructor() {
     this.loginForm = this.formBuilder.group({

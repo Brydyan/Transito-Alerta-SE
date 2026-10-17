@@ -8,6 +8,143 @@ import { AuthService } from '../../../core/services/auth.service';
 import { User } from '../../../core/models/auth.model';
 
 /**
+ * 2026-10-16-login-ux-polish — ajustes al template del login:
+ *  - Quitar "Volver al inicio" (href="#!" no hace nada)
+ *  - Agregar heading "Bienvenido de vuelta" + subtítulo
+ *  - Mover "¿Olvidaste tu contraseña?" inline con el label de
+ *    contraseña (patrón estándar — Gmail, GitHub, etc.)
+ *  - "Usuario" → "Correo electrónico" (consistencia con el placeholder)
+ *  - "¿No tenés cuenta?" → "¿No tienes cuenta?" (voseo → tuteo)
+ */
+describe('LoginComponent (2026-10-16 template polish)', () => {
+  function setupDom() {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        LoginComponent,
+        {
+          provide: AuthService,
+          useValue: {
+            login: jest.fn().mockReturnValue(of({ access_token: 'jwt', refresh_token: 'rt', permissions: [] })),
+            user: jest.fn().mockReturnValue(null),
+          } as unknown as AuthService,
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.componentInstance.loginForm.patchValue({
+      email: 'admin@correo.com',
+      password: 'Password123!',
+    });
+    fixture.detectChanges();
+    return { fixture, component: fixture.componentInstance };
+  }
+
+  it('no renderiza el enlace "Volver al inicio" (era href="#!" y no hacía nada)', () => {
+    const { fixture } = setupDom();
+    const html = fixture.nativeElement.textContent ?? '';
+    expect(html).not.toContain('Volver al inicio');
+    expect(fixture.nativeElement.querySelector('a[href="#!"]')).toBeNull();
+  });
+
+  it('muestra el heading "Bienvenido de vuelta" + subtítulo después del logo', () => {
+    const { fixture } = setupDom();
+    const html = fixture.nativeElement.textContent ?? '';
+    expect(html).toContain('Bienvenido de vuelta');
+    expect(html).toContain('Ingresa tus credenciales para continuar');
+  });
+
+  it('label de email dice "Correo electrónico" (sin la palabra "Usuario")', () => {
+    const { fixture } = setupDom();
+    const label = fixture.nativeElement.querySelector('label[for="email"]');
+    expect(label?.textContent?.trim()).toBe('Correo electrónico');
+    // La palabra suelta "Usuario" sólo debería aparecer dentro del
+    // placeholder, no en un `<label>` accesible.
+    expect(label?.textContent).not.toMatch(/^Usuario\b/);
+  });
+
+  it('"¿Olvidaste tu contraseña?" está inline con el label de contraseña', () => {
+    const { fixture } = setupDom();
+    const passwordLabel = fixture.nativeElement.querySelector(
+      'label[for="password"]',
+    ) as HTMLElement | null;
+    expect(passwordLabel).toBeTruthy();
+    // El enlace vive en el mismo contenedor padre que el label
+    // (patrón flex row). Si quedó debajo del input, el contenedor
+    // padre sería el `<div class="mb-6">` y no compartiría fila
+    // con el label.
+    const forgotLink = fixture.nativeElement.querySelector(
+      '[data-testid="link-forgot-password"]',
+    ) as HTMLElement | null;
+    expect(forgotLink).toBeTruthy();
+    expect(forgotLink?.textContent?.trim()).toMatch(/¿Olvidaste tu contraseña\?/);
+    // El label y el enlace comparten padre directo.
+    expect(passwordLabel?.parentElement).toBe(forgotLink?.parentElement);
+  });
+
+  it('texto del enlace "¿No tenés cuenta?" → "¿No tienes cuenta?" (tuteo)', () => {
+    const { fixture } = setupDom();
+    const html = fixture.nativeElement.textContent ?? '';
+    expect(html).toContain('¿No tienes cuenta?');
+    expect(html).not.toContain('¿No tenés cuenta?');
+  });
+
+  // 2026-10-16-password-visibility-toggle — el input de contraseña
+  // arranca oculto (`type="password"`); un botón con icono Lucide
+  // (`eye` / `eye-off`) al lado del input toggle entre password y
+  // text. El botón tiene `aria-label` dinámico y `type="button"`
+  // para no disparar submit del form.
+  describe('password visibility toggle', () => {
+    it('estado inicial: input es type="password"', () => {
+      const { fixture, component } = setupDom();
+      const input = fixture.nativeElement.querySelector(
+        'input[formControlName="password"]',
+      ) as HTMLInputElement;
+      expect(input.type).toBe('password');
+      expect(component.showPassword()).toBe(false);
+    });
+
+    it('click en el toggle: input pasa a type="text"', () => {
+      const { fixture, component } = setupDom();
+      component.togglePassword();
+      fixture.detectChanges();
+      const input = fixture.nativeElement.querySelector(
+        'input[formControlName="password"]',
+      ) as HTMLInputElement;
+      expect(input.type).toBe('text');
+      expect(component.showPassword()).toBe(true);
+    });
+
+    it('doble click: vuelve a type="password"', () => {
+      const { fixture, component } = setupDom();
+      component.togglePassword();
+      component.togglePassword();
+      fixture.detectChanges();
+      const input = fixture.nativeElement.querySelector(
+        'input[formControlName="password"]',
+      ) as HTMLInputElement;
+      expect(input.type).toBe('password');
+      expect(component.showPassword()).toBe(false);
+    });
+
+    it('botón toggle tiene type="button" (no dispara submit) y aria-label dinámico', () => {
+      const { fixture, component } = setupDom();
+      const btn = fixture.nativeElement.querySelector(
+        '[data-testid="toggle-password-visibility"]',
+      ) as HTMLButtonElement;
+      expect(btn).toBeTruthy();
+      expect(btn.type).toBe('button');
+      // Estado inicial: oculto → "Mostrar contraseña"
+      expect(btn.getAttribute('aria-label')).toMatch(/Mostrar/);
+      component.togglePassword();
+      fixture.detectChanges();
+      expect(btn.getAttribute('aria-label')).toMatch(/Ocultar/);
+    });
+  });
+});
+
+/**
  * REG (sc-325) — Fix A (ronda 10): `LoginComponent.onSubmit` redirige
  * al composer del OTP (`/verificar`) cuando el usuario es un
  * `reporter` sin verificar.
