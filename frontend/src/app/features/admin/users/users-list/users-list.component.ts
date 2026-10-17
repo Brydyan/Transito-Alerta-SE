@@ -11,9 +11,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import { UsersService } from '../services/users.service';
 import {
+  Department,
   Organization,
   Role,
   toUserStatus,
@@ -94,6 +96,7 @@ export class UsersListComponent implements OnInit {
   readonly users = signal<ReadonlyArray<User>>([]);
   readonly roles = signal<ReadonlyArray<Role>>([]);
   readonly organizations = signal<ReadonlyArray<Organization>>([]);
+  readonly departments = signal<ReadonlyArray<Department>>([]);
   readonly total = signal(0);
   readonly isLoading = signal(false);
   readonly errorMessage = signal<string | null>(null);
@@ -164,21 +167,30 @@ export class UsersListComponent implements OnInit {
       orgs: this.usersService.getOrganizations().pipe(
         catchError(() => of([] as ReadonlyArray<Organization>)),
       ),
+      depts: this.usersService.getFormData().pipe(
+        map((fd) => fd.departments),
+        catchError(() => of([] as ReadonlyArray<Department>)),
+      ),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ roles, orgs }) => {
+      .subscribe(({ roles, orgs, depts }) => {
         this.roles.set(roles);
         this.organizations.set(orgs);
+        this.departments.set(depts);
       });
   }
 
   /** F6 fix batch (C.1) — resuelve el id de organización del usuario
-   *  contra el signal `organizations()` (poblado por
-   *  `UsersService.getOrganizations()` en `loadLookups()`). `—` si no
-   *  hay id o si el id no matchea ninguna organización cargada. */
+   *  contra el signal `organizations()`. `—` si no hay id o no matchea. */
   getOrganizationName(orgId: string | null | undefined): string {
     if (!orgId) return '—';
     return this.organizations().find((o) => o.id === orgId)?.nombre ?? '—';
+  }
+
+  /** Resuelve el id de departamento contra el signal `departments()`. */
+  getDepartmentName(deptId: string | null | undefined): string {
+    if (!deptId) return '—';
+    return this.departments().find((d) => d.id === deptId)?.nombre ?? '—';
   }
 
   protected loadUsers(): void {

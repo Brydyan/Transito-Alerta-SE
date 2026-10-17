@@ -172,6 +172,8 @@ export interface User {
    * organización asignada.
    */
   organizationId?: string | null;
+  /** Departamento al que pertenece el usuario. Mapeado desde `department_id`. Null para roles globales. */
+  departmentId?: string | null;
   /**
    * F6 (`2026-09-08-f6-new-user-form`) — estado activo/inactivo del
    * usuario. Mapeado desde `is_active: boolean` del backend en
