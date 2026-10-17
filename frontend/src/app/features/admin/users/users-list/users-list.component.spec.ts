@@ -24,6 +24,7 @@ describe('UsersListComponent (F6 rediseño)', () => {
     getUsers: jest.Mock;
     getRoles: jest.Mock;
     getOrganizations: jest.Mock;
+    getFormData: jest.Mock;
     deleteUser: jest.Mock;
   };
 
@@ -45,6 +46,7 @@ describe('UsersListComponent (F6 rediseño)', () => {
       ),
       getRoles: jest.fn().mockReturnValue(of([{ rolId: 1, nombre: 'ADMIN ORG' }])),
       getOrganizations: jest.fn().mockReturnValue(of([])),
+      getFormData: jest.fn().mockReturnValue(of({ roles: [], organizations: [], departments: [] })),
       deleteUser: jest.fn().mockReturnValue(of(undefined)),
     };
 
