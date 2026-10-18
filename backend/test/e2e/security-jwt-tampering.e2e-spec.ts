@@ -27,13 +27,9 @@ import { TestEnvironment } from '../support/test-environment';
  */
 describe('Security: JWT Tampering (E2E)', () => {
   let env: TestEnvironment;
-  // JwtService con el secret del access path (firmará tokens que el
-  // backend intenta verificar). Configuramos explícitamente para que
-  // no dependa del orden de providers que TestEnvironment levante.
-  const accessJwt = new JwtService({
-    secret: process.env.JWT_ACCESS_SECRET ?? 'dev-access-secret-change-me',
-    signOptions: { expiresIn: '15m' },
-  });
+  // JwtService con el secret del refresh path. Los tokens access
+  // expirados y con secret incorrecto usan sus propias instancias
+  // (cada test fija su propio secret/expiresIn).
   const refreshJwt = new JwtService({
     secret: process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret-change-me',
     signOptions: { expiresIn: '7d' },
