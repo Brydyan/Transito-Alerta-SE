@@ -184,6 +184,24 @@ WHERE r.name IN ('master', 'agent_system', 'admin_org')
   AND r.deleted_at IS NULL
 ON CONFLICT (menu_option_id, role_id) DO NOTHING;
 
+-- ── Reporter: Inicio + Reportar ──────────────────────────────────────────
+-- El ciudadano registrado sólo necesita dos entradas:
+--   - Inicio   (READ incidents)   — ver el feed de incidencias
+--   - Reportar (CREATE incidents) — crear una nueva incidencia
+-- Sin estas filas el INNER JOIN en getAccessibleOptions devuelve [] y el
+-- sidebar queda vacío para todos los usuarios reporter.
+INSERT INTO menu_option_roles (menu_option_id, role_id, can_read, can_write)
+SELECT mo.id, r.id, true, false
+FROM menu_options mo
+CROSS JOIN roles r
+WHERE mo.id IN (
+  'b0000000-0000-0000-0000-000000000002',  -- Inicio
+  'b0000000-0000-0000-0000-000000000005'   -- Reportar
+)
+AND r.name = 'reporter'
+AND r.deleted_at IS NULL
+ON CONFLICT (menu_option_id, role_id) DO NOTHING;
+
 -- ── GESTIÓN root: management-only (master + agent_system) ─────────
 -- 2026-10-17 — antes incluía admin_org + operator_org por error.
 -- admin_org tiene visibilidad de Organizaciones + Departamentos (read)
