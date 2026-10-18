@@ -496,9 +496,17 @@ export class AuthService {
       pv: 1,
       ...(sid ? { sid } : {}),
     };
+    // P14 — `keyid` en el header JWS sólo si el operador seteó
+    // JWT_ACCESS_KID. Si no, el comportamiento es idéntico al
+    // previo (un solo secret, sin kid header). Esto permite activar
+    // rotación gradual sin un commit de código separado: setea la
+    // env cuando quieras empezar a rotar.
     return this.jwtService.sign(payload, {
       secret: this.authConfig.jwtAccessSecret,
       expiresIn: this.authConfig.jwtAccessExpiresIn,
+      ...(this.authConfig.jwtAccessKid
+        ? { keyid: this.authConfig.jwtAccessKid }
+        : {}),
     });
   }
 
