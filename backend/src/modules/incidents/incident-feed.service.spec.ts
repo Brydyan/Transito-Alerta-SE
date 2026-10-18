@@ -9,6 +9,8 @@ const ORG_OPERATOR: AuthContext = {
   userId: 'op-1',
   roleName: 'operator_org',
   organizationId: 'org-1',
+  // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+  departmentId: null,
   permissions: ['READ incidents'],
   scope: { kind: 'org', organizationId: 'org-1' },
   sessionId: null,

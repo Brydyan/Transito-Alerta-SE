@@ -263,6 +263,18 @@ export class UsersService {
           skip,
           where: { organizationId: scope.organizationId, ...isActiveWhere },
         });
+      // 2026-10-18-admin-org-dept-scoping — admin_org con dept
+      // poblado: filtra por `departmentId` (no por `organizationId`).
+      // Sin este case, el `switch` retorna `undefined` y TS2366
+      // rompe el typecheck (función sin return final). Equivalente
+      // en semántica al `case 'org'` pero laxa la org a nivel
+      // departamento.
+      case 'department':
+        return this.findAndCount({
+          take,
+          skip,
+          where: { departmentId: scope.departmentId, ...isActiveWhere },
+        });
       case 'public': {
         if (!callerId) {
           return { items: [], total: 0 };
@@ -278,7 +290,9 @@ export class UsersService {
   private async findAndCount(options: {
     take: number;
     skip: number;
-    where?: { organizationId?: string; isActive?: boolean };
+    // 2026-10-18 — `departmentId` agregado para el `case 'department'`
+    // del `list()`. TypeORM acepta ambos filtros en paralelo.
+    where?: { organizationId?: string; departmentId?: string; isActive?: boolean };
   }): Promise<{ items: UserEntity[]; total: number }> {
     // F6 fix: filtrar por `is_active: true` para que los shadows
     // de `adminCreate` (is_active=false hasta que acepten la

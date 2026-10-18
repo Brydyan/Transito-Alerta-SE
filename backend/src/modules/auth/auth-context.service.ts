@@ -22,6 +22,14 @@ export const PERMISSION_CACHE_PREFIX = 'perm:v3:';
 interface CachedAuthContext {
   permissions: string[];
   organizationId: string | null;
+  /**
+   * 2026-10-18-admin-org-dept-scoping — admin_org's department.
+   * `null` para master, agent_system, operator_org, reporter,
+   * anonymous, o admin_org legacy sin department. Es REQUIRED en
+   * el round-trip: si lo strippeamos, admin_org ve TODA la org
+   * (fallback a `'org'` en `resolveSubjectScope`).
+   */
+  departmentId: string | null;
   roleName: string | null;
   isAnonymous: boolean;
 }
@@ -128,12 +136,22 @@ export class AuthContextService {
     const key = `${PERMISSION_CACHE_PREFIX}uid:${userId}`;
     const cached = await this.cache.get<CachedAuthContext>(key);
     if (cached) {
+      // 2026-10-18 — el cache hit debe preservar `departmentId` y
+      // delegar el cuarto arg a `resolveSubjectScope`. Sin esto,
+      // admin_org con dept poblado cae al fallback `'org'` (ve TODA
+      // la org) por un round-trip Redis de hasta 1h.
       return {
         userId,
         permissions: cached.permissions,
         organizationId: cached.organizationId,
+        departmentId: cached.departmentId,
         roleName: cached.roleName,
-        scope: resolveSubjectScope(cached.roleName, cached.organizationId, userId),
+        scope: resolveSubjectScope(
+          cached.roleName,
+          cached.organizationId,
+          cached.departmentId,
+          userId,
+        ),
         sessionId: null,
         isAnonymous: cached.isAnonymous,
       };
@@ -145,12 +163,16 @@ export class AuthContextService {
       // Do NOT cache a miss (same reasoning as getPermissions): pinning an
       // unknown user id to public/[] for the whole TTL would keep a
       // freshly-provisioned account 403ing until the entry expired.
+      // 2026-10-18 — cache miss con usuario inexistente:
+      // `departmentId: null` y `resolveSubjectScope(null, null, null, userId)`
+      // → `'public'`.
       return {
         userId,
         permissions: [],
         organizationId: null,
+        departmentId: null,
         roleName: null,
-        scope: resolveSubjectScope(null, null, userId),
+        scope: resolveSubjectScope(null, null, null, userId),
         sessionId: null,
         isAnonymous: false,
       };
@@ -166,11 +188,22 @@ export class AuthContextService {
         ? []
         : (row.permissions ?? []);
     const organizationId = isAnonymous ? null : row.organization_id;
+    // 2026-10-18 — `departmentId` sigue el mismo principio que
+    // `organizationId`: el path anon lo fuerza a `null` para que el
+    // round-trip cache no contamine la identidad anónima. roleDeleted
+    // cae a `null` por el mismo principio que `roleName` (el rol está
+    // soft-deleted ⇒ no aplica scope).
+    const departmentId = isAnonymous || roleDeleted ? null : row.department_id;
     const roleName = isAnonymous || roleDeleted ? null : row.role_name;
 
     await this.cache.set(
       key,
-      { permissions, organizationId, roleName, isAnonymous },
+      // 2026-10-18 — `departmentId` se persiste en el cache (mismo TTL
+      // de `permissions`) para que el round-trip Redis reconstruya el
+      // scope `'department'` en el cache hit. Si lo omitimos, el cache
+      // hit ve `departmentId: undefined` y admin_org con dept poblado
+      // degenera al fallback `'org'` durante todo el TTL.
+      { permissions, organizationId, departmentId, roleName, isAnonymous },
       permissionCacheTtlSeconds * 1000,
     );
 
@@ -178,8 +211,9 @@ export class AuthContextService {
       userId,
       permissions,
       organizationId,
+      departmentId,
       roleName,
-      scope: resolveSubjectScope(roleName, organizationId, userId),
+      scope: resolveSubjectScope(roleName, organizationId, departmentId, userId),
       sessionId: null,
       isAnonymous,
     };

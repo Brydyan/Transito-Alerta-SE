@@ -6,6 +6,11 @@ function ctx(scope: SubjectScope, overrides: Partial<AuthContext> = {}): AuthCon
     userId: 'user-1',
     permissions: [],
     organizationId: scope.kind === 'org' || scope.kind === 'org_assigned' ? scope.organizationId : null,
+    // 2026-10-18 — `departmentId` agregado al factory. Default null
+    // (los scopes usados son 'global'/'org'/'org_assigned'/'public'/'deny';
+    // 'department' cae a null porque la factory NO conoce el dept del
+    // scope directamente).
+    departmentId: scope.kind === 'department' ? scope.departmentId : null,
     roleName: null,
     scope,
     sessionId: 'session-1',

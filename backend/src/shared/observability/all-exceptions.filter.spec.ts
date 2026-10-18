@@ -21,6 +21,8 @@ describe('AllExceptionsFilter', () => {
     userId: 'user-1',
     permissions: [],
     organizationId: 'org-1',
+    // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+    departmentId: null,
     roleName: 'admin_org',
     scope: { kind: 'org', organizationId: 'org-1' },
     sessionId: 'sid-1',

@@ -36,6 +36,20 @@ export function assertCanInvite(
         throw outOfScope();
       }
       break;
+    // 2026-10-18-admin-org-dept-scoping — admin_org con dept
+    // poblado: misma regla que `org` (org debe matchear). Sin este
+    // case, el `switch` retorna `undefined` y la invitación pasa
+    // silenciosamente a `assertCanGrantRole` sin chequear la org
+    // del target → admin_org con scope `'department'` podría
+    // invitar a CUALQUIER org. La restricción de dept del user
+    // invitado vive en el flujo de aceptación downstream (la
+    // asignación de `department_id` al UserEntity cuando el
+    // invitado acepta), no en `assertCanInvite`.
+    case 'department':
+      if (organizationId !== actor.scope.organizationId) {
+        throw outOfScope();
+      }
+      break;
     case 'public':
     case 'deny':
       throw outOfScope();

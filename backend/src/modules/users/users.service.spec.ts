@@ -18,6 +18,12 @@ const ORG_ASSIGNED_SCOPE: SubjectScope = {
   organizationId: 'org-A',
   userId: 'user-1',
 };
+// 2026-10-18-admin-org-dept-scoping — admin_org con dept poblado.
+const DEPT_A_SCOPE: SubjectScope = {
+  kind: 'department',
+  organizationId: 'org-A',
+  departmentId: 'dept-A',
+};
 const PUBLIC_SCOPE: SubjectScope = { kind: 'public' };
 const DENY_SCOPE: SubjectScope = { kind: 'deny', reason: 'staff_without_organization' };
 
@@ -273,6 +279,56 @@ describe('UsersService', () => {
       expect(userRepo.findAndCount).not.toHaveBeenCalled();
       expect(result).toEqual({ items: [], total: 0 });
     });
+
+    // 2026-10-18-admin-org-dept-scoping — admin_org con dept poblado.
+    // Filtra por `departmentId` (no por `organizationId`); admin_org
+    // sólo ve los users de SU departamento, no de toda la org.
+    it('department scope filtra por departmentId + isActive: true (no por organizationId)', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, DEPT_A_SCOPE);
+
+      // El case 'department' debe traducirse a `where.departmentId`,
+      // NO `where.organizationId`. Sin este assert, una refactor que
+      // reusara `case 'org' | 'department'` pasaría el typecheck pero
+      // sería funcionalmente incorrecta (admin_org vería TODA la org).
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { departmentId: 'dept-A', isActive: true } }),
+      );
+    });
+
+    // 2026-10-18 — el toggle de inactivos se combina correctamente
+    // con `departmentId` (no se sobreescribe con `true`).
+    it('department scope con activeOnly=false combina con departmentId', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, DEPT_A_SCOPE, undefined, false);
+
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { departmentId: 'dept-A', isActive: false },
+        }),
+      );
+    });
+
+    // 2026-10-18 — defense-in-depth: dos admin_org en distintos dept
+    // de la misma org deben ver cohorts disjuntos. Esto verifica
+    // que `scope.departmentId` se pasa LITERAL al where (no
+    // hardcodeado a algún valor).
+    it('department scope con departmentId distinto produce where distinto', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      const DEPT_B_SCOPE: SubjectScope = {
+        kind: 'department',
+        organizationId: 'org-A',
+        departmentId: 'dept-B',
+      };
+      await service.list(undefined, undefined, DEPT_B_SCOPE);
+
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { departmentId: 'dept-B', isActive: true } }),
+      );
+    });
   });
 
   describe('getSessionsForSelf (T3.9 D9 — self, no permission/rank check)', () => {
@@ -281,6 +337,8 @@ describe('UsersService', () => {
         userId: 'user-1',
         permissions: [],
         organizationId: null,
+        // 2026-10-18 — `departmentId` agregado al factory. Default null.
+        departmentId: null,
         roleName: null,
         scope: PUBLIC_SCOPE,
         sessionId: 'sid-current',
@@ -328,6 +386,8 @@ describe('UsersService', () => {
         userId: 'admin-1',
         permissions: ['READ sessions'],
         organizationId: 'org-A',
+        // 2026-10-18 — `departmentId` agregado al factory. Default null.
+        departmentId: null,
         roleName: 'admin_org',
         scope: { kind: 'org', organizationId: 'org-A' },
         sessionId: 'sid-admin',
@@ -390,6 +450,8 @@ describe('UsersService', () => {
         userId: 'admin-1',
         permissions: ['UPDATE users'],
         organizationId: null,
+        // 2026-10-18 — `departmentId` agregado al factory. Default null.
+        departmentId: null,
         roleName: 'master',
         scope: { kind: 'global' },
         sessionId: 'sid-admin-1',
@@ -1271,6 +1333,8 @@ describe('UsersService', () => {
       userId: 'admin-1',
       permissions: [],
       organizationId: 'org-A',
+      // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+      departmentId: null,
       roleName: 'admin_org',
       scope: { kind: 'org', organizationId: 'org-A' },
       sessionId: 'sess-1',
@@ -1316,6 +1380,8 @@ describe('UsersService', () => {
         userId: 'master-1',
         permissions: [],
         organizationId: null,
+        // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+        departmentId: null,
         roleName: 'master',
         scope: { kind: 'global' },
         sessionId: 'sess-1',
@@ -1373,6 +1439,8 @@ describe('UsersService', () => {
         userId: 'admin-org-A',
         permissions: [],
         organizationId: 'org-A',
+        // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+        departmentId: null,
         roleName: 'admin_org',
         scope: { kind: 'org', organizationId: 'org-A' },
         sessionId: 'sess-admin-A',

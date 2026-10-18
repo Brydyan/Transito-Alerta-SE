@@ -4,6 +4,8 @@ import { AuthContext } from '../../shared/authz/subject-scope';
 
 const ADMIN: AuthContext = {
   userId: 'a-1', roleName: 'master', organizationId: null,
+  // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+  departmentId: null,
   permissions: ['READ dashboard'], scope: { kind: 'global' }, sessionId: null, isAnonymous: false,
 };
 

@@ -231,6 +231,8 @@ describe('Invitations + Sessions — real-infra integration (T3.6)', () => {
         userId: inviterId,
         permissions: ['CREATE invitations'],
         organizationId: null,
+        // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+        departmentId: null,
         roleName: 'master',
         scope: { kind: 'global' },
         sessionId: null,

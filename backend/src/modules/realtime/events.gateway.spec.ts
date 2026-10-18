@@ -21,6 +21,8 @@ function makeAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'user-1',
     permissions: ['READ incidents'],
     organizationId: null,
+    // 2026-10-18 — `departmentId` agregado al factory. Default null.
+    departmentId: null,
     roleName: null,
     scope: { kind: 'global' },
     sessionId: null,

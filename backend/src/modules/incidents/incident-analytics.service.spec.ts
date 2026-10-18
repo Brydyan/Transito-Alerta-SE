@@ -9,6 +9,8 @@ const SYSTEM_ADMIN: AuthContext = {
   userId: 'admin-1',
   roleName: 'master',
   organizationId: null,
+  // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+  departmentId: null,
   permissions: ['READ dashboard'],
   scope: { kind: 'global' },
   sessionId: null,
@@ -19,6 +21,8 @@ const ORG_ADMIN: AuthContext = {
   userId: 'org-admin-1',
   roleName: 'admin_org',
   organizationId: 'org-uuid-1',
+  // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+  departmentId: null,
   permissions: ['READ dashboard'],
   scope: { kind: 'org', organizationId: 'org-uuid-1' },
   sessionId: null,

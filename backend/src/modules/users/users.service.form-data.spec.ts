@@ -21,6 +21,8 @@ const SYSTEM_ADMIN_ACTOR: AuthContext = {
   userId: 'admin-1',
   permissions: ['READ users'],
   organizationId: null,
+  // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+  departmentId: null,
   roleName: 'master',
   scope: GLOBAL_SCOPE,
   sessionId: 'sess-admin',
@@ -31,6 +33,8 @@ const ORG_ADMIN_ACTOR: AuthContext = {
   userId: 'org-admin-1',
   permissions: ['READ users'],
   organizationId: 'org-A',
+  // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+  departmentId: null,
   roleName: 'admin_org',
   scope: ORG_A_SCOPE,
   sessionId: 'sess-org',
@@ -41,6 +45,8 @@ const NO_ORG_ACTOR: AuthContext = {
   userId: 'opaque-1',
   permissions: ['READ users'],
   organizationId: null,
+  // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+  departmentId: null,
   roleName: 'reporter',
   scope: PUBLIC_SCOPE,
   sessionId: 'sess-rep',

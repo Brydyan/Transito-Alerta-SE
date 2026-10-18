@@ -24,6 +24,11 @@ function auth(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'admin-1',
     permissions: ['ASSIGN assignments'],
     organizationId: 'org-A',
+    // 2026-10-18 — `departmentId` agregado al factory. `null` por
+    // default porque los tests pre-existentes usan `scope: ORG_A_SCOPE`
+    // (kind 'org', no 'department'). Si un test necesita dept, lo
+    // pasa por `overrides`.
+    departmentId: null,
     roleName: 'admin_org',
     scope: ORG_A_SCOPE,
     sessionId: null,
@@ -396,6 +401,8 @@ describe('AssignmentsService', () => {
           userId: 'admin-caller-3',
           permissions: [],
           organizationId: 'org-A',
+          // 2026-10-18 — agregado al literal AuthContext.
+          departmentId: null,
           roleName: 'admin_org',
           scope: { kind: 'org', organizationId: 'org-A' },
           sessionId: 'sess-3',

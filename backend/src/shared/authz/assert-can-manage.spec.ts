@@ -8,6 +8,11 @@ function actor(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'actor-1',
     permissions: [],
     organizationId: 'org-1',
+    // 2026-10-18 — `departmentId` agregado al factory. Default null;
+    // los tests pre-existentes usan scope 'org'. Para tests con
+    // scope 'department', se pasa `departmentId` + `scope` por
+    // `overrides`.
+    departmentId: null,
     roleName: 'admin_org',
     scope: { kind: 'org', organizationId: 'org-1' },
     sessionId: 'session-actor-1',
@@ -86,6 +91,76 @@ describe('assertCanManage', () => {
     const a = actor({ roleName: null, organizationId: null, scope: { kind: 'public' } });
     const target = { id: 'target-6', organizationId: 'org-9', roleName: 'master' };
     expect(() => assertCanManage(a, target)).not.toThrow();
+  });
+
+  // 2026-10-18-admin-org-dept-scoping — admin_org con scope
+  // 'department' (Riesgo oculto detectado: el `switch` original
+  // no tenía case 'department' y retornaba `undefined` →
+  // isVisibleUnderScope era falsy → 404 → admin_org no podía
+  // gestionar NADIE de su propio dept).
+  describe('department scope (2026-10-18 hidden risk fix)', () => {
+    function deptScopeActor(overrides: Partial<AuthContext> = {}): AuthContext {
+      return actor({
+        roleName: 'admin_org',
+        organizationId: 'org-1',
+        departmentId: 'dept-A',
+        scope: { kind: 'department', organizationId: 'org-1', departmentId: 'dept-A' },
+        ...overrides,
+      });
+    }
+
+    it('admin_org con department scope puede gestionar un target en su mismo dept + org', () => {
+      const a = deptScopeActor();
+      const target = {
+        id: 'target-1',
+        organizationId: 'org-1',
+        departmentId: 'dept-A',
+        roleName: 'operator_org',
+      };
+      // rank OK (admin_org > operator_org) y visibility OK (mismo org + dept)
+      expect(() => assertCanManage(a, target)).not.toThrow();
+    });
+
+    it('admin_org con department scope NO puede gestionar un target en OTRO dept de la misma org → 404 (visibility)', () => {
+      const a = deptScopeActor();
+      const target = {
+        id: 'target-2',
+        organizationId: 'org-1',
+        departmentId: 'dept-B', // distinto dept
+        roleName: 'operator_org',
+      };
+      expect(() => assertCanManage(a, target)).toThrow(NotFoundException);
+    });
+
+    it('admin_org con department scope NO puede gestionar un target en OTRA org (mismo dept id) → 404 (visibility)', () => {
+      const a = deptScopeActor();
+      const target = {
+        id: 'target-3',
+        organizationId: 'org-2', // distinta org
+        departmentId: 'dept-A', // mismo dept id, distinto dominio
+        roleName: 'operator_org',
+      };
+      expect(() => assertCanManage(a, target)).toThrow(NotFoundException);
+    });
+
+    it('admin_org con department scope NO puede actuar sobre un target superior en rango aún siendo visible', () => {
+      const a = deptScopeActor();
+      const target = {
+        id: 'target-4',
+        organizationId: 'org-1',
+        departmentId: 'dept-A',
+        roleName: 'master', // outranks admin_org
+      };
+      try {
+        assertCanManage(a, target);
+        fail('expected ForbiddenException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect((err as ForbiddenException).getResponse()).toMatchObject({
+          code: 'INSUFFICIENT_ROLE_RANK',
+        });
+      }
+    });
   });
 });
 
