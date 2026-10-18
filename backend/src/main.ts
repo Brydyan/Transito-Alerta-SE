@@ -100,25 +100,40 @@ async function bootstrap(): Promise<void> {
   // con JWT bearer tokens esto es vector de fuga de tokens vía XSS en un
   // sitio malicioso.
   //
-  // Cambio: la whitelist ahora vive en `CORS_ALLOWED_ORIGINS` (CSV). Si está
-  // vacía, CORS se cierra por completo (origin=false). En producción, una
-  // whitelist vacía es un error de boot (no arrancamos con la API abierta).
-  // En dev, una whitelist vacía es seguro (las pruebas e2e del repo NO
-  // dependen del header CORS — Supertest no valida CORS, y los e2e con
-  // browser son contra el front propio con origin whitelisted).
+  // Resolución de la whitelist (orden de prioridad):
+  //   1. CORS_ALLOWED_ORIGINS — CSV explícito (multi-dominio si aplica).
+  //   2. FRONTEND_BASE_URL     — single-origin implícito (el front que
+  //                              consume este backend).
+  //   3. Si ninguno está seteado: log un error visible y arranca con
+  //      CORS cerrado (origin=false). El cliente verá sus requests
+  //      cross-origin rechazados por el navegador, lo cual es fail-SAFE
+  //      (la API sigue respondiendo a same-origin y a tools que ignoran
+  //      CORS como curl/Postman) pero el usuario final no podrá usar la
+  //      app hasta que alguien configure una de las dos envs.
+  //
+  // El cambio anterior era fail-DEAD (throw al boot) — rompía el deploy
+  // si el operador olvidaba setear CORS_ALLOWED_ORIGINS en producción.
+  // El comportamiento actual es fail-SAFE: arranca con CORS cerrado y un
+  // log de error claro en lugar de caerse.
   const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
 
-  if (!allowedOrigins.length && process.env.NODE_ENV === 'production') {
-    throw new Error(
-      'CORS_ALLOWED_ORIGINS must be set (comma-separated list) in production',
+  let effectiveOrigins = allowedOrigins;
+  if (!effectiveOrigins.length && process.env.FRONTEND_BASE_URL?.trim()) {
+    effectiveOrigins = [process.env.FRONTEND_BASE_URL.trim()];
+  }
+  if (!effectiveOrigins.length) {
+    // eslint-disable-next-line no-console
+    console.error(
+      '[CORS] No origins whitelisted. Set CORS_ALLOWED_ORIGINS (CSV) ' +
+      'or FRONTEND_BASE_URL. API will reject all cross-origin requests.',
     );
   }
 
   app.enableCors({
-    origin: allowedOrigins.length ? allowedOrigins : false,
+    origin: effectiveOrigins.length ? effectiveOrigins : false,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
