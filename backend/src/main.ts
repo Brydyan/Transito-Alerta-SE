@@ -62,7 +62,33 @@ async function bootstrap(): Promise<void> {
 
   // T4.3a — HTTP security headers (X-Frame-Options, X-Content-Type-Options,
   // Strict-Transport-Security, etc.) on every response, including CORS.
+  // P17 (MINIMAX_BUILDER_SECURITY_IMPLEMENTATION.md) — expandido:
+  // - CSP: whitelist sources (Angular requiere unsafe-inline para
+  //   script-src y style-src). data: para imágenes (incident photos).
+  //   connect-src self+wss para sockets.
+  // - HSTS: 1 año, includeSubDomains, preload-eligible.
+  // - Referrer-Policy: strict-origin-when-cross-origin (no leak de
+  //   path completo a terceros).
+  // - crossOriginResourcePolicy: false (mantenido — los assets del
+  //   backend son JSON, no se sirven a otros orígenes).
   app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: [`'self'`],
+        scriptSrc: [`'self'`, `'unsafe-inline'`],
+        styleSrc: [`'self'`, `'unsafe-inline'`],
+        imgSrc: [`'self'`, 'data:', 'https:'],
+        connectSrc: [`'self'`, 'wss:', 'https:'],
+        objectSrc: [`'none'`],
+        frameAncestors: [`'none'`],
+      },
+    },
+    strictTransportSecurity: {
+      maxAge: 31_536_000, // 1 año
+      includeSubDomains: true,
+      preload: true,
+    },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     crossOriginResourcePolicy: false,
   }));
 
