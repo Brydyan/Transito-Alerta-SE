@@ -1,4 +1,4 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { ArgumentsHost, BadRequestException, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import type { Response } from 'express';
 
 import { AuthContext } from '../authz/subject-scope';
@@ -37,6 +37,31 @@ interface LoggableRequest {
  *    se pega: lo que entra ahí, se filtró. Se loguean método, ruta,
  *    status, usuario y código de error — nada más.
  */
+/**
+ * 2026-10-18 — mapea excepciones no-HTTP a una forma uniforme antes
+ * del branch principal del filtro. Hoy solo cubre `MulterError`
+ * (multer 2.x emite errores de validación de upload como
+ * `MulterError`, no como `HttpException`); si en el futuro otras
+ * librerías externas lanzan errores propios, esta función es el
+ * punto único donde normalizarlos.
+ *
+ * Mantenida fuera de la clase como función pura (sin `this`) para
+ * que sea fácil de testear aislada.
+ */
+function normalizeException(exception: unknown): unknown {
+  if (exception instanceof Error && exception.name === 'MulterError') {
+    return new BadRequestException({
+      code: 'UPLOAD_VALIDATION_FAILED',
+      // Mensaje crudo de multer: 'Too many files', 'Unexpected
+      // file field', 'File too large', etc. Lo reenviamos al
+      // cliente porque describe exactamente qué falló en la
+      // subida — sin info sensible (no incluye paths ni bytes).
+      message: exception.message,
+    });
+  }
+  return exception;
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger('HttpException');
@@ -46,16 +71,28 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const req = http.getRequest<LoggableRequest>();
     const res = http.getResponse<Response>();
 
-    const isHttp = exception instanceof HttpException;
-    const status = isHttp ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    // 2026-10-18 — `multer` 2.x lanza `MulterError` (no
+    // `HttpException`) cuando excede `maxCount`, cuando un campo
+    // file es unexpected, cuando el MIME no matchea `fileFilter`,
+    // etc. Antes (multer 1.x) varios de estos casos terminaban
+    // como `BadRequestException` y los e2e tests esperaban 400/422.
+    // multer 2.x los emite como `MulterError`; el filtro los
+    // trataba como "error desconocido" → 500. Mapeamos a
+    // BadRequestException antes del branch de HttpException para
+    // que el resto del manejo (logging, response shape) siga
+    // uniforme.
+    const normalized = normalizeException(exception);
+
+    const isHttp = normalized instanceof HttpException;
+    const status = isHttp ? normalized.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     const body = isHttp
-      ? exception.getResponse()
+      ? normalized.getResponse()
       : // Un error desconocido NO se reenvía: su mensaje suele traer
         // host, puerto o credenciales de la conexión que falló. El
         // detalle va al log del servidor; al cliente, la forma estándar.
         { statusCode: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Internal server error' };
 
-    const line = this.describe(req, status, exception);
+    const line = this.describe(req, status, normalized);
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       // El stack sólo acá: un 4xx es una decisión del sistema, no un

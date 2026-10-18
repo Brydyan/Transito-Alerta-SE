@@ -36,5 +36,17 @@ RUN CI=true pnpm install --frozen-lockfile --prod
 # dist ahora vive en /app/backend/dist (porque el build stage corre
 # desde /app/backend), no en /app/dist.
 COPY --from=build /app/backend/dist /app/backend/dist
+# 2026-10-18 — security (P7, MINIMAX_BUILDER_SECURITY_IMPLEMENTATION).
+# Run as non-root user. node:22-alpine ya trae el usuario `node`
+# con uid/gid 1000, así que lo reusamos en vez de crear uno nuevo
+# (gid 1000 ya está ocupado por `node`, lo que hacía fallar
+# `addgroup`). Después del COPY --from=build los archivos quedan
+# owned by root; el `chown -R` los transfiere a `node` para que el
+# proceso pueda leer dist/. Defense-in-depth: si el proceso node
+# es comprometido, el atacante no hereda privilegios root dentro
+# del contenedor (que en docker-compose es prácticamente root en
+# el host). Cero costo runtime.
+RUN chown -R node:node /app/backend
+USER node
 EXPOSE 3001
 CMD ["node", "dist/src/main.js"]

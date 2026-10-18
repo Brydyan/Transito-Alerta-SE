@@ -25,6 +25,19 @@ export interface AuthConfig {
    * composition rules. Env `PASSWORD_MIN_LENGTH`, default 12.
    */
   passwordMinLength: number;
+  /**
+   * P14 (MINIMAX_BUILDER_SECURITY_IMPLEMENTATION.md) — el `kid`
+   * (Key ID) con el que se firman los tokens access. Cuando está
+   * seteado, los tokens llevan `kid` en el header JWS y la
+   * estrategia JwtStrategy resuelve el secret por kid. Cuando es
+   * `null` (default), los tokens NO llevan kid y el comportamiento
+   * legacy (un solo secret) se preserva byte-a-byte. Env
+   * `JWT_ACCESS_KID`. Habilita rotación sin downtime: el operador
+   * genera un nuevo secret, lo setea en una nueva env
+   * (`JWT_ACCESS_KID=k2`, etc.) y lo rota cuando los tokens viejos
+   * expiren (15 min para access).
+   */
+  jwtAccessKid: string | null;
 }
 
 const DURATION_UNIT_SECONDS: Record<string, number> = {
@@ -92,5 +105,8 @@ export default registerAs('auth', (): AuthConfig => {
     passwordMinLength: process.env.PASSWORD_MIN_LENGTH
       ? parseInt(process.env.PASSWORD_MIN_LENGTH, 10)
       : 12,
+    // P14 — null = back-compat (sin kid header, un solo secret).
+    // Setear la env cuando se quiera entrar en modo rotación.
+    jwtAccessKid: process.env.JWT_ACCESS_KID ?? null,
   };
 });

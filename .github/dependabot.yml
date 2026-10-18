@@ -1,0 +1,103 @@
+# Dependabot — auto-detección de CVEs en backend y frontend.
+#
+# Activado por SECURITY_ACTION_PLAN_2026-10-18 (item P6). Cierra el ciclo
+# de "62 CVEs acumulados silenciosamente" abriendo PRs automáticos cuando
+# salen advisories.
+#
+# Auto-merge: NO configurado. Los PRs requieren review humano — los
+# overrides del SECURITY_ACTION_PLAN deberían seguirse aplicando desde
+# este workspace vía PR, no por auto-merge silencioso.
+
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Guayaquil"
+    open-pull-requests-limit: 5
+    # Etiqueta los PRs para que el reviewer sepa el contexto
+    labels:
+      - "dependencies"
+      - "security"
+    # Grupos para reducir ruido: muchas minor updates en un solo PR
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+    # Commit messages prefijados para legibilidad del changelog
+    commit-message:
+      prefix: "deps(backend)"
+      include: "scope"
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Guayaquil"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security"
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+    commit-message:
+      prefix: "deps(frontend)"
+      include: "scope"
+
+  # GitHub Actions versions — evita que un workflow quede con un action
+  # deprecado o comprometido
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Guayaquil"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Docker base images — node:22-alpine, nginx:alpine, postgis/postgis
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Guayaquil"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "docker(backend)"
+      include: "scope"
+
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Guayaquil"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "docker(frontend)"
+      include: "scope"

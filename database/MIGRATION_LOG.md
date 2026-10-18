@@ -94,6 +94,114 @@ independiente. Ver commit `1bbccfec3`.
 - ✅ Applied — applied and verified in the environment listed
 - ❌ Rolled back — applied then reverted via the matching `database/rollback/*.DOWN.sql`
 
+## Backfill de migraciones aplicadas manualmente (operational)
+
+### Contexto
+
+El runner (`backend/scripts/run-migrations.ts`) confía en que
+`schema_migrations` refleje **todas** las migraciones aplicadas. Cuando
+una migración se aplicó vía `psql` directo (bootstrap inicial, hot-fix
+de emergencia, o antes de que el runner existiera), queda **huérfana**:
+el esquema tiene los objetos pero la tabla de tracking no tiene la fila.
+
+Síntomas típicos:
+
+- `ls database/migrations/*.sql | wc -l` retorna un número mayor que
+  `SELECT COUNT(*) FROM schema_migrations`.
+- Próximas corridas del runner lanzan `ERROR: ... already exists` para
+  migraciones que ya están aplicadas (eco benigno, pero enmascara drift
+  real cuando se añade una nueva).
+- El merge de una rama con migraciones nuevas puede fallar porque el
+  runner detecta drift sobre las filas faltantes.
+
+### Caso real — `tase-staging` 2026-10-18
+
+`SELECT COUNT(*) FROM schema_migrations` devolvía **24** mientras que
+`ls database/migrations/*.sql` sumaba **37**. Los 13 huérfanos eran:
+`0021, 0022, 0024, 0025, 0026, 0029, 0030, 0031, 0032, 0033, 0034,
+0035, 0037`.
+
+Verificación de que estaban aplicados (no eran drift real):
+
+- `pg_constraint` contenía `fk_organizations_zone` (creado por `0002`).
+- `pg_indexes` contenía `uq_users_phone` (creado por `0036`).
+- `roles` contenía `master`, `admin_org`, `operator_org` (creados por
+  `0023`).
+
+Tras el backfill, `schema_migrations` quedó con las **37** filas
+contiguas `0001 → 0037`.
+
+### Procedimiento
+
+1. **Identificar los gaps** cruzando archivos en disco con filas
+   registradas:
+
+   ```bash
+   # en el host del repo
+   ls database/migrations/*.sql | wc -l
+
+   # en el server (docker) — listar versiones presentes
+   docker exec -i tase-postgres psql -U postgres -d transito_alerta \
+     -c "SELECT version FROM schema_migrations ORDER BY version;"
+   ```
+
+   Los IDs presentes en disco pero NO en la tabla son los huérfanos.
+
+2. **Calcular checksums reales desde los archivos en disco**:
+
+   ```bash
+   sha256sum database/migrations/0021_t6_t7_schema_completeness.sql \
+              database/migrations/0022_t7_schema_completeness.sql \
+              # ... los que falten
+   ```
+
+   ⚠️ **NO usar placeholders** — el runner detecta ediciones
+   post-aplicación vía checksum mismatch y falla en silencio (exit 0,
+   pero reporta drift).
+
+3. **Insertar las filas faltantes con `docker exec -i` (sin `-t`)**.
+   Con `-t`, Docker aborta con `cannot attach stdin to a TTY-enabled
+   container because stdin is not a terminal` al recibir un heredoc.
+
+   ```bash
+   docker exec -i tase-postgres psql -U postgres -d transito_alerta <<'SQL'
+   INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES
+     ('0021', 't6_t7_schema_completeness', '<sha256-de-0021>', NOW()),
+     ('0022', 't7_schema_completeness',    '<sha256-de-0022>', NOW())
+     -- ... el resto
+   ON CONFLICT (version) DO NOTHING;
+   SQL
+   ```
+
+   `ON CONFLICT (version) DO NOTHING` hace el INSERT idempotente:
+   correrlo dos veces no duplica ni revienta.
+
+4. **Verificar**:
+
+   ```bash
+   docker exec -i tase-postgres psql -U postgres -d transito_alerta \
+     -c "SELECT COUNT(*) FROM schema_migrations;"
+   # esperado: 37 (= número de archivos .sql en disco)
+   ```
+
+5. **Marcar `applied_at = NOW()`** — es OK. Si en el futuro una query
+   de auditoría necesita distinguir "backfilleado manualmente" de
+   "aplicado por el runner", se puede agregar una columna
+   `applied_by varchar(64)` y poblarla con `'manual-backfill'` para
+   distinguirlo. Hoy el log en este archivo es suficiente.
+
+### Cuándo **NO** backfill-ear
+
+- Si una migración aparece como ⏳ Pending en este log **Y** no tiene
+  objetos en el esquema, es drift real — la solución es aplicarla con
+  el runner o manualmente, NO backfill-ear la fila (eso solo escondería
+  la ausencia).
+- Si el checksum del archivo en disco NO coincide con el del archivo
+  original aplicado, hay una edición post-aplicación — hay que
+  investigar antes de tocar `schema_migrations`. Si la edición fue
+  intencional (ej. fix retroactivo), primero re-aplicar el SQL correcto
+  y luego backfill-ear con el checksum actual.
+
 ## Entorno local de desarrollo
 
 `docker compose up -d postgres` levanta `postgis/postgis:16-3.4` vacío. Las
