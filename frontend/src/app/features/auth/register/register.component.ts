@@ -15,6 +15,7 @@ import { Router, RouterModule } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.component';
+import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 
 /**
  * REG (sc-325) — pantalla de auto-registro del ciudadano.
@@ -42,7 +43,7 @@ import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.comp
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, UiCardComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, UiCardComponent, UiIconComponent],
   templateUrl: './register.component.html',
   styleUrl: './register.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -55,6 +56,11 @@ export class RegisterComponent {
   readonly registerForm: FormGroup;
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
+  readonly showPassword = signal(false);
+
+  togglePassword(): void {
+    this.showPassword.update((v) => !v);
+  }
 
   constructor() {
     this.registerForm = this.formBuilder.group({
