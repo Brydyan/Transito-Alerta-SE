@@ -12,6 +12,8 @@ function makeActor(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'admin-1',
     permissions: ['ASSIGN roles'],
     organizationId: null,
+    // 2026-10-18 — `departmentId` agregado al factory. Default null.
+    departmentId: null,
     roleName: 'master',
     scope: { kind: 'global' },
     sessionId: 'session-admin-1',

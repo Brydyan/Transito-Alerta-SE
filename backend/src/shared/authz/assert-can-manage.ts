@@ -6,6 +6,13 @@ import { AuthContext } from './subject-scope';
 export interface ManageableTarget {
   id: string;
   organizationId: string | null;
+  /**
+   * 2026-10-18-admin-org-dept-scoping — agregado para que
+   * `isVisibleUnderScope` (case `'department'`) pueda matchear
+   * target contra el department del scope. Opcional para callers
+   * que ya tienen su target con `departmentId` poblado.
+   */
+  departmentId?: string | null;
   roleName: string | null;
 }
 
@@ -110,6 +117,18 @@ function isVisibleUnderScope(actor: AuthContext, target: ManageableTarget): bool
       // The user-visibility table scopes org_assigned the same as org for
       // users (design D3 table: org_assigned -> organization_id = $org).
       return target.organizationId === actor.scope.organizationId;
+    // 2026-10-18-admin-org-dept-scoping — admin_org scoped a un
+    // departamento: target visible SI su organización Y su
+    // departamento coinciden. Sin este case, admin_org con dept
+    // poblado caía al `undefined` del switch (TS2366 → sin compile
+    // error gracias a la guarda, pero en runtime `undefined` es
+    // falsy → 404 → admin_org no puede gestionar NADIE de su
+    // propio dept). Riesgo no mencionado en el doc original.
+    case 'department':
+      return (
+        target.organizationId === actor.scope.organizationId &&
+        target.departmentId === actor.scope.departmentId
+      );
     case 'public':
       return target.id === actor.userId;
     case 'deny':

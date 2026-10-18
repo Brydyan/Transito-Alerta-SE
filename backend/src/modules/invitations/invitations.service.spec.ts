@@ -11,6 +11,10 @@ function actor(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'actor-1',
     permissions: [],
     organizationId: 'org-1',
+    // 2026-10-18 — `departmentId` agregado al factory. `null` por
+    // default; los tests pre-existentes usan scope 'org'. Si un test
+    // necesita dept, lo pasa por `overrides`.
+    departmentId: null,
     roleName: 'admin_org',
     scope: { kind: 'org', organizationId: 'org-1' },
     sessionId: 'session-actor-1',

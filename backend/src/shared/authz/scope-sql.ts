@@ -43,6 +43,16 @@ export function scopeToSql(scope: SubjectScope, opts: ScopeSqlOptions): ScopeSql
           `AND a.operator_id = $${paramOffset + 1})`,
         params: [scope.organizationId, scope.userId],
       };
+    // 2026-10-18-admin-org-dept-scoping — admin_org scoped a un
+    // único departamento. Misma forma que `org` pero filtrando por
+    // `department_id`. Para `incidents` el filtro es suficiente; el
+    // listado de usuarios vive en `users.service.ts` (no aquí) por
+    // convención del repo.
+    case 'department':
+      return {
+        fragment: `department_id = $${paramOffset}`,
+        params: [scope.departmentId],
+      };
   }
 }
 
@@ -64,5 +74,11 @@ export function scopeCacheKey(scope: SubjectScope): string {
       return `o:${scope.organizationId}`;
     case 'org_assigned':
       return `oa:${scope.organizationId}:${scope.userId}`;
+    // 2026-10-18 — clave distinta de `org`/`org_assigned` para que un
+    // cambio de department (futuro endpoint de reassign) invalide
+    // automáticamente el cache de lista sin tener que purgarlo
+    // explícitamente.
+    case 'department':
+      return `d:${scope.organizationId}:${scope.departmentId}`;
   }
 }

@@ -8,6 +8,8 @@ function actor(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'actor-1',
     permissions: [],
     organizationId: 'org-1',
+    // 2026-10-18 — `departmentId` agregado al factory. Default null.
+    departmentId: null,
     roleName: 'admin_org',
     scope: { kind: 'org', organizationId: 'org-1' },
     sessionId: 'session-actor-1',
@@ -66,5 +68,54 @@ describe('assertCanInvite (T3.6 design D10)', () => {
   it('D2 additivity — actor with roleName=null (unranked) is never gated', () => {
     const a = actor({ roleName: null, scope: { kind: 'public' } });
     expect(() => assertCanInvite(a, 'org-9', 'master')).not.toThrow();
+  });
+
+  // 2026-10-18-admin-org-dept-scoping — admin_org con dept poblado.
+  // Riesgo oculto detectado: el switch original no tenía case
+  // 'department' → `undefined` → assertCanInvite NO chequeaba la org
+  // → admin_org con scope 'department' podría invitar a CUALQUIER org.
+  // La restricción de dept del user invitado vive en el flujo de
+  // aceptación downstream; aquí se valida la org match.
+  describe('department scope (2026-10-18 hidden risk fix)', () => {
+    function deptScopeActor(overrides: Partial<AuthContext> = {}): AuthContext {
+      return actor({
+        roleName: 'admin_org',
+        organizationId: 'org-1',
+        departmentId: 'dept-A',
+        scope: { kind: 'department', organizationId: 'org-1', departmentId: 'dept-A' },
+        ...overrides,
+      });
+    }
+
+    it('admin_org con department scope puede invitar en su propia org (lower-rank role)', () => {
+      const a = deptScopeActor();
+      expect(() => assertCanInvite(a, 'org-1', 'operator_org')).not.toThrow();
+    });
+
+    it('admin_org con department scope NO puede invitar en OTRA org → 403 OUT_OF_SCOPE_ORGANIZATION', () => {
+      const a = deptScopeActor();
+      try {
+        assertCanInvite(a, 'org-2', 'operator_org');
+        fail('expected ForbiddenException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect((err as ForbiddenException).getResponse()).toMatchObject({
+          code: 'OUT_OF_SCOPE_ORGANIZATION',
+        });
+      }
+    });
+
+    it('admin_org con department scope + rank superior → 403 INSUFFICIENT_ROLE_RANK', () => {
+      const a = deptScopeActor();
+      try {
+        assertCanInvite(a, 'org-1', 'master');
+        fail('expected ForbiddenException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect((err as ForbiddenException).getResponse()).toMatchObject({
+          code: 'INSUFFICIENT_ROLE_RANK',
+        });
+      }
+    });
   });
 });

@@ -11,6 +11,13 @@ import { UserEntity } from '../users/entities/user.entity';
 export interface AuthContextRow {
   permissions: string[] | null;
   organization_id: string | null;
+  /**
+   * 2026-10-18-admin-org-dept-scoping — admin_org's departmentId.
+   * `null` para master, agent_system, operator_org, reporter,
+   * anonymous, o admin_org legacy sin department (cae al fallback
+   * `'org'` en `resolveSubjectScope`).
+   */
+  department_id: string | null;
   device_uuid: string;
   role_name: string | null;
   /** T7.2.C4 (R7.5) — non-null when the assigned role is soft-deleted. */
@@ -78,8 +85,10 @@ export class AuthUserRepository {
       // `users.permissions` is a denormalized snapshot (RolesService.assignRole)
       // that does NOT get cleared when the role itself is later soft-deleted,
       // so `role_deleted_at` must be checked here to zero it out live.
-      `SELECT u.permissions, u.organization_id, u.device_uuid, r.name AS role_name,
-              r.deleted_at AS role_deleted_at
+      // 2026-10-18-admin-org-dept-scoping — proyectar `department_id`
+      // para que admin_org pueda resolver a scope `'department'`.
+      `SELECT u.permissions, u.organization_id, u.department_id, u.device_uuid,
+              r.name AS role_name, r.deleted_at AS role_deleted_at
          FROM users u
          LEFT JOIN roles r ON r.id = u.role_id
         WHERE u.id = $1 AND u.deleted_at IS NULL AND u.is_active = TRUE`,

@@ -110,6 +110,10 @@ export class EventsGateway implements OnGatewayConnection {
       userId: socket.data?.userId,
       permissions: socket.data?.permissions ?? [],
       organizationId: socket.data?.scope?.organizationId ?? null,
+      // 2026-10-18 — `departmentId` para admin_org con dept poblado;
+      // socket no lo trae explícito (viene dentro de `scope` si
+      // aplica), así que default `null`.
+      departmentId: null,
       roleName: null,
       scope: socket.data?.scope ?? { kind: 'public' },
       sessionId: socket.data?.sessionId ?? null,
