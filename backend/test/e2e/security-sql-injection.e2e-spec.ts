@@ -30,6 +30,14 @@ describe('Security: SQL Injection (E2E)', () => {
     env = await TestEnvironment.start();
   }, 120_000);
 
+  beforeEach(async () => {
+    // Defense-in-depth: limpia Redis cache (incluye buckets de rate
+    // limit) entre tests. El test-environment setea
+    // RATE_LIMIT_STRICT_MAX_REQUESTS=100000, pero si una spec anterior
+    // del shard consumió budget, este reset previene contaminaciones.
+    await env.reset();
+  });
+
   afterAll(async () => {
     await env.stop();
   }, 60_000);

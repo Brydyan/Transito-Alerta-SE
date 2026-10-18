@@ -198,6 +198,16 @@ export class TestEnvironment {
     // make.
     process.env.RATE_LIMIT_MAX_REQUESTS = '100000';
     process.env.RATE_LIMIT_WINDOW_SECONDS = '60';
+    // P16 (MINIMAX_BUILDER_SECURITY_IMPLEMENTATION.md) — el strict
+    // limit para rutas CPU-bound (/auth/login, /auth/register,
+    // /auth/password-reset) defaulta a 10/min en producción para
+    // defensa contra CPU-exhaustion DoS. Los specs de seguridad
+    // (SQL injection × 5 vectores × 3 tests = 15 logins) lo
+    // exceden; lo resuelven con `await env.reset()` en `beforeEach`
+    // (que hace flushdb en el cache de Redis e incluye el bucket
+    // de rate limit). El spec de rate-limit intencionalmente
+    // consume el bucket para verificar el 429 — necesita el strict
+    // default de 10, por eso NO lo sobreescribimos acá.
     process.env.CACHE_TTL_SECONDS = '60';
     process.env.GEOFENCING_CACHE_TTL_SECONDS = '60';
 
