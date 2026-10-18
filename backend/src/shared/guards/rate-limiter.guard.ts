@@ -28,6 +28,28 @@ export function buildRateLimitKey(
 }
 
 /**
+ * P16 (MINIMAX_BUILDER_SECURITY_IMPLEMENTATION.md) — rutas
+ * CPU-bound que disparan bcrypt cost 12 (~250ms por intento).
+ * El global default es 100/min, suficiente para usuarios
+ * humanos pero vulnerable a CPU-exhaustion DoS si una IP atacante
+ * hace 100 logins fallidos por minuto (25s de CPU).
+ *
+ * El bucket `strictMaxRequests` (default 10/min) limita a 2.5s
+ * de CPU por IP por minuto para estas rutas.
+ *
+ * Pure function para testeo aislado.
+ */
+export function isStrictRateLimitPath(route: string): boolean {
+  return STRICT_RATE_LIMIT_PATHS.includes(route);
+}
+
+export const STRICT_RATE_LIMIT_PATHS: readonly string[] = [
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/password-reset',
+];
+
+/**
  * RateLimiterGuard (CC1) — Redis-backed sliding-minute rate limiting per
  * caller per route. 429 once the ceiling is exceeded. Default 100 req/min
  * (RATE_LIMIT_MAX_REQUESTS).
@@ -58,9 +80,14 @@ export class RateLimiterGuard implements CanActivate {
     const { rateLimit } = this.configService.get<CacheConfig>('cache')!;
     const key = buildRateLimitKey(identity, route);
 
+    // P16 — strict limit para rutas CPU-bound (bcrypt ~250ms/intento).
+    const maxRequests = isStrictRateLimitPath(route)
+      ? rateLimit.strictMaxRequests
+      : rateLimit.maxRequests;
+
     const current = (await this.cache.get<number>(key)) ?? 0;
 
-    if (current >= rateLimit.maxRequests) {
+    if (current >= maxRequests) {
       throw new HttpException('Too Many Requests', HttpStatus.TOO_MANY_REQUESTS);
     }
 
