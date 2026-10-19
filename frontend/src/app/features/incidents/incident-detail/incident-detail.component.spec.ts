@@ -414,6 +414,30 @@ describe('IncidentDetailComponent (F3.4)', () => {
     expect(btn).toBeNull();
   });
 
+  // 2026-10-19-incident-gallery-mount — la galería vivía como
+  // comentario en el template y el componente no estaba importado.
+  // Después del fix, cuando la incidencia está cargada el
+  // elemento `<app-incident-images>` debe estar presente (la
+  // sección Galería dejó de ser código muerto).
+  it('T6 — monta <app-incident-images> con [incidentId] cuando la incidencia está cargada', () => {
+    const { fixture } = setup({ incident: baseIncident });
+    const gallery = (fixture.nativeElement as HTMLElement).querySelector(
+      'app-incident-images',
+    );
+    expect(gallery).not.toBeNull();
+  });
+
+  it('T6 — NO monta la galería cuando la incidencia no existe (notFound)', () => {
+    // La galería vive dentro del branch `@else if (incident(); as inc)`,
+    // así que un 404 no debe pintarla. Si se filtrara arriba aparecería
+    // un <ui-card title="Galería"> en el empty-state.
+    const { fixture } = setup({ notFoundFromServer: true });
+    const gallery = (fixture.nativeElement as HTMLElement).querySelector(
+      'app-incident-images',
+    );
+    expect(gallery).toBeNull();
+  });
+
   // 2026-10-19-post-login-redirect-by-role — el botón "Volver"
   // debe respetar el rol del usuario. Reporter no tiene acceso a
   // /app/incidencias; el suyo es /app/inicio.

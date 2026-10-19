@@ -41,6 +41,13 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { CommentThreadComponent } from '../components/comment-thread/comment-thread.component';
 import { AssignDialogComponent } from '../assign-dialog/assign-dialog.component';
+// 2026-10-19-incident-gallery-mount — el componente reutilizable
+// de galería ya estaba implementado y probado; sólo faltaba
+// montarlo bajo la sección Galería del detalle. El componente
+// resuelve bytes por sí mismo vía el byte route
+// (`/incidents/:id/images/:imageId/file`), sin asumir URLs en el
+// payload (cambio D3 de 2026-10-06-incident-images-read-path).
+import { IncidentImagesComponent } from '../../../shared/components/incident-images/incident-images.component';
 // 2026-10-06-incident-images-read-path (D5) — shared util that the
 // status badge (and a future timeline re-enable) delegate to.
 import { mapStatusLabel } from '../../../shared/utils/incident-status.util';
@@ -85,6 +92,7 @@ import * as L from 'leaflet';
     EmptyStateComponent,
     CommentThreadComponent,
     AssignDialogComponent,
+    IncidentImagesComponent,
   ],
   templateUrl: './incident-detail.component.html',
   styleUrl: './incident-detail.component.css',
