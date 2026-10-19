@@ -6,6 +6,17 @@ import { AuthService } from '../../../core/services/auth.service';
 import { InvitationPreview } from '../../../core/models/auth.model';
 
 /**
+ * Destino post-aceptación según el rol del usuario recién
+ * hidratado. Espejo del `LoginComponent.onSubmit` —
+ * `reporter` no tiene `READ dashboard`, así que cae al
+ * `/app/inicio` (universal). El personal va al dashboard
+ * como antes.
+ */
+function defaultRouteForRole(roleName: string | null | undefined): string {
+  return roleName === 'reporter' ? '/app/inicio' : '/app/dashboard';
+}
+
+/**
  * SC-207 — `AcceptInvitationComponent`.
  *
  * Replaces the dead self-service `register()` flow (backend's
@@ -106,9 +117,16 @@ export class AcceptInvitationComponent implements OnInit {
       .subscribe({
         next: () => {
           this.loading.set(false);
-          // Auto-login: the backend minted a session, navigate
-          // straight to the app shell.
-          this.router.navigate(['/app/dashboard']);
+          // 2026-10-19-post-login-redirect-by-role — el destino
+          // depende del rol asignado en la invitación. El
+          // `reporter` no tiene `READ dashboard` y el guard del
+          // dashboard lo rebotaría; mandarlo al dashboard
+          // formaría un loop corto de redirecciones. Misma regla
+          // que `LoginComponent.onSubmit` para no tener dos
+          // copias desincronizadas.
+          const current = this.authService.user();
+          const target = defaultRouteForRole(current?.roleName);
+          this.router.navigate([target]);
         },
         error: (err: { status?: number; message?: string; errors?: Record<string, string[]> }) => {
           this.loading.set(false);

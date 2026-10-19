@@ -12,6 +12,13 @@ import { createReadStream } from 'fs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IncidentImageEntity } from './entities/incident-image.entity';
+// AUD (sc-327) D6 — el reporte anónimo escribe su autor real
+// en `incident_reporters` (no en `incidents.citizen_id`, que
+// apunta a la fila máscara). El guard de upload chequeaba sólo
+// el match contra `incidents.citizen_id`, lo que rompía el
+// flujo "Anónimo → subir fotos" (sc-419). Toca la tabla para
+// reclamar autoría real sin tener que cargar la fila entera.
+import { IncidentReporterEntity } from './entities/incident-reporters.entity';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
 import { IncidentImageDto } from './dto/incident-image.dto';
 import { IncidentsRepository } from './incidents.repository';
@@ -37,6 +44,8 @@ export class IncidentImagesService {
   constructor(
     @InjectRepository(IncidentImageEntity)
     private readonly imageRepo: Repository<IncidentImageEntity>,
+    @InjectRepository(IncidentReporterEntity)
+    private readonly reporterRepo: Repository<IncidentReporterEntity>,
     private readonly storage: IncidentImageStorageService,
     @Inject(STORAGE_CLIENT) private readonly storageClient: IStorageClient,
     private readonly incidentsRepository: IncidentsRepository,
@@ -81,13 +90,24 @@ export class IncidentImagesService {
     if (!incident) throw new NotFoundException(`Incident ${incidentId} not found`);
 
     const isOwner = incident.citizen_id === callerId;
+    // AUD (sc-327) D6 / sc-419 — un reporte anónimo tiene
+    // `incidents.citizen_id` apuntando al id de la máscara,
+    // no al autor real. Sin este chequeo el reporter original
+    // no podría subir fotos a su propia publicación. PK-only
+    // probe: `exists()` traduce a `SELECT 1 … LIMIT 1`, no
+    // carga columnas, no expone identidad.
+    const isReporter =
+      !isOwner &&
+      (await this.reporterRepo.exists({
+        where: { incidentId, userId: callerId },
+      }));
     const canCreate = await hasPermission(
       callerPermissions,
       'CREATE',
       'incident-images',
       this.permissionLookup,
     );
-    if (!isOwner && !canCreate) {
+    if (!isOwner && !isReporter && !canCreate) {
       throw new ForbiddenException('Not authorized to attach images to this incident');
     }
 
@@ -137,13 +157,23 @@ export class IncidentImagesService {
 
     const incident = await this.incidentsRepository.findOne(incidentId, PUBLIC_SCOPE);
     const isOwner = incident?.citizen_id === callerId;
+    // AUD (sc-327) D6 / sc-419 — simétrico al upload: si el
+    // caller publicó anónimamente, su `citizen_id` quedó en
+    // la máscara y el match contra `incidents.citizen_id` falla.
+    // Mismo patrón `exists()` PK-only; mismo razonamiento.
+    const isReporter =
+      !isOwner &&
+      incident != null &&
+      (await this.reporterRepo.exists({
+        where: { incidentId, userId: callerId },
+      }));
     const canDelete = await hasPermission(
       callerPermissions,
       'DELETE',
       'incident-images',
       this.permissionLookup,
     );
-    if (!isOwner && !canDelete) {
+    if (!isOwner && !isReporter && !canDelete) {
       throw new ForbiddenException('Not authorized to delete this image');
     }
 

@@ -43,13 +43,28 @@ describe('audit-logs route permissionGuard (R1-S2, sdd-verify FIX-3)', () => {
             component: class {},
           } as Route,
           { path: 'app/dashboard', component: class {} } as Route,
+          { path: 'app/inicio', component: class {} } as Route,
           { path: 'login', component: class {} } as Route,
         ]),
       ],
       providers: [
+        // 2026-10-19-dashboard-permission-gate — el guard ahora
+        // consulta `user()` (no `currentUser()`) para conocer
+        // también `roleName` y decidir el destino del rebote.
+        // Mockeamos ambas señales: `currentUser` mantiene el
+        // contrato histórico y `user` añade el rol. Default
+        // staff para no coincidir con la rama reporter-only.
         {
           provide: AuthService,
-          useValue: { currentUser: signal({ permissions: currentPermissions }) },
+          useValue: {
+            currentUser: signal({ permissions: currentPermissions }),
+            user: signal({
+              id: 'u-staff',
+              roleName: 'admin_org',
+              emailVerified: true,
+              permissions: currentPermissions,
+            }),
+          },
         },
       ],
     });

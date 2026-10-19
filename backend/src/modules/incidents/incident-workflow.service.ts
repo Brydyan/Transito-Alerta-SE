@@ -214,14 +214,55 @@ export class IncidentWorkflowService {
   }
 
   /**
-   * Operators in the incident's org, including saturated ones. F7
-   * emergency-dispatch (design D4) — the response now informs instead
-   * of filters: every operator is returned with `available: bool` and
+   * Operators eligible to take on this incident, including saturated ones.
+   * F7 emergency-dispatch (design D4) — the response informs instead of
+   * filters: every operator is returned with `available: bool` and
    * `maxActive: int` so the UI can render «3 de 3» or distinguish a
    * saturated operator from a missing one.
    *
    * Inactive users (`is_active = false`) and roles outside
    * `operator_org` / `agent_system` are still excluded.
+   *
+   * Bug-fix (back/<this change>) — the previous version returned the
+   * WHOLE org's eligible operators and aliased `name` to `device_uuid`,
+   * which is a UUID: the assign dialog rendered a list of UUIDs the
+   * dispatcher could not read. Two problems fixed here:
+   *
+   *   (A) `name` is now built from `first_name` + `last_name`, with
+   *       each side `COALESCE(..., '')` and the whole expression
+   *       `TRIM(...)` so a user with only one of the two renders as
+   *       «Jane» / «Doe», not «Jane  » or « Doe». This is the human-
+   *       readable identity the frontend already binds to
+   *       (`AvailableOperatorDto.name`, used as `{{ op.name }}` in
+   *       `assign-dialog.component.ts`).
+   *
+   *   (B) The set of operators is restricted to those who can resolve
+   *       the incident's *category* within the incident's org. The
+   *       `department_incident_categories` M:N junction (migration
+   *       0030, design D2 of `back/2026-09-15-departments-module`)
+   *       expresses «which departments handle which incident
+   *       categories»; the SQL here resolves the dept-id set for the
+   *       incident's category inside the same org and then accepts
+   *       operators whose `department_id` is one of those depts OR
+   *       whose `department_id IS NULL` (the polyvalent fallback —
+   *       an operator with no dept can still be assigned; org-wide
+   *       responders are explicitly part of the design, not an
+   *       oversight). Operators from a dept that does NOT handle the
+   *       category are excluded — those would only see the ticket
+   *       after another department hand-off, which is not what the
+   *       dispatcher wants from this dropdown.
+   *
+   *       Un-categorized incidents (`category_id IS NULL`) keep the
+   *       pre-fix behavior: every eligible operator in the org is
+   *       returned. The user's intent ("operator_org que puedan
+   *       resolver esa incidencia") only applies once a category has
+   *       been assigned; before that, the dispatcher has no scoping
+   *       to apply and the legacy fallback is the only sensible
+   *       answer. This branch is documented below.
+   *
+   * Wire shape unchanged: `{ id, name, email, activeClaimCount,
+   * available, maxActive }`. Only the *semantics* of `name` and the
+   * row-set filter change; controller and DTO are not touched.
    */
   async availableOperators(incidentId: string): Promise<AvailableOperatorDto[]> {
     const incident = await this.loadIncident(incidentId);
@@ -230,11 +271,76 @@ export class IncidentWorkflowService {
     }
     const maxActive = await this.maxActiveClaimsFor(incident.organization_id);
 
+    // Categoria-driven branch — uses a CTE to keep the filter list
+    // visible to a future reader without forcing them to untangle a
+    // nested subquery. The `category_depts` CTE resolves the set of
+    // departments in this org that handle the incident's category;
+    // the outer query then accepts an operator when:
+    //   - their dept is one of those, OR
+    //   - they have no dept at all (polyvalent fallback).
+    //
+    // The `idx_dic_category` index on `department_incident_categories
+    // (incident_category_id)` (migration 0030 §7) keeps the CTE
+    // lookup cheap; `idx_departments_org_deleted` covers the dept
+    // filter. No new indexes added in this change — staging EXPLAIN
+    // pending (noted in the verify-report).
+    //
+    // The claimed-by exclusion (`$2`) and the role + active filter
+    // (`operator_org` / `agent_system`, `is_active = true`) carry
+    // over verbatim from the pre-fix query.
+    if (incident.category_id) {
+      const rows = await this.dataSource.query<
+        Array<{ id: string; name: string; email: string | null; active_count: string }>
+      >(
+        `WITH category_depts AS (
+           SELECT dc.department_id
+             FROM department_incident_categories dc
+             JOIN departments d ON d.id = dc.department_id
+            WHERE dc.incident_category_id = $3::uuid
+              AND d.organization_id = $1::uuid
+              AND d.deleted_at IS NULL
+         )
+         SELECT u.id,
+                        -- Bug-fix (A): human-readable name. COALESCE
+                        -- guards against NULL first/last; the outer
+                        -- TRIM removes the leftover space when only
+                        -- one of the two is set. device_uuid is NEVER
+                        -- used here — it was the original bug.
+                        TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS name,
+                        u.email,
+                        COALESCE((
+                          SELECT COUNT(*)::int
+                            FROM incidents
+                           WHERE claimed_by = u.id AND status = 'in_progress'
+                        ), 0) AS active_count
+                   FROM users u
+                   JOIN roles r ON r.id = u.role_id
+                  WHERE u.organization_id = $1
+                    AND u.is_active = true
+                    AND r.name IN ('operator_org', 'agent_system')
+                    -- Polyvalent fallback (dept-less operator) OR dept
+                    -- is one that handles the category.
+                    AND (
+                      u.department_id IS NULL
+                      OR u.department_id IN (SELECT department_id FROM category_depts)
+                    )
+                    -- Exclude the operator who currently holds the claim
+                    -- (same exclusion as before this fix).
+                    AND ($2::uuid IS NULL OR u.id <> $2::uuid)`,
+        [incident.organization_id, incident.claimed_by, incident.category_id],
+      );
+
+      return this.mapRows(rows, maxActive);
+    }
+
+    // Un-categorized fallback — keep the pre-fix behavior so dispatchers
+    // do not see an empty dropdown for an incident still being triaged.
+    // Documented in the method header.
     const rows = await this.dataSource.query<
       Array<{ id: string; name: string; email: string | null; active_count: string }>
     >(
       `SELECT u.id,
-              u.device_uuid AS name,
+              TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS name,
               u.email,
               COALESCE((
                 SELECT COUNT(*)::int
@@ -246,14 +352,19 @@ export class IncidentWorkflowService {
         WHERE u.organization_id = $1
           AND u.is_active = true
           AND r.name IN ('operator_org', 'agent_system')
-          -- Exclude the operator who currently holds the claim: a
-          -- saturated claimer cannot take on a second incident until
-          -- they release the first, and the dropdown is meant to
-          -- show the available pool.
           AND ($2::uuid IS NULL OR u.id <> $2::uuid)`,
       [incident.organization_id, incident.claimed_by],
     );
 
+    return this.mapRows(rows, maxActive);
+  }
+
+  /** Map raw SQL rows to the wire DTO. Shared by both branches so the
+   *  saturated/unsaturated projection lives in one place. */
+  private mapRows(
+    rows: Array<{ id: string; name: string; email: string | null; active_count: string }>,
+    maxActive: number,
+  ): AvailableOperatorDto[] {
     return rows.map((r) => {
       const active = Number(r.active_count);
       return {
@@ -494,8 +605,13 @@ export class IncidentWorkflowService {
   }
 
   private async loadIncident(incidentId: string): Promise<IncidentRow> {
+    // Bug-fix (this change): `availableOperators()` needs the incident's
+    // `category_id` to scope the operator pool to depts that handle that
+    // category. `IncidentRow` already declares the column; only the
+    // SELECT list needed widening. Other callers ignore the extra
+    // column — TypeScript just leaves it populated.
     const rows = await this.dataSource.query<IncidentRow[]>(
-      `SELECT id, title, status, priority, claimed_by, organization_id, updated_at
+      `SELECT id, title, status, priority, claimed_by, organization_id, category_id, updated_at
          FROM incidents
         WHERE id = $1`,
       [incidentId],

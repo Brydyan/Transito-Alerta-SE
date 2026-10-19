@@ -57,8 +57,16 @@ export class VerifyOtpComponent implements OnInit {
   // query param no cambia entre el mount y el submit).
   private readonly route = inject(ActivatedRoute);
 
-  /** Destino post-verificación. Default: `/app/dashboard`. */
-  private returnUrl: string = '/app/dashboard';
+  /**
+   * Destino post-verificación. Por defecto `/app/inicio` (NO
+   * `/app/dashboard`): el `reporter` no tiene `READ dashboard`
+   * y el guard del dashboard lo rebotaría con 403. Esta pantalla
+   * sólo la alcanza el `reporter` — la regla vive en
+   * `LoginComponent.onSubmit` (C.4), el staff nunca entra acá.
+   * Si en el futuro el staff necesita verificar correo, hay que
+   * revisar este default.
+   */
+  private returnUrl: string = '/app/inicio';
 
   readonly otpForm: FormGroup<{ otp: FormControl<string> }> = this.fb.group({
     otp: this.fb.nonNullable.control('', [

@@ -3,6 +3,7 @@ import { toObservable } from '@angular/core/rxjs-interop';
 import { CanActivateFn, Router } from '@angular/router';
 import { filter, map, take } from 'rxjs';
 import { AuthService } from '../services/auth.service';
+import { User } from '../models/auth.model';
 
 /**
  * Route guard that blocks navigation when the current user lacks
@@ -29,7 +30,7 @@ export const permissionGuard: CanActivateFn = (route) => {
     return true;
   }
 
-  const decide = (user: { permissions: string[] } | null): boolean => {
+  const decide = (user: User | null): boolean => {
     if (!user) {
       // Hydration finished with no session (e.g. `/auth/me` failed and
       // `clearAuthState()` ran). Send them to log in rather than to a
@@ -40,13 +41,24 @@ export const permissionGuard: CanActivateFn = (route) => {
     if (user.permissions.includes(requiredPermission)) {
       return true;
     }
-    router.navigate(['/app/dashboard']);
+    // 2026-10-19-dashboard-permission-gate — el destino del
+    // rebote depende del rol. `reporter` NO tiene
+    // `READ dashboard`: mandarlo ahí lo estrella contra el
+    // guard del dashboard y se forma un loop corto de
+    // redirecciones. El personal sí lo tiene, así que vuelve
+    // al dashboard como siempre.
+    //
+    // Espejo de la decisión del `LoginComponent.onSubmit` —
+    // si esa regla se mueve, también hay que tocar acá para
+    // que ambas copias no se desincronicen.
+    const fallback = user.roleName === 'reporter' ? '/app/inicio' : '/app/dashboard';
+    router.navigate([fallback]);
     return false;
   };
 
   // Fast path — the session is already hydrated, so decide synchronously
   // and keep navigation free of an extra microtask.
-  const current = authService.currentUser();
+  const current = authService.user();
   if (current !== null) {
     return decide(current);
   }
@@ -61,7 +73,7 @@ export const permissionGuard: CanActivateFn = (route) => {
   // because that request failed — never hang on one that resolves neither
   // way.
   const settled = computed(() => ({
-    user: authService.currentUser(),
+    user: authService.user(),
     authenticated: authService.isAuthenticated(),
   }));
 

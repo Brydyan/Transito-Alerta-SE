@@ -41,6 +41,13 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { CommentThreadComponent } from '../components/comment-thread/comment-thread.component';
 import { AssignDialogComponent } from '../assign-dialog/assign-dialog.component';
+// 2026-10-19-incident-gallery-mount — el componente reutilizable
+// de galería ya estaba implementado y probado; sólo faltaba
+// montarlo bajo la sección Galería del detalle. El componente
+// resuelve bytes por sí mismo vía el byte route
+// (`/incidents/:id/images/:imageId/file`), sin asumir URLs en el
+// payload (cambio D3 de 2026-10-06-incident-images-read-path).
+import { IncidentImagesComponent } from '../../../shared/components/incident-images/incident-images.component';
 // 2026-10-06-incident-images-read-path (D5) — shared util that the
 // status badge (and a future timeline re-enable) delegate to.
 import { mapStatusLabel } from '../../../shared/utils/incident-status.util';
@@ -85,6 +92,7 @@ import * as L from 'leaflet';
     EmptyStateComponent,
     CommentThreadComponent,
     AssignDialogComponent,
+    IncidentImagesComponent,
   ],
   templateUrl: './incident-detail.component.html',
   styleUrl: './incident-detail.component.css',
@@ -428,7 +436,27 @@ export class IncidentDetailComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * 2026-10-19-post-login-redirect-by-role — el botón "Volver"
+   * depende del rol. `reporter` no tiene acceso al listado
+   * administrativo de `/app/incidencias`; su feed vive en
+   * `/app/inicio`, así que vuelve al feed. El personal (cualquier
+   * otro rol) cae al listado como antes. Mirror de las reglas del
+   * `LoginComponent` y `permissionGuard`: si alguna se mueve, las
+   * tres tienen que moverse juntas.
+   */
   goBack(): void {
+    if (this.authService.user()?.roleName === 'reporter') {
+      this.router.navigate(['/app/inicio']);
+      return;
+    }
     this.router.navigate(['/app/incidencias']);
   }
+
+  /** Etiqueta del botón "Volver" según el rol del usuario. */
+  readonly backButtonLabel = computed(() =>
+    this.authService.user()?.roleName === 'reporter'
+      ? 'Volver al inicio'
+      : 'Volver al listado',
+  );
 }

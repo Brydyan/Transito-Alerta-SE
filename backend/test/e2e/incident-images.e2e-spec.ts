@@ -37,6 +37,48 @@ describe('E2E incident images (T6.6)', () => {
     return rows[0].id;
   }
 
+  // AUD (sc-327) D6 / sc-419 — variante del seed que simula
+  // el flujo "Anónimo → el `citizen_id` apunta al id de la
+  // máscara, el autor real vive en `incident_reporters`".
+  // El `ownerId` es el uuid del reporter real (el que llama),
+  // `maskUserId` es el uuid de la fila `users.device_uuid =
+  // 'anonymous'` (seed 0001) — el mismo que `IncidentsService.create`
+  // usa al persistir el reporte anónimo. El helper replica la
+  // transacción de producción en dos INSERTs separados — sin
+  // paralelismo, sin sobrescritura, sólo lo que el e2e necesita
+  // verificar: que `POST /images` reconozca al reporter aunque
+  // `incidents.citizen_id` sea la máscara.
+  async function seedAnonymousIncident(
+    ownerId: string,
+    maskUserId: string,
+  ): Promise<string> {
+    const incidentId = randomUUID();
+    await env.pg.query(
+      `INSERT INTO incidents (id, title, location, status, priority, citizen_id, is_anonymous)
+       VALUES ($1, 'Anon incident', ST_SetSRID(ST_MakePoint(-80.5, -2.2), 4326), 'pending', 'medium', $2, true)`,
+      [incidentId, maskUserId],
+    );
+    await env.pg.query(
+      `INSERT INTO incident_reporters (incident_id, user_id) VALUES ($1, $2)`,
+      [incidentId, ownerId],
+    );
+    return incidentId;
+  }
+
+  /** Devuelve el id de la fila máscara sembrada por 0001
+   * (`users.device_uuid = 'anonymous'`). Es estable para toda
+   * la corrida — `env.reset()` trunca tablas pero vuelve a
+   * correr la siembra. */
+  async function getMaskUserId(): Promise<string> {
+    const { rows } = await env.pg.query<{ id: string }>(
+      `SELECT id FROM users WHERE device_uuid = 'anonymous'`,
+    );
+    if (rows.length === 0) {
+      throw new Error('Mask user row missing — seed 0001 did not run');
+    }
+    return rows[0].id;
+  }
+
   // ---- POST /api/incidents/:id/images ---------------------------------------
 
   it('POST 2 JPEG files by owner → 201 + 2 items in response + 2 rows in incident_images', async () => {
@@ -94,6 +136,46 @@ describe('E2E incident images (T6.6)', () => {
     await request(env.httpServer)
       .post(`/api/incidents/${incidentId}/images`)
       .set('Authorization', `Bearer ${other.accessToken}`)
+      .attach('images', FAKE_JPEG, { filename: 'photo.jpg', contentType: 'image/jpeg' })
+      .expect(403);
+  });
+
+  // AUD (sc-327) D6 / sc-419 — el reporter que publicó la
+  // incidencia con `is_anonymous: true` debe poder subir
+  // fotos a SU publicación. El `incidents.citizen_id` apunta
+  // a la máscara; el match contra `callerId` falla; el match
+  // contra `incident_reporters.user_id` debe ganar.
+  it('anonymous publish → real reporter uploads images → 201 (sc-419 fix path)', async () => {
+    const maskUserId = await getMaskUserId();
+    const reporter = await env.provisionUser([]);
+    const incidentId = await seedAnonymousIncident(reporter.userId, maskUserId);
+
+    const res = await request(env.httpServer)
+      .post(`/api/incidents/${incidentId}/images`)
+      .set('Authorization', `Bearer ${reporter.accessToken}`)
+      .attach('images', FAKE_JPEG, { filename: 'photo.jpg', contentType: 'image/jpeg' })
+      .expect(201);
+
+    const body = res.body as { id: string }[];
+    expect(Array.isArray(body)).toBe(true);
+    expect(body).toHaveLength(1);
+
+    const { rows } = await env.pg.query(
+      'SELECT id FROM incident_images WHERE incident_id = $1',
+      [incidentId],
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it('anonymous publish → DIFFERENT reporter tries to upload → 403', async () => {
+    const maskUserId = await getMaskUserId();
+    const realReporter = await env.provisionUser([]);
+    const otherReporter = await env.provisionUser([]); // distractor
+    const incidentId = await seedAnonymousIncident(realReporter.userId, maskUserId);
+
+    await request(env.httpServer)
+      .post(`/api/incidents/${incidentId}/images`)
+      .set('Authorization', `Bearer ${otherReporter.accessToken}`)
       .attach('images', FAKE_JPEG, { filename: 'photo.jpg', contentType: 'image/jpeg' })
       .expect(403);
   });

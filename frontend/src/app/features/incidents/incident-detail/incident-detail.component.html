@@ -11,7 +11,7 @@
     data-testid="back-button"
   >
     <ui-icon name="arrow-left" [size]="16" />
-    Volver al listado
+    {{ backButtonLabel() }}
   </button>
 </ui-page-header>
 
@@ -25,7 +25,7 @@
       icon="search-x"
       title="Incidencia no encontrada"
       description="La incidencia solicitada no existe o no es visible bajo tu scope."
-      actionLabel="Volver al listado"
+      [actionLabel]="backButtonLabel()"
       actionIcon="arrow-left"
       (actionClicked)="goBack()"
     />
@@ -143,9 +143,9 @@
     </ui-card> -->
 
     <!-- Galería -->
-    <!-- <ui-card title="Galería">
+    <ui-card title="Galería">
       <app-incident-images [incidentId]="inc.id" />
-    </ui-card> -->
+    </ui-card>
   </div>
 
   <!-- F3.4.7 — el hilo de comentarios se carga en paralelo (F3.4.2) -->

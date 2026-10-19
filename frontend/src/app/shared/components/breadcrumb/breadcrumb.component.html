@@ -2,7 +2,7 @@
   <nav aria-label="Navegación de migas de pan" class="pb-4">
     <ol class="flex flex-wrap items-center gap-2 text-sm text-muted-text m-0 p-0 list-none">
       <li class="flex items-center">
-        <a routerLink="/app/dashboard" aria-label="Inicio" class="text-muted-text hover:text-primary-color transition-colors">
+        <a [routerLink]="homeRoute()" aria-label="Inicio" class="text-muted-text hover:text-primary-color transition-colors">
           <ui-icon name="house" [size]="16" />
         </a>
       </li>
