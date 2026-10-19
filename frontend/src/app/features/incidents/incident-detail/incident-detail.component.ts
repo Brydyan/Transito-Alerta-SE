@@ -428,7 +428,27 @@ export class IncidentDetailComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * 2026-10-19-post-login-redirect-by-role — el botón "Volver"
+   * depende del rol. `reporter` no tiene acceso al listado
+   * administrativo de `/app/incidencias`; su feed vive en
+   * `/app/inicio`, así que vuelve al feed. El personal (cualquier
+   * otro rol) cae al listado como antes. Mirror de las reglas del
+   * `LoginComponent` y `permissionGuard`: si alguna se mueve, las
+   * tres tienen que moverse juntas.
+   */
   goBack(): void {
+    if (this.authService.user()?.roleName === 'reporter') {
+      this.router.navigate(['/app/inicio']);
+      return;
+    }
     this.router.navigate(['/app/incidencias']);
   }
+
+  /** Etiqueta del botón "Volver" según el rol del usuario. */
+  readonly backButtonLabel = computed(() =>
+    this.authService.user()?.roleName === 'reporter'
+      ? 'Volver al inicio'
+      : 'Volver al listado',
+  );
 }

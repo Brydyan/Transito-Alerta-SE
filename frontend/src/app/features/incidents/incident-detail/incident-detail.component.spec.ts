@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, ActivatedRoute, convertToParamMap } from '@angular/router';
+import { provideRouter, ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { of, throwError } from 'rxjs';
@@ -63,6 +63,7 @@ describe('IncidentDetailComponent (F3.4)', () => {
     id?: string | null;
     permissions?: string[];
     userId?: string | null;
+    roleName?: string;
     incident?: Incident | null;
     notFoundFromServer?: boolean;
   } = {}) {
@@ -84,10 +85,15 @@ describe('IncidentDetailComponent (F3.4)', () => {
         .fn()
         .mockReturnValue(of<{ items: StatusHistoryEntry[]; total: number }>({ items: [], total: 0 })),
     };
+    // 2026-10-19-post-login-redirect-by-role — `roleName` es
+    // parte del shape del `user` que el guard y los redirects
+    // consumen; los tests viejos asumían que faltaba (default
+    // staff `admin_org` para no coincidir con la rama reporter).
     const authSvc = {
       user: () => ({
         id: opts.userId ?? 'user-1',
         permissions: opts.permissions ?? [],
+        roleName: opts.roleName ?? 'admin_org',
       }),
     };
     const toastSvc = { show: jest.fn() };
@@ -406,5 +412,60 @@ describe('IncidentDetailComponent (F3.4)', () => {
       '[data-testid="open-google-maps"]',
     );
     expect(btn).toBeNull();
+  });
+
+  // 2026-10-19-post-login-redirect-by-role — el botón "Volver"
+  // debe respetar el rol del usuario. Reporter no tiene acceso a
+  // /app/incidencias; el suyo es /app/inicio.
+  describe('goBack + backButtonLabel (2026-10-19 role-aware)', () => {
+    it('staff (admin_org) → navega a /app/incidencias y etiqueta "Volver al listado"', () => {
+      const { component } = setup({ roleName: 'admin_org' });
+      expect(component.backButtonLabel()).toBe('Volver al listado');
+    });
+
+    it('reporter → navega a /app/inicio y etiqueta "Volver al inicio"', () => {
+      const { component } = setup({ roleName: 'reporter' });
+      expect(component.backButtonLabel()).toBe('Volver al inicio');
+    });
+
+    it('goBack() como staff → router.navigate(["/app/incidencias"])', () => {
+      const { component } = setup({ roleName: 'admin_org' });
+      const router = TestBed.inject(Router);
+      const spy = jest.spyOn(router, 'navigate');
+      component.goBack();
+      expect(spy).toHaveBeenCalledWith(['/app/incidencias']);
+      expect(spy).not.toHaveBeenCalledWith(['/app/inicio']);
+    });
+
+    it('goBack() como reporter → router.navigate(["/app/inicio"]) (no al listado)', () => {
+      const { component } = setup({ roleName: 'reporter' });
+      const router = TestBed.inject(Router);
+      const spy = jest.spyOn(router, 'navigate');
+      component.goBack();
+      expect(spy).toHaveBeenCalledWith(['/app/inicio']);
+      expect(spy).not.toHaveBeenCalledWith(['/app/incidencias']);
+    });
+
+    it('el template del botón header refleja backButtonLabel() según el rol', () => {
+      // staff
+      const { fixture: fixtureStaff } = setup({ roleName: 'admin_org' });
+      expect(fixtureStaff.nativeElement.textContent).toContain('Volver al listado');
+      expect(fixtureStaff.nativeElement.textContent).not.toContain('Volver al inicio');
+
+      // reporter
+      TestBed.resetTestingModule();
+      const { fixture: fixtureReporter } = setup({ roleName: 'reporter' });
+      expect(fixtureReporter.nativeElement.textContent).toContain('Volver al inicio');
+      expect(fixtureReporter.nativeElement.textContent).not.toContain('Volver al listado');
+    });
+
+    it('el empty state del 404 también usa backButtonLabel() (un solo origen del texto)', () => {
+      // Cuando la incidencia no existe y el rol es reporter, el botón
+      // del empty state debe decir "Volver al inicio" también.
+      const { fixture } = setup({ roleName: 'reporter', notFoundFromServer: true });
+      const text = fixture.nativeElement.textContent ?? '';
+      expect(text).toContain('Volver al inicio');
+      expect(text).not.toContain('Volver al listado');
+    });
   });
 });

@@ -11,7 +11,7 @@
     data-testid="back-button"
   >
     <ui-icon name="arrow-left" [size]="16" />
-    Volver al listado
+    {{ backButtonLabel() }}
   </button>
 </ui-page-header>
 
@@ -25,7 +25,7 @@
       icon="search-x"
       title="Incidencia no encontrada"
       description="La incidencia solicitada no existe o no es visible bajo tu scope."
-      actionLabel="Volver al listado"
+      [actionLabel]="backButtonLabel()"
       actionIcon="arrow-left"
       (actionClicked)="goBack()"
     />
