@@ -37,6 +37,16 @@ describe('AcceptInvitationComponent', () => {
       acceptInvitation: jest.fn().mockReturnValue(of({ access_token: 'a', refresh_token: 'r', permissions: [] })),
       isAuthenticated: jest.fn().mockReturnValue(false),
       clearSession: jest.fn(),
+      // 2026-10-19-post-login-redirect-by-role — el componente
+      // consulta `authService.user()` después del auto-login para
+      // elegir el destino. Default staff para compatibilidad con
+      // tests existentes.
+      user: jest.fn().mockReturnValue({
+        id: 'u-test',
+        roleName: 'operator_org',
+        emailVerified: true,
+        permissions: [],
+      }),
     };
     router = { navigate: jest.fn() };
 
@@ -124,7 +134,7 @@ describe('AcceptInvitationComponent', () => {
   });
 
   // ───── Submit: happy path ─────
-  it('accepts the invitation and navigates to /app/dashboard on success', () => {
+  it('accepts the invitation and navigates to /app/dashboard on success (staff)', () => {
     setup();
     fixture.detectChanges();
 
@@ -137,6 +147,28 @@ describe('AcceptInvitationComponent', () => {
     });
     expect(router.navigate).toHaveBeenCalledWith(['/app/dashboard']);
     expect(component.loading()).toBe(false);
+  });
+
+  // 2026-10-19-post-login-redirect-by-role — el destino post-aceptación
+  // depende del rol del usuario recién hidratado. `reporter` no tiene
+  // `READ dashboard` y caería en loop con el guard nuevo.
+  it('reporter recibe el rol de la invitación → navega a /app/inicio (no dashboard)', () => {
+    setup();
+    // Simula que `acceptInvitation` ya dejó la sesión hidratada
+    // con rol `reporter` (el backend asigna según la invitación).
+    (authService.user as jest.Mock).mockReturnValue({
+      id: 'u-reporter',
+      roleName: 'reporter',
+      emailVerified: true,
+      permissions: ['READ profile'],
+    });
+    fixture.detectChanges();
+
+    component.form.controls['password'].setValue('a-strong-password');
+    component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/app/inicio']);
+    expect(router.navigate).not.toHaveBeenCalledWith(['/app/dashboard']);
   });
 
   // ───── Submit: 422 field errors ─────

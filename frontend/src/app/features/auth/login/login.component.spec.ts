@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter, Router, ActivatedRoute } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 
@@ -349,5 +349,143 @@ describe('LoginComponent (REG sc-325 Fix A — C.4 redirect)', () => {
     // Lo que importa es que el navigate no ocurrió: el `error:`
     // del subscribe no navega.
     expect(component.loading()).toBe(false);
+  });
+});
+
+/**
+ * 2026-10-19-post-login-redirect-by-role — el destino por
+ * defecto del login depende del rol del usuario hidratado:
+ *  - `reporter` → `/app/inicio` (NO tiene `READ dashboard`)
+ *  - staff (cualquier otro rol) → `/app/dashboard`
+ *
+ * Si la query trae `returnUrl=...`, ese valor gana — el guard
+ * de la ruta destino decidirá si el usuario puede entrar.
+ *
+ * Verificación por mutación:
+ *  - quitar la rama `current?.roleName === 'reporter'` en
+ *    `LoginComponent.onSubmit` → el caso reporter cae al
+ *    `/app/dashboard` por defecto y los tests de reporter fallan.
+ *  - invertir la condición a `!== 'reporter'` → el staff cae a
+ *    `/app/inicio` y los tests de staff fallan.
+ *  - siempre pisar la query `returnUrl` con la rama de rol →
+ *    los tests con `?returnUrl=...` fallan.
+ */
+describe('LoginComponent (2026-10-19 post-login redirect by role)', () => {
+  function setupWithRoute(qp: Record<string, string> = {}, user: Partial<User> | null = null) {
+    const login = jest
+      .fn()
+      .mockReturnValue(of({ access_token: 'jwt', refresh_token: 'rt', permissions: [] }));
+    const authStub = {
+      login,
+      user: jest.fn().mockImplementation(() => user),
+    } as unknown as AuthService;
+    // El componente lee `route.snapshot.queryParams['returnUrl']`
+    // directamente (NO `queryParamMap.get`). Stub mínimo.
+    const routeStub = {
+      snapshot: { queryParams: qp },
+    } as unknown as ActivatedRoute;
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        LoginComponent,
+        { provide: AuthService, useValue: authStub },
+        { provide: ActivatedRoute, useValue: routeStub },
+      ],
+    });
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.componentInstance.loginForm.patchValue({
+      email: 'x@example.com',
+      password: 'Password123!',
+    });
+    return {
+      fixture,
+      component: fixture.componentInstance,
+      router: TestBed.inject(Router),
+      navSpy: jest.spyOn(TestBed.inject(Router), 'navigate'),
+    };
+  }
+
+  it('reporter verificado, sin returnUrl → navega a /app/inicio (no dashboard)', async () => {
+    const { component, navSpy } = setupWithRoute({}, {
+      id: 'r-1',
+      roleName: 'reporter',
+      emailVerified: true,
+    });
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/inicio']);
+    expect(navSpy).not.toHaveBeenCalledWith(['/app/dashboard']);
+  });
+
+  it('operator_org sin returnUrl → navega a /app/dashboard (default staff)', async () => {
+    const { component, navSpy } = setupWithRoute({}, {
+      id: 's-1',
+      roleName: 'operator_org',
+      emailVerified: true,
+    });
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/dashboard']);
+    expect(navSpy).not.toHaveBeenCalledWith(['/app/inicio']);
+  });
+
+  it('admin_org sin returnUrl → navega a /app/dashboard', async () => {
+    const { component, navSpy } = setupWithRoute({}, {
+      id: 's-2',
+      roleName: 'admin_org',
+      emailVerified: true,
+    });
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/dashboard']);
+  });
+
+  it('reporter con returnUrl=/app/reportar → respeta el returnUrl de la query', async () => {
+    const { component, navSpy } = setupWithRoute(
+      { returnUrl: '/app/reportar' },
+      { id: 'r-2', roleName: 'reporter', emailVerified: true },
+    );
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/reportar']);
+  });
+
+  it('staff con returnUrl=/app/admin/users → respeta el returnUrl (no aplica default de staff)', async () => {
+    const { component, navSpy } = setupWithRoute(
+      { returnUrl: '/app/admin/users' },
+      { id: 's-3', roleName: 'admin_org', emailVerified: true },
+    );
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/admin/users']);
+  });
+
+  it('reporter sin verificar sigue yendo a /verificar (precedencia del OTP)', async () => {
+    // Defensa contra una mutación que quite la rama `/verificar`:
+    // el reporter no verificado debe seguir aterrizando en el
+    // composer, no en /app/inicio.
+    const { component, navSpy } = setupWithRoute({}, {
+      id: 'r-3',
+      roleName: 'reporter',
+      emailVerified: false,
+    });
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/verificar']);
+    expect(navSpy).not.toHaveBeenCalledWith(['/app/inicio']);
+    expect(navSpy).not.toHaveBeenCalledWith(['/app/dashboard']);
+  });
+
+  it('user=null (señal no hidratada) sin returnUrl → cae al dashboard (defensivo)', async () => {
+    // Si la sesión no llegó a hidratarse, no sabemos el rol. El
+    // default razonable es el dashboard (donde el guard después
+    // rebotará al /login por falta de permisos, no por falta de
+    // sesión). La condición `current?.roleName === 'reporter'`
+    // es falsy con `null`, así que caemos a `/app/dashboard`.
+    const { component, navSpy } = setupWithRoute({}, null);
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/dashboard']);
   });
 });

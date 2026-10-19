@@ -87,8 +87,20 @@ export class LoginComponent {
           return;
         }
 
-        const returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/app/dashboard';
-        this.router.navigate([returnUrl]);
+        const returnUrl = this.route.snapshot.queryParams['returnUrl'];
+        // 2026-10-19-post-login-redirect-by-role — el `reporter`
+        // no tiene el permiso `READ dashboard` (su menú llega a
+        // `/app/inicio` y `/app/reportar`), así que mandarlo al
+        // dashboard por defecto lo estrella contra el guard nuevo
+        // y termina en errores `403 Forbidden` por
+        // `/api/incident-categories` y compañía. El personal
+        // (cualquier otro rol) sigue cayendo al dashboard como
+        // antes. Si viene `returnUrl` en la query, respetamos la
+        // intención del visitante — el guard de la ruta de
+        // destino decidirá si tiene permiso.
+        const roleBasedDefault =
+          current?.roleName === 'reporter' ? '/app/inicio' : '/app/dashboard';
+        this.router.navigate([returnUrl ?? roleBasedDefault]);
       },
       error: (error: Error) => {
         console.error('Error en login:', error);

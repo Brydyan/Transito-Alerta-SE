@@ -109,7 +109,16 @@ export const routes: Routes = [
     children: [
       {
         path: 'dashboard',
-        data: { breadcrumb: 'Dashboard' },
+        // 2026-10-19-dashboard-permission-gate — el dashboard es
+        // un panel administrativo (consulta `/api/incident-categories`
+        // y otros endpoints sensibles). El `reporter` no tiene el
+        // permiso `READ dashboard`, así que el guard lo rebota a
+        // `/app/dashboard` (que NO renderea este componente, sólo
+        // redirige desde el guard — el bug era entrar a la pantalla
+        // y pegar contra endpoints con 403). El personal (staff)
+        // sí tiene el permiso, así que pasa.
+        canActivate: [permissionGuard],
+        data: { breadcrumb: 'Dashboard', permission: 'READ dashboard' },
         loadComponent: () =>
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
