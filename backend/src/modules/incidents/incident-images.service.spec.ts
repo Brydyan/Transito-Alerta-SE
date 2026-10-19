@@ -4,6 +4,7 @@ import { ForbiddenException, NotFoundException, StreamableFile, UnprocessableEnt
 import { IncidentImagesService } from './incident-images.service';
 import { IncidentImageStorageService, MulterFile } from './incident-image-storage.service';
 import { IncidentImageEntity } from './entities/incident-image.entity';
+import { IncidentReporterEntity } from './entities/incident-reporters.entity';
 import { IncidentsRepository } from './incidents.repository';
 import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { STORAGE_CLIENT } from '../../infra/storage/storage-client.interface';
@@ -56,6 +57,13 @@ describe('IncidentImagesService', () => {
   let imageRepo: { find: jest.Mock; findOne: jest.Mock; create: jest.Mock; save: jest.Mock; delete: jest.Mock };
   let storage: { upload: jest.Mock; delete: jest.Mock };
   let incidentsRepository: { findOne: jest.Mock };
+  // AUD (sc-327) D6 / sc-419 — el service ahora consulta
+  // `incident_reporters` por PK-only probe para reconocer al
+  // autor real de un reporte anónimo. Default `false`: cuando
+  // el test no lo piense, el reporter anónimo no está en la
+  // tabla y `isReporter` es falso (consistente con los tests
+  // existentes que no tocaban este código).
+  let reporterRepo: { exists: jest.Mock };
   // F6 fix (post-0051): el service inyecta `PermissionLookupService`.
   // Stub devuelve `"ACTION resource"` (mismo string que los tests
   // usan en `callerPermissions`) para mantener los asserts de auth
@@ -84,6 +92,9 @@ describe('IncidentImagesService', () => {
     incidentsRepository = {
       findOne: jest.fn(),
     };
+    reporterRepo = {
+      exists: jest.fn().mockResolvedValue(false),
+    };
     permissionLookup = {
       getUuid: jest.fn().mockImplementation(async (action: string, resource: string) => {
         return `${action} ${resource}`;
@@ -103,6 +114,7 @@ describe('IncidentImagesService', () => {
       providers: [
         IncidentImagesService,
         { provide: getRepositoryToken(IncidentImageEntity), useValue: imageRepo },
+        { provide: getRepositoryToken(IncidentReporterEntity), useValue: reporterRepo },
         { provide: IncidentImageStorageService, useValue: storage },
         { provide: STORAGE_CLIENT, useValue: storageClient },
         { provide: IncidentsRepository, useValue: incidentsRepository },
@@ -184,6 +196,41 @@ describe('IncidentImagesService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    // AUD (sc-327) D6 / sc-419 — el autor real de un
+    // reporte anónimo es reconocido vía `incident_reporters`
+    // aunque `incidents.citizen_id` apunte a la máscara. Sin
+    // este chequeo, el flujo "Anónimo → subir fotos"
+    // devuelve 403. PK-only probe: el mock asserta los
+    // argumentos para que el contrato no se deforme.
+    it('uploads for the real author of an anonymously-reported incident (present in incident_reporters)', async () => {
+      const incident = makeIncident('mask-user');
+      const savedImage = makeSavedImage();
+      incidentsRepository.findOne.mockResolvedValue(incident);
+      reporterRepo.exists.mockResolvedValueOnce(true);
+      storage.upload.mockResolvedValue({ key: savedImage.storageKey, url: 'https://storage.example.com/incidents/inc-1/uuid-photo.jpg?sig=abc' });
+      imageRepo.create.mockReturnValue(savedImage);
+      imageRepo.save.mockResolvedValue(savedImage);
+
+      const result = await service.attachToIncident('inc-1', 'real-author', [], [makeFile()]);
+
+      expect(result).toHaveLength(1);
+      expect(reporterRepo.exists).toHaveBeenCalledWith({
+        where: { incidentId: 'inc-1', userId: 'real-author' },
+      });
+    });
+
+    it('throws ForbiddenException when caller is not owner, not in incident_reporters, and lacks permission', async () => {
+      const incident = makeIncident('other-user');
+      incidentsRepository.findOne.mockResolvedValue(incident);
+      reporterRepo.exists.mockResolvedValueOnce(false);
+      await expect(
+        service.attachToIncident('inc-1', 'caller', [], [makeFile()]),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(reporterRepo.exists).toHaveBeenCalledWith({
+        where: { incidentId: 'inc-1', userId: 'caller' },
+      });
+    });
+
     it('throws ForbiddenException when caller is not owner and lacks permission', async () => {
       const incident = makeIncident('other-user');
       incidentsRepository.findOne.mockResolvedValue(incident);
@@ -252,6 +299,41 @@ describe('IncidentImagesService', () => {
       await expect(
         service.removeFromIncident('inc-1', 'img-1', 'caller', []),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // AUD (sc-327) D6 / sc-419 — espejo simétrico del upload:
+    // el autor real de un reporte anónimo debe poder borrar
+    // fotos de su propia publicación sin tener permiso global.
+    it('deletes the image for the real author of an anonymously-reported incident (present in incident_reporters)', async () => {
+      const image = makeSavedImage();
+      const incident = makeIncident('mask-user');
+      imageRepo.findOne.mockResolvedValue(image);
+      incidentsRepository.findOne.mockResolvedValue(incident);
+      reporterRepo.exists.mockResolvedValueOnce(true);
+      storage.delete.mockResolvedValue(undefined);
+      imageRepo.delete.mockResolvedValue({ affected: 1 });
+
+      await expect(
+        service.removeFromIncident('inc-1', 'img-1', 'real-author', []),
+      ).resolves.toBeUndefined();
+      expect(imageRepo.delete).toHaveBeenCalledWith({ id: 'img-1' });
+      expect(reporterRepo.exists).toHaveBeenCalledWith({
+        where: { incidentId: 'inc-1', userId: 'real-author' },
+      });
+    });
+
+    it('throws ForbiddenException when caller is not owner, not in incident_reporters, and lacks permission (delete path)', async () => {
+      const image = makeSavedImage();
+      const incident = makeIncident('other-user');
+      imageRepo.findOne.mockResolvedValue(image);
+      incidentsRepository.findOne.mockResolvedValue(incident);
+      reporterRepo.exists.mockResolvedValueOnce(false);
+      await expect(
+        service.removeFromIncident('inc-1', 'img-1', 'caller', []),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(reporterRepo.exists).toHaveBeenCalledWith({
+        where: { incidentId: 'inc-1', userId: 'caller' },
+      });
     });
 
     it('warns but does not throw when S3 delete fails', async () => {
