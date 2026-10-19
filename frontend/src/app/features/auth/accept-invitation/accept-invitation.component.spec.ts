@@ -16,11 +16,16 @@ import { AcceptInvitationComponent } from './accept-invitation.component';
 describe('AcceptInvitationComponent', () => {
   let component: AcceptInvitationComponent;
   let fixture: ComponentFixture<AcceptInvitationComponent>;
+  // 2026-10-19-post-login-redirect-by-role — `user` se consulta
+  // post-aceptación para decidir el destino según el rol. Sin
+  // este campo en el shape el build en CI (`tsc -b`) falla con
+  // TS2353 / TS2339 aunque `jest` corra (ts-jest es más laxo).
   let authService: {
     previewInvitation: jest.Mock;
     acceptInvitation: jest.Mock;
     isAuthenticated: jest.Mock;
     clearSession: jest.Mock;
+    user: jest.Mock;
   };
   let router: { navigate: jest.Mock };
 
