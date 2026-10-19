@@ -310,8 +310,11 @@ describe('IncidentWorkflowService.availableOperators', () => {
     expect(await svc.availableOperators('inc-1')).toEqual([]);
   });
 
-  it('returns operators under the cap, excluding the current claimer', async () => {
-    const claimed = { ...INCIDENT, claimed_by: OP_A.id };
+  it('returns operators under the cap, excluding the current claimer (un-categorized fallback)', async () => {
+    // Un-categorized incident → falls back to the pre-fix SQL (no CTE,
+    // no dept filter). The mock simulates the row that the new
+    // TRIM(first||' '||last) alias returns (post bug-fix A).
+    const claimed = { ...INCIDENT, claimed_by: OP_A.id, category_id: null };
     // 1) loadIncident  2) operator SELECT — only OP_B returned (OP_A excluded, count < max)
     const svc = await buildService(
       [
@@ -319,7 +322,7 @@ describe('IncidentWorkflowService.availableOperators', () => {
         [
           {
             id: OP_B.id,
-            name: 'operator-b-device',
+            name: 'Bea Two',
             email: 'b@x.test',
             active_count: '2',
           },
@@ -331,26 +334,28 @@ describe('IncidentWorkflowService.availableOperators', () => {
     expect(list).toHaveLength(1);
     expect(list[0].id).toBe(OP_B.id);
     expect(list[0].activeClaimCount).toBe(2);
+    // Bug-fix (A) — the wire `name` is human-readable, not a UUID.
+    expect(list[0].name).toBe('Bea Two');
   });
 
   // F7 emergency-dispatch (design D4) — `availableOperators` now
   // informs instead of filters. Saturated operators show up with
   // `available: false` and the per-org cap.
-  it('returns saturated operators with available: false and the per-org maxActive (F7 D4)', async () => {
-    const claimed = { ...INCIDENT, claimed_by: null };
+  it('returns saturated operators with available: false and the per-org maxActive (F7 D4, un-categorized fallback)', async () => {
+    const claimed = { ...INCIDENT, claimed_by: null, category_id: null };
     const svc = await buildService(
       [
         [claimed],
         [
           {
             id: OP_A.id,
-            name: 'operator-a-device',
+            name: 'Ada One',
             email: 'a@x.test',
             active_count: '5',
           },
           {
             id: OP_B.id,
-            name: 'operator-b-device',
+            name: 'Bea Two',
             email: 'b@x.test',
             active_count: '2',
           },
@@ -366,6 +371,106 @@ describe('IncidentWorkflowService.availableOperators', () => {
     expect(a.maxActive).toBe(5);
     expect(b.available).toBe(true);
     expect(b.maxActive).toBe(5);
+    // Bug-fix (A) — verify the human-readable alias survives the
+    // saturated path too.
+    expect(a.name).toBe('Ada One');
+    expect(b.name).toBe('Bea Two');
+  });
+
+  // Bug-fix (this change) — categorized incident takes the CTE branch.
+  // The CTE itself returns no rows to the mock (we don't assert on it),
+  // but the service must still execute the operator SELECT in the same
+  // parameterized form so the test can hand back a curated result.
+  it('returns operators filtered by department-category for a categorized incident (bug-fix B)', async () => {
+    const claimed = {
+      ...INCIDENT,
+      claimed_by: null,
+      category_id: 'cat-traffic-accidents',
+    };
+    // The service runs the new CTE + operator SELECT once the
+    // incident's category_id is non-null. We hand back a row whose
+    // `name` is the human-readable alias the fix produces.
+    const svc = await buildService(
+      [
+        [claimed],
+        [
+          {
+            id: OP_A.id,
+            name: 'Ada One',
+            email: 'a@x.test',
+            active_count: '0',
+          },
+        ],
+      ],
+      { id: 'org-X', maxActiveClaims: 5 } as OrganizationEntity,
+    );
+    const list = await svc.availableOperators('inc-1');
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe(OP_A.id);
+    // Bug-fix (A): human-readable name.
+    expect(list[0].name).toBe('Ada One');
+    // Bug-fix (B): the SELECT was the CTE + dept-filter branch — assert
+    // the SQL the service emitted has the right shape. We reach into
+    // the queue-style mock by re-running with a captured queryMock so
+    // we can inspect the actual SQL string.
+    const queryMock = jest.fn();
+    queryMock.mockResolvedValueOnce([claimed]); // loadIncident
+    queryMock.mockResolvedValueOnce([
+      { id: OP_A.id, name: 'Ada One', email: 'a@x.test', active_count: '0' },
+    ]); // CTE + operator SELECT
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: makeDataSource(queryMock) },
+      ],
+    }).compile();
+    const svc2 = module.get(IncidentWorkflowService);
+    await svc2.availableOperators('inc-1');
+    const operatorSelectCall = queryMock.mock.calls[1];
+    const sql = operatorSelectCall[0] as string;
+    expect(sql).toContain('department_incident_categories');
+    expect(sql).toMatch(/WITH category_depts/);
+    expect(sql).toContain('u.department_id IS NULL');
+    expect(sql).toContain("TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, ''))");
+    // The params carry the org id, the claimer (null), and the
+    // category_id — positional, in that order.
+    expect(operatorSelectCall[1]).toEqual([
+      'org-X',
+      null,
+      'cat-traffic-accidents',
+    ]);
+  });
+
+  // Bug-fix (this change) — the un-categorized branch must NOT execute
+  // the dept-category CTE (no point; no category to scope by). The
+  // wire response should still include a dept-less operator if the
+  // SQL hands one back.
+  it('keeps the dept-less / polyvalent operator in the un-categorized fallback path (bug-fix A)', async () => {
+    const claimed = { ...INCIDENT, claimed_by: null, category_id: null };
+    const svc = await buildService(
+      [
+        [claimed],
+        [
+          {
+            // No department, no name parts — the TRIM() guard makes
+            // the wire name the empty string, NOT a UUID. The frontend
+            // shows a placeholder; the dropdown still includes them.
+            id: OP_A.id,
+            name: '',
+            email: null,
+            active_count: '0',
+          },
+        ],
+      ],
+      { id: 'org-X', maxActiveClaims: 5 } as OrganizationEntity,
+    );
+    const list = await svc.availableOperators('inc-1');
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe(OP_A.id);
+    expect(list[0].name).toBe(''); // human-readable, NOT a UUID
+    expect(list[0].email).toBeNull();
   });
 });
 
