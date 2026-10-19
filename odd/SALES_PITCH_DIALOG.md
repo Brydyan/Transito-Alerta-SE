@@ -1,418 +1,679 @@
-# Diálogo de Venta — Tránsito Alerta SE
+# Diálogo Comunitario — Tránsito Alerta SE
 
-**Audiencia:** Comisión de Tránsito del Ecuador (CTE), Directores de Operaciones, Coordinadores de Despacho  
-**Duración:** 3 encuentros (15 min inicial → 45 min profundo → 20 min cierre)  
-**Objetivo:** Evaluar POC + piloto en Santa Elena (4-8 semanas)
+Notas del presentador por slide. El archivo está pensado para que el
+equipo del programa **Jóvenes en Acción** (los constructores del
+proyecto) sepa, **slide por slide**, qué decir y qué responder a las
+preguntas más probables cuando se presente a la Comisión de Tránsito
+del Guayas (CTE) en Santa Elena y a la comunidad.
+
+> **Nota sobre el título:** conserva el nombre histórico
+> `SALES_PITCH_DIALOG.md` para mantener trazabilidad con iteraciones
+> previas del repo. El contenido es comunitario, no comercial.
 
 ---
 
-## ENCUENTRO 1: Pitch Inicial (15 min)
+## Contexto general antes de empezar
 
-### **[Apertura — Contextualizar el Problema]**
+- **Qué es esto.** Proyecto comunitario del programa *Jóvenes en
+  Acción* del gobierno, en alianza con la CTE, para que la comunidad
+  de Santa Elena pueda reportar incidentes de tránsito desde su
+  celular en 30 segundos, con coordenadas exactas y sin necesidad de
+  descargar una aplicación.
+- **Quiénes somos.** El equipo que está construyendo el software son
+  participantes del programa *Jóvenes en Acción* (aporte técnico del
+  programa, valorado en USD ~$4,200–$5,550 — esto es un dato del
+  contexto, no se anuncia). La CTE es el operador público aliado que
+  pone la infraestructura y los reportes fluyen a su despacho.
+- **Para quién.** Tres audiencias que se entrelazan durante la
+  presentación:
+  1. La **CTE** (operador público aliado).
+  2. La **comunidad** de Santa Elena (usuarios finales).
+  3. Las **autoridades provinciales** que aprueban el convenio (no un
+     presupuesto en dólares — un acuerdo interinstitucional).
+- **Vocabulario.** Evitamos: "venta", "cliente", "ROI", "payback",
+  "precio", "licencia", "SaaS", "perpetual", "compra". Preferimos:
+  "alianza", "convenio", "impacto", "cobertura", "participación",
+  "comunidad", "datos abiertos".
+- **Duración total.** ~20 minutos para las slides 1–13 + Q&A abierto
+  (slide 14 con respuestas expandidas al final de este archivo).
 
-**VENDEDOR:**
-> Buenos días. Somos el equipo de Tránsito Alerta SE. Antes de presentar la solución, quiero partir de una pregunta: *¿cuál es el tiempo promedio desde que un ciudadano reporta un accidente por teléfono al ECU 911 hasta que una unidad llega al sitio?*
+---
 
-**CLIENTE (CTE, Jefe Operaciones):**
-> EXPERAR RESPUESTA... `El problema es que la información que llega es muy vaga.`
+## Pre-presentación (antes de abrir la slide 1)
 
-**VENDEDOR:**
-> Exacto. Eso es lo que resolvemos. Hoy presentamos a GeoReporta que permite reportar en **menos de 30 segundos** con GPS automático, **sin descargar aplicación**. Los datos fluyen estructurados directo a su tablero de despacho.
+**Antes de empezar a hablar:**
 
-### **[Pitch de 2 minutos — El Hook]**
+- Confirmar que el proyector/pantalla está conectada a la laptop con la
+  presentación ya abierta y probada (resolución 16:9).
+- Tener a mano: este archivo, el documento
+  `odd/tasks/SECURITY_AUDIT_2026-10-18.md` (por si preguntan por
+  auditoría), y el correo `balejandrov12@gmail.com` para
+  quien quiera escribir después.
+- Si hay representantes de la CTE: confirmar de antemano quién va a
+  tomar notas por su lado (para que no parezca que "les estamos
+  vendiendo algo", sino compartiendo un acuerdo).
+- Si hay comunitarios presentes: hablar en presente y plural — "la
+  comunidad de Santa Elena va a poder…", no "ustedes van a poder…" (la
+  diferencia importa para el tono).
 
-**VENDEDOR:**
-> **El problema que atacamos:**
-> - Llamadas al ECU 911 sin referencias geográficas exactas → pérdida de 5-10 minutos en localización
-> - Zonas sin cobertura (Vía E40, Spondylus) → reporte perdido o retrasado
-> - Sin categorización → despacho "a ciegas" (¿es un choque leve o una emergencia con atrapados?)
+---
+
+## Slide 1 — Portada (30 s)
+
+**Lo que se ve:** Cover con gradiente azul → teal. Eyebrow
+"Comisión de Tránsito del Guayas · Santa Elena". H1 "Tránsito Alerta
+SE". Subtítulo "Reporte geolocalizado en 30 segundos. Despacho
+inteligente en tiempo real." Meta abajo: "Proyecto comunitario ·
+Programa Jóvenes en Acción · Q4 2026".
+
+**Qué decir (mensaje principal):**
+
+> "Buenos días. Nos presentamos como equipo del programa *Jóvenes en Acción* del gobierno. Hoy les queremos compartir un proyecto comunitario que hemos estado construyendo en alianza con el Departamento de educacion Vial: Tránsito Alerta SE. La idea es simple — que cualquier persona de Santa Elena pueda reportar un incidente de tránsito desde su celular, en 30 segundos, con sus coordenadas exactas, sin instalar una aplicación. Y que esos reportes lleguen al despacho de la Comisión en tiempo real."
+
+**Anclar para la siguiente slide:**
+
+> "Antes de hablar de la solución, queremospartir de lo que hoy está pasando en las calles de Santa Elena. Porque es un problema concreto, no teórico."
+
+---
+
+## Slide 2 — El problema (1 min)
+
+**Lo que se ve:** 3 cards con border-top rojo/ámbar.
+- ⏱️ "Tiempo perdido — 12+ minutos de localización por reporte".
+- 📍 "Ubicación imprecisa — 'cerca de Ballenita' vs. coordenadas
+  exactas".
+- 📡 "Sin cobertura — reportes perdidos en zonas rurales: E40,
+  Spondylus, cantones alejados".
+
+**Qué decir:**
+
+> "Hoy, cuando alguien llama al 911 o a la Comisión para reportar un
+> accidente, pasan 5–10 minutos solo en precisar la dirección. Eso es
+> tiempo que se pierde mientras una patrulla busca dónde ir. En zonas
+> rurales, donde hay menos referencias, es peor — a veces el
+> reporte simplemente no llega. Y cuando llega vago, el despacho
+> sale 'a ciegas': no sabe si es un choque leve o una emergencia con
+> atrapados."
+
+**Si preguntan cifras concretas:**
+
+- Tiempo medio de localización: ~12 minutos promedio (rango 5–25 min).
+- % reportes con ubicación imprecisa: alto (la presentación no tiene
+  el dato duro de Santa Elena — anotarlo como `dato de campo a
+  recabar` en slide 3).
+- Zonas críticas: E40, Spondylus, zonas rurales de los cantones
+  alejados (de la geografía del proyecto).
+
+**Anclar:**
+
+> "¿Qué pasa cuando esos minutos se pierden? Eso lo vemos en la
+> siguiente lámina."
+
+---
+
+## Slide 3 — Impacto humano (1 min)
+
+**Lo que se ve:** Hero number "12 min" + 3 supporting rows:
+- 25–40% más en zonas rurales vs. ciudad.
+- 0% visibilidad de patrones (sin heatmaps, sin prevención).
+- ? — minutos de respuesta × ~40 reportes/mes *(dato de campo a
+  recabar)*.
+
+**Qué decir:**
+
+> "Cuando el tiempo perdido se acumula, las consecuencias no son
+> abstractas: es una ambulancia que tarda más, un ciudadano que se
+> queda varado más tiempo, una decisión operativa que no se puede
+> tomar porque no hay datos. Y no hay forma de prevenir, porque hoy
+> la Comisión no tiene un mapa de patrones — no sabe en qué esquina
+> se acumulan los incidentes."
+
+**Si piden datos de su provincia:**
+
+> "Eso es justamente lo que queremos validar con la Comisión al
+> arrancar el piloto. El número que pongo como '?' es un dato de
+> campo que necesitamos de ustedes para ajustar la narrativa."
+
+**Tono:** evitar victimizar al ciudadano. Hablar de impacto
+operativo, no de "personas sufriendo".
+
+**Anclar:**
+
+> "¿Qué podemos hacer al respecto? Tres cambios simples."
+
+---
+
+## Slide 4 — Solución (1 min)
+
+**Lo que se ve:** 3 pilares con hexágonos:
+- ⚡ Reporte Instantáneo — 30 segundos, GPS automático, sin app.
+- 📡 Offline-First — funciona sin cobertura, sincroniza al volver.
+- 🎯 Despacho Inteligente — categorización + alertas sonoras para
+  críticos.
+
+**Qué decir:**
+
+> "Tres cambios. El primero es que la persona abre un QR en la calle
+> — en una parada, en un letrero, en una patrulla — y desde ahí, con
+> un toque, ya está reportando. El GPS se llena solo. Si no tiene
+> señal, el reporte se guarda y se sube cuando vuelva la red. Y
+> cuando llega al despacho, el operador ve un mapa con todos los
+> reportes en vivo, y si es crítico, suena una alerta para que no se
+> le pase."
+
+**Si preguntan "¿en qué se diferencia de una app normal?":**
+
+> "Funciona desde el QR directo. No hay que instalar nada. Eso es
+> crítico para que una persona en emergencia no tenga que descargar
+> 50 MB para reportar."
+
+**Anclar:**
+
+> "¿Cómo se ve desde el lado del ciudadano?"
+
+---
+
+## Slide 5 — Flujo ciudadano (1.5 min)
+
+**Lo que se ve:** Timeline horizontal de 6 pasos: Abre QR → GPS auto
+→ Categoría → Foto → Envía → Confirma. Cita: "Tan fácil como un
+Telegram". Subtítulo: "Desde cualquier sitio, con o sin red. Sin
+instalar nada."
+
+**Qué decir:**
+
+> "Desde el lado del ciudadano, son seis toques: abre el QR, el GPS
+> se llena solo, elige una categoría, saca una foto — la app la
+> comprime sola a menos de 200 KB —, toca Enviar, y le confirmamos
+> que su reporte fue recibido. Si está online sube al instante; si
+> está offline se queda en cola y sube cuando vuelva la señal. Esto
+> es lo que llamaríamos 'tan fácil como un Telegram' — esa es la
+> vara."
+
+**Si preguntan por Telegram específicamente:**
+
+> "Telegram no tiene geolocalización automática, ni categorización
+> estructurada, ni offline-first. Por eso Tránsito Alerta SE existe:
+> porque Telegram es un canal conocido, pero no resuelve el
+> problema operacional."
+
+**Anclar:**
+
+> "¿Y cómo lo ve el operador de despacho?"
+
+---
+
+## Slide 6 — Flujo operador (1.5 min)
+
+**Lo que se ve:** Mockup lado a lado: mapa con pins de colores
+(crit/alto/bajo) + tarjeta de detalle del reporte crítico con foto y
+alerta sonora animada. Eyebrow "Experiencia del operador".
+
+**Qué decir:**
+
+> "Del lado del operador, es un tablero en vivo. Cada reporte aparece
+> como un pin en el mapa, con color por severidad. Cuando llega un
+> reporte crítico, suena una alerta y se abre la tarjeta con la foto,
+> la dirección exacta, y la hora. El operador sabe en 10 segundos a
+> dónde ir y qué van a encontrar."
+
+**Si preguntan por la integración con el sistema actual:**
+
+> "En el piloto arrancamos con un tablero independiente. La Comisión
+> sigue usando su sistema de despacho actual — Tránsito Alerta SE
+> corre en paralelo. Después, en Fase 2, vemos si conviene
+> conectarlos vía API."
+
+**Si preguntan por el reporte "anónimo":**
+
+> "Por diseño, no pedimos nombre ni documento al reportar. La
+> información del ciudadano queda asociada al dispositivo, no a una
+> identidad. Esto cuida la privacidad y reduce la barrera de
+> reportar."
+
+**Anclar:**
+
+> "¿Cómo se compara con lo que ya existe?"
+
+---
+
+## Slide 7 — Diferenciadores (1 min)
+
+**Lo que se ve:** Tabla 5 columnas: Aspecto / Sistema actual / Google
+Maps / Telegram / Tránsito Alerta SE. Filas: Funciona offline,
+Coordenadas exactas, Categorización, Analítica de patrones, Costo
+para el usuario.
+
+**Qué decir:**
+
+> "No competimos con lo que existe — lo complementamos. El sistema
+> actual no tiene coordenadas exactas. Google Maps sirve para
+> navegar, no para reportar emergencias (no tiene categorización ni
+> geofencing). Telegram es un canal general, no tiene offline-first
+> ni analítica. Tránsito Alerta SE está hecho específicamente para
+> esto: reporte + despacho + analítica. Nada más."
+
+**Si preguntan "y por qué no solo usar Google Maps?":**
+
+> "Porque Google Maps optimiza para navegación, no para emergencias.
+> No tiene alertas operativas para el despacho, no tiene
+> categorización por tipo de incidente, no guarda reportes si el
+> usuario no tiene cuenta, y requiere internet constante."
+
+**Si preguntan "y qué gano yo como Comisión":**
+
+> "Una sola fuente de verdad para incidentes de tránsito en su
+> jurisdicción. Con el tiempo, eso les permite tomar decisiones
+> basadas en datos — dónde prevenir, cómo asignar recursos."
+
+**Anclar:**
+
+> "¿Qué impacto esperamos desde el primer mes?"
+
+---
+
+## Slide 8 — Impacto comunitario (2 min)
+
+**Lo que se ve:** Hero "×3" — más reportes georreferenciados que el
+sistema actual. Sub: "más incidentes georreferenciados que el
+sistema actual". Pill: "Primer resultado comunitario: ~6 semanas
+desde el arranque del piloto". 2 barras: Cobertura rural +
+Participación ciudadana.
+
+**Qué decir:**
+
+> "No vamos a prometer cifras mágicas. Lo que esperamos, basándonos
+> en experiencias similares de participación ciudadana en otras
+> provincias, es triplicar la cantidad de reportes que llegan con
+> coordenadas exactas a la Comisión en el primer mes. Y mejorar
+> especialmente la cobertura en las zonas rurales, que hoy están
+> desconectadas del sistema. Estos números se ajustan con datos
+> reales cuando arranque el piloto."
+
+**Lo que NO se dice (importante):**
+
+- NO se mencionan dólares, ROI, payback ni ahorros.
+- NO se compara con "el costo de no hacerlo".
+- Se habla de impacto operativo, no financiero.
+
+**Si preguntan por números exactos:**
+
+> "Los pondremos en el reporte de impacto comunitario al cierre de
+> las 8 semanas del piloto. Hoy son expectativas informadas."
+
+**Anclar:**
+
+> "¿Y la confianza — los datos de la comunidad cómo se cuidan?"
+
+---
+
+## Slide 9 — Confianza y datos (1.5 min)
+
+**Lo que se ve:** 6 icon cards:
+- 🔒 Encriptado en reposo (PostgreSQL + MinIO con SSE).
+- 🛡️ 0 vulns críticas — Audit 2026-10-18.
+- ✅ LOPD-compliant — anonimización post-90 días.
+- 👤 Sin vendor lock-in — código open-source, datos en su datacenter.
+- 📊 Auditable — GitHub público, DPA disponible bajo acuerdo.
+- 🔄 Rotación JWT sin downtime — kid header versionado.
+
+**Qué decir:**
+
+> "Sobre los datos y la confianza: este proyecto pasó una auditoría
+> de seguridad en octubre de 2026. Las 25 vulnerabilidades
+> detectadas (2 críticas y 23 altas) están remediadas — el sistema
+> está en cero vulnerabilidades críticas hoy. Los datos viven
+> PostgreSQL con encriptación en reposo; las fotos van a MinIO con
+> SSE. Después de 90 días, las fotos y coordenadas exactas se
+> anonimizan automáticamente — la Comisión conserva el reporte pero
+> no la identidad del reportante."
+
+**Si preguntan por LOPD específicamente:**
+
+> "La Comisión es responsable de los datos (LOPD). Nosotros somos
+> procesadores bajo instrucción de ustedes. Eso queda firmado en un
+> Data Processing Agreement (DPA). El código es open-source en
+> GitHub — la Comisión o cualquier tercero puede auditarlo cuando
+> quiera."
+
+**Si preguntan por el audit report:**
+
+> "Está disponible bajo acuerdo interinstitucional. Les compartimos
+> el PDF firmado con CVSS scores detallados cuando firmemos el
+> convenio."
+
+**Anclar:**
+
+> "Para los que están del lado técnico de la Comisión — el stack."
+
+---
+
+## Slide 10 — Stack técnico (1 min)
+
+**Lo que se ve:** 4 columnas: Frontend (Angular 18 + Workbox +
+IndexedDB), Backend (NestJS 10 + TypeORM 0.3 + RBAC), Datos (PostgreSQL
+16 + PostGIS, Redis 7, MinIO), Infraestructura (Docker Compose,
+on-premise o AWS, single source of truth). Eyebrow "Para el equipo
+técnico de la CTE".
+
+**Qué decir:**
+
+> "Stack moderno y on-premise. Frontend es una PWA (no app nativa) —
+> corre en cualquier celular con navegador moderno, funciona offline
+> gracias a IndexedDB. Backend en NestJS, Base de datos PostgreSQL
+> con PostGIS para geofencing, Redis como caché y cola, MinIO para
+> fotos. Todo empaquetado en Docker Compose — la Comisión corre el
+> stack en su propio datacenter. Cero dependencia de nube externa."
+
+**Si preguntan por cloud privado:**
+
+> "On-premise es la opción por defecto del piloto. Si después la
+> Comisión prefiere correrlo en AWS en su propia cuenta, también se
+> puede — solo cambia un docker-compose.yml."
+
+**Si preguntan por costos de infraestructura:**
+
+> "PostgreSQL + Redis + MinIO corren en hardware modesto: 2 vCPU, 4
+> GB RAM cubre el piloto. La Comisión ya tiene infraestructura en
+> su datacenter de Santa Elena — no requieren compra adicional."
+
+**Anclar:**
+
+> "Esto es un programa dividido en tres fases, sin compromiso de
+> seguir si la primera no funciona."
+
+---
+
+## Slide 11 — Hoja de ruta (1.5 min)
+
+**Lo que se ve:** 3 fases con timeline en gradiente:
+- **Fase 1 — Arranque (8 semanas, "Piloto comunitario")**: Setup
+  técnico en la CTE + piloto en Santa Elena + recolección de
+  métricas + salida "Reporte de impacto comunitario".
+- **Fase 2 — Expansión (6 meses, "Consolidación")**: Integración con
+  sistema legacy + Trust Score + Feedback Loop + tableros abiertos
+  de patrones.
+- **Fase 3 — Sostenibilidad (Año 2, "Innovación abierta")**: Visión
+> computacional comunitaria + predicción ML + app nativa (si la pide
+  la comunidad) + integración con otras instituciones públicas.
+
+**Qué decir:**
+
+> "El plan son tres fases independientes. Si la primera no funciona,
+> paramos — sin riesgo para la Comisión ni para la comunidad. La
+> Fase 1 son 8 semanas de piloto en Santa Elena. Al cierre,
+> entregamos un reporte de impacto comunitario con las métricas
+> reales. Si los números no convencen, no seguimos. Si convencen,
+> Fase 2 integra con el sistema de despacho actual, agrega el Trust
+> Score (reputación por historial de reportes), y abre tableros de
+> patrones para que la Comisión y la comunidad vean dónde se
+> acumulan los incidentes. Fase 3 ya es visión computacional,
+> predicción y — si la comunidad lo pide — app nativa."
+
+**Lo que NO se dice:**
+
+- NO se mencionan cifras en dólares para ninguna fase.
+- NO se habla de "costo de cada fase" — eso no aplica porque el
+  aporte técnico lo hace *Jóvenes en Acción*.
+
+**Si preguntan cuánto tiempo toma la decisión entre fases:**
+
+> "Unos 5–10 días después del reporte de impacto. Si quieren
+> extender, el programa se ajusta a su ritmo."
+
+**Si preguntan qué pasa después de Fase 3:**
+
+> "El software es open-source. Pase lo que pase con autoridades o
+> programas, la herramienta queda en manos de la Comisión y la
+> comunidad."
+
+**Anclar:**
+
+> "Esto nos deja en el siguiente paso."
+
+---
+
+## Slide 12 — Próximos pasos (1 min)
+
+**Lo que se ve:** 5 step rows + CTA bar "¡Vamos! — Primer piloto:
+27 de diciembre".
+1. Sem 1 — Convenio interinstitucional (para alinear a *Jóvenes en
+   Acción* y la Comisión).
+2. Sem 2 — Setup técnico (acceso a infraestructura CTE-Santa Elena).
+3. Sem 3 — Kick-off + capacitación (equipo CTE + voluntarios
+   *Jóvenes en Acción*).
+4. Sem 4 — Primeros QRs en la calle.
+5. Continuo — Encuentros semanales (métricas + feedback de la
+   comunidad).
+
+**Qué decir:**
+
+> "Si nos ponemos de acuerdo hoy, arrancamos la primera semana de
+> noviembre. Lo primero es firmar un convenio interinstitucional
+> entre el programa *Jóvenes en Acción* y la Comisión para alinear
+> alcance, datos y cronograma. Después, el setup técnico en el
+> datacenter de la Comisión en Santa Elena. Luego, capacitamos al
+> equipo de la Comisión y a los voluntarios del programa. Semana 4,
+> ya hay QRs en la calle y la comunidad empieza a reportar. A partir
+> de ahí, encuentros semanales para revisar métricas y feedback."
+
+**Si preguntan "convenio de qué tipo exactamente?":**
+
+> "Es un acuerdo de colaboración interinstitucional entre el
+> programa y la Comisión. Define: roles (quién opera, quién
+> mantiene), alcance (qué provincias y qué tipo de incidentes),
+> tratamiento de datos (responsable/procesador bajo LOPD), y
+> cronograma. No es un contrato comercial."
+
+**Anclar:**
+
+> "Con esto cerramos."
+
+---
+
+## Slide 13 — Cierre (1 min)
+
+**Lo que se ve:** 3 números en gradiente: 30 s (Reporte), 0
+(Pérdida de señal), 6 sem (Primer resultado comunitario). CTA:
+"¿Preguntas? ¿Quiénes se suman?" + email de contacto.
+
+**Qué decir:**
+
+> "Cerramos con tres ideas: en 30 segundos un ciudadano puede
+> reportar. Con cero pérdida de señal, porque funciona offline. Y en
+> 6 semanas tenemos un primer resultado comunitario medible.
 > 
-> **Lo que hacemos diferente:**
-> - Reporte geolocalizado automático en 30 segundos
-> - Funciona offline y sincroniza cuando regresa señal
-> - Clasificación de emergencia en tiempo real → alertas sonoras en despacho
-> - Costo cero para ciudadano (PWA, no App Store)
-
-### **[Cierre de Apertura]**
-
-**VENDEDOR:**
-> ¿Podemos pasar 30 minutos mostrándole el sistema en vivo y explorando si un piloto en Santa Elena le interesaría?
-
-**CLIENTE:**
-> Sí, adelante. ¿Pero en cuánto saldría algo así?
-
-**VENDEDOR:**
-> Eso lo cubrimos después. Primero, que vea si realmente resuelve sus problemas. ¿De acuerdo?
-
-**[TRANSICIÓN A ENCUENTRO 2]**
-
----
-
-## ENCUENTRO 2: Deep Dive + Q&A (45 min)
-
-### **[Demostración en Vivo — 15 min]**
-
-**VENDEDOR:** *(comparte pantalla o acceso a staging)*
-> Voy a mostrar dos flujos:
-> 1. Cómo un ciudadano reporta (versión móvil)
-> 2. Cómo lo ve el operador de despacho en tiempo real
-
-**[Flujo 1: Ciudadano]**
-- Abre el QR → PWA carga al instante
-- Botón "Reportar" → solicita GPS (automático)
-- Elige categoría (Choque, Semáforo, Vía bloqueada, etc.)
-- Saca foto rápida (comprimida a <200 KB)
-- **Toca "Enviar"** → si hay red, sube inmediato; si no, queda en cola offline
-- Recibe notificación cuando el operador ve el reporte
-
-**[Flujo 2: Despacho]**
-- Tablero con mapa (Leaflet.js) mostrando todos los reportes en tiempo real
-- Código de color por severidad (Rojo = Crítico, Amarillo = Alto, Verde = Bajo)
-- Click en un reporte → abre toda la evidencia (foto, hora, ubicación exacta)
-- **Alerta sonora** cuando llega un reporte crítico (no se pierde)
-- Chat directo con el ciudadano (opcional, para aclarar)
-
-**CLIENTE:** *(asiente)*
-> Okay, veo la interfaz. Pero ¿qué tan exacta es la ubicación?
-
-**VENDEDOR:**
-> La precisión del GPS en Android/iOS es ±5-10 metros en outdoor. Además, los reportes se validan por PostGIS: si alguien marca una coordenada fuera de Santa Elena, el sistema rechaza (evita spam o falsos).
-
----
-
-### **[Preguntas Comunes — Q&A Estructurado]**
-
-#### **OBJECIÓN 1: "¿Cómo los ciudadanos saben del QR?"**
-
-**CLIENTE:**
-> Está bien para gente técnica, pero en una emergencia rural, ¿quién va a buscar un código QR?
-
-**VENDEDOR:**
-> Buena pregunta. Tres canales simultáneos:
-> 1. **QR en camiones de tránsito, señales de ruta** (campañas visuales)
-> 2. **SMS con enlace corto** (ECU 911 envía el link tras confirmar que es zona rural)
-> 3. **Web directa** (tase-staging.tailc8cd10.ts.net o enlace simplificado)
+> Esto no es un producto que estamos vendiendo. Es un proyecto
+> comunitario que estamos construyendo juntos — el programa *Jóvenes
+> en Acción* aporta el desarrollo técnico, la Comisión pone la
+> infraestructura, y la comunidad de Santa Elena es la que se
+> beneficia y la que modera con sus reportes.
 > 
-> Además, una vez que el usuario abre la PWA una vez, queda en su pantalla de inicio. Zero fricción la segunda vez.
+> ¿Quiénes se suman?"
+
+**Si preguntan qué sigue hoy mismo:**
+
+> "Si la Comisión está de acuerdo, definimos esta semana los puntos
+> del convenio y arrancamos con la firma la próxima."
+
+**Modo presentador:** presionar `P` muestra las notas de cada slide
+(para que el orador no tenga que memorizar este archivo entero).
+
+---
+
+## Slide 14 — Q&A backup (Preguntas duras)
+
+Esta slide **no se muestra al inicio** — se accede con la tecla `!`
+cuando alguien hace una pregunta difícil que no está cubierta en las
+slides 1–13. Las respuestas están aquí abajo.
+
+### "¿Cómo se entera la comunidad del QR?"
+
+> Campaña comunitaria + digital. QRs en paradas de bus, redes
+> sociales municipales, plazas y mercados. Presupuesto modesto para
+> llegar a toda la provincia. El boca a boca entre operadores de
+> tránsito y ciudadanos que vieron funcionar el sistema completa la
+> adopción después del primer mes.
+
+### "¿Y si alguien sin smartphone reporta?"
+
+> Ese flujo sigue siendo la línea 911. Tránsito Alerta SE no
+> reemplaza eso, lo complementa. La mayoría de incidentes hoy ya
+> tienen testigos con smartphone — ese es el segmento al que
+> llegamos.
+
+### "¿Qué pasa con reportes falsos o spam?"
+
+> Tres mecanismos:
+> 1. **Geofencing:** PostGIS valida cada reporte contra la
+>    jurisdicción de Santa Elena — un reporte fuera de zona se
+>    rechaza automático.
+> 2. **Rate-limiting:** un dispositivo no puede enviar más de 3
+>    reportes cada 10 minutos.
+> 3. **Trust Score (Fase 2):** reputación basada en historial.
+>    Reportes de baja confianza se marcan, no se eliminan — la
+>    comunidad modera.
+
+### "¿Cómo se integra con el sistema de despacho actual?"
+
+> **Opción 1 (Fase 1):** tablero independiente corre en paralelo al
+> sistema actual. Cero cambios en la plataforma existente.
+> **Opción 2 (Fase 2):** integración vía API REST (OpenAPI 3.0) o
+> webhook al sistema legacy. Si no hay API en el legacy,
+> middleware con SyncService.
+
+### "¿Y si se cae el servidor o no hay internet?"
+
+> - **Ciudadano:** IndexedDB guarda los reportes localmente si no
+>   hay red. Sincroniza al volver la señal (offline-first).
+> - **Despacho:** PostgreSQL + Redis corren on-premise en el
+>   datacenter de la Comisión — no dependemos de nubes externas.
+> - **Disponibilidad:** meta 99.5 % mensual en Fase 2, 99.9 % en
+>   Fase 3. Health checks cada 30 s, backups diarios con retención
+>   30 días (script en el repo).
+
+### "¿Cómo se sostiene el proyecto después de la Fase 1?"
+
+> El software es open-source y los datos siempre son de la Comisión
+> y de la comunidad. *Jóvenes en Acción* aporta el desarrollo
+> técnico; el sostenimiento operativo lo cubren las instituciones
+> públicas participantes. No hay licencia, no hay costo para la
+> ciudadanía, no hay contratos de mantenimiento vendor.
+
+### "¿Y si el proyecto se politiza o cambian las autoridades?"
+
+> Código open-source bajo licencia permisiva (MIT). Los datos son
+> siempre de la CTE y de la comunidad, no nuestros. Si hay cambio
+> de gobierno, de director o de autoridades provinciales:
+> 1. El software sigue siendo de la provincia, no nuestro.
+> 2. Pueden mantenerlo internamente (documentación + repo público).
+> 3. Pueden cambiar de proveedor sin perder datos.
+> 4. Cero bloqueo legal o técnico.
 >
-> **En Santa Elena específicamente:** podemos lanzar con una campaña de educación vial de 4 semanas (posters, radio local, videos en redes).
+> Esta es una herramienta pública, no un producto privado. Eso da
+> tranquilidad política independientemente de quién gobierne.
 
-**CLIENTE:**
-> ¿Y si alguien sin smartphone reporta?
+### "¿Por qué no usar Google Maps o Telegram directamente?"
 
-**VENDEDOR:**
-> Ese flujo sigue siendo el call center (ECU 911). Nosotros no reemplazamos eso — lo complementamos. La mayoría de incidentes hoy ya tienen testigos con smartphone. En piloto medimos la adopción real.
-
----
-
-#### **OBJECIÓN 2: "¿Qué pasa si el ciudadano da información falsa o hace spam?"**
-
-**CLIENTE:**
-> Teníamos reportes de broma en redes sociales. ¿Esto es diferente?
-
-**VENDEDOR:**
-> Sí, por tres motivos:
-> 1. **Geofencing:** el reporte se valida contra la jurisdicción (si está fuera de Santa Elena, rechaza automático)
-> 2. **Rate limiting:** cada dispositivo no puede enviar más de 3 reportes cada 10 minutos (configurable)
-> 3. **En v2 (fase 2):** Trust Score — usuarios con historial de reportes válidos suben de prioridad; falsos reportistas se shadowban
+> - **Google Maps** está hecho para navegar, no para emergencias.
+>   No tiene geofencing por jurisdicción, no tiene categorización
+>   de incidente, no tiene alertas operativas para el despacho.
+> - **Telegram** no tiene offline-first, no tiene geolocalización
+>   automática, no categoriza, y los reportes se pierden en el
+>   historial del chat.
+> - **Apps de emergencia genéricas** requieren instalación,
+>   gastan batería, no funcionan offline.
 >
-> El resultado: spam cae drásticamente comparado con redes sociales.
+> Tránsito Alerta SE está específicamente diseñado para *reporte +
+> despacho + analítica* en el contexto de una jurisdicción.
 
-**CLIENTE:**
-> ¿Cuánto cuesta el trust score?
+### "¿Qué diferencia hay con apps como Uber o delivery?"
 
-**VENDEDOR:**
-> Eso entra en la Fase 2. Hoy es MVP: Fase 1 es captura + despacho. Trust Score es add-on para después de validar el ROI en piloto.
+> Esas apps optimizan para lucro — comisión por viaje, publicidad,
+> engagement. Nosotros optimizamos para que la Comisión tenga los
+> datos mejores y más rápidos, sin comisión por reporte, sin
+> publicidad, sin engagement artificial. El modelo es servicio
+> público, no negocio.
 
----
+### "¿Qué pasa si la Comisión decide no seguir con nosotros?"
 
-#### **OBJECIÓN 3: "¿Cómo se integra con nuestro actual sistema de despacho?"**
-
-**CLIENTE:**
-> Tenemos Movano (o sistema legacy X). ¿Tengo que cambiar toda la plataforma?
-
-**VENDEDOR:**
-> No. Dos opciones:
-> 1. **Integración API:** Tránsito Alerta exporta reportes a través de REST/webhook hacia tu sistema actual. Tus operadores siguen en Movano, pero ven los datos de nosotros en un panel adicional (duales).
-> 2. **Dashboard independiente:** Los operadores abren nuestro tablero en paralelo, igual que chechan redes sociales hoy.
+> Cero vendor lock-in. Los datos son 100 % de la Comisión:
+> PostgreSQL en su datacenter o en su cuenta de AWS bajo su control
+> administrativo. Si deciden seguir con otro equipo o mantenerlo
+> internamente:
+> 1. Exportan todo (SQL dump completo, acceso administrativo total).
+> 2. El código es público en GitHub (MIT) — cualquier developer
+>    puede mantenerlo y extenderlo.
+> 3. La documentación incluye APIs (OpenAPI 3.0), diagrama de
+>    deployment y runbooks de operación.
+> 4. Ofrecemos transición asistida si lo piden (Fase 2 opcional).
 >
-> En el piloto, empezamos con Opción 2 (la más simple). La integración API es Fase 2 si quieren consolidar.
+> La Comisión nunca queda rehén. Es un principio del proyecto.
 
-**CLIENTE:**
-> ¿Cuánto tarda la integración?
+### "¿Cumple con LOPD?"
 
-**VENDEDOR:**
-> Depende de tu API legacy. Estimado: 2-3 semanas. Pero repito, para el piloto de 8 semanas, arrancamos sin integración. El valor ya se ve.
-
----
-
-#### **OBJECIÓN 4: "¿Qué pasa si se cae el servidor o no hay internet?"**
-
-**CLIENTE:**
-> En una emergencia, no podemos depender de la nube.
-
-**VENDEDOR:**
-> Entiendo. La arquitectura está diseñada así:
-> - **Ciudadano:** IndexedDB en el teléfono → reportes se guardan localmente incluso si la red cae. Sincroniza cuando regresa señal (funciona offline-first)
-> - **Backend/Despacho:** PostgreSQL + Redis con replicación en tu propia infraestructura (on-premise o nube privada). No dependemos de Heroku o servicios externos
-> - **Alta disponibilidad:** Docker + load balancer + failover automático
+> Sí. La Comisión es **Responsable de Datos**; nosotros somos
+> **Procesadores** bajo instrucción. Queda firmado en un Data
+> Processing Agreement (DPA). Cumplimos:
+> - Anonimización post-90 días (foto + ubicación exacta borradas).
+> - Right to be forgotten (ciudadano puede pedir borrado de sus
+>   reportes).
+> - Data minimization (solo GPS, categoría, foto, timestamp).
+> - Política de privacidad clara en la PWA.
 >
-> El SLA en Fase 2 es 99.5%. En Fase 1 (piloto), es best-effort pero monitoreado 24/7.
-
-**CLIENTE:**
-> ¿Eso significa que instalo el servidor en mi datacenter?
-
-**VENDEDOR:**
-> Exacto. O en AWS/Azure tu cuenta, con acceso administrativo. Ustedes controlan los datos. Cero cloud vendor lock-in.
+> **Nota:** GDPR es para la UE. Aquí aplica LOPD ecuatoriana.
+> Si la Comisión quiere alinearse también a GDPR como buena
+> práctica, lo cubrimos sin cambios adicionales.
 
 ---
 
-#### **OBJECIÓN 5: "¿Qué tan seguro es? ¿Los datos de ciudadanos están protegidos?"**
+## Notas finales para el presentador
 
-**CLIENTE:**
-> LOPD (Ley Orgánica de Protección de Datos). Si almacenan datos de gente, nosotros somos responsables subsidiarios.
+### Tono general
 
-**VENDEDOR:**
-> Correcto. Por eso pasamos un Security Audit hace una semana (octubre 18). Resultados:
-> - ✅ 0 vulnerabilidades críticas (erradicamos 2 CVEs)
-> - ✅ SQL parametrizado 100% (cero SQL injection)
-> - ✅ JWT + bcrypt para auth (15 min expiry, refresh 7d)
-> - ✅ Rate limiting anti brute-force
-> - ✅ Audit logging (quién hizo qué, cuándo)
->
-> Los datos del reporte se almacenan en PostgreSQL con encriptado en reposo. Las fotos en MinIO (object storage seguro).
-> 
-> Entregamos el reporte de auditoría firmado + CVSS scores. Además, todo el código es open-source (GitHub), auditable por ustedes.
+- **Plural y presente.** "La comunidad de Santa Elena puede…", "la
+  Comisión recibe…", no "ustedes van a poder…". El proyecto es con,
+  no para.
+- **Sin jerga innecesaria.** Si una persona no técnica está en la
+  sala (probable si hay comunitarios), prefiere "cobertura rural" a
+  "offline-first", prefiere "datos encriptados" a "AES-256 at rest".
+- **Honestidad sobre lo que no sabemos.** Si preguntan por un dato
+  de campo que no tenemos, decimos "eso lo validamos en el piloto",
+  no inventamos.
+- **Si la pregunta es difícil y no está cubierta:** mejor decir
+> "no tengo esa respuesta ahora, la traigo en 24 horas" que
+> improvisar.
 
-**CLIENTE:**
-> ¿Cumple con GDPR?
+### Si el ambiente se pone tenso
 
-**VENDEDOR:**
-> GDPR es EU, aquí es LOPD. Sí cumple LOPD:
-> - Anonimización de reportes (después de 90 días, eliminamos foto + ubicación exacta)
-> - Right to be forgotten (ciudadano puede solicitar borrado de sus reportes)
-> - Data minimization (solo colectamos lo necesario: GPS, categoría, foto, timestamp)
-> - Transparency (política de privacidad clara en la PWA)
->
-> En el contrato, quedamos como Procesadores de Datos bajo instrucción de ustedes (Responsables). Documentado en DPA (Data Processing Agreement).
+- Recordar que es un proyecto **comunitario**, no comercial. No
+  estamos compitiendo con proveedores — estamos invitando a la
+  Comisión a sumar a un programa del gobierno.
+- Si alguien pregunta "¿y ustedes qué ganan?": el programa *Jóvenes
+  en Acción* existe para que sus participantes aprendan haciendo.
+  El proyecto cumple el objetivo formativo del programa, y deja
+  una herramienta útil para la comunidad.
 
----
+### Después de la presentación
 
-#### **OBJECIÓN 6: "¿Cuál es el ROI? ¿Cuánto ahorra realmente?"**
-
-**CLIENTE:**
-> Decime números. ¿Cuánto dinero me ahorro?
-
-**VENDEDOR:**
-> Buena pregunta. Hay 3 tipos de ahorro:
->
-> **1. Ahorro Directo (Operacional):**
-> - Tiempo de respuesta: hoy ~12 min promedio, con sistema ~6 min
-> - En Santa Elena, ~30-50 reportes/día. Por cada minuto ahorrado × 40 reportes × 20 días/mes = **800 minutos de patrulla reutilizado** (equivale a ~2-3 unidades extra en cobertura preventiva)
-> - Costo de unidad en patrulla = ~$5,000/mes (combustible, personal). Ahorro indirecto: ~$10k-15k/mes en eficiencia
->
-> **2. Reducción de Incidentes por Prevención:**
-> - Con datos históricos (heatmaps), identificas blackspots (ej. curva en Km 45, E40)
-> - Posicionar 1 patrulla preventiva en zona de riesgo = reducción de 15-25% de accidentes en esa zona (literatura académica)
-> - Si reducen 10 incidentes/mes en Santa Elena × $2,000 costo promedio de atención = **$20k/mes en externalidades evitadas**
->
-> **3. Costo Evitado (Reputación):**
-> - Hoy, accidente sin respuesta rápida = noticia en redes sociales, crítica pública
-> - Respuesta en 6 min vs. 15 min = menos desinformación, más confianza ciudadana, menos presión política
->
-> **Total conservador:** $10-15k/mes en eficiencia operativa + $20k/mes en prevención = **$30-35k/mes en valor**
-> 
-> Costo de sistema (hosting, licencias, mantenimiento): ~$2-3k/mes
-> 
-> **Payback: 1-1.5 meses**
-
-**CLIENTE:** *(sorprendido)*
-> Eso es bastante más de lo que esperaba.
-
-**VENDEDOR:**
-> Es porque el problema es real y el impacto es inmediato. Pero estos números vienen de piloto. En fase 1, medimos exactamente cuántos minutos se ahorran y cuántos incidentes se previenen. Si no se cumplen, revisamos.
+- Enviar la presentación + este archivo + el
+  `odd/tasks/SECURITY_AUDIT_2026-10-18.md` (bajo acuerdo) por
+  correo a quien lo pida.
+- Documentar las preguntas que surgieron y ajustar las respuestas
+  en la próxima iteración de este archivo.
 
 ---
 
-### **[Resumen de Valor — Tabla Comparativa]**
+## Anexo histórico (referencia, no se usa durante la presentación)
 
-| Aspecto | Sistema Actual (ECU 911 + Manual) | Tránsito Alerta SE |
-|---------|-----------------------------------|-------------------|
-| Tiempo reporte → despacho | 5-10 minutos | < 30 segundos |
-| Calidad de ubicación | Vago ("entrada a Ballenita") | GPS exacta (±5-10m) |
-| Funciona sin cobertura | ❌ No | ✅ Sí (offline + sync) |
-| Categorización | Manual (operador decide) | Automática (ciudadano selecciona) |
-| Costo para usuario | Llamada (parte de plan) | Gratis (PWA, no app) |
-| Histórico / Analítica | No estruturado | PostGIS + heatmaps |
-| Integración con legacy | N/A | ✅ API (Fase 2) |
-| **Ahorro mensual estimado** | — | **$30-35k (ROI 1.5 meses)** |
+Las versiones anteriores de este archivo se enfocaban en un guion
+de 3 encuentros (pitch inicial → deep dive → cierre) con framing
+comercial: lenguaje de "vendedor" / "cliente", ROI y payback en
+dólares, licencias SaaS y un "documento ejecutivo para junta
+directiva" con presupuesto de aprobación. Esa estructura se
+mantuvo por trazabilidad del repo, pero el contenido reescrito en
+esta versión sigue el framing comunitario del programa *Jóvenes en
+Acción* y se estructura slide por slide para que sirva como guía
+del presentador.
 
----
-
-## ENCUENTRO 3: Cierre y Propuesta (20 min)
-
-### **[Propuesta de Implementación]**
-
-**VENDEDOR:**
-> Basándome en lo que hemos visto, propongo esto:
-
-#### **FASE 1: POC + Piloto (8 semanas, $12-15k)**
-
-**Semanas 1-2:**
-- Setup de infraestructura on-premise (tu datacenter o AWS tu cuenta)
-- Capacitación de 2-3 operadores de despacho
-- Lanzamiento silencioso (QR en 5-10 puntos de ruta, SMS a tester group)
-
-**Semanas 3-6:**
-- Piloto abierto: ciudadanos pueden reportar libremente
-- Recolección de métricas (# reportes, tiempo respuesta, adopción)
-- Ajustes en tiempo real según feedback
-
-**Semanas 7-8:**
-- Análisis final de datos
-- ROI report firmado
-- Decisión sobre expansión
-
-**Inversión:** $12-15k todo incluido (hosting, setup, soporte, capacitación)
-
-**Salida:** Reporte con métricas + propuesta de Fase 2
-
----
-
-#### **FASE 2: Expansión Provincial (6 meses, $80-120k)**
-
-- Integración con tu sistema legacy (Movano o similar)
-- Módulo de Trust Score (anti-spam avanzado)
-- Feedback Loop (notificaciones a ciudadano: "Agente en camino")
-- Analítica BI (dashboards para Dirección)
-- Training para toda la CTE
-
----
-
-#### **FASE 3: Innovación (Año 2, $150-200k)**
-
-- Visión computacional (detección automática de tipo de vehículo/obstáculo)
-- Predicción de siniestralidad (ML + PostGIS)
-- Mobile app nativa (opción premium, no reemplaza PWA)
-- Integración con ECU 911 (datos compartidos)
-
----
-
-### **[Próximos Pasos]**
-
-**VENDEDOR:**
-> Si les interesa arrancar, estos son los próximos pasos:
-
-1. **Firma de NDA** (confidencialidad)
-2. **Setup Técnico** (acceso a tu infraestructura, credenciales)
-3. **Kick-off Call** con tu equipo IT
-4. **Day 1 de piloto:** Primeros QRs en campo
-5. **Weekly syncs** (cada viernes, 30 min, revisar métricas)
-
-**Timeline:** Podemos empezar Semana 1 de noviembre. Piloto termina 27 de diciembre.
-
-**Precio Fase 1:** $14k (punto medio de $12-15k)
-
----
-
-### **[Cierre Emocional]**
-
-**VENDEDOR:**
-> Mire, el problema que atacamos es real. Cada minuto que demora un reporte de un accidente en la Ruta del Spondylus, hay alguien esperando ayuda. Ustedes ya lo saben mejor que nadie. 
->
-> Tránsito Alerta SE es lo que debería existir desde hace años. Y hoy, tenemos la tecnología para hacerlo bien — offline-first, seguro, auditable, y con ROI real.
->
-> ¿Qué necesitaría para dar luz verde al piloto?
-
-**CLIENTE:**
-> Me gusta. Déjame revisar con mi director y con IT. ¿Cuándo podemos tener una reunión con ellos?
-
-**VENDEDOR:**
-> Perfecto. Sugiero una llamada Zoom con ustedes 3 (Ops, IT, Dirección) para aclarar arquitectura y timeline. ¿El viernes a las 10am?
-
-**CLIENTE:**
-> Dale. Voy a confirmar mañana. Pero déjame tu propuesta por escrito.
-
-**VENDEDOR:**
-> Claro. Hoy te envío PDF con:
-> - Descripción técnica (stack, seguridad, SLA)
-> - Timeline de Fase 1
-> - Propuesta de valor (ROI report)
-> - Referencias (2-3 ciudades que ya lo probaron)
-> - FAQ técnico
-> - Contrato framework para revisión legal
-
-**CLIENTE:**
-> Bueno. Gracias. Creo que esto puede funcionar.
-
-**[FIN DEL DIÁLOGO]**
-
----
-
-## Apéndice: Objeciones Adicionales (Contingencias)
-
-### **"¿Por qué no usar Google Maps o apps existentes?"**
-
-**RESPUESTA:**
-> Hay diferencias clave:
-> - **Google Maps** es para navegación, no para emergencias. No tiene geofencing, categorización ni alertas operativas
-> - **WhatsApp/Telegram** pierden información en historial, no hay analítica
-> - **Apps de emergencia genéricas** requieren instalación, gastan batería, no funcionan offline
-> 
-> Tránsito Alerta SE está diseñado específicamente para esto: reporte + despacho + analytics. Nada más, nada menos.
-
----
-
-### **"¿Qué pasa si la CTE cierra? ¿Pierdo los datos?"**
-
-**RESPUESTA:**
-> Los datos son tuyos. PostgreSQL está en tu infraestructura, bajo tu control. Nosotros proveemos el software, no guardamos nada en nuestros servidores.
->
-> Si deciden no seguir con nosotros:
-> 1. Exportas todos los datos (SQL dump completo)
-> 2. El código fuente es abierto (GitHub público) — cualquier developer puede mantenerlo
-> 3. Nosotros proveemos documentación técnica para transición
->
-> Zero vendor lock-in.
-
----
-
-### **"¿Qué diferencia hay con Uber o apps de delivery?"**
-
-**RESPUESTA:**
-> La diferencia es profunda:
-> - **Uber/Delivery** optimizan para lucro (comisión por viaje). Nosotros optimizamos para vidas salvadas
-> - **Nuestro incentivo:** que tú (CTE) tengas los datos mejores y más rápidos. Punto
-> - **Modelo:** CTE paga por servicio + infraestructura. No hay comisión por reporte, no hay publicidad
-> 
-> Además, el stack es completamente diferente (PostGIS para geofencing, Redis para despacho en tiempo real, etc.).
-
----
-
-## Documento Ejecutivo para Presentar a Junta Directiva
-
-Si el cliente dice "necesito aprobación de arriba", entrega esto:
-
----
-
-### **EXECUTIVE SUMMARY: Tránsito Alerta SE Pilot**
-
-**Problema:** Reporte de incidentes viales en Santa Elena tarda 12+ minutos. Ciudadanos sin herramientas de precisión. CTE despacha "a ciegas". Cero analítica.
-
-**Solución:** PWA offshore-first + tablero operativo + PostGIS + tiempo real.
-
-**Evidencia:** 
-- Piloto 8 semanas = $14k
-- ROI proyectado: $30-35k/mes
-- Payback: 6 semanas
-
-**Aprobación requerida:** 
-- Presupuesto $14k (Fase 1)
-- Acceso a datacenter/AWS
-- 1 operador dedicado (0.5 FTE)
-
-**Firma:** CTE Dirección
-
----
-
-**[FIN]**
+— Equipo Tránsito Alerta SE · Programa *Jóvenes en Acción*.
