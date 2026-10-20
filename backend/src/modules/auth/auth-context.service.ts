@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
 import type { Cache } from 'cache-manager';
@@ -7,6 +7,15 @@ import { AuthConfig } from '../../config/auth.config';
 import { AuthContext } from '../../shared/authz/subject-scope';
 import { resolveSubjectScope } from '../../shared/authz/resolve-subject-scope';
 import { AuthUserRepository } from './auth-user.repository';
+import { REDIS_CLIENT } from '../../infra/core.module';
+
+/**
+ * Prefijo del árbol de menú cacheado. Duplica `MenusService.CACHE_PREFIX`
+ * (`menus.service.ts:37`) a propósito: los dos caches están acoplados por
+ * datos — el menú se filtra por el permiso efectivo — así que invalidar uno
+ * sin el otro deja la UI mintiendo. Ver `invalidatePermissionCache`.
+ */
+const MENU_CACHE_PREFIX = 'menu:v1:';
 
 /**
  * T3.9 design §3 [R4]: reshaped to `perm:v3:` — `AuthContext` gains
@@ -54,6 +63,12 @@ export class AuthContextService {
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly configService: ConfigService,
     private readonly authUserRepo: AuthUserRepository,
+    // 2026-10-20 — cliente del stream, para invalidar `menu:v1:*` (que NO
+    // vive en el `CacheModule`). Opcional a propósito: el spec existente
+    // `auth-context.service.spec.ts` construye el servicio con 3 argumentos,
+    // y que la invalidación de menús degrade a no-op en vez de romper la
+    // construcción es el comportamiento correcto cuando el cliente no está.
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: { del(key: string): Promise<unknown> },
   ) {}
 
   private get authConfig(): AuthConfig {
@@ -236,6 +251,42 @@ export class AuthContextService {
     if (deviceUuid !== null) {
       deletes.push(this.cache.del(`${PERMISSION_CACHE_PREFIX}${deviceUuid}`));
     }
+
+    // 2026-10-20 — el árbol de menú también depende de estos permisos.
+    //
+    // `MenusService` filtra cada entrada por el permiso efectivo del usuario
+    // (`menus.service.ts:21-22,43-45`), así que `menu:v1:user:{id}` es caché
+    // DERIVADA de `perm:v3:*`. Invalidar sólo el padre dejaba el hijo
+    // mintiendo: tras un soft-delete de rol los permisos se revocaban
+    // correctamente pero el sidebar seguía mostrando el menú viejo hasta el
+    // TTL (1 h).
+    //
+    // Se limpia acá y no en `RolesService` a propósito: TODOS los callers de
+    // esta méthode (assignRole, update, delete, recalculateEffectivePermissions)
+    // pasan por acá, así que un solo cambio los cubre. Limpiarlo sólo en
+    // `delete` habría dejado los otros tres caminos con el mismo bug.
+    //
+    // El prefijo duplica el de `menus.service.ts:37`. Es acoplamiento
+    // deliberado entre dos caches que sí están acoplados por datos; la
+    // alternativa —un bus de invalidación— es más ceremonia que lo que un
+    // prefijo compartido cuesta acá.
+    deletes.push(this.redisDel(`${MENU_CACHE_PREFIX}user:${userId}`));
+
     await Promise.all(deletes);
+  }
+
+  /**
+   * Borra una clave del cliente Redis del outbox/streams, donde vive
+   * `menu:v1:*` (`MenusService` inyecta `REDIS_CLIENT`, no el `CacheModule` —
+   * `menus.service.ts:55-56`). Envuelto porque si el cliente no está
+   * disponible la invalidación de permisos NO debe fallar: el TTL de 1 h ya
+   * la deja como último recurso.
+   */
+  private async redisDel(key: string): Promise<void> {
+    try {
+      await this.redis?.del(key);
+    } catch {
+      // no-op: el cache expira solo.
+    }
   }
 }

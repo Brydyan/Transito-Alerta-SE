@@ -9,6 +9,7 @@ import { AuthService } from '../auth/auth.service';
 import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { MenuOptionEntity } from './entities/menu-option.entity';
 import { MenuOptionRoleEntity } from './entities/menu-option-role.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
 import { MenuEntry, MENU_MAP } from './menu-map';
 
 /**
@@ -50,6 +51,10 @@ export class MenusService {
     private readonly optionRepo: Repository<MenuOptionEntity>,
     @InjectRepository(MenuOptionRoleEntity)
     private readonly roleAccessRepo: Repository<MenuOptionRoleEntity>,
+    // 2026-10-20 — para resolver si el rol del usuario sigue vigente. Un rol
+    // soft-deleted no debeftecer menú (ver el paso 3 de getMenuForUser).
+    @InjectRepository(RoleEntity)
+    private readonly roleRepo: Repository<RoleEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
     @Inject(REDIS_CLIENT)
@@ -93,6 +98,38 @@ export class MenusService {
     }
 
     // 3. Query accessible options from DB (matrix can_read=true)
+    //
+    // 2026-10-20 — un rol soft-deleted NO concede menú.
+    //
+    // Las filas de `menu_option_roles` sobreviven al soft-delete del rol (no
+    // hay cascade: es una tabla puente por FK, no por participación), así que
+    // `getAccessibleOptions` seguía devolviendo el menú completo de un rol
+    // revocado. Combinado con que el filtro por permisos está desactivado
+    // (líneas 98-104) y que `menu:v1:*` no se invalidaba, el sidebar seguía
+    // ofreciendo el menú viejo hasta una hora después de revocar el rol.
+    //
+    // Se corta acá y no se reactiva el filtro por permisos: ese filtro se
+    // desactivó a propósito por ser "overly restrictive" (nota de la línea
+    // 100) y reactivarlo es una decisión de producto aparte. Lo que se replica
+    // es la semántica que YA usa `AuthContextService` para el mismo caso —
+    // `roleDeleted ⇒ permissions = []` (`auth-context.service.ts:184-189`) —
+    // para que menú y permisos no puedan discrepar.
+    const role = await this.roleRepo.findOne({
+      where: { id: user.roleId, deletedAt: IsNull() },
+      select: ['id'],
+    });
+
+    if (!role) {
+      // Rol borrado o inexistente: sin matriz, sin menú. Se purga la caché
+      // porque un árbol pre-soft-delete seguiría siendo válido para el TTL.
+      try {
+        await this.redis.del(cacheKey);
+      } catch {
+        // no-op: el TTL de 1 h es el respaldo.
+      }
+      return [];
+    }
+
     const accessibleOptions = await this.getAccessibleOptions(user.roleId);
 
     // 4. Filter by effective permissions (single source of truth: AuthService)
@@ -101,6 +138,12 @@ export class MenusService {
     // The permission check here was meant as a secondary gate for MENU_MAP-defined routes,
     // but it was preventing items with correct DB-level permissions from showing.
     // HOTFIX: Skip the extra permission filter layer since menu_option_roles already governs access.
+    //
+    // NOTA: el docblock de la clase (línea 21) sigue diciendo que este filtro
+    // existe y que hace que el menú coincida con lo que el guard permite. NO
+    // es cierto desde que se desactivó. Corregir el doc o reactivar el filtro
+    // es trabajo aparte; aquí sólo se deja constancia de que la línea de abajo
+    // es un no-op deliberado, no un olvido.
     const filtered = accessibleOptions;
 
 
