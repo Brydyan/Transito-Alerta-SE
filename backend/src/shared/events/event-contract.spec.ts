@@ -99,7 +99,12 @@ const CONTRACTS: Record<string, EventContract> = {
       },
     },
     streamConsumers: {
-      IncidentMailListener: { reads: ['id', 'title', 'priority', 'organization_id'], verifiedBy: 'none' },
+      // `handleIncidentCreated` lee los cinco; `handleIncidentAssigned`
+      // cuelga del MISMO evento pero NO usa ninguno de ellos.
+      IncidentMailListener: {
+        reads: ['id', 'title', 'description', 'priority', 'organization_id'],
+        verifiedBy: 'e2e',
+      },
     },
   },
   'incident.assigned': {
@@ -115,7 +120,15 @@ const CONTRACTS: Record<string, EventContract> = {
       },
     },
     streamConsumers: {
-      IncidentMailListener: { reads: ['id', 'title', 'description'], verifiedBy: 'none' },
+      // Estos tres son los que lee `handleIncidentAssigned`. Antes el
+      // registro decía `['id', 'title', 'description']`: `id` y
+      // `description` no los lee nadie de este listener, y faltaban los dos
+      // que sí decideían si el correo salía — `operatorId` (a quién) e
+      // `incidentId` (el respaldo del subject cuando no hay título).
+      IncidentMailListener: {
+        reads: ['operatorId', 'incidentId', 'title'],
+        verifiedBy: 'e2e',
+      },
     },
   },
   'incident.status_changed': {
@@ -240,9 +253,21 @@ describe('Guard de contrato productor↔consumidor de eventos', () => {
     // El recordatorio que falta: un consumidor sin `verifiedBy: 'e2e'` es
     // código que nadie ejercita de punta a punta. No falla hoy — es
     // visibilidad, no un veto — pero el conteo deja la deuda a la vista.
+    //
+    // 2026-10-20 — recorre TAMBIÉN `streamConsumers`. Antes sólo iteraba
+    // `consumers` (los `@OnEvent`), así que los consumidores del stream de
+    // Redis —que son los que más nos han costado: el correo de
+    // asignación salía sin título y nadie lo vio— no contaban como deuda.
+    // Un contador que deja fuera el canal más roto miente sobre el estado
+    // del contrato.
     const uncovered: string[] = [];
     for (const [event, contract] of Object.entries(CONTRACTS)) {
-      for (const [cls, c] of Object.entries(contract.consumers)) {
+      const channels: Array<[string, ConsumerContract]> = [
+        ...Object.entries(contract.consumers),
+        ...Object.entries(contract.streamConsumers ?? {}),
+      ];
+
+      for (const [cls, c] of channels) {
         if (c.verifiedBy !== 'e2e') {
           uncovered.push(`${cls} ← "${event}"`);
         }

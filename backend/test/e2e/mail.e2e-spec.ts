@@ -361,6 +361,100 @@ describe('Mail module e2e (T3.5)', () => {
     expect(deliverSpy).not.toHaveBeenCalled();
   });
 
+  /**
+   * 2026-10-20 — SEGUNDO CANAL de `incident.assigned` (el que faltaba).
+   *
+   * `assignments.service.ts` publica el payload por DOS canales: el
+   * EventEmitter2 in-process (Telegram + notificación in-app, cubiertos
+   * en `dispatch-workflow.e2e-spec.ts`) y el stream `incidents:events`,
+   * que es de donde lee ESTE listener. Antes de unificar el payload, el
+   * emisor mandaba `saved` —la fila pelada de `assignments`— al stream, y
+   * esa fila no tiene columna `title`: el subject salía
+   * `Incident assigned to you: ` sin título, en silencio.
+   *
+   * Nada lo detectaba porque `incident-mail.listener.spec.ts` fabricaba su
+   * propio payload en vez del que el productor emite. Este spec lo hace al
+   * revés: el payload lo genera un `POST /api/assignments` real, así que
+   * si el productor deja de enriquecerlo, el assert del subject falla.
+   *
+   * Sin departamentos ni categorías a propósito: `assign()` exige que el
+   * operador exista y comparta org con la incidencia, no que su
+   * departamento maneje la categoría. Menos superficie sembrada.
+   */
+  it('incident.assigned -> enqueues al operador con el título real en el subject', async () => {
+    const deliverSpy = jest.spyOn(mailService, 'deliver');
+
+    const orgId = await seedOrgInZone();
+    const reporter: ProvisionedUser = await env.provisionUser(['CREATE incidents'], {
+      email: 'reporter-assigned-e2e@example.com',
+      organizationId: orgId,
+      roleName: 'reporter',
+    });
+    const dispatcher: ProvisionedUser = await env.provisionUser(
+      ['READ incidents', 'ASSIGN assignments'],
+      {
+        email: 'dispatcher-assigned-e2e@example.com',
+        organizationId: orgId,
+        roleName: 'admin_org',
+      },
+    );
+    const operator: ProvisionedUser = await env.provisionUser(['READ incidents'], {
+      email: 'operator-assigned-e2e@example.com',
+      organizationId: orgId,
+      roleName: 'operator_org',
+    });
+
+    const created = await request(env.httpServer)
+      .post('/api/incidents')
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
+      .send({
+        title: 'Pozo abierto en la calzada',
+        description: 'Pozo de 40cm junto al paso peatonal',
+        priority: 'high',
+        ...INSIDE_SANTA_ELENA,
+      })
+      .expect(201);
+
+    await request(env.httpServer)
+      .post('/api/assignments')
+      .set({ Authorization: `Bearer ${dispatcher.accessToken}` })
+      .send({ incident_id: created.body.id, operator_id: operator.userId })
+      .expect(201);
+
+    await waitUntil(
+      async () =>
+        deliverSpy.mock.calls.some(
+          (call) =>
+            call[0] === 'operator-assigned-e2e@example.com' && call[2] === 'incident.assigned',
+        ),
+      20_000,
+    );
+
+    // El assertion central: el título cruzó el stream desde el productor.
+    expect(deliverSpy).toHaveBeenCalledWith(
+      'operator-assigned-e2e@example.com',
+      'Incident assigned to you: Pozo abierto en la calzada',
+      'incident.assigned',
+      expect.objectContaining({ title: 'Pozo abierto en la calzada' }),
+    );
+
+    // `priority: 'high'` (no critical), sin comentarios y sin cambios de
+    // estado: la ÚNICA llamada a `deliver` posible en este test es la de
+    // asignación. El conteo exacto delata que `handleIncidentCreated` u
+    // otro handler del listener vuelvan a dispararse sin filtro.
+    expect(deliverSpy).toHaveBeenCalledTimes(1);
+
+    // La audiencia es el operador: ni quien despacha ni quien reporta.
+    for (const notTheAudience of [
+      'dispatcher-assigned-e2e@example.com',
+      'reporter-assigned-e2e@example.com',
+    ]) {
+      expect(
+        deliverSpy.mock.calls.some((call) => call[0] === notTheAudience),
+      ).toBe(false);
+    }
+  });
+
   it('an entry that fails delivery 3 times is moved to mail:dead and acked on the origin stream', async () => {
     jest.spyOn(mailService, 'deliver').mockRejectedValue(new Error('permanent simulated failure'));
 

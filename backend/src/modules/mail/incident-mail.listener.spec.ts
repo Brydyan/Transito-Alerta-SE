@@ -159,16 +159,59 @@ describe('IncidentMailListener', () => {
       );
     });
 
-    it('incident.assigned -> enqueues to the assignee only', async () => {
+    it('incident.assigned -> enqueues to the assignee only, with the incident title in the subject', async () => {
       userRepo.findOne.mockResolvedValueOnce({ id: 'op-1', email: 'operator@example.com' });
 
+      // El payload refleja la FORMA REAL que emite `assignments.service.ts`
+      // (commit del payload compartido): la fila de `assignments` más los
+      // datos de la incidencia. Antes este test pasaba un payload sin
+      // `title` y por eso nunca notó que el subject salía vacío — el
+      // productor mandaba `saved` pelado al stream. El contrato
+      // productor↔consumidor de esto lo verifica
+      // `backend/test/e2e/mail.e2e-spec.ts` (HTTP de verdad); aquí se
+      // comprueba que el título llegue al subject cuando está.
       await listener.processResponse(
-        streamResponse('incident.assigned', { id: 'a-1', incidentId: 'inc-1', operatorId: 'op-1' }, '2-0'),
+        streamResponse(
+          'incident.assigned',
+          {
+            id: 'a-1',
+            incidentId: 'inc-1',
+            operatorId: 'op-1',
+            assignedToId: 'op-1',
+            title: 'Pozo abierto en la calzada',
+            description: 'Pozo de 40cm junto al paso peatonal',
+            priority: 'high',
+          },
+          '2-0',
+        ),
       );
 
       expect(mailService.enqueue).toHaveBeenCalledTimes(1);
       expect(mailService.enqueue).toHaveBeenCalledWith(
-        expect.objectContaining({ to: 'operator@example.com', template: 'incident.assigned' }),
+        expect.objectContaining({
+          to: 'operator@example.com',
+          template: 'incident.assigned',
+          subject: 'Incident assigned to you: Pozo abierto en la calzada',
+          data: { title: 'Pozo abierto en la calzada' },
+        }),
+      );
+    });
+
+    it('incident.assigned sin title -> cae al incidentId en el subject (nunca queda vacío)', async () => {
+      // La rama `data.title ?? data.incidentId` del subject. Un entry viejo
+      // en el stream —o un productor que no enriquezca el payload— no puede
+      // producir `Incident assigned to you: ` a secas.
+      userRepo.findOne.mockResolvedValueOnce({ id: 'op-1', email: 'operator@example.com' });
+
+      await listener.processResponse(
+        streamResponse('incident.assigned', { id: 'a-1', incidentId: 'inc-1', operatorId: 'op-1' }, '2-1'),
+      );
+
+      expect(mailService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'operator@example.com',
+          subject: 'Incident assigned to you: inc-1',
+        }),
       );
     });
 
