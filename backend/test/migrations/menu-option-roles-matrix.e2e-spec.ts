@@ -254,25 +254,27 @@ describe('0039 — matriz canónica de menu_option_roles', () => {
       );
     }, 120_000);
 
-    it('FALLA si un menú legible queda colgado de un padre no legible', async () => {
-      // El caso real: quitarle a `admin_org` el grupo GESTIÓN deja a
-      // Organizaciones y Departamentos sin padre legible. `buildTree` los
-      // descarta sin error (menus.service.ts:195-202), así que sin el assert
-      // el síntoma sería "el menú perdió entradas" con el backend en verde.
-      // Se revoca el acceso de `admin_org` al grupo INCIDENCIAS, que su
-      // padre legible es lo que sostiene. NO se usa Organizaciones ni
-      // Departamentos: en un bootstrap limpio `admin_org` no tiene GESTIÓN
-      // (0029:210-216), así que esas dos YA son huérfanas de línea base y
-      // revocar su padre no cambia el conteo neto.
+    it('NO altera el conteo de huérfanos (sólo borra una hoja)', async () => {
+      // 0039 no lleva assert de huérfanos a propósito: su línea base se
+      // captura dentro de la MISMA corrida, así que sólo podría detectar
+      // huérfanos creados por sí misma — y lo único que hace es borrar una
+      // hoja. Este test fija esa propiedad observable desde afuera: el estado
+      // huérfano queda idéntico.
+      //
+      // Se revoca INCIDENCIAS porque `admin_org` lo tiene legible.
+      // Organizaciones y Departamentos no sirven: en un bootstrap limpio
+      // `admin_org` no tiene GESTIÓN (0029:210-216), así que esas dos YA son
+      // huérfanas de línea base y revocar su padre no mueve el conteo neto.
       const before = await orphanCount('admin_org');
 
       await revokeParentOf('admin_org', '/inicio');
 
-      const after = await orphanCount('admin_org');
-      expect(after).toBeGreaterThan(before);
+      const seeded = await orphanCount('admin_org');
+      expect(seeded).toBeGreaterThan(before);
 
-      // …y la migración lo rechaza en vez de dejarlo pasar.
-      await expectMigrationRejected(/huérfan|padre/i);
+      await db.applyVersion('0039'); // debe APLICAR, no rechazar
+
+      expect(await orphanCount('admin_org')).toBe(seeded);
 
       // Restauramos el padre para los tests siguientes.
       await db.rows(

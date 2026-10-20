@@ -194,68 +194,48 @@ BEGIN
 END $$;
 
 -- ════════════════════════════════════════════════════════════════════════
--- 3) ASSERT — 0039 NO INTRODUCE huérfanos
+-- 3) INVENTARIO de huérfanos (informativo, sin assert)
 --
--- Ningún menú legible puede quedar colgado de un padre que el rol NO puede
--- leer. `MenusService.buildTree` descarta el hijo en ese caso
--- (`menus.service.ts:195-202`), así que la violación no se manifiesta como
--- error: se manifiesta como un menú que desapareció sin aviso.
+-- ┌──────────────────────────────────────────────────────────────────────┐
+-- │ NOTA: aquí NO hay un assert, y es deliberado.                     │
+-- │ Una versión anterior de esta migración comparaba contra una temp │
+-- │ table capturada al inicio de la MISMA corrida yaba fallar ante   │
+-- │ cualquier huérfano preexistente, abortando el bootstrap limpio.  │
+-- │ Corregido para que no bloqueara, el assert quedó sin propósito:   │
+-- │ capturar la línea base dentro de la corrida sólo puede detectar │
+-- │ huérfanos creados por ESTA migración, y lo único que 0039 hace   │
+-- │ es borrar una hoja — que no puede huérfanar nada.               │
+-- │                                                                      │
+-- │ Un guard real necesita una línea base PERSISTIDA, comparable     │
+-- │ entre corridas: si una migración futura "limpia" un padre        │
+-- │ accesible, el cambio se detecta contra el registro de 0039, no    │
+-- │ contra un snapshot del mismo instante. Ese guard pertenece a la  │
+-- │ migración que Corrija la línea base (la que le devuelva GESTIÓN  │
+-- │ a admin_org), no a esta.                                          │
+-- └──────────────────────────────────────────────────────────────────────┘
 --
--- Compara contra `_orphan_baseline` (capturado antes del DELETE), no contra
--- cero: el bootstrap limpio arrastra huérfanos preexistentes y esta
--- migración no es su dueña. Lo que se vigila es que 0039 no AGREGUE más.
+-- Acá sólo se REPORTA, para que la deuda quede con nombre propio en los
+-- logs de apply en vez de ser un número anónimo.
 -- ════════════════════════════════════════════════════════════════════════
 DO $$
-DECLARE v_base int; v_new int; v_detail text;
+DECLARE v int; v_detail text;
 BEGIN
-  SELECT count(*) INTO v_base FROM _orphan_baseline;
+  SELECT count(*) INTO v FROM _orphan_baseline;
 
-  SELECT count(*) INTO v_new
-    FROM menu_option_roles mor
-    JOIN menu_options mo
-      ON mo.id = mor.menu_option_id
-     AND mo.deleted_at IS NULL
-     AND mo.is_active = true
-    LEFT JOIN menu_option_roles pmor
-      ON pmor.menu_option_id = mo.parent_id
-     AND pmor.role_id = mor.role_id
-     AND pmor.can_read = true
-   WHERE mor.can_read = true
-     AND mo.parent_id IS NOT NULL
-     AND pmor.menu_option_id IS NULL
-     AND NOT EXISTS (
-       SELECT 1 FROM _orphan_baseline b
-        WHERE b.role_id = mor.role_id
-          AND b.menu_option_id = mor.menu_option_id
-     );
-
-  IF v_new > 0 THEN
-    SELECT string_agg(format('%s → %s', r.name, mo.name), E'\n  ')
-      INTO v_detail
-      FROM menu_option_roles mor
-      JOIN menu_options mo ON mo.id = mor.menu_option_id
-      JOIN roles r       ON r.id = mor.role_id
-      LEFT JOIN menu_option_roles pmor
-        ON pmor.menu_option_id = mo.parent_id
-       AND pmor.role_id = mor.role_id
-       AND pmor.can_read = true
-     WHERE mor.can_read = true
-       AND mo.parent_id IS NOT NULL
-       AND pmor.menu_option_id IS NULL
-       AND NOT EXISTS (
-         SELECT 1 FROM _orphan_baseline b
-          WHERE b.role_id = mor.role_id
-            AND b.menu_option_id = mor.menu_option_id
-       );
-
-    RAISE EXCEPTION
-      '0039 introdujo % menú(s) legible(s) con padre no legible (línea base: %). '
-      'MenusService los descarta como huérfanos (menus.service.ts:195-202), '
-      'así que desaparecerían del sidebar sin error visible. Offenses:\n  %',
-      v_new, v_base, v_detail;
+  IF v = 0 THEN
+    RAISE NOTICE '[0039] Sin menús huérfanos en la línea base.';
+    RETURN;
   END IF;
 
-  RAISE NOTICE '[0039] Huérfanos preexistentes preservados sin cambio: %', v_base;
+  SELECT string_agg(format('%s → %s', r.name, mo.name), E'\n  ' ORDER BY r.name, mo.name)
+    INTO v_detail
+    FROM _orphan_baseline b
+    JOIN roles r        ON r.id  = b.role_id
+    JOIN menu_options mo ON mo.id = b.menu_option_id;
+
+  RAISE NOTICE E'[0039] % menú(s) huérfano(s) preexistente(s) — legibles con el padre NO legible, '
+              'así que MenusService los descarta (menus.service.ts:195-202). No es responsabilidad de 0039:\n  %', v, v_detail;
+  RAISE WARNING '[0039] El menú de admin_org pierde entradas en un install limpio. Ver la nota del header.';
 END $$;
 
 COMMIT;
