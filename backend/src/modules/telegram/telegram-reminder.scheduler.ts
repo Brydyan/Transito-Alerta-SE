@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { TelegramService } from './telegram.service';
 import { TelegramConfig } from '../../config/telegram.config';
+import { buildIncidentDetailLink } from './incident-detail-link';
 
 /**
  * TelegramReminderScheduler (F7 emergency-dispatch, design D10 — REVISED
@@ -87,7 +88,9 @@ export class TelegramReminderScheduler {
     },
     cfg: TelegramConfig,
   ): Promise<void> {
-    const detailLink = `${cfg.appBaseUrl}/incidents/${incident.id}`;
+    // 2026-10-20 — was `${cfg.appBaseUrl}/incidents/${id}` (404: no such
+    // route). See `incident-detail-link.ts` for the route tree.
+    const detailLink = buildIncidentDetailLink(cfg.appBaseUrl, incident.id);
 
     // The candidate SELECT guarantees >= 25 min elapsed. From here,
     // `reminder_count` is the sole progress tracker — no upper-bound

@@ -88,6 +88,28 @@ independiente. Ver commit `1bbccfec3`.
 | 0036 | users_phone_unique | Partial unique index `uq_users_phone` ON users(phone) WHERE phone IS NOT NULL. Prevents duplicate phone across active users; soft-deleted users (whose phone is wiped to NULL) are excluded naturally. Service layer pre-check (adminCreate/adminUpdate) gives 409 with friendly message; updateProfile catches 23505 from the index. | ⏳ Pending | — | — | — |
 | 0037 | admin_org_reassign_permission | Adds `UPDATE assignments` to `admin_org` role permissions JSONB array. Required for `PATCH /api/assignments/:id` — without it admin_org receives 403 when attempting to reassign an incident to another operator. Idempotent: skips if already present. Rollback: `database/rollback/0037_admin_org_reassign_permission.DOWN.sql`. | ⏳ Pending | — | — | — |
 | 0038 | permissions_uuid_normalization | **Fix del 500 de `GET /api/auth/me`.** Normaliza `roles.permissions` a UUIDs elemento por elemento, respetando los TRES formatos que convivieron en el schema: canónico `"ACTION resource"`, erróneo `resource:ACTION` (inyectado por 0021 §6, que 0026 no pudo remapear porque su LEFT JOIN parsea por espacio) y UUID. Descarta lo irreconocible con NOTICE + WARNING. Denormaliza a `users.permissions`. Cubierto por `backend/test/migrations/permissions-uuid-normalization.e2e-spec.ts`. | ⏳ Pending | — | — | — |
+| 0039 | menu_option_roles_canonical_matrix | Borra `(Reportar, operator_org)` de `menu_option_roles`: residuo de una corrida de `0029` anterior a la corrección `2026-10-17-reportar-operator-org-block`, que concede esa hoja sólo a roles con `CREATE incidents` (0029:183). Sin efecto funcional hoy —`MenusService` ya filtra por permiso efectivo y `/reportar` exige `CREATE incidents` (`menu-map.ts:78`)— pero la DB contradecía al repo. Assert por grupo padre: `operator_org` no debe colgar de GESTIÓN/CATÁLOGOS. Reporta por NOTICE los menús huérfanos preexistentes sin abortar (un bootstrap limpio los arrastra y 0039 no es su dueño). Rollback: `database/rollback/0039_menu_option_roles_canonical_matrix.DOWN.sql`. Cubierto por `backend/test/migrations/menu-option-roles-matrix.e2e-spec.ts`. | ⏳ Pending | — | — | — |
+
+### ⚠️ 0039 y los menús huérfanos (deuda conocida, sin corregir)
+
+`0039` reporta por `NOTICE` los menús que son legibles pero cuyo **padre no es
+legible para el mismo rol**. `MenusService.buildTree` los descarta sin error
+(`menus.service.ts:195-202`, *"orphan — excluded per spec"*), así que el síntoma
+es «el sidebar perdió entradas» con el backend en verde.
+
+**Causa raíz:** `0029:210-216` concede el grupo GESTIÓN sólo a `master` +
+`agent_system`, pero `Organizaciones` y `Departamentos` (hijas de GESTIÓN) sí se
+conceden a `admin_org` (0029:249-272). Resultado: **en un bootstrap limpio
+`admin_org` pierde esos dos menús.** El comentario de `0029:206-209` afirma que
+`admin_org` «NO necesita ver el group GESTIÓN» — es falso en efecto, sin el
+padre las hijas desaparecen.
+
+`tase-staging` no sufre el síntoma porque ahí la fila GESTIÓN de `admin_org`
+existe (parcheada a mano, no por la cadena de migraciones), lo que hace que un
+install limpio y staging **divergen**. Corregirlo requiere una migración nueva
+que registre GESTIÓN para `admin_org` — fuera del alcance de 0039, que sólo
+limpia `operator_org`. hasta entonces, el inventario de `NOTICE` es la fuente
+de verdad del alcance.
 
 ### ⚠️ 0038 NO se aplica automáticamente
 

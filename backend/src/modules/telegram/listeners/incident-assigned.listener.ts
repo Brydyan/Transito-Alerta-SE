@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { TelegramService } from '../telegram.service';
 import { TelegramConfig } from '../../../config/telegram.config';
 import { ConfigService } from '@nestjs/config';
+import { buildIncidentDetailLink } from '../incident-detail-link';
 
 /**
  * IncidentAssignedListener (F7 emergency-dispatch, design D11/B.6) —
@@ -62,7 +63,9 @@ export class IncidentAssignedListener {
     }
 
     const cfg = this.configService.get<TelegramConfig>('telegram')!;
-    const detailLink = `${cfg.appBaseUrl}/incidents/${payload.incidentId}`;
+    // 2026-10-20 — was `${cfg.appBaseUrl}/incidents/${id}` (404: no such
+    // route). See `incident-detail-link.ts` for the route tree.
+    const detailLink = buildIncidentDetailLink(cfg.appBaseUrl, payload.incidentId);
     const text = this.formatMessage(payload, detailLink);
 
     await this.telegram.enqueue({ chat_id: chatId, text });
