@@ -135,19 +135,47 @@ export class AssignmentsService {
     // (RealtimeStreamsConsumer + other API instances). Payload
     // includes override reason so D11's listener can include it in
     // the operator's message.
-    this.eventEmitter.emit('incident.assigned', {
+    //
+    // 2026-10-20 — PAYLOAD COMPLETO Y COMPARTIDO.
+    //
+    // Este bloque emitía `{...saved, operatorId, incidentId,
+    // capOverrideReason}` al EventEmitter pero serializaba `saved` pelado al
+    // stream. Cuatro consumidores leían campos que ninguno de los dos canales
+    // producía:
+    //
+    //   - `IncidentNotificationsListener` pedía `assignedToId` / `title` →
+    //     `findOne(undefined)` devolvía null y la notificación in-app al
+    //     operador NUNCA se creaba, en silencio (sin error ni log).
+    //   - `IncidentMailListener` (vía stream) pedía `title` para el subject →
+    //     salía "Incident assigned to you: " sin título.
+    //   - Telegram lacked title/description/location (arreglado aparte con un
+    //     LEFT JOIN en el listener, pero el dato falta en el origen).
+    //
+    // Se construye el payload UNA vez y va por los dos canales. Si divergen,
+    // el consumidor del stream ve algo distinto del in-process — que es
+    // exactamente cómo el mismo bug se reproduce dos veces por la misma causa.
+    const assignmentPayload = {
       ...saved,
       operatorId: saved.operatorId,
       incidentId: saved.incidentId,
       capOverrideReason: saved.capOverrideReason,
-    });
+      // Alias explícitos que el listener de notificaciones in-app consume.
+      assignedToId: saved.operatorId,
+      assignedById: caller.userId,
+      // Datos de la incidencia: no viven en la fila de `assignments`.
+      title: incident.title,
+      description: incident.description ?? null,
+      priority: incident.priority,
+    };
+
+    this.eventEmitter.emit('incident.assigned', assignmentPayload);
     await this.redis.xadd(
       INCIDENTS_STREAM_KEY,
       '*',
       'type',
       'incident.assigned',
       'data',
-      JSON.stringify(saved),
+      JSON.stringify(assignmentPayload),
     );
 
     // 2026-10-16 — AUD (sc-327) — ASSIGN_INCIDENT. The caller of

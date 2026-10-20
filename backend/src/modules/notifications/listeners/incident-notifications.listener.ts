@@ -19,13 +19,24 @@ export class IncidentNotificationsListener {
   /**
    * Escuchar: incident.created
    * Notificar a admins + operadores
+   *
+   * 2026-10-20 — el payload pasa en snake_case porque así lo emite
+   * `IncidentsService.publish()` (`incidents.service.ts:170,268-271`), que
+   * publica la fila cruda. Antes se declaraba `{ incidentId, createdById,
+   * title, location }` en camelCase: `incidentId` y `createdById` llegaban
+   * `undefined` y la notificación salía sin autor.
+   *
+   * Ojo: `onIncidentStatusChanged` YA usaba snake_case y es correcto — el
+   * archivo mezcla convenciones porque cada handler se escribió en un momento
+   * distinto. `AssignmentsService` (2026-10-20) ahora publica un payload
+   * completo por `incident.assigned`, así que aquí ya no hay que adivinar
+   * nombres.
    */
   @OnEvent('incident.created')
   async onIncidentCreated(payload: {
-    incidentId: string;
-    createdById: string;
+    id: string;
     title: string;
-    location: { lat: number; lng: number };
+    citizen_id: string | null;
   }) {
     try {
       const admins = await this.usersService.findByRole('admin');
@@ -36,10 +47,9 @@ export class IncidentNotificationsListener {
             admin,
             NotificationType.INCIDENT_CREATED,
             `Nuevo incidente: ${payload.title}`,
-            payload.incidentId,
+            payload.id,
             {
-              location: payload.location,
-              createdBy: payload.createdById,
+              createdBy: payload.citizen_id ?? null,
             },
           );
         }
@@ -54,6 +64,17 @@ export class IncidentNotificationsListener {
   /**
    * Escuchar: incident.assigned
    * Notificar al operador asignado
+   *
+   * 2026-10-20 — esto NUNCA notificó. El listener pedía `assignedToId`, y
+   * el emisor mandaba `operatorId`: `findOne(undefined)` devolvía null, el
+   * `if (user?.id)` cortaba, y la notificación in-app al operador no se
+   * creaba. Sin error, sin log — el síntoma era simplemente que asignar una
+   * incidencia no le llegaba nada al operador dentro de la app.
+   *
+   * El emisor (`assignments.service.ts`) ahora publica `assignedToId`,
+   * `assignedById` y `title` explícitamente y por los DOS canales
+   * (EventEmitter y stream), así que este handler ya no depende de inferir
+   * nombres a partir de la fila de `assignments`.
    */
   @OnEvent('incident.assigned')
   async onIncidentAssigned(payload: {

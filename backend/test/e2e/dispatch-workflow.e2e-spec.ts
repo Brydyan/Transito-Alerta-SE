@@ -245,6 +245,27 @@ describe('E2E despacho — departamento → publicación → asignación → Tel
     // El enlace al detalle — el bug que arreglamos en los tres listeners.
     expect(opMessage).toContain(`/app/incidencias/${incidentId}`);
     expect(opMessage).not.toMatch(/\/incidents\//);
+
+    // ── 8. La notificación IN-APP también tiene que llegar ─────────────────
+    //
+    // Esta aserción no es redundante con la de Telegram: son dos consumidores
+    // distintos del mismo evento `incident.assigned`, por canales distintos
+    // (EventEmitter in-process vs. stream de Redis). Antes, este camino
+    // fallaba en silencio —`IncidentNotificationsListener` pedía
+    // `assignedToId`, el emisor mandaba `operatorId`, `findOne(undefined)`
+    // devolvía null y el `if (user?.id)` cortaba. Asignabas una incidencia y
+    // el operador no veía nada dentro de la app, sin error en ninguna parte.
+    const notifications = await env.pg.query<{ n: number; subject: string }>(
+      `SELECT count(*)::int AS n, min(message) AS subject
+         FROM notifications
+        WHERE user_id = $1
+          AND type = 'incident_assigned'
+          AND incident_id = $2`,
+      [operator.userId, incidentId],
+    );
+
+    expect(notifications.rows[0].n).toBe(1);
+    expect(notifications.rows[0].subject).toContain('Colisión con heridos');
   });
 
   it('un operador de un departamento que NO maneja la categoría NO aparece', async () => {
