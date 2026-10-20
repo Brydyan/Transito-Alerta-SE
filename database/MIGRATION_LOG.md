@@ -87,6 +87,51 @@ independiente. Ver commit `1bbccfec3`.
 | 0035 | audit_events_actor_set_null | audit_events.actor_id: DROP NOT NULL + change FK from ON DELETE RESTRICT to ON DELETE SET NULL. Audit trails must survive physical user deletion (GDPR); actor_id becomes NULL for deleted actors. Required after audit wiring in sc-327 added citizen actor rows. | ⏳ Pending | — | — | — |
 | 0036 | users_phone_unique | Partial unique index `uq_users_phone` ON users(phone) WHERE phone IS NOT NULL. Prevents duplicate phone across active users; soft-deleted users (whose phone is wiped to NULL) are excluded naturally. Service layer pre-check (adminCreate/adminUpdate) gives 409 with friendly message; updateProfile catches 23505 from the index. | ⏳ Pending | — | — | — |
 | 0037 | admin_org_reassign_permission | Adds `UPDATE assignments` to `admin_org` role permissions JSONB array. Required for `PATCH /api/assignments/:id` — without it admin_org receives 403 when attempting to reassign an incident to another operator. Idempotent: skips if already present. Rollback: `database/rollback/0037_admin_org_reassign_permission.DOWN.sql`. | ⏳ Pending | — | — | — |
+| 0038 | permissions_uuid_normalization | **Fix del 500 de `GET /api/auth/me`.** Normaliza `roles.permissions` a UUIDs elemento por elemento, respetando los TRES formatos que convivieron en el schema: canónico `"ACTION resource"`, erróneo `resource:ACTION` (inyectado por 0021 §6, que 0026 no pudo remapear porque su LEFT JOIN parsea por espacio) y UUID. Descarta lo irreconocible con NOTICE + WARNING. Denormaliza a `users.permissions`. Cubierto por `backend/test/migrations/permissions-uuid-normalization.e2e-spec.ts`. | ⏳ Pending | — | — | — |
+
+### ⚠️ 0038 NO se aplica automáticamente
+
+`backend/scripts/entrypoint-migrations.sh:21-35` **no es un runner de migraciones
+pendientes**. Sólo tiene dos ramas:
+
+```sh
+if [ "$SCHEMA_EXISTS" = 'f' ]; then
+  for f in /app/database/migrations/*.sql; do … done   # bootstrap de DB vacía
+else
+  echo "[migrations] ✓ Schema exists. Skipping bootstrap."
+fi
+exit 0
+```
+
+Si `schema_migrations` ya existe, imprime `Skipping bootstrap` y sale con 0 — sin
+leer la tabla, sin comparar checksums, sin aplicar nada. En cualquier DB que no sea
+virgen, **0038 hay que aplicarla a mano**:
+
+```bash
+docker exec -i tase-postgres psql -U postgres transito_alerta \
+  < database/migrations/0038_permissions_uuid_normalization.sql
+```
+
+Después: **`FLUSHALL` en Redis** (o borrar `perm:v3:*`). Bumpear `permission_version`
+NO invalida el cache: la clave es `perm:v3:uid:{userId}`
+(`auth-context.service.ts:136`) y **no contiene `pv`** — ningún consumidor lo lee.
+
+Corolario de seguridad: la existencia de una fila en `schema_migrations` **no prueba**
+que la migración se haya ejecutado. Ver el caso de staging del 2026-10-18 más abajo,
+donde 13 filas se insertaron a mano verificando objetos ajenos a la migración.
+
+### ⚠️ 0037 se deja intacta a propósito
+
+0037 reintroduce el patrón de bug (`"UPDATE assignments"` como string literal
+después de 0026), y en una DB **virgen** 0038 lo corrige: `0009` siembra el string,
+0026 lo vuelve UUID, 0037 lo vuelve a agregar porque su guarda
+`NOT (permissions @> '["UPDATE assignments"]')` ya no matchea, y 0038 (última en orden)
+lo sanea. El resultado final de un install limpio es correcto.
+
+**No se editó 0037** a propósito: su checksum ya está registrado en
+`schema_migrations` de staging (backfill del 2026-10-18), y
+`migration-files.ts:60` hashea los bytes crudos del archivo — editarlo introduciría
+checksum drift en un entorno que no tiene runner que lo detecte ni lo reporte.
 
 ## Status legend
 

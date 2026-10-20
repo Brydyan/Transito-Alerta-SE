@@ -33,6 +33,27 @@ import { PermissionEntity } from '../../modules/permissions/entities/permission.
  */
 @Injectable()
 export class PermissionLookupService {
+  /**
+   * 2026-10-20-auth-me-500 — canonical shape of a catalog id.
+   *
+   * `roles.permissions` / `users.permissions` are denormalized snapshots that
+   * historically carried THREE different formats: canonical `"ACTION resource"`
+   * (0016/0018/0019/0021 §1), the erroneous `resource:ACTION` (0021 §6), and
+   * UUIDs (0026 onwards). 0026's remap only understood the space-separated one,
+   * so the colon ones survived into `users.permissions` and then hit
+   * `getDescriptionsByUuids` below, which fed them straight into a
+   * `uuid IN (...)` — Postgres raised `22P02 invalid input syntax for type
+   * uuid` and `GET /api/auth/me` answered 500.
+   *
+   * Migration `0038_permissions_uuid_normalization.sql` removes the bad data at
+   * the source. This regex is the runtime half of the same guard: one corrupt
+   * row must degrade into "missing permissions" (403 on one endpoint), never
+   * into a 500 that takes down login for every Bearer-authenticated request
+   * through this funnel.
+   */
+  private static readonly UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   private readonly logger = new Logger(PermissionLookupService.name);
   private cache: Map<string, string> | null = null;
   private reverseCache: Map<string, string> | null = null;
@@ -96,16 +117,40 @@ export class PermissionLookupService {
    * en formato "ACTION resource". Usado por AuthService.getMe()
    * para devolver permisos al frontend en un formato que el
    * permissionGuard pueda usar directamente.
+   *
+   * 2026-10-20-auth-me-500 — D1: filtra los elementos que no son UUID
+   * ANTES de construir el `IN (...)`. TypeORM delega el bindeo a Postgres,
+   * que castea el parámetro a la columna `uuid` y aborta la query con
+   * `22P02` ante un string no-UUID. Sin este filtro, un único elemento
+   * corrupto en `users.permissions` convertía cada `GET /api/auth/me` en un
+   * 500 (`{"statusCode":500,"message":"Internal server error"}`, 52 bytes).
+   *
+   * D2: los descartados se loguean en WARN. Silenciarlos sería peor — la
+   * corrupción tiene que ser visible en los logs, no un 403 Mystery.
    */
   async getDescriptionsByUuids(uuids: string[]): Promise<string[]> {
     if (!uuids || uuids.length === 0) {
       return [];
     }
+
+    const valid = uuids.filter((u) => PermissionLookupService.UUID_RE.test(u));
+    if (valid.length !== uuids.length) {
+      this.logger.warn(
+        `getDescriptionsByUuids: ${uuids.length - valid.length}/${uuids.length} ` +
+          `entradas no son UUID del catálogo y se descartaron sin consultar la DB. ` +
+          `Ejecutá 0038_permissions_uuid_normalization.sql. ` +
+          `Muestra: ${JSON.stringify(uuids.filter((u) => !PermissionLookupService.UUID_RE.test(u)).slice(0, 5))}`,
+      );
+    }
+    if (valid.length === 0) {
+      return [];
+    }
+
     if (!this.cache) {
       await this.buildCache();
     }
     const rows = await this.permissionRepo.find({
-      where: { id: In(uuids), deletedAt: IsNull() },
+      where: { id: In(valid), deletedAt: IsNull() },
       select: ['id', 'action', 'resource'],
     });
     return rows.map((row) => `${row.action} ${row.resource}`);
