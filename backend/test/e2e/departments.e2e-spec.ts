@@ -255,7 +255,7 @@ describe('Departments e2e — D.1 (harness compartido, guards reales)', () => {
   });
 
   // ── Escenario 9 ────────────────────────────────────────────────────────────
-  it('S9: PATCH cambia el nombre y no puede mover el depto de org', async () => {
+  it('S9: PATCH cambia el nombre y NO puede mover el depto de org', async () => {
     const orgA = await seedOrg('S9 Org A');
     const orgB = await seedOrg('S9 Org B');
     const master = await staff(CRUD, 'master', null);
@@ -275,6 +275,35 @@ describe('Departments e2e — D.1 (harness compartido, guards reales)', () => {
 
     expect(patched.body.name).toBe(nuevo);
     expect(patched.body.organization_id).toBe(orgA);
+
+    // ── La parte que faltaba ──────────────────────────────────────────────
+    //
+    // El título del escenario prometía esto y el cuerpo no lo hacía: sólo
+    // comprobaba que un rename no moviera la org, que es una afirmación más
+    // débil. Ahora se intenta el movimiento de verdad.
+    //
+    // `UpdateDepartmentDto` omite `organization_id` a propósito (D4: la org
+    // del departamento es inmutable) y el `ValidationPipe` global corre con
+    // `forbidNonWhitelisted: true` (main.ts:141-147), así que el campo se
+    // rechaza EN EL WIRE, antes de tocar el servicio.
+    const move = await request(env.httpServer)
+      .patch(`/api/departments/${dept.body.id}`)
+      .set({ Authorization: `Bearer ${master.accessToken}` })
+      .send({ name: 'Otro nombre', organization_id: orgB })
+      .expect(400);
+
+    expect(JSON.stringify(move.body.message)).toContain('organization_id');
+
+    // Y el rechazo es atómico: ni la org cambió, ni el nombre del intento
+    // fallido se coló. Un 400 del pipe no debería haber escrito nada.
+    // La fila va anidada: `findOne` devuelve `{ department, category_ids }`.
+    const after = await request(env.httpServer)
+      .get(`/api/departments/${dept.body.id}`)
+      .set({ Authorization: `Bearer ${master.accessToken}` })
+      .expect(200);
+
+    expect(after.body.department.organization_id).toBe(orgA);
+    expect(after.body.department.name).toBe(nuevo);
   });
 
   // ── Escenario 10 ───────────────────────────────────────────────────────────

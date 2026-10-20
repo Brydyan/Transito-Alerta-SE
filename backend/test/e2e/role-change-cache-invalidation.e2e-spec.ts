@@ -124,9 +124,6 @@ describe('E2E — cambio de rol: permisos y menú deben invalidarse juntos', () 
 
     // El soft-delete real, por el servicio — no por SQL, para que aplique la
     // misma invalidación que un DELETE /api/roles/:id haría.
-    const master = await env.provisionUser(['DELETE roles', 'UPDATE roles'], {
-      roleName: 'master',
-    });
     const role = await env.pg.query<{ id: string }>(
       `SELECT id FROM roles WHERE name = 'operator_org' AND deleted_at IS NULL`,
     );
