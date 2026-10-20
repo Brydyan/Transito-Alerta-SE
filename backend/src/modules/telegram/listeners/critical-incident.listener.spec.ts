@@ -8,6 +8,21 @@ import { TelegramService } from '../telegram.service';
  * message. F7 B.3 — only `admin_org` users of the incident's
  * organization with a `telegram_chat_id` are recipients. F7 B.3
  * edge cases (no org, no admins configured) MUST NOT fail.
+ *
+ * ── 2026-10-20: el payload es snake_case A PROPÓSITO ─────────────────────
+ *
+ * `IncidentsService.publish()` emite la fila cruda de la tabla
+ * (`incidents.service.ts:170,268-271`), o sea snake_case. Una versión
+ * anterior de este spec pasaba `{ incidentId, organizationId }` — camelCase
+ * que el emisor nunca produjo — y por eso la suite estaba verde mientras el
+ * listener salía por el guard de `!organizationId` en CADA incidente crítico
+ * real. La alerta de Telegram no había funcioneado nunca.
+ *
+ * Estos fixtures son deliberadamente la forma real que sale de la DB. Si
+ * alguien reintroduce camelCase aquí, el spec pasa y el bug vuelve: por eso
+ * el e2e `dispatch-workflow.e2e-spec.ts`, que genera el payload por HTTP de
+ * verdad, es la red que de verdad importa. El unit prueba la lógica; el e2e
+ * prueba el contrato.
  */
 describe('CriticalIncidentListener', () => {
   let dataSource: { query: jest.Mock };
@@ -28,10 +43,10 @@ describe('CriticalIncidentListener', () => {
 
   it('does NOT enqueue when priority is not critical (B.4.1)', async () => {
     await listener.onIncidentCreated({
-      incidentId: 'inc-1',
+      id: 'inc-1',
       title: 'Pothole',
       priority: 'high',
-      organizationId: 'org-A',
+      organization_id: 'org-A',
     });
     expect(telegram.enqueue).not.toHaveBeenCalled();
     expect(dataSource.query).not.toHaveBeenCalled();
@@ -39,10 +54,10 @@ describe('CriticalIncidentListener', () => {
 
   it('does NOT enqueue when the incident has no organization (B.3 edge case)', async () => {
     await listener.onIncidentCreated({
-      incidentId: 'inc-1',
+      id: 'inc-1',
       title: 'Flood',
       priority: 'critical',
-      organizationId: null,
+      organization_id: null,
     });
     expect(telegram.enqueue).not.toHaveBeenCalled();
   });
@@ -50,10 +65,10 @@ describe('CriticalIncidentListener', () => {
   it('does NOT fail when the organization has no admin_org with telegram_chat_id (B.3 edge case)', async () => {
     dataSource.query.mockResolvedValue([]);
     await listener.onIncidentCreated({
-      incidentId: 'inc-1',
+      id: 'inc-1',
       title: 'Flood',
       priority: 'critical',
-      organizationId: 'org-A',
+      organization_id: 'org-A',
     });
     expect(telegram.enqueue).not.toHaveBeenCalled();
   });
@@ -65,12 +80,12 @@ describe('CriticalIncidentListener', () => {
     ]);
 
     await listener.onIncidentCreated({
-      incidentId: 'inc-1',
+      id: 'inc-1',
       title: 'Fire on 5th',
       description: 'building 3, smoke visible',
-      categoryName: 'fire',
+      category_name: 'fire',
       priority: 'critical',
-      organizationId: 'org-A',
+      organization_id: 'org-A',
       location: { lat: -2.1, lng: -79.9 },
     });
 
