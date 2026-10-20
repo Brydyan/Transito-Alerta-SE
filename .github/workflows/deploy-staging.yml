@@ -31,14 +31,22 @@ jobs:
     # Declarado acá, ningún paso `run:` futuro puede olvidarlo.
     defaults:
       run:
-        working-directory: /mnt/storage/projects/tase
+        # 2026-10-20 — movido de `/mnt/storage/projects/tase`. La VM tiene un
+        # solo disco de 30 GB que aloja el SO, el repo y todo el data-root de
+        # Docker; los seis servidores de staging de este host Proxmox
+        # comparten el SSD de 240 GB. `/mnt/big` es un virtiofs del host: el
+        # mismo directorio que en `/mnt/storage/tase-vm`, sobre el disco de
+        # 916 GB. El repo anterior sigue en su sitio a propósito — es el
+        # rollback mientras este deploy no salga verde.
+        working-directory: /mnt/big/projects/tase
 
     steps:
-      # El código vive en /mnt/storage/projects/tase, un clon hecho a mano en la
-      # VM. NO se usa actions/checkout: el checkout dejaría los archivos en el
-      # workspace temporal del runner, donde no está `.env` y donde el nombre de
-      # proyecto de compose sería otro — o sea, contenedores y volúmenes nuevos,
-      # base de datos vacía en cada deploy.
+      # El código vive en /mnt/big/projects/tase, un clon git mantenido a mano en
+      # la VM (antes en /mnt/storage/projects/tase). NO se usa actions/checkout:
+      # el checkout dejaría los archivos en el workspace temporal del runner,
+      # donde no está `.env` y donde el nombre de proyecto de compose sería
+      # otro — o sea, contenedores y volúmenes nuevos, base de datos vacía en
+      # cada deploy.
       #
       # Pero durante meses nadie actualizó ese clon desde el workflow: GitHub
       # sólo mandaba la orden de desplegar y compose construía con los archivos
@@ -355,7 +363,7 @@ jobs:
           #     docker compose --profile staging run --rm \
           #       -e SEED_ALLOW_PRODUCTION=1 \
           #       -e SEED_PASSWORD -e E2E_PASSWORD \
-          #       -v /mnt/storage/projects/tase/database:/app/database:ro \
+          #       -v /mnt/big/projects/tase/database:/app/database:ro \
           #       backend node /app/database/seeds/users.js --force
           #
           # La idempotencia del seeder (ON CONFLICT DO NOTHING) hace
@@ -379,7 +387,7 @@ jobs:
             -e SEED_ALLOW_PRODUCTION=1 \
             -e SEED_PASSWORD \
             -e E2E_PASSWORD \
-            -v /mnt/storage/projects/tase/database:/app/database:ro \
+            -v /mnt/big/projects/tase/database:/app/database:ro \
             backend node /app/database/seeds/users.js --force
 
           # No se limpia Redis acá. La caché de permisos vive en la DB 1 y
