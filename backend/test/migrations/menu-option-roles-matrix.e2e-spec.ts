@@ -212,7 +212,7 @@ describe('0039 — matriz canónica de menu_option_roles', () => {
 
   describe('los ASSERT de 0039 muerden', () => {
     it('FALLA si operator_org tiene un menú de gestión', async () => {
-      await injectManagementForOperator('/usuarios');
+      await injectManagementForOperator('/admin/users');
 
       await expect(db.applyVersion('0039')).rejects.toThrow(/gestión|gestion/i);
 
@@ -231,7 +231,7 @@ describe('0039 — matriz canónica de menu_option_roles', () => {
         `DELETE FROM menu_option_roles mor
            USING menu_options mo, roles r
           WHERE mor.menu_option_id = mo.id AND mor.role_id = r.id
-            AND r.name = 'operator_org' AND mo.route = '/usuarios'`,
+            AND r.name = 'operator_org' AND mo.route = '/admin/users'`,
       );
     }, 120_000);
 
@@ -240,13 +240,17 @@ describe('0039 — matriz canónica de menu_option_roles', () => {
       // Organizaciones y Departamentos sin padre legible. `buildTree` los
       // descarta sin error (menus.service.ts:195-202), así que sin el assert
       // el síntoma sería "el menú perdió entradas" con el backend en verde.
+      // Se revoca el acceso de `admin_org` al grupo INCIDENCIAS, que su
+      // padre legible es lo que sostiene. NO se usa Organizaciones ni
+      // Departamentos: en un bootstrap limpio `admin_org` no tiene GESTIÓN
+      // (0029:210-216), así que esas dos YA son huérfanas de línea base y
+      // revocar su padre no cambia el conteo neto.
       const before = await orphanCount('admin_org');
 
-      await revokeParentOf('admin_org', '/organizaciones');
+      await revokeParentOf('admin_org', '/inicio');
 
-      // El huérfano es NUEVO (uno más que la línea base)…
       const after = await orphanCount('admin_org');
-      expect(after).toBe(before + 1);
+      expect(after).toBeGreaterThan(before);
 
       // …y la migración lo rechaza en vez de dejarlo pasar.
       await expect(db.applyVersion('0039')).rejects.toThrow(/huérfan|padre/i);
@@ -256,7 +260,7 @@ describe('0039 — matriz canónica de menu_option_roles', () => {
         `INSERT INTO menu_option_roles (menu_option_id, role_id, can_read, can_write)
          SELECT mo.parent_id, r.id, true, false
            FROM menu_options mo, roles r
-          WHERE mo.route = '/organizaciones'
+          WHERE mo.route = '/inicio'
             AND mo.deleted_at IS NULL
             AND r.name = 'admin_org'
             AND r.deleted_at IS NULL

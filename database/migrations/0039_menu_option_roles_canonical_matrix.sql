@@ -104,10 +104,17 @@ SELECT mor.role_id, mor.menu_option_id, mo.parent_id
    AND pmor.menu_option_id IS NULL;
 
 DO $$
-DECLARE v int;
+DECLARE v int; v_detail text;
 BEGIN
   SELECT count(*) INTO v FROM _orphan_baseline;
-  RAISE NOTICE '[0039] Línea base de menús huérfanos (preexistente): %', v;
+
+  SELECT string_agg(format('%s → %s', r.name, mo.name), E'\n  ')
+    INTO v_detail
+    FROM _orphan_baseline b
+    JOIN roles r       ON r.id = b.role_id
+    JOIN menu_options mo ON mo.id = b.menu_option_id;
+
+  RAISE NOTICE E'[0039] Línea base de menús huérfanos (preexistente): %\n  %', v, v_detail;
 END $$;
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -123,29 +130,52 @@ DELETE FROM menu_option_roles mor
    AND mo.deleted_at IS NULL;
 
 -- ════════════════════════════════════════════════════════════════════════
--- 2) ASSERT — operator_org sin menús de gestión
+-- 2) ASSERT — operator_org cuelga sólo de INCIDENCIAS
+--
+-- La matriz canónica de 0029 le da a `operator_org` Dashboard (raíz) + el
+-- grupo INCIDENCIAS + Inicio/Lista/Mapa. NADA de GESTIÓN ni CATÁLOGOS:
+-- es despachador, no gestor.
+--
+-- Se chequea por GRUPO PADRE y no por lista de rutas a propósito. Las
+-- rutas de 0029 son `/admin/users`, `/admin/roles`, `/admin/organizaciones`,
+-- `/admin/departamentos`, `/admin/controles`, `/admin/audit-logs` — una
+-- primera versión de este assert usaba `/usuarios`, `/organizaciones` y
+-- compañía, que NO existen, y por lo tanto no detectaba nada.
+--
+-- Chequear por `parent.name` captura el invariante real y sobrevive a que
+-- alguien renombre una ruta.
 -- ════════════════════════════════════════════════════════════════════════
 DO $$
-DECLARE v_bad int;
+DECLARE v_bad int; v_detail text;
 BEGIN
   SELECT count(*) INTO v_bad
     FROM menu_option_roles mor
-    JOIN menu_options mo ON mo.id = mor.menu_option_id
-    JOIN roles r       ON r.id  = mor.role_id
+    JOIN menu_options mo     ON mo.id     = mor.menu_option_id
+                           AND mo.deleted_at IS NULL
+    JOIN menu_options parent ON parent.id = mo.parent_id
+    JOIN roles r            ON r.id      = mor.role_id
    WHERE r.name = 'operator_org'
      AND r.deleted_at IS NULL
      AND mor.can_read = true
-     AND mo.deleted_at IS NULL
-     AND mo.route IN (
-       '/admin', '/usuarios', '/roles', '/organizaciones',
-       '/departamentos', '/controles', '/admin/audit-logs'
-     );
+     AND parent.name IN ('GESTIÓN', 'CATÁLOGOS');
 
   IF v_bad > 0 THEN
+    SELECT string_agg(format('%s bajo %s (%s)', mo.name, parent.name, mo.route), E'\n  ')
+      INTO v_detail
+      FROM menu_option_roles mor
+      JOIN menu_options mo     ON mo.id     = mor.menu_option_id
+                             AND mo.deleted_at IS NULL
+      JOIN menu_options parent ON parent.id = mo.parent_id
+      JOIN roles r            ON r.id      = mor.role_id
+     WHERE r.name = 'operator_org'
+       AND r.deleted_at IS NULL
+       AND mor.can_read = true
+       AND parent.name IN ('GESTIÓN', 'CATÁLOGOS');
+
     RAISE EXCEPTION
-      'operator_org tiene % menú(s) de gestión asignados. La matriz canónica '
-      'de 0029 los excluye TODOS: es despachador, no gestor. Revisá si una '
-      'migración posterior los agregó.', v_bad;
+      'operator_org tiene % menú(s) colgando de GESTIÓN/CATÁLOGOS. La matriz '
+      'canónica de 0029 se los excluye TODOS: es despachador, no gestor. '
+      'Offenses:\n  %', v_bad, v_detail;
   END IF;
 END $$;
 
