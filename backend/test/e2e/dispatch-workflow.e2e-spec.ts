@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import * as request from 'supertest';
+import request from 'supertest';
 
 import { TelegramService } from '../../src/modules/telegram/telegram.service';
 import { ProvisionedUser, TestEnvironment } from '../support/test-environment';
@@ -145,7 +145,7 @@ describe('E2E despacho — departamento → publicación → asignación → Tel
         WHERE department_id = $1 AND incident_category_id = $2`,
       [departmentId, categoryId],
     );
-    expect(links[0].n).toBe(1);
+    expect(links.rows[0].n).toBe(1);
 
     // ── 2. Los tres actores ────────────────────────────────────────────────
     //

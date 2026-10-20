@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import * as request from 'supertest';
+import request from 'supertest';
 
 import { ProvisionedUser, TestEnvironment } from '../support/test-environment';
 
