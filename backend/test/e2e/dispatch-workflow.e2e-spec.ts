@@ -255,17 +255,30 @@ describe('E2E despacho — departamento → publicación → asignación → Tel
     // `assignedToId`, el emisor mandaba `operatorId`, `findOne(undefined)`
     // devolvía null y el `if (user?.id)` cortaba. Asignabas una incidencia y
     // el operador no veía nada dentro de la app, sin error en ninguna parte.
-    const notifications = await env.pg.query<{ n: number; subject: string }>(
-      `SELECT count(*)::int AS n, min(message) AS subject
-         FROM notifications
-        WHERE user_id = $1
-          AND type = 'incident_assigned'
-          AND incident_id = $2`,
-      [operator.userId, incidentId],
-    );
+    // `EventEmitter2.emit()` NO awaita los handlers async: el listener corre en
+    // su propia promesa, así que la fila puede no existir un instante después
+    // de que el POST devuelve. Por eso sesondea, igual que waitForTelegram.
+    const readNotification = async () =>
+      env.pg.query<{ n: number; subject: string | null }>(
+        // El valor persistido es el del enum: 'incident.assigned' con punto,
+        // no un snake_case.
+        `SELECT count(*)::int AS n, min(message) AS subject
+           FROM notifications
+          WHERE user_id = $1
+            AND type = 'incident.assigned'
+            AND incident_id = $2`,
+        [operator.userId, incidentId],
+      );
 
-    expect(notifications.rows[0].n).toBe(1);
-    expect(notifications.rows[0].subject).toContain('Colisión con heridos');
+    const deadline = Date.now() + 15_000;
+    let found = await readNotification();
+    while (found.rows[0].n === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+      found = await readNotification();
+    }
+
+    expect(found.rows[0].n).toBe(1);
+    expect(found.rows[0].subject).toContain('Colisión con heridos');
   });
 
   it('un operador de un departamento que NO maneja la categoría NO aparece', async () => {
