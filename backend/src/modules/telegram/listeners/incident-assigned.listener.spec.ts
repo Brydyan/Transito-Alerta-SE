@@ -66,7 +66,11 @@ describe('IncidentAssignedListener', () => {
     expect(payload.text).toMatch(/Big one, blocking the lane/);
     expect(payload.text).toMatch(/Prioridad: high/);
     expect(payload.text).toMatch(/https:\/\/maps\.google\.com/);
-    expect(payload.text).toMatch(/Detalle: http:\/\/app\.test\/incidents\/inc-1/);
+    // 2026-10-20 — la ruta real es `/app/incidencias/:id` (`path: 'app'` →
+    // `'incidencias'` → `':id'` en app.routes.ts). Esta aserción fijaba la
+    // ruta rota `/incidents/:id`, que no existe y daba 404 en Telegram.
+    expect(payload.text).toMatch(/Detalle: http:\/\/app\.test\/app\/incidencias\/inc-1/);
+    expect(payload.text).not.toMatch(/app\.test\/incidents\//);
   });
 
   it('appends the cap-override reason when present (D9/D11)', async () => {

@@ -79,7 +79,10 @@ describe('CriticalIncidentListener', () => {
     expect(calls[0][0].chat_id).toBe('111');
     expect(calls[0][0].text).toMatch(/EMERGENCIA/);
     expect(calls[0][0].text).toMatch(/Fire on 5th/);
-    expect(calls[0][0].text).toMatch(/Detalle: http:\/\/app\.test\/incidents\/inc-1/);
+    // 2026-10-20 — ruta real `/app/incidencias/:id`; la aserción fijaba la
+    // ruta inexistente `/incidents/:id` (404 al tocar el link).
+    expect(calls[0][0].text).toMatch(/Detalle: http:\/\/app\.test\/app\/incidencias\/inc-1/);
+    expect(calls[0][0].text).not.toMatch(/app\.test\/incidents\//);
     expect(calls[1][0].chat_id).toBe('222');
   });
 });
