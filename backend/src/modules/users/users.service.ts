@@ -198,6 +198,31 @@ export class UsersService {
       .getMany();
   }
 
+  /**
+   * Rol dentro de UNA organización, activos y no borrados.
+   *
+   * 2026-10-20 — existe porque `IncidentNotificationsListener` buscaba el
+   * rol `'admin'`, un nombre muerto desde el rename (`admin_org`), y
+   * encima `findByRole` no filtra por organización: usarlo habría
+   * notificado a los admins de TODAS las orgs. La audiencia correcta
+   * replica la del listener de mail
+   * (`incident-mail.listener.ts:getOrgAdminEmails`): `admin_org` de la
+   * organización a la que pertenece la incidencia.
+   */
+  async findActiveByRoleInOrganization(
+    roleName: string,
+    organizationId: string,
+  ): Promise<UserEntity[]> {
+    return this.userRepo
+      .createQueryBuilder('u')
+      .innerJoin('roles', 'r', 'u.role_id = r.id')
+      .where('r.name = :roleName', { roleName })
+      .andWhere('u.organization_id = :organizationId', { organizationId })
+      .andWhere('u.is_active = true')
+      .andWhere('u.deleted_at IS NULL')
+      .getMany();
+  }
+
   async updateProfile(id: string, input: UpdateProfileInput): Promise<UserEntity> {
     // 2026-10-16 — phone uniqueness (migration 0036). The partial
     // index fires 23505 on UPDATE when the new phone collides. We

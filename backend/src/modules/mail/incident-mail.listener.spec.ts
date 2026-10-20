@@ -159,16 +159,59 @@ describe('IncidentMailListener', () => {
       );
     });
 
-    it('incident.assigned -> enqueues to the assignee only', async () => {
+    it('incident.assigned -> enqueues to the assignee only, with the incident title in the subject', async () => {
       userRepo.findOne.mockResolvedValueOnce({ id: 'op-1', email: 'operator@example.com' });
 
+      // El payload refleja la FORMA REAL que emite `assignments.service.ts`
+      // (commit del payload compartido): la fila de `assignments` más los
+      // datos de la incidencia. Antes este test pasaba un payload sin
+      // `title` y por eso nunca notó que el subject salía vacío — el
+      // productor mandaba `saved` pelado al stream. El contrato
+      // productor↔consumidor de esto lo verifica
+      // `backend/test/e2e/mail.e2e-spec.ts` (HTTP de verdad); aquí se
+      // comprueba que el título llegue al subject cuando está.
       await listener.processResponse(
-        streamResponse('incident.assigned', { id: 'a-1', incidentId: 'inc-1', operatorId: 'op-1' }, '2-0'),
+        streamResponse(
+          'incident.assigned',
+          {
+            id: 'a-1',
+            incidentId: 'inc-1',
+            operatorId: 'op-1',
+            assignedToId: 'op-1',
+            title: 'Pozo abierto en la calzada',
+            description: 'Pozo de 40cm junto al paso peatonal',
+            priority: 'high',
+          },
+          '2-0',
+        ),
       );
 
       expect(mailService.enqueue).toHaveBeenCalledTimes(1);
       expect(mailService.enqueue).toHaveBeenCalledWith(
-        expect.objectContaining({ to: 'operator@example.com', template: 'incident.assigned' }),
+        expect.objectContaining({
+          to: 'operator@example.com',
+          template: 'incident.assigned',
+          subject: 'Incident assigned to you: Pozo abierto en la calzada',
+          data: { title: 'Pozo abierto en la calzada' },
+        }),
+      );
+    });
+
+    it('incident.assigned sin title -> cae al incidentId en el subject (nunca queda vacío)', async () => {
+      // La rama `data.title ?? data.incidentId` del subject. Un entry viejo
+      // en el stream —o un productor que no enriquezca el payload— no puede
+      // producir `Incident assigned to you: ` a secas.
+      userRepo.findOne.mockResolvedValueOnce({ id: 'op-1', email: 'operator@example.com' });
+
+      await listener.processResponse(
+        streamResponse('incident.assigned', { id: 'a-1', incidentId: 'inc-1', operatorId: 'op-1' }, '2-1'),
+      );
+
+      expect(mailService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'operator@example.com',
+          subject: 'Incident assigned to you: inc-1',
+        }),
       );
     });
 
@@ -188,26 +231,28 @@ describe('IncidentMailListener', () => {
       expect(mailService.enqueue).toHaveBeenCalledTimes(2);
     });
 
-    it('comment.created -> enqueues to the incident reporter and prior commenters', async () => {
-      userRepo.findOne
-        .mockResolvedValueOnce({ id: 'reporter-1', email: 'reporter@example.com' })
-        .mockResolvedValueOnce({ id: 'commenter-1', email: 'commenter1@example.com' });
-
+    it('un `comment.added` que llegue al STREAM no se enruta a ningún correo', async () => {
+      // El test que estaba aquí antes afirmaba que `comment.created`
+      // encolaba correo al reportador y a los previos comentadores. Era
+      // falso de las dos maneras: el evento real es `comment.added`, y
+      // `CommentsService` publica sólo por EventEmitter — nunca hace XADD
+      // a `incidents:events`. El test fabricaba su propio input y por eso
+      // llevaba meses verde sobre un handler que no podía dispararse.
+      //
+      // Este fija el contrato REAL: el stream no enruta comentarios. El
+      // handler vive en `onCommentAdded`, sobre el bus.
       await listener.processResponse(
         streamResponse(
-          'comment.created',
-          {
-            id: 'c-1',
-            incident_id: 'inc-1',
-            content: 'hola',
-            reporter_id: 'reporter-1',
-            prior_commenter_ids: ['commenter-1'],
-          },
+          'comment.added',
+          { id: 'c-1', incidentId: 'inc-1', userId: 'op-1', content: 'hola' },
           '4-0',
         ),
       );
 
-      expect(mailService.enqueue).toHaveBeenCalledTimes(2);
+      expect(mailService.enqueue).not.toHaveBeenCalled();
+      // Aun así se XACK-ea: una entrada que no se enruta no puede dejar
+      // pendientes creciendo para siempre.
+      expect(redis.xack).toHaveBeenCalledWith(INCIDENTS_STREAM_KEY, INCIDENT_MAIL_CONSUMER_GROUP, '4-0');
     });
 
     it('a recipient with no email is skipped (debug log, no retry, no enqueue for that recipient)', async () => {
@@ -235,6 +280,60 @@ describe('IncidentMailListener', () => {
       await listener.processResponse([[INCIDENTS_STREAM_KEY, [['7-0', ['type', 'incident.created', 'data', 'not-json']]]]]);
 
       expect(redis.xack).toHaveBeenCalledWith(INCIDENTS_STREAM_KEY, INCIDENT_MAIL_CONSUMER_GROUP, '7-0');
+    });
+  });
+
+  describe('onCommentAdded — @OnEvent("comment.added")', () => {
+    it('encola al reportador y a los previos comentarios con el contenido del payload', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        { reporter_id: 'reporter-1', prior_commenter_ids: ['commenter-1'] },
+      ]);
+      userRepo.findOne
+        .mockResolvedValueOnce({ id: 'reporter-1', email: 'reporter@example.com' })
+        .mockResolvedValueOnce({ id: 'commenter-1', email: 'commenter1@example.com' });
+
+      // Payload real: la fila de `CommentEntity` que emite
+      // `CommentsService.create()` (comments.service.ts:66). Los campos son
+      // camelCase porque la entidad lo es — el test anterior usaba
+      // `incident_id`/`author_id`, que no existen en ninguna parte.
+      await listener.onCommentAdded({
+        id: 'c-1',
+        incidentId: 'inc-1',
+        userId: 'op-1',
+        content: 'Ya llego la patrulla',
+        parentId: null,
+        // `deletedAt`/timestamps no los usa el handler.
+      });
+
+      expect(dataSource.query).toHaveBeenCalledWith(expect.stringContaining('citizen_id'), [
+        'inc-1',
+        'op-1',
+      ]);
+      expect(mailService.enqueue).toHaveBeenCalledTimes(2);
+      expect(mailService.enqueue).toHaveBeenCalledWith({
+        to: 'reporter@example.com',
+        subject: 'New comment on your incident',
+        template: 'comment.created',
+        data: { content: 'Ya llego la patrulla' },
+      });
+    });
+
+    it('no encola nada cuando la incidencia no tiene audiencia', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        { reporter_id: null, prior_commenter_ids: [] },
+      ]);
+
+      await listener.onCommentAdded({
+        id: 'c-1',
+        incidentId: 'inc-1',
+        userId: 'op-1',
+        content: 'hola',
+        parentId: null,
+        // `deletedAt`/timestamps no los usa el handler.
+      });
+
+      expect(userRepo.findOne).not.toHaveBeenCalled();
+      expect(mailService.enqueue).not.toHaveBeenCalled();
     });
   });
 });

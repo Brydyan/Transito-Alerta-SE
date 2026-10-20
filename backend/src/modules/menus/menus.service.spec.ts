@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { REDIS_CLIENT } from '../../infra/core.module';
 import { MenuOptionEntity } from './entities/menu-option.entity';
 import { MenuOptionRoleEntity } from './entities/menu-option-role.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
 import { UserEntity } from '../users/entities/user.entity';
 import { AuthService } from '../auth/auth.service';
 import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
@@ -103,6 +104,9 @@ describe('MenusService', () => {
         MenusService,
         { provide: getRepositoryToken(MenuOptionEntity), useValue: optionRepo },
         { provide: getRepositoryToken(MenuOptionRoleEntity), useValue: {} },
+        // 2026-10-20 — MenusService resuelve el rol para no servirle menú a
+        // un rol soft-deleted. Mock: cualquier rol vigente pasa.
+        { provide: getRepositoryToken(RoleEntity), useValue: { findOne: jest.fn().mockResolvedValue({ id: 'r1' }) } },
         { provide: getRepositoryToken(UserEntity), useValue: userRepo },
         { provide: REDIS_CLIENT, useValue: redis },
         { provide: AuthService, useValue: authService },

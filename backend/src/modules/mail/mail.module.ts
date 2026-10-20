@@ -12,8 +12,15 @@ import { MailService } from './mail.service';
  * / `MAIL_EVENTS_BLOCKING_CLIENT` / `REDIS_CLIENT` are already available;
  * `TypeOrmModule.forFeature([UserEntity])` is the only import this module
  * needs for `IncidentMailListener`'s recipient resolution. Zero import
- * edges to Incidents/Comments (D7/D8) — this module only ever reads the
- * `incidents:events` stream those modules already publish to.
+ * edges to Incidents/Comments (D7/D8) — this module only reads the
+ * `incidents:events` stream those modules publish to, plus the in-process
+ * bus for `comment.added`.
+ *
+ * 2026-10-20 — `comment.added` arrives via `@OnEvent`, not the stream:
+ * `CommentsService` never published to `incidents:events`, so the mail
+ * handler that claimed to read it had never run. `EventEmitterModule` needs
+ * no import here — `CoreModule` installs `forRoot()` globally, the same
+ * way the Telegram and Notifications listeners already rely on.
  */
 @Module({
   imports: [TypeOrmModule.forFeature([UserEntity])],

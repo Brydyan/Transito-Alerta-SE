@@ -77,6 +77,27 @@ export class AuthUserRepository {
    * `null`; the caller owns caching and anonymous/soft-deleted-role
    * resolution.
    */
+  /**
+   * 2026-10-20 — `permission_version` del usuario, o `null` si no existe.
+   *
+   * La clave del cache de permisos lo incorpora (`perm:v3:uid:{id}:pv{n}`) para
+   * que bumpear el valor invalide solo, que es lo que `RolesService` y las
+   * migraciones 0026/0027/0028/0037 ya intentaban hacer. Antes esa promesa no
+   * se cumplía porque la clave no lo llevaba.
+   *
+   * Una lectura PK indexada en el camino más caliente — JwtStrategy la llama en
+   * cada request Bearer. El costo se aceptó a cambio de que revocar un permiso
+   * se refleje de inmediato; ver el docblock de
+   * `AuthContextService.getAuthContextByUserId`.
+   */
+  async findPermissionVersion(userId: string): Promise<number | null> {
+    const rows: Array<{ permission_version: number | null }> = await this.dataSource.query(
+      'SELECT permission_version FROM users WHERE id = $1 AND deleted_at IS NULL',
+      [userId],
+    );
+    return rows[0]?.permission_version ?? null;
+  }
+
   async findAuthContextRow(userId: string): Promise<AuthContextRow | null> {
     const rows: AuthContextRow[] = await this.dataSource.query(
       // T6.8.B3: exclude soft-deleted and inactive users so a deleted user

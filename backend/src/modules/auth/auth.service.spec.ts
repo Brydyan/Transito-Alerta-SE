@@ -591,7 +591,7 @@ describe('AuthService.invalidatePermissionCache', () => {
     await service.invalidatePermissionCache('user-1', 'device-abc');
 
     expect(cache.del).toHaveBeenCalledWith(`${PERMISSION_CACHE_PREFIX}device-abc`);
-    expect(cache.del).toHaveBeenCalledWith(`${PERMISSION_CACHE_PREFIX}uid:user-1`);
+    expect(cache.del).toHaveBeenCalledWith(`${PERMISSION_CACHE_PREFIX}uid:user-1:pv1`);
   });
 });
 
@@ -657,7 +657,7 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
     await service.getAuthContextByUserId('user-1');
 
     expect(cache.set).toHaveBeenCalledWith(
-      `${PERMISSION_CACHE_PREFIX}uid:user-1`,
+      `${PERMISSION_CACHE_PREFIX}uid:user-1:pv1`,
       { permissions: ['READ incidents'], organizationId: null, roleName: null, isAnonymous: false },
       expect.any(Number),
     );
@@ -674,7 +674,9 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
 
     const ctx = await service.getAuthContextByUserId('user-1');
 
-    expect(dataSource.query).not.toHaveBeenCalled();
+    // 2026-10-20 — desde que la clave lleva `pv`, el cache hit hace UNA lectura
+      // PK de `users.permission_version`. Ya no es un hit sin DB.
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
     expect(ctx).toEqual({
       userId: 'user-1',
       permissions: ['READ incidents'],
@@ -909,7 +911,9 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
     const permissions = await service.getPermissionsByUserId('user-1');
 
     expect(permissions).toEqual(['READ incidents']);
-    expect(dataSource.query).not.toHaveBeenCalled();
+    // 2026-10-20 — desde que la clave lleva `pv`, el cache hit hace UNA lectura
+      // PK de `users.permission_version`. Ya no es un hit sin DB.
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
   });
 
   it('keys the cache by user id, distinct from the device_uuid key', async () => {
@@ -921,7 +925,7 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
     await service.getPermissionsByUserId('user-1');
 
     expect(cache.set).toHaveBeenCalledWith(
-      `${PERMISSION_CACHE_PREFIX}uid:user-1`,
+      `${PERMISSION_CACHE_PREFIX}uid:user-1:pv1`,
       expect.objectContaining({ permissions: ['READ incidents'] }),
       expect.any(Number),
     );

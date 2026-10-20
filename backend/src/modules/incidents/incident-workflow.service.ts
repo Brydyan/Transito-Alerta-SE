@@ -563,6 +563,12 @@ export class IncidentWorkflowService {
     await this.purgeListCaches(committed.updated.zone_id);
     await this.publish('incident.status_changed', {
       id: committed.updated.id,
+      // 2026-10-20 — el RETURNING de arriba ya trae `title`, pero el
+      // payload no lo publicaba. `IncidentMailListener.handleStatusChanged`
+      // lo lee para el subject, así que el correo salía como
+      // `Incident status changed: ` a secas. El dato estaba a una línea de
+      // distancia y el correo llevaba meses sin título.
+      title: committed.updated.title,
       status: committed.updated.status,
       previous_status: committed.from,
       zone_id: committed.updated.zone_id,

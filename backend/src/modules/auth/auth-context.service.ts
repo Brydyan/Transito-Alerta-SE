@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
 import type { Cache } from 'cache-manager';
@@ -7,6 +7,15 @@ import { AuthConfig } from '../../config/auth.config';
 import { AuthContext } from '../../shared/authz/subject-scope';
 import { resolveSubjectScope } from '../../shared/authz/resolve-subject-scope';
 import { AuthUserRepository } from './auth-user.repository';
+import { REDIS_CLIENT } from '../../infra/core.module';
+
+/**
+ * Prefijo del árbol de menú cacheado. Duplica `MenusService.CACHE_PREFIX`
+ * (`menus.service.ts:37`) a propósito: los dos caches están acoplados por
+ * datos — el menú se filtra por el permiso efectivo — así que invalidar uno
+ * sin el otro deja la UI mintiendo. Ver `invalidatePermissionCache`.
+ */
+const MENU_CACHE_PREFIX = 'menu:v1:';
 
 /**
  * T3.9 design §3 [R4]: reshaped to `perm:v3:` — `AuthContext` gains
@@ -54,6 +63,12 @@ export class AuthContextService {
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly configService: ConfigService,
     private readonly authUserRepo: AuthUserRepository,
+    // 2026-10-20 — cliente del stream, para invalidar `menu:v1:*` (que NO
+    // vive en el `CacheModule`). Opcional a propósito: el spec existente
+    // `auth-context.service.spec.ts` construye el servicio con 3 argumentos,
+    // y que la invalidación de menús degrade a no-op en vez de romper la
+    // construcción es el comportamiento correcto cuando el cliente no está.
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: { del(key: string): Promise<unknown> },
   ) {}
 
   private get authConfig(): AuthConfig {
@@ -129,11 +144,39 @@ export class AuthContextService {
    * `permissions` is replaced by `anonymousPermissions` and org/role are
    * forced to `null`.
    */
+  private async readPermissionVersion(userId: string): Promise<number> {
+    const version = await this.authUserRepo.findPermissionVersion(userId);
+    return version ?? 1;
+  }
+
   async getAuthContextByUserId(userId: string): Promise<AuthContext> {
     const { anonymousDeviceUuid, anonymousPermissions, permissionCacheTtlSeconds } =
       this.authConfig;
 
-    const key = `${PERMISSION_CACHE_PREFIX}uid:${userId}`;
+    // 2026-10-20 — la clave lleva `pv`. `RolesService` bumpea
+    // `users.permission_version` y su docblock dice que es "so a stale cached
+    // Redis blob can be told apart from a fresh one" (roles.service.ts:45-47);
+    // las migraciones 0026/0027/0028/0037 lo bumpean con el comentario de que
+    // eso invalida `perm:v3:*`. La clave nunca incorporó `pv`, así que
+    // ninguno de esos comentarios era cierto: la invalidación dependedía
+    // íntegramente de que la app llamara a `invalidatePermissionCache`.
+    //
+    // Consecuencia medida: un permiso revocado por SQL seguía sirviéndose
+    // hasta el TTL (1 h). Granting tarde sólo causa un 403 tardío; revoking
+    // tarde significa que alguien conserva un acceso que debía perder.
+    //
+    // COSTO: construir la clave exige conocer `pv`, o sea UNA lectura PK
+    // indexada por request autenticado, también en el cache hit. Se acepta
+    // porque reemplaza el join multi-consulta que el cache evita
+    // (`findAuthContextRow` + catálogo de permisos + `resolveSubjectScope`),
+    // pero no es gratis y queda registrado acá a propósito.
+    //
+    // LÍMITE: cierra el hueco de la APP. Una migración que escriba
+    // `permissions` sin bumpear `permission_version` sigue sin invalidar — el
+    // bump es lo que dispara el cambio de clave. La 0038 denormaliza
+    // permisos y NO bumpea, así que sigue necesitando purga manual.
+    const permissionVersion = await this.readPermissionVersion(userId);
+    const key = `${PERMISSION_CACHE_PREFIX}uid:${userId}:pv${permissionVersion}`;
     const cached = await this.cache.get<CachedAuthContext>(key);
     if (cached) {
       // 2026-10-18 — el cache hit debe preservar `departmentId` y
@@ -232,10 +275,41 @@ export class AuthContextService {
    * password-only user.
    */
   async invalidatePermissionCache(userId: string, deviceUuid: string | null): Promise<void> {
-    const deletes = [this.cache.del(`${PERMISSION_CACHE_PREFIX}uid:${userId}`)];
+    // El borrado explícito pasa a ser belt-and-braces: con `pv` en la clave,
+    // bumpear `permission_version` ya invalida solo y deja la clave vieja
+    // inalcanzable (se va por TTL). Se mantiene para los cambios que NO
+    // bumpean — una migración que escriba `permissions` directo.
+    //
+    // Se borra la clave del `pv` ACTUAL, no un barrido por patrón: con `pv` en
+    // la clave, todo `pv` distinto ya es inalcanzable, así que un `KEYS` sobre
+    // `perm:v3:*` sería trabajo O(n) en cada cambio de rol para borrar claves
+    // que nadie puede leer. Sólo usa la interfaz `Cache`, sin tocar
+    // `cache.store`.
+    const currentPv = await this.readPermissionVersion(userId);
+    const deletes = [
+      this.cache.del(`${PERMISSION_CACHE_PREFIX}uid:${userId}:pv${currentPv}`),
+    ];
     if (deviceUuid !== null) {
       deletes.push(this.cache.del(`${PERMISSION_CACHE_PREFIX}${deviceUuid}`));
     }
+
+deletes.push(this.redisDel(`${MENU_CACHE_PREFIX}user:${userId}`));
+
     await Promise.all(deletes);
+  }
+
+  /**
+   * Borra una clave del cliente Redis del outbox/streams, donde vive
+   * `menu:v1:*` (`MenusService` inyecta `REDIS_CLIENT`, no el `CacheModule` —
+   * `menus.service.ts:55-56`). Envuelto porque si el cliente no está
+   * disponible la invalidación de permisos NO debe fallar: el TTL de 1 h ya
+   * la deja como último recurso.
+   */
+  private async redisDel(key: string): Promise<void> {
+    try {
+      await this.redis?.del(key);
+    } catch {
+      // no-op: el cache expira solo.
+    }
   }
 }
