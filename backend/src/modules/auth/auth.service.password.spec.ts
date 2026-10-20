@@ -317,7 +317,7 @@ describe('AuthService — password identity (T3.6)', () => {
         email: 'maria@example.com',
         avatarUrl: null,
       });
-      expect(cache.get).toHaveBeenCalledWith('perm:v3:uid:user-1');
+      expect(cache.get).toHaveBeenCalledWith('perm:v3:uid:user-1:pv1');
     });
 
     it('email_verified=false cuando emailVerifiedAt es null explícito (caso negativo)', async () => {
@@ -363,14 +363,14 @@ describe('AuthService — password identity (T3.6)', () => {
     it('deletes only the uid-keyed entry when deviceUuid is null', async () => {
       await service.invalidatePermissionCache('user-1', null);
 
-      expect(cache.del).toHaveBeenCalledWith('perm:v3:uid:user-1');
+      expect(cache.del).toHaveBeenCalledWith('perm:v3:uid:user-1:pv1');
       expect(cache.del).toHaveBeenCalledTimes(1);
     });
 
     it('deletes both entries when deviceUuid is present (unchanged pre-T3.6 behaviour)', async () => {
       await service.invalidatePermissionCache('user-1', 'device-abc');
 
-      expect(cache.del).toHaveBeenCalledWith('perm:v3:uid:user-1');
+      expect(cache.del).toHaveBeenCalledWith('perm:v3:uid:user-1:pv1');
       expect(cache.del).toHaveBeenCalledWith('perm:v3:device-abc');
       expect(cache.del).toHaveBeenCalledTimes(2);
     });

@@ -85,6 +85,38 @@ describe('E2E — cambios de permisos fuera de la aplicación', () => {
     expect(incidents.status).toBe(200); // debería ser 403 con `permissions = []`
   });
 
+  it('PERO si bumpea permission_version, el cambio se refleja al instante', async () => {
+    // Esto es lo que arregla la clave con `pv` (`perm:v3:uid:{id}:pv{n}`).
+    // Cualquier cosa que bumpee el valor produce una clave distinta, así que
+    // la siguiente request resuelve contra la DB sin esperar el TTL.
+    //
+    // Es la forma en que `RolesService.assignRole/update/delete` ya revocan
+    // permisos: bumpean `permission_version` Y llaman a
+    // `invalidatePermissionCache`. Con `pv` en la clave, el segundo paso pasa
+    // a ser redundante — si algo bumpea y olvida purgar, el sistema se
+    // recupera igual.
+    const user = await env.provisionUser(['READ incidents'], {
+      roleName: 'operator_org',
+    });
+
+    await request(env.httpServer)
+      .get('/api/incidents')
+      .set({ Authorization: `Bearer ${user.accessToken}` })
+      .expect(200);
+
+    await env.pg.query(
+      `UPDATE users SET permissions = '[]'::jsonb, permission_version = permission_version + 1
+        WHERE id = $1`,
+      [user.userId],
+    );
+
+    // Sin FLUSHALL, sin esperar el TTL, sin llamar a invalidatePermissionCache.
+    await request(env.httpServer)
+      .get('/api/incidents')
+      .set({ Authorization: `Bearer ${user.accessToken}` })
+      .expect(403);
+  });
+
   it('tras expirar la caché, el cambio por SQL sí se refleja', async () => {
     const user = await env.provisionUser(['READ incidents', 'READ dashboard'], {
       roleName: 'operator_org',
@@ -100,8 +132,15 @@ describe('E2E — cambios de permisos fuera de la aplicación', () => {
     ]);
 
     // Simular el paso del TTL borrando las claves a mano — lo que el operador
-    // hace con FLUSHALL después de aplicar una migración.
-    await env.redisCache.del(`perm:v3:uid:${user.userId}`);
+    // hace con FLUSHALL después de aplicar una migración. La clave de
+    // permisos lleva el sufijo `:pv{n}` desde el 2026-10-20; sin él el borrado
+    // es un no-op silencioso.
+    const pv = await env.pg.query<{ permission_version: number | null }>(
+      `SELECT permission_version FROM users WHERE id = $1`,
+      [user.userId],
+    );
+    const suffix = pv.rows[0].permission_version ?? 1;
+    await env.redisCache.del(`perm:v3:uid:${user.userId}:pv${suffix}`);
     await env.redisCache.del(`menu:v1:user:${user.userId}`);
 
     const incidents = await request(env.httpServer)

@@ -73,7 +73,7 @@ describe('AuthContextService — 2026-10-18 departmentId threading', () => {
       await service.getAuthContextByUserId('user-1');
 
       expect(cache.set).toHaveBeenCalledWith(
-        `${PERMISSION_CACHE_PREFIX}uid:user-1`,
+        `${PERMISSION_CACHE_PREFIX}uid:user-1:pv1`,
         expect.objectContaining({
           permissions: ['READ users'],
           organizationId: 'org-1',
@@ -203,7 +203,9 @@ describe('AuthContextService — 2026-10-18 departmentId threading', () => {
 
       const ctx = await service.getAuthContextByUserId('user-1');
 
-      expect(dataSource.query).not.toHaveBeenCalled();
+      // 2026-10-20 — desde que la clave lleva `pv`, el cache hit hace UNA lectura
+      // PK de `users.permission_version`. Ya no es un hit sin DB.
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
       expect(ctx.departmentId).toBe('dept-A');
       expect(ctx.scope).toEqual({
         kind: 'department',
