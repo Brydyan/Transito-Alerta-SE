@@ -112,4 +112,42 @@ describe('admin route guard metadata', () => {
       expect(orgListRoute?.data?.['permission']).toBe('READ organizations');
     });
   });
+
+  // ------------------------------------------------------------------
+  // 2026-10-20 — /app/reportar no era alcanzable por rol sin permiso
+  //
+  // El menú ya ocultaba "Reportar" a los roles sin `CREATE incidents`
+  // (0029:174-185, "reportar-operator-org-block"), pero la RUTA no: un
+  // operator_org podía escribir /app/reportar a mano, cargar el formulario
+  // entero y recién ahí recibir un 403 de POST /api/incidents. El menú y la
+  // ruta discrepaban, y el permiso se comunicaba con un error genérico en vez
+  // de por la UI que ya le decía que no podía.
+  //
+  // Esta regresión es estructural a propósito — mismo patrón que las de admin:
+  // Angular evalúa `canActivate` y `data` del árbol estático, así que no hace
+  // falta arrancar el router.
+  // ------------------------------------------------------------------
+  describe('/app/reportar route', () => {
+    const appRoute = routes.find((r) => r.path === 'app');
+    const reportarRoute = appRoute?.children?.find((r) => r.path === 'reportar');
+
+    it('existe', () => {
+      expect(reportarRoute).toBeDefined();
+    });
+
+    it('has canActivate: [permissionGuard]', () => {
+      expect(reportarRoute?.canActivate).toContain(permissionGuard);
+    });
+
+    it('declara data.permission: "CREATE incidents" — el mismo permiso que exige POST /api/incidents', () => {
+      expect(reportarRoute?.data?.['permission']).toBe('CREATE incidents');
+    });
+
+    it('NO queda descubrible como ruta sin permisos (regresión del 403 en /app/reportar)', () => {
+      // Si alguien saca el guard "sólo para probar", esto falla acá y no
+      // recién cuando un operador llena un formulario y recibe un 403.
+      expect(reportarRoute?.canActivate).toBeDefined();
+      expect(reportarRoute?.data?.['permission']).toBeTruthy();
+    });
+  });
 });

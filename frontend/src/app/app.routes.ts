@@ -386,9 +386,24 @@ export const routes: Routes = [
       // F1.5.3 — `citizen-report` era código muerto (sólo importable).
       // F1 lo registra como ruta real del menú `Reportar`. La pantalla
       // existe y se conserva tal cual.
+      //
+      // 2026-10-20 — el menú ocultaba esta entrada a los roles sin
+      // `CREATE incidents` (`0029:174-185`, el "reportar-operator-org-block"),
+      // pero la RUTA quedaba abierta: un `operator_org` podía escribir
+      // `/app/reportar` a mano, cargar el formulario completo y recién ahí
+      // recibir un 403 de `POST /api/incidents`
+      // (`incidents.controller.ts:93-95`). El menú y la ruta discrepaban, y el
+      // usuario se enteraba del permiso por un error genérico en vez de por la
+      // UI que ya le decía que no podía.
+      //
+      // El permiso va en `data` para que `permissionGuard` lo aplique igual
+      // que en `/app/dashboard`: mismo guard, mismo rebote por rol, sin lógica
+      // nueva. La autorización real ya la hacía el backend — esto sólo evita
+      // llevar al usuario a una pantalla que no puede usar.
       {
         path: 'reportar',
-        data: { breadcrumb: 'Reportar' },
+        canActivate: [permissionGuard],
+        data: { breadcrumb: 'Reportar', permission: 'CREATE incidents' },
         loadComponent: () =>
           import('./features/citizen-report/citizen-report.component').then(
             (m) => m.CitizenReportComponent,
