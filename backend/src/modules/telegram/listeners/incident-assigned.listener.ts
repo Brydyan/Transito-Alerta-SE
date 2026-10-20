@@ -47,14 +47,48 @@ export class IncidentAssignedListener {
   }): Promise<void> {
     if (!payload.operatorId) return;
 
+    // 2026-10-20 — se amplía el JOIN con `incidents`.
+    //
+    // El emisor (`assignments.service.ts:138-143`) publica `...saved` — la
+    // fila de `assignments`, que sólo tiene `incident_id`, `operator_id` y
+    // los campos de override. `title`, `description`, `categoryName`,
+    // `priority` y `location` viven en `incidents`, así que llegaban
+    // `undefined` y el mensaje salía como «📋 Nueva tarea: undefined», sin
+    // descripción ni link de Maps.
+    //
+    // Es el mismo desajuste de contrato que el de CriticalIncidentListener,
+    // pero más silencioso: el mensaje SÍ se envía, sólo vacío. El correo de
+    // asignación suffers lo mismo (`mail-templates.ts:79` interpola
+    // `{{title}}`).
+    //
+    // Se resuelve acá y no en el emisor a propósito: este listener ya hace
+    // una query por evento, así que añadir un LEFT JOIN no cuesta nada, y
+    // ampliar el contrato del stream obligaría a mover emisor + correo +
+    // Telegram juntos por un dato que el emisor no tiene a mano sin otro JOIN.
     const rows = await this.dataSource.query<
-      Array<{ telegram_chat_id: string | null }>
+      Array<{
+        telegram_chat_id: string | null;
+        title: string | null;
+        description: string | null;
+        priority: string | null;
+        lat: number | null;
+        lng: number | null;
+      }>
     >(
-      `SELECT telegram_chat_id FROM users WHERE id = $1 AND deleted_at IS NULL`,
-      [payload.operatorId],
+      `SELECT u.telegram_chat_id,
+              i.title,
+              i.description,
+              i.priority,
+              ST_Y(i.location) AS lat,
+              ST_X(i.location) AS lng
+         FROM users u
+         LEFT JOIN incidents i ON i.id = $2
+        WHERE u.id = $1 AND u.deleted_at IS NULL`,
+      [payload.operatorId, payload.incidentId],
     );
     if (rows.length === 0) return;
-    const chatId = rows[0].telegram_chat_id;
+    const row = rows[0];
+    const chatId = row.telegram_chat_id;
     if (!chatId) {
       this.logger.debug(
         `[incident-assigned] operator ${payload.operatorId} has no telegram_chat_id; skipping`,
@@ -62,11 +96,24 @@ export class IncidentAssignedListener {
       return;
     }
 
+    // El resto del mensaje se arma desde la fila leída, no desde el payload
+    // del evento: lo que el emisor no trajo, la query lo resuelve.
+    const enriched = {
+      ...payload,
+      title: row.title ?? payload.title,
+      description: row.description ?? payload.description,
+      priority: row.priority ?? payload.priority,
+      location:
+        row.lat !== null && row.lng !== null
+          ? { lat: Number(row.lat), lng: Number(row.lng) }
+          : payload.location,
+    };
+
     const cfg = this.configService.get<TelegramConfig>('telegram')!;
     // 2026-10-20 — was `${cfg.appBaseUrl}/incidents/${id}` (404: no such
     // route). See `incident-detail-link.ts` for the route tree.
     const detailLink = buildIncidentDetailLink(cfg.appBaseUrl, payload.incidentId);
-    const text = this.formatMessage(payload, detailLink);
+    const text = this.formatMessage(enriched, detailLink);
 
     await this.telegram.enqueue({ chat_id: chatId, text });
   }
