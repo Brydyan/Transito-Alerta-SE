@@ -15,6 +15,13 @@ jobs:
     runs-on: self-hosted
     environment: staging
 
+    # El runner es la VM de staging, no GitHub: un build colgado no lo corta
+    # nadie. Sin esto el default de GitHub son 360 minutos — el 14/oct un
+    # deploy pasó 45 min "construyendo" porque el disco de la VM estaba al 82%
+    # y Postgres entraba en recovery entre build y build. Con 30 min falla
+    # con un mensaje, en vez de una tarde perdida.
+    timeout-minutes: 30
+
     # A nivel de job, no por paso. Antes cada paso lo declaraba por su cuenta y
     # los dos health checks se habían quedado sin él: corrían en el directorio
     # temporal del runner, donde no existe `.env` ni `compose.yaml`, y el deploy
@@ -180,6 +187,38 @@ jobs:
             fi
           done
           echo "Esquema verificado: roles, users, incidents, user_sessions"
+
+      # ── Espacio en disco antes de construir ───────────────────────────────
+      #
+      # El runner es una VM con un solo disco de 30 GB, y Docker escribe ahí
+      # todo: imágenes, overlay2, la caché de build y los tres volúmenes. La
+      # caché llegó a 16,5 GB (12,9 reclamables) sin que nada la acotara:
+      # el build no falla al no tener espacio, se arrastra — y eso
+      # tumba el fsync de Postgres, que entra en recovery, que hace que
+      # `compose up` espere a la infra, que es como el deploy pasó 45 minutos
+      # sin avanzar.
+      #
+      # `--filter until=168h` es lo que hace esto seguro: sólo borra caché de
+      # más de 7 días, así que nunca toca el build que se está construyendo.
+      - name: Free disk before building
+        run: |
+          avail_gb() { df --output=avail -BG / | tail -1 | tr -dc '0-9'; }
+          before=$(avail_gb)
+          echo "Libre antes: ${before}G"
+          docker builder prune -af --filter "until=168h"
+          after=$(avail_gb)
+          echo "Libre después: ${after}G"
+
+          # Falla aquí, con un mensaje, en vez de colgarse 30 min para que el
+          # timeout lo mate. El umbral es holgado a propósito: el peor build
+          # observado (Angular + NestJS en la misma pasada) pidió ~10 GB entre
+          # pnpm install, dist/ y las capas de imagen.
+          if [ "$after" -lt 10 ]; then
+            echo "::error::espacio insuficiente: ${after}G libres tras limpiar; un build completo pide ~10G."
+            echo "::error::El disco de la VM es de 30G y aloja Docker + el repo + los tres volúmenes."
+            echo "::error::La solución de fondo es mover el data-root de Docker fuera de este disco."
+            exit 1
+          fi
 
       - name: Build and start backend + frontend
         env:
