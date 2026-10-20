@@ -94,7 +94,7 @@ const CONTRACTS: Record<string, EventContract> = {
         verifiedBy: 'e2e',
       },
       IncidentNotificationsListener: {
-        reads: ['id', 'title', 'citizen_id'],
+        reads: ['id', 'title', 'citizen_id', 'organization_id'],
         verifiedBy: 'none',
       },
     },
@@ -135,7 +135,17 @@ const CONTRACTS: Record<string, EventContract> = {
     producerIsOpaque: true,
     consumers: {
       IncidentNotificationsListener: {
-        reads: ['citizen_id', 'assigned_to', 'actor_id', 'id'],
+        reads: ['citizen_id', 'assigned_to', 'actor_id', 'id', 'status'],
+        verifiedBy: 'none',
+      },
+    },
+    streamConsumers: {
+      // Este consumidor no estaba declarado. Leía `title` para el subject
+      // y el emisor no lo publicaba — el correo salía `Incident status
+      // changed: ` sin título. El productor (`incident-workflow.service.ts`)
+      // ya traía `title` en su RETURNING; faltaba mandarlo.
+      IncidentMailListener: {
+        reads: ['citizen_id', 'assigned_to', 'title', 'status'],
         verifiedBy: 'none',
       },
     },
@@ -144,8 +154,20 @@ const CONTRACTS: Record<string, EventContract> = {
     producerIsOpaque: true,
     consumers: {
       IncidentNotificationsListener: {
-        reads: ['id', 'author_id', 'incident_id'],
-        verifiedBy: 'none',
+        // CamelCase, como la fila de `CommentEntity` que publica
+        // `CommentsService.create()`. Antes declaraba `reporter_id`,
+        // `prior_commenter_ids`, `author_id` e `incident_id`: ninguno de
+        // los cuatro existía, así que la notificación nunca se creaba.
+        reads: ['id', 'incidentId', 'userId', 'content'],
+        verifiedBy: 'e2e',
+      },
+      // Desde 2026-10-20 este handler vive en el bus (`@OnEvent`), no en
+      // `route()` del stream: `CommentsService` nunca publicó comentarios a
+      // `incidents:events`, así que el `case 'comment.created'` que estaba
+      // ahí no podía dispararse ni corrigiendo el nombre.
+      IncidentMailListener: {
+        reads: ['id', 'incidentId', 'userId', 'content'],
+        verifiedBy: 'e2e',
       },
     },
   },
@@ -183,9 +205,19 @@ describe('Guard de contrato productor↔consumidor de eventos', () => {
       lines.forEach((line, i) => {
         // `@OnEvent('incident.created')` seguido de un método; el nombre de la
         // clase se toma del `export class` / `class` más cercano hacia atrás.
+        //
+        // Las líneas de comentario se descartan ANTES de buscar: el patrón
+        // `class\s+(\w+)` matchea prosa. Se pisó en la práctica —un
+        // comentario que decía "the stream this class reads" hizo que el
+        // guard atribuyera el decorador a una clase `reads`— y el fallo
+        // que produce es `UNKNOWN escucha ...`, que se lee como un error de
+        // registro y no como lo que es: un comentario.
         const onEvent = line.match(/@OnEvent\('([^']+)'\)/);
         if (onEvent) {
-          const before = lines.slice(0, i).join('\n');
+          const before = lines
+            .slice(0, i)
+            .join('\n')
+            .replace(/^\s*(?:\/\/|\*|\/\*).*$/gm, '');
           const cls = [...before.matchAll(/(?:export\s+)?class\s+(\w+)/g)].pop()?.[1] ?? 'UNKNOWN';
           listeners.push({ event: onEvent[1], cls, file: rel(file), line: i + 1 });
         }

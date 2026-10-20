@@ -455,6 +455,107 @@ describe('Mail module e2e (T3.5)', () => {
     }
   });
 
+  /**
+   * 2026-10-20 — `comment.added` no tenía NINGUNA cobertura, y sus dos
+   * consumidores estaban rotos de forma independiente:
+   *
+   *   - el in-app leía `reporter_id`, `prior_commenter_ids`, `author_id` e
+   *     `incident_id`; `CommentsService` publica la fila de `CommentEntity`
+   *     (`id`, `content`, `incidentId`, `userId`). Ninguno existía → la
+   *     lista de destinatarios quedaba vacía y la notificación NUNCA se
+   *     creó.
+   *   - el de correo esperaba un `case 'comment.created'` en el stream, y
+   *     ese case no podía dispararse por dos razones independientes: el
+   *     evento real es `comment.added`, y `CommentsService` publica sólo
+   *     por EventEmitter, nunca hace XADD a `incidents:events`.
+   *
+   * Este es el único test que cubre los dos canales a la vez. Si alguno
+   * vuelve a desalinearse con el productor, falla aquí.
+   */
+  it('comment.added -> el reportador recibe notificación in-app Y correo', async () => {
+    const deliverSpy = jest.spyOn(mailService, 'deliver');
+
+    const orgId = await seedOrgInZone();
+    const reporter: ProvisionedUser = await env.provisionUser(['CREATE incidents'], {
+      email: 'reporter-comment-e2e@example.com',
+      organizationId: orgId,
+      roleName: 'reporter',
+    });
+    const operator: ProvisionedUser = await env.provisionUser(
+      ['READ incidents', 'CREATE comments'],
+      {
+        email: 'operator-comment-e2e@example.com',
+        organizationId: orgId,
+        roleName: 'operator_org',
+      },
+    );
+
+    const created = await request(env.httpServer)
+      .post('/api/incidents')
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
+      .send({
+        title: 'Bache en la avenida',
+        description: 'Hueco profundo junto al paso peatonal',
+        priority: 'high',
+        ...INSIDE_SANTA_ELENA,
+      })
+      .expect(201);
+
+    const incidentId = created.body.id as string;
+    // La audiencia de un comentario se arma con `incidents.citizen_id`. Si
+    // fuera null, nada se notificaría por un motivo distinto al que este
+    // test cubre, y el fallo sería ilegible: se afirma aquí.
+    expect(created.body.citizen_id).toBe(reporter.userId);
+
+    // El operador comenta. El reportador es quien debe aviso, y el autor
+    // nunca se notifica a sí mismo.
+    await request(env.httpServer)
+      .post('/api/comments')
+      .set({ Authorization: `Bearer ${operator.accessToken}` })
+      .send({ incident_id: incidentId, content: 'Ya llego la patrulla' })
+      .expect(201);
+
+    // ── Canal 1: notificación in-app ──────────────────────────────────────
+    // `EventEmitter2.emit()` no awaita los handlers async, así que la fila
+    // puede no existir un instante después del POST: se sondea.
+    const readNotifications = async () =>
+      env.pg.query<{ n: number; data: { author: string } | null }>(
+        `SELECT count(*)::int AS n, (array_agg(data))[1] AS data
+           FROM notifications
+          WHERE user_id = $1
+            AND type = 'comment.added'
+            AND incident_id = $2`,
+        [reporter.userId, incidentId],
+      );
+
+    const deadline = Date.now() + 15_000;
+    let found = await readNotifications();
+    while (found.rows[0].n === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+      found = await readNotifications();
+    }
+
+    expect(found.rows[0].n).toBe(1);
+    expect(found.rows[0].data?.author).toBe(operator.userId);
+
+    // ── Canal 2: correo ────────────────────────────────────────────────────
+    await waitUntil(
+      async () => deliverSpy.mock.calls.some((call) => call[2] === 'comment.created'),
+      20_000,
+    );
+    expect(deliverSpy).toHaveBeenCalledWith(
+      'reporter-comment-e2e@example.com',
+      'New comment on your incident',
+      'comment.created',
+      expect.objectContaining({ content: 'Ya llego la patrulla' }),
+    );
+
+    // El autor del comentario no se notifica a sí mismo, por ningún canal.
+    expect(
+      deliverSpy.mock.calls.some((call) => call[0] === 'operator-comment-e2e@example.com'),
+    ).toBe(false);
+  });
+
   it('an entry that fails delivery 3 times is moved to mail:dead and acked on the origin stream', async () => {
     jest.spyOn(mailService, 'deliver').mockRejectedValue(new Error('permanent simulated failure'));
 

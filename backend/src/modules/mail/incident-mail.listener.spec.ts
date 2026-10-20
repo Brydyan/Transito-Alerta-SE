@@ -231,26 +231,28 @@ describe('IncidentMailListener', () => {
       expect(mailService.enqueue).toHaveBeenCalledTimes(2);
     });
 
-    it('comment.created -> enqueues to the incident reporter and prior commenters', async () => {
-      userRepo.findOne
-        .mockResolvedValueOnce({ id: 'reporter-1', email: 'reporter@example.com' })
-        .mockResolvedValueOnce({ id: 'commenter-1', email: 'commenter1@example.com' });
-
+    it('un `comment.added` que llegue al STREAM no se enruta a ningún correo', async () => {
+      // El test que estaba aquí antes afirmaba que `comment.created`
+      // encolaba correo al reportador y a los previos comentadores. Era
+      // falso de las dos maneras: el evento real es `comment.added`, y
+      // `CommentsService` publica sólo por EventEmitter — nunca hace XADD
+      // a `incidents:events`. El test fabricaba su propio input y por eso
+      // llevaba meses verde sobre un handler que no podía dispararse.
+      //
+      // Este fija el contrato REAL: el stream no enruta comentarios. El
+      // handler vive en `onCommentAdded`, sobre el bus.
       await listener.processResponse(
         streamResponse(
-          'comment.created',
-          {
-            id: 'c-1',
-            incident_id: 'inc-1',
-            content: 'hola',
-            reporter_id: 'reporter-1',
-            prior_commenter_ids: ['commenter-1'],
-          },
+          'comment.added',
+          { id: 'c-1', incidentId: 'inc-1', userId: 'op-1', content: 'hola' },
           '4-0',
         ),
       );
 
-      expect(mailService.enqueue).toHaveBeenCalledTimes(2);
+      expect(mailService.enqueue).not.toHaveBeenCalled();
+      // Aun así se XACK-ea: una entrada que no se enruta no puede dejar
+      // pendientes creciendo para siempre.
+      expect(redis.xack).toHaveBeenCalledWith(INCIDENTS_STREAM_KEY, INCIDENT_MAIL_CONSUMER_GROUP, '4-0');
     });
 
     it('a recipient with no email is skipped (debug log, no retry, no enqueue for that recipient)', async () => {
@@ -278,6 +280,60 @@ describe('IncidentMailListener', () => {
       await listener.processResponse([[INCIDENTS_STREAM_KEY, [['7-0', ['type', 'incident.created', 'data', 'not-json']]]]]);
 
       expect(redis.xack).toHaveBeenCalledWith(INCIDENTS_STREAM_KEY, INCIDENT_MAIL_CONSUMER_GROUP, '7-0');
+    });
+  });
+
+  describe('onCommentAdded — @OnEvent("comment.added")', () => {
+    it('encola al reportador y a los previos comentarios con el contenido del payload', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        { reporter_id: 'reporter-1', prior_commenter_ids: ['commenter-1'] },
+      ]);
+      userRepo.findOne
+        .mockResolvedValueOnce({ id: 'reporter-1', email: 'reporter@example.com' })
+        .mockResolvedValueOnce({ id: 'commenter-1', email: 'commenter1@example.com' });
+
+      // Payload real: la fila de `CommentEntity` que emite
+      // `CommentsService.create()` (comments.service.ts:66). Los campos son
+      // camelCase porque la entidad lo es — el test anterior usaba
+      // `incident_id`/`author_id`, que no existen en ninguna parte.
+      await listener.onCommentAdded({
+        id: 'c-1',
+        incidentId: 'inc-1',
+        userId: 'op-1',
+        content: 'Ya llego la patrulla',
+        parentId: null,
+        // `deletedAt`/timestamps no los usa el handler.
+      });
+
+      expect(dataSource.query).toHaveBeenCalledWith(expect.stringContaining('citizen_id'), [
+        'inc-1',
+        'op-1',
+      ]);
+      expect(mailService.enqueue).toHaveBeenCalledTimes(2);
+      expect(mailService.enqueue).toHaveBeenCalledWith({
+        to: 'reporter@example.com',
+        subject: 'New comment on your incident',
+        template: 'comment.created',
+        data: { content: 'Ya llego la patrulla' },
+      });
+    });
+
+    it('no encola nada cuando la incidencia no tiene audiencia', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        { reporter_id: null, prior_commenter_ids: [] },
+      ]);
+
+      await listener.onCommentAdded({
+        id: 'c-1',
+        incidentId: 'inc-1',
+        userId: 'op-1',
+        content: 'hola',
+        parentId: null,
+        // `deletedAt`/timestamps no los usa el handler.
+      });
+
+      expect(userRepo.findOne).not.toHaveBeenCalled();
+      expect(mailService.enqueue).not.toHaveBeenCalled();
     });
   });
 });

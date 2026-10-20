@@ -1,9 +1,11 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import type Redis from 'ioredis';
 import { DataSource, Repository } from 'typeorm';
 
 import { MAIL_EVENTS_BLOCKING_CLIENT } from '../../infra/core.module';
+import { resolveCommentAudience } from '../../shared/events/comment-audience';
 import { UserEntity } from '../users/entities/user.entity';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
 import { decodeStreamEntry } from '../realtime/stream-event.util';
@@ -22,8 +24,10 @@ export const RETRY_BACKOFF_MS = 1000;
  * `realtime`'s group on the same stream (D7): Streams consumer groups are
  * independent per-group cursors, so `mail` and `realtime` each see every
  * event exactly once without coordinating. Zero import edges from
- * Incidents into Mail — this class only ever reads the stream Incidents
- * already publishes to, never imports IncidentsService/CommentsService.
+ * Incidents into Mail — this listener never imports IncidentsService or
+ * CommentsService. It reads the stream Incidents already publishes to, and
+ * listens on the in-process bus for `comment.added` (which Comments
+ * publishes only there).
  */
 @Injectable()
 export class IncidentMailListener implements OnModuleInit, OnModuleDestroy {
@@ -118,14 +122,57 @@ export class IncidentMailListener implements OnModuleInit, OnModuleDestroy {
       case 'incident.status_changed':
         await this.handleStatusChanged(data);
         break;
-      case 'comment.created':
-        await this.handleCommentCreated(data);
-        break;
       default:
         // Every other event on incidents:events (e.g. types this listener
         // does not translate to mail) is intentionally ignored.
+        //
+        // `comment.added` used to be listed here as `comment.created`,
+        // and that case could never fire — for two independent reasons.
+        // The producer emits `comment.added`, never `comment.created`; and
+        // `CommentsService` publishes to the EventEmitter only, it never
+        // XADDs to `incidents:events`, which is the stream this listener
+        // reads. The handler lives further down, on `@OnEvent`.
         break;
     }
+  }
+
+  /**
+   * 2026-10-20 — this handler used to sit in `route()` as a `comment.created`
+   * case, where it was unreachable on both counts. It now listens on the
+   * in-process bus, which is the channel `CommentsService` actually
+   * publishes to (`comments.service.ts:66`).
+   *
+   * Deliberately NOT wired into the Redis stream: publishing comments to
+   * `incidents:events` would also hand them to `RealtimeStreamsConsumer`,
+   * which forwards every entry to the WebSocket gateway unfiltered
+   * (`streams.consumer.ts:96-106`). Whether comments should be realtime is
+   * a product decision, and taking it here would be a change of behaviour
+   * disguised as a bug fix.
+   *
+   * The audience comes from `shared/events/comment-audience.ts` — the same
+   * resolver the in-app notification listener uses. Two copies of that rule
+   * would drift, and when they drift one channel notifies and the other
+   * does not, silently.
+   */
+  @OnEvent('comment.added')
+  async onCommentAdded(payload: {
+    id: string;
+    incidentId: string;
+    userId: string;
+    content: string;
+    parentId: string | null;
+  }): Promise<void> {
+    const audience = await resolveCommentAudience(
+      this.dataSource,
+      payload.incidentId,
+      payload.userId,
+    );
+    const recipientIds = [audience.reporterId, ...audience.priorCommenterIds].filter(
+      (id): id is string => Boolean(id) && id !== payload.userId,
+    );
+    await this.enqueueToUsers(recipientIds, 'comment.created', {
+      content: payload.content,
+    });
   }
 
   /**
@@ -182,13 +229,6 @@ export class IncidentMailListener implements OnModuleInit, OnModuleDestroy {
       title: data.title,
       status: data.status,
     });
-  }
-
-  private async handleCommentCreated(data: Record<string, unknown>): Promise<void> {
-    const reporterId = data.reporter_id as string | undefined;
-    const priorCommenterIds = (data.prior_commenter_ids as string[] | undefined) ?? [];
-    const recipientIds = [reporterId, ...priorCommenterIds].filter((id): id is string => Boolean(id));
-    await this.enqueueToUsers(recipientIds, 'comment.created', { content: data.content });
   }
 
   /** Resolves each id to an email (null -> skip + debug log, never retried) and enqueues one mail per resolved recipient. */
