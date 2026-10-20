@@ -69,6 +69,20 @@
 -- tarda hasta una hora en verse.
 --
 -- Rollback: database/rollback/0039_menu_option_roles_canonical_matrix.DOWN.sql
+--
+-- NOTA PARA CALLERS PROGRAMÁTICOS
+-- ──────────────────────────────
+-- Los asserts usan `RAISE EXCEPTION`, que aborta la transacción. Con
+-- `apply-pending-migrations.sh` (`psql -v ON_ERROR_STOP=1 < file`) esto es
+-- seguro: psql sale al primer error, la conexión se cierra y el servidor
+-- hace ROLLBACK implícito. La DB queda intacta.
+--
+-- Un cliente que reutilice una conexión larga (pg Pool, un harness de test)
+-- NO se recupera solo: toda query posterior falla con
+-- "current transaction is aborted". Si vas a aplicar esto desde Node, envuelvé
+-- la llamada en `try { … } finally { await client.query('ROLLBACK') }`.
+-- Ver `expectMigrationRejected()` en
+-- `backend/test/migrations/menu-option-roles-matrix.e2e-spec.ts`.
 
 BEGIN;
 

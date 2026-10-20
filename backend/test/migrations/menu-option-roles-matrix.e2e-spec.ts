@@ -120,6 +120,25 @@ describe('0039 — matriz canónica de menu_option_roles', () => {
     return rows[0].n;
   }
 
+  /**
+   * Aplica 0039 esperando que los asserts la rechacen, y deja la sesión
+   * usable después.
+   *
+   * `0039` envuelve todo en `BEGIN … COMMIT`. Cuando un `DO` block lanza
+   * `RAISE EXCEPTION`, la transacción queda abortada y el `COMMIT` nunca se
+   * alcanza. En producción esto no importa: `apply-pending-migrations.sh`
+   * corre `psql -v ON_ERROR_STOP=1 < file`, psql sale al primer error y la
+   * conexión se cierra → ROLLBACK implícito y la DB queda intacta.
+   *
+   * El harness, en cambio, reutiliza un único `Client` para todo el spec, así
+   * que la transacción abortada envenena cada query posterior con
+   * "current transaction is aborted". Hay que cerrar el ciclo a mano.
+   */
+  async function expectMigrationRejected(pattern: RegExp): Promise<void> {
+    await expect(db.applyVersion('0039')).rejects.toThrow(pattern);
+    await db.client.query('ROLLBACK').catch(() => undefined);
+  }
+
   describe('precondición — el drift es inyectable, no natural', () => {
     it('una DB limpia NO tiene el drift (0029 actual ya excluye operator_org)', async () => {
       // Documenta por qué el spec inyecta: en un Postgres virgen el 0029
@@ -214,7 +233,7 @@ describe('0039 — matriz canónica de menu_option_roles', () => {
     it('FALLA si operator_org tiene un menú de gestión', async () => {
       await injectManagementForOperator('/admin/users');
 
-      await expect(db.applyVersion('0039')).rejects.toThrow(/gestión|gestion/i);
+      await expectMigrationRejected(/gestión|gestion/i);
 
       // La transacción entera revierte: el assert aborta antes del COMMIT.
       const rows = await db.rows<{ n: number }>(
@@ -253,7 +272,7 @@ describe('0039 — matriz canónica de menu_option_roles', () => {
       expect(after).toBeGreaterThan(before);
 
       // …y la migración lo rechaza en vez de dejarlo pasar.
-      await expect(db.applyVersion('0039')).rejects.toThrow(/huérfan|padre/i);
+      await expectMigrationRejected(/huérfan|padre/i);
 
       // Restauramos el padre para los tests siguientes.
       await db.rows(
