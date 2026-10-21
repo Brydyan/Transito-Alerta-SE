@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import request from 'supertest';
 
-import { ProvisionedUser, TestEnvironment } from '../support/test-environment';
+import { TestEnvironment } from '../support/test-environment';
 
 /**
  * 2026-10-21 — E2E de la cadena "seguir incidencia → cambio de status →

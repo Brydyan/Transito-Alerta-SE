@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import request from 'supertest';
 
 import { TelegramService } from '../../src/modules/telegram/telegram.service';
-import { ProvisionedUser, TestEnvironment } from '../support/test-environment';
+import { TestEnvironment } from '../support/test-environment';
 
 /**
  * 2026-10-21 — E2E de la ruta de asignación por `admin_org` para las
