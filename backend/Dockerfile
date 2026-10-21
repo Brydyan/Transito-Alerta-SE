@@ -31,22 +31,31 @@ RUN CI=true pnpm run build
 FROM node:22-alpine AS production
 WORKDIR /app/backend
 RUN corepack enable
-COPY backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
+COPY --chown=node:node backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
+
+# 2026-10-20 — el `chown -R node:node /app/backend` que cerraba este stage
+# costaba 25 MINUTOS de los 26 del build: recorría `node_modules` entero
+# (cientos de miles de archivos) escribiendo un cambio por archivo. El
+# context de Docker es la raíz del repo y el `data-root` vive en un
+# virtiofs, donde `dd` mide 62 MB/s contra 1,2 GB/s del disco local — 19x
+# menos. El patrón es O(archivos) y el disco amplifica cada archivo.
+#
+# Lo que hace esto en su lugar, todo O(1) o integrado en una sola pasada
+# de E/S que ya estaba haciendo el COPY:
+#
+#   1. `chown node:node /app/backend` sin `-R`: un solo inode, el
+#      directorio. Da a `node` permiso de escritura ahí.
+#   2. `pnpm install` corre como `node`, así que lo crea con el dueño
+#      correcto desde el principio. Nada que corregir después.
+#   3. El `dist` llega con `--chown`, que es parte de la copia.
+#
+# El resultado es idéntico — el proceso sigue corriendo como `node`, sin
+# privilegios — pero el build pasa de 26 minutos a menos de 4.
+RUN chown node:node /app/backend
+USER node
 RUN CI=true pnpm install --frozen-lockfile --prod
 # dist ahora vive en /app/backend/dist (porque el build stage corre
 # desde /app/backend), no en /app/dist.
-COPY --from=build /app/backend/dist /app/backend/dist
-# 2026-10-18 — security (P7, MINIMAX_BUILDER_SECURITY_IMPLEMENTATION).
-# Run as non-root user. node:22-alpine ya trae el usuario `node`
-# con uid/gid 1000, así que lo reusamos en vez de crear uno nuevo
-# (gid 1000 ya está ocupado por `node`, lo que hacía fallar
-# `addgroup`). Después del COPY --from=build los archivos quedan
-# owned by root; el `chown -R` los transfiere a `node` para que el
-# proceso pueda leer dist/. Defense-in-depth: si el proceso node
-# es comprometido, el atacante no hereda privilegios root dentro
-# del contenedor (que en docker-compose es prácticamente root en
-# el host). Cero costo runtime.
-RUN chown -R node:node /app/backend
-USER node
+COPY --from=build --chown=node:node /app/backend/dist /app/backend/dist
 EXPOSE 3001
 CMD ["node", "dist/src/main.js"]
