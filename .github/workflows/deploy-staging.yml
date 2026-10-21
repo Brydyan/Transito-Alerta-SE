@@ -12,8 +12,21 @@ concurrency:
 jobs:
   deploy:
     name: Build and deploy to staging
-    runs-on: self-hosted
+    # Con la etiqueta `staging`, no a secas. Este job necesita `/mnt/big`,
+    # un virtiofs del host Proxmox: sin él, `working-directory` no existe y el
+    # deploy muere en el primer paso. Otro runner self-hosted puede no
+    # tenerlo, y GitHub asignaría este job a cualquiera de los dos sin
+    # preguntar. La etiqueta convierte esa suposición en un requisito — y
+    # `rehearsal-staging.yml` ya la pedía, contra un runner que no la tenía.
+    runs-on: [self-hosted, staging]
     environment: staging
+
+    # El runner es la VM de staging, no GitHub: un build colgado no lo corta
+    # nadie. Sin esto el default de GitHub son 360 minutos — el 14/oct un
+    # deploy pasó 45 min "construyendo" porque el disco de la VM estaba al 82%
+    # y Postgres entraba en recovery entre build y build. Con 30 min falla
+    # con un mensaje, en vez de una tarde perdida.
+    timeout-minutes: 30
 
     # A nivel de job, no por paso. Antes cada paso lo declaraba por su cuenta y
     # los dos health checks se habían quedado sin él: corrían en el directorio
@@ -24,14 +37,22 @@ jobs:
     # Declarado acá, ningún paso `run:` futuro puede olvidarlo.
     defaults:
       run:
-        working-directory: /mnt/storage/projects/tase
+        # 2026-10-20 — movido de `/mnt/storage/projects/tase`. La VM tiene un
+        # solo disco de 30 GB que aloja el SO, el repo y todo el data-root de
+        # Docker; los seis servidores de staging de este host Proxmox
+        # comparten el SSD de 240 GB. `/mnt/big` es un virtiofs del host: el
+        # mismo directorio que en `/mnt/storage/tase-vm`, sobre el disco de
+        # 916 GB. El repo anterior sigue en su sitio a propósito — es el
+        # rollback mientras este deploy no salga verde.
+        working-directory: /mnt/big/projects/tase
 
     steps:
-      # El código vive en /mnt/storage/projects/tase, un clon hecho a mano en la
-      # VM. NO se usa actions/checkout: el checkout dejaría los archivos en el
-      # workspace temporal del runner, donde no está `.env` y donde el nombre de
-      # proyecto de compose sería otro — o sea, contenedores y volúmenes nuevos,
-      # base de datos vacía en cada deploy.
+      # El código vive en /mnt/big/projects/tase, un clon git mantenido a mano en
+      # la VM (antes en /mnt/storage/projects/tase). NO se usa actions/checkout:
+      # el checkout dejaría los archivos en el workspace temporal del runner,
+      # donde no está `.env` y donde el nombre de proyecto de compose sería
+      # otro — o sea, contenedores y volúmenes nuevos, base de datos vacía en
+      # cada deploy.
       #
       # Pero durante meses nadie actualizó ese clon desde el workflow: GitHub
       # sólo mandaba la orden de desplegar y compose construía con los archivos
@@ -181,6 +202,38 @@ jobs:
           done
           echo "Esquema verificado: roles, users, incidents, user_sessions"
 
+      # ── Espacio en disco antes de construir ───────────────────────────────
+      #
+      # El runner es una VM con un solo disco de 30 GB, y Docker escribe ahí
+      # todo: imágenes, overlay2, la caché de build y los tres volúmenes. La
+      # caché llegó a 16,5 GB (12,9 reclamables) sin que nada la acotara:
+      # el build no falla al no tener espacio, se arrastra — y eso
+      # tumba el fsync de Postgres, que entra en recovery, que hace que
+      # `compose up` espere a la infra, que es como el deploy pasó 45 minutos
+      # sin avanzar.
+      #
+      # `--filter until=168h` es lo que hace esto seguro: sólo borra caché de
+      # más de 7 días, así que nunca toca el build que se está construyendo.
+      - name: Free disk before building
+        run: |
+          avail_gb() { df --output=avail -BG / | tail -1 | tr -dc '0-9'; }
+          before=$(avail_gb)
+          echo "Libre antes: ${before}G"
+          docker builder prune -af --filter "until=168h"
+          after=$(avail_gb)
+          echo "Libre después: ${after}G"
+
+          # Falla aquí, con un mensaje, en vez de colgarse 30 min para que el
+          # timeout lo mate. El umbral es holgado a propósito: el peor build
+          # observado (Angular + NestJS en la misma pasada) pidió ~10 GB entre
+          # pnpm install, dist/ y las capas de imagen.
+          if [ "$after" -lt 10 ]; then
+            echo "::error::espacio insuficiente: ${after}G libres tras limpiar; un build completo pide ~10G."
+            echo "::error::El disco de la VM es de 30G y aloja Docker + el repo + los tres volúmenes."
+            echo "::error::La solución de fondo es mover el data-root de Docker fuera de este disco."
+            exit 1
+          fi
+
       - name: Build and start backend + frontend
         env:
           CI: true
@@ -316,7 +369,7 @@ jobs:
           #     docker compose --profile staging run --rm \
           #       -e SEED_ALLOW_PRODUCTION=1 \
           #       -e SEED_PASSWORD -e E2E_PASSWORD \
-          #       -v /mnt/storage/projects/tase/database:/app/database:ro \
+          #       -v /mnt/big/projects/tase/database:/app/database:ro \
           #       backend node /app/database/seeds/users.js --force
           #
           # La idempotencia del seeder (ON CONFLICT DO NOTHING) hace
@@ -340,7 +393,7 @@ jobs:
             -e SEED_ALLOW_PRODUCTION=1 \
             -e SEED_PASSWORD \
             -e E2E_PASSWORD \
-            -v /mnt/storage/projects/tase/database:/app/database:ro \
+            -v /mnt/big/projects/tase/database:/app/database:ro \
             backend node /app/database/seeds/users.js --force
 
           # No se limpia Redis acá. La caché de permisos vive en la DB 1 y

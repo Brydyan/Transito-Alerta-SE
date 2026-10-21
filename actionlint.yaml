@@ -1,15 +1,30 @@
 # actionlint configuration — change `2026-09-03-tool-ci-gates`, D4.
 #
-# `rehearsal-staging.yml:43` corre con `runs-on: [self-hosted, staging]`.
-# `staging` es una etiqueta del runner self-hosted del proyecto, no una
-# de las que GitHub Actions provee por defecto; actionlint la marca
-# como "unknown label" sin este mapa.
+# `staging` es una etiqueta que hay que añadir A MANO al runner self-hosted
+# del proyecto (Settings → Actions → Runners → tase-staging → Edit). No es
+# una de las que GitHub Actions provee por defecto, así que actionlint la
+# marca como "unknown label" sin este mapa.
 #
-# Sin esta config, el gate entraría en rojo desde el día uno por un
-# hallazgo que NO es un defecto: el runner existe y el workflow corre.
-# "Un gate con excepción temporal es un gate con excepción permanente"
-# (D3). Declarar la etiqueta acá deja el gate limpio y protege
-# contra regresiones reales (claves mal puestas, schedule suelto, etc.).
+# ── Por qué este archivo NO basta ────────────────────────────────────────────
+#
+# Declarar la etiqueta acá hace que el gate de lint quede limpio, pero NO
+# hace que el runner la tenga. Son dos cosas distintas, y confundirlas
+# apagaba un defecto real:
+#
+# Al momento de corregir esto (2026-10-20), este comentario afirmaba que
+# "el runner existe y el workflow corre". Ninguna de las dos partes era
+# cierta: el runner `tase-staging` estaba registrado SIN la etiqueta
+# `staging` (su `.runner` no la contenía), y en consecuencia
+# `rehearsal-staging.yml` — que pide `[self-hosted, staging]` — llevaba
+# semanas con su job EN COLA: no corría, no fallaba, y el gate de
+# actionlint, gracias a este archivo, no daba ninguna señal.
+#
+# Es el mismo patrón que un guard que declara `verifiedBy: 'e2e'` sin que
+# exista el e2e: una declaración que afirma cobertura y no verifica nada.
+#
+# Si algún día `rehearsal-staging.yml` vuelve a quedarse en cola, la
+# primera pregunta NO es "¿el workflow está mal?" sino "¿el runner tiene
+# la etiqueta?". Y este archivo no lo responde.
 self-hosted-runner:
   labels:
     - staging
