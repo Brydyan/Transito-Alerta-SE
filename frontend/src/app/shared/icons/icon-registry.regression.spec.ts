@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync, type Dirent } from 'fs';
+import { readFileSync, readdirSync, type Dirent } from 'fs';
 import { join } from 'path';
 
 import { REGISTERED_ICON_NAMES } from './lucide-icons.registry';
@@ -137,7 +137,6 @@ describe('Guard de registro de iconos (2026-10-21)', () => {
     const used = new Set(collectUsedIcons().map((i) => i.name));
     const orphans = [...REGISTERED_ICON_NAMES].filter((n) => !used.has(n));
     if (orphans.length > 0) {
-      // eslint-disable-next-line no-console
       console.warn(
         `[iconos] ${orphans.length} registrado(s) sin uso directo en templates: ${orphans.join(', ')}. ` +
           'Puede que los use el backend vía menu-map.ts — ver el guard de contratos de menú.',
