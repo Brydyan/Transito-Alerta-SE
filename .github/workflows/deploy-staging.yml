@@ -12,7 +12,13 @@ concurrency:
 jobs:
   deploy:
     name: Build and deploy to staging
-    runs-on: self-hosted
+    # Con la etiqueta `staging`, no a secas. Este job necesita `/mnt/big`,
+    # un virtiofs del host Proxmox: sin él, `working-directory` no existe y el
+    # deploy muere en el primer paso. Otro runner self-hosted puede no
+    # tenerlo, y GitHub asignaría este job a cualquiera de los dos sin
+    # preguntar. La etiqueta convierte esa suposición en un requisito — y
+    # `rehearsal-staging.yml` ya la pedía, contra un runner que no la tenía.
+    runs-on: [self-hosted, staging]
     environment: staging
 
     # El runner es la VM de staging, no GitHub: un build colgado no lo corta
