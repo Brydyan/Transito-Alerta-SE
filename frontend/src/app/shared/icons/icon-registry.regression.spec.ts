@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from 'fs';
+import { readFileSync, readdirSync, statSync, type Dirent } from 'fs';
 import { join } from 'path';
 
 import { REGISTERED_ICON_NAMES } from './lucide-icons.registry';
@@ -78,7 +78,18 @@ function extractNames(source: string): string[] {
 }
 
 function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+  // 2026-10-21 — TS no resuelve el overload `readdirSync(dir, { withFileTypes: true })`
+  // con @types/node 26 y tsconfig estricto; la firma que prefiere es
+  // `(path): string[]` y se queda con ella aunque le pasemos el flag.
+  // Cast del binding a la sobrecarga correcta — runtime idéntico, type-only.
+  // `as unknown as` es necesario porque las firmas `(path): string[]` y
+  // `(path, opts): Dirent[]` no se solapan lo suficiente para TS.
+  const readdirWithTypes = readdirSync as unknown as (
+    path: string,
+    opts: { withFileTypes: true },
+  ) => Dirent[];
+  const entries = readdirWithTypes(dir, { withFileTypes: true });
+  for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       walk(full, out);
