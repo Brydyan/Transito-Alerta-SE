@@ -2,10 +2,20 @@ import { Component, OnDestroy, ElementRef, Output, EventEmitter, Input, ViewChil
 import * as L from 'leaflet';
 import { GeolocationService } from '../../../core/services/geolocation.service';
 
-// Canonical Leaflet icon fix for Webpack/Angular
-const iconRetinaUrl = 'assets/marker-icon-2x.png';
-const iconUrl = 'assets/marker-icon.png';
-const shadowUrl = 'assets/marker-shadow.png';
+// Canonical Leaflet icon fix for Webpack/Angular.
+//
+// 2026-10-21 — rutas ABSOLUTAS. Antes eran `assets/marker-icon.png`, que es
+// una URL RELATIVA: el navegador la resuelve contra la ruta actual, así que
+// desde `/app/incidencias/<uuid>` pedía `/app/incidencias/assets/marker-*.png`
+// y devolvía 404. Los PNG nunca faltaron —`angular.json` los copia desde
+// `node_modules/leaflet/dist/images` a `assets/`—; lo que faltaba era el
+// slash inicial para que no dependieran de dónde esté la ruta.
+//
+// El síntoma era un marcador invisible en el mapa: Leaflet no da error
+// cuando la imagen del pin falla, simplemente no dibuja nada.
+const iconRetinaUrl = '/assets/marker-icon-2x.png';
+const iconUrl = '/assets/marker-icon.png';
+const shadowUrl = '/assets/marker-shadow.png';
 const iconDefault = L.icon({
   iconRetinaUrl,
   iconUrl,

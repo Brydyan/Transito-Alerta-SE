@@ -1,0 +1,8 @@
+build:
+  docker:
+    web: Dockerfile.staging
+  config:
+    STACK: heroku-22
+
+run:
+  web: /usr/sbin/supervisord -c /etc/supervisord.conf

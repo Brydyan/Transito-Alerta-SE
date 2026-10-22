@@ -17,6 +17,6 @@ export class IncidentFollower {
     @Index()
     user: UserEntity;
 
-    @CreateDateColumn()
+    @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 }
