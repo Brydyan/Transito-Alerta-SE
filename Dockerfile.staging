@@ -112,41 +112,13 @@ http {
 EOF
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Entrypoint script: arranca backend + nginx
-# ─────────────────────────────────────────────────────────────────────────────
-COPY <<'EOF' /entrypoint.sh
-#!/bin/bash
-set -e
-
-# Backend escucha en puerto 3001 internamente
-# nginx escucha en puerto 8080 internamente
-# Heroku redirige el puerto $PORT (inyectado) a 8080
-
-echo "Starting backend..."
-node /app/dist/main.js &
-BACKEND_PID=$!
-
-echo "Starting nginx..."
-/usr/sbin/nginx -g "daemon off;" &
-NGINX_PID=$!
-
-# Esperar a que cualquiera de los dos falle
-wait -n
-echo "One process exited, stopping..."
-kill $BACKEND_PID $NGINX_PID 2>/dev/null || true
-exit 1
-EOF
-
-RUN chmod +x /entrypoint.sh
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Healthcheck
 # ─────────────────────────────────────────────────────────────────────────────
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD curl -f http://localhost:8080 || exit 1
 
-# Heroku inyecta $PORT; nginx escucha en 8080 internamente
-# El dyno publica $PORT → 8080
 EXPOSE 8080
 
-CMD ["/entrypoint.sh"]
+# Arranca backend + nginx en paralelo
+# Backend escucha 3001, nginx proxy /api y sirve frontend en 8080
+CMD ["sh", "-c", "node /app/dist/main.js & nginx -g 'daemon off;'"]
