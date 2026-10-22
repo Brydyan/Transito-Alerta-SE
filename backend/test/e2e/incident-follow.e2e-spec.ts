@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import request from 'supertest';
 
 import { TestEnvironment } from '../support/test-environment';
+import { pollForNotification } from '../support/notification-poller';
 
 /**
  * 2026-10-21 — E2E de la cadena "seguir incidencia → cambio de status →
@@ -82,39 +83,25 @@ describe('E2E follow de incidencia — cambio de status notifica al follower', (
   }
 
   /**
-   * Sesondea la tabla `notifications` con timeout. Devuelve la primera fila
-   * que matchee o `null` si pasó el plazo.
+   * 2026-10-22 — Delegado a `test/support/notification-poller.ts`.
    *
-   * El dedup de `NotificationsService.notify` (60s) NO afecta este spec:
-   * cada test hace a lo sumo UN cambio de status y la fila esperada es
-   * exactamente UNA por usuario.
+   * Este helper era local al spec. `dispatch-workflow` y
+   * `assignment-priority-coverage` tienen la misma necesidad y
+   * `assignment-priority-coverage` la tenía mal (consulta única, sin
+   * espera) — el flake del shard 1/4. Tres copias divergen; una sola
+   * con la forma correcta no.
+   *
+   * El parámetro `type` se sube del string hardcodeado para que el
+   * helper sirva a los tres canales sin que nadie edite la función.
    */
-  async function pollForNotification(
-    userId: string,
-    incidentId: string,
-    timeoutMs = 15_000,
-  ): Promise<{ id: string; type: string; message: string; data: unknown } | null> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const rows = await env.pg.query<{
-        id: string;
-        type: string;
-        message: string;
-        data: unknown;
-      }>(
-        `SELECT id, type, message, data
-           FROM notifications
-          WHERE user_id = $1
-            AND incident_id = $2
-            AND type = 'incident.status_changed'
-            AND deleted_at IS NULL`,
-        [userId, incidentId],
-      );
-      if (rows.rows[0]) return rows.rows[0];
-      await new Promise((r) => setTimeout(r, 100));
-    }
-    return null;
-  }
+  const pollFor = (userId: string, incidentId: string, expectNone = false) =>
+    pollForNotification(env.pg, {
+      userId,
+      incidentId,
+      type: 'incident.status_changed',
+      timeoutMs: expectNone ? 1_000 : undefined,
+      expectNone,
+    });
 
   it('follower recibe notification al cambiar status, reporter y assignee también', async () => {
     const orgId = await seedOrg();
@@ -180,12 +167,12 @@ describe('E2E follow de incidencia — cambio de status notifica al follower', (
       .expect(200);
 
     // El reporter es audiencia (citizen_id == reporter.userId).
-    const reporterNotif = await pollForNotification(reporter.userId, incidentId);
+    const reporterNotif = await pollFor(reporter.userId, incidentId);
     expect(reporterNotif).not.toBeNull();
     expect(reporterNotif!.message).toContain('in_progress');
 
     // El follower recibe por incident_followers.
-    const followerNotif = await pollForNotification(follower.userId, incidentId);
+    const followerNotif = await pollFor(follower.userId, incidentId);
     expect(followerNotif).not.toBeNull();
     expect(followerNotif!.message).toContain('in_progress');
 
@@ -236,12 +223,12 @@ describe('E2E follow de incidencia — cambio de status notifica al follower', (
       .expect(200);
 
     // Reporter recibe (es `citizen_id`).
-    const reporterNotif = await pollForNotification(reporter.userId, incidentId);
+    const reporterNotif = await pollFor(reporter.userId, incidentId);
     expect(reporterNotif).not.toBeNull();
 
     // Actor NO recibe: el listener filtra por `id !== actor_id`.
     // Le doy timeout completo — si llegara, sería un bug.
-    const actorNotif = await pollForNotification(actor.userId, incidentId, 1_000);
+    const actorNotif = await pollFor(actor.userId, incidentId, true);
     expect(actorNotif).toBeNull();
   });
 
@@ -311,10 +298,10 @@ describe('E2E follow de incidencia — cambio de status notifica al follower', (
 
     // Reporter sí recibe. Le doy timeout completo al follower antes de
     // afirmar — si recibiera, sería un bug del filtro.
-    const reporterNotif = await pollForNotification(reporter.userId, incidentId);
+    const reporterNotif = await pollFor(reporter.userId, incidentId);
     expect(reporterNotif).not.toBeNull();
 
-    const followerNotif = await pollForNotification(follower.userId, incidentId, 1_000);
+    const followerNotif = await pollFor(follower.userId, incidentId, true);
     expect(followerNotif).toBeNull();
   });
 });

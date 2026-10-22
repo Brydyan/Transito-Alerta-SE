@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import request from 'supertest';
 
 import { TelegramService } from '../../src/modules/telegram/telegram.service';
+import { pollForNotification } from '../support/notification-poller';
 import { TestEnvironment } from '../support/test-environment';
 
 /**
@@ -74,9 +75,17 @@ describe('E2E prioridad — admin_org asigna low y medium', () => {
    * (EventEmitter2 no es awaited; el handler se ejecuta en su propia
    * promesa). Si la condición de prioridad está mal y dispara para
    * low/medium, lo verá el `enqueueSpy` cuando se resuelva.
+   *
+   * 2026-10-22 — este `setTimeout(200)` fijo era una apuesta: la
+   * aserción que acompaña es NEGATIVA (`toEqual([])`), así que un plazo
+   * corto la hace pasar por la razón equivocada cuando el listener
+   * todavía no corrió. 2s da margen de sobra para un handler que en
+   * local tarda <5ms y en CI puede tardar cientos, sin volver el test
+   * lento cuando la guarda de prioridad funciona (que es el caso normal:
+   * el listener retorna en microsegundos y el sleep se paga entero).
    */
   async function waitForIncidentCreatedHandler(): Promise<void> {
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 2_000));
   }
 
   function enqueueCallsTo(chatId: string): Array<{ text: string }> {
@@ -155,16 +164,18 @@ describe('E2E prioridad — admin_org asigna low y medium', () => {
     );
     expect(assignments.rows[0].n).toBe(1);
 
-    const notif = await env.pg.query<{ n: number; subject: string | null }>(
-      `SELECT count(*)::int AS n, min(message) AS subject
-         FROM notifications
-        WHERE user_id = $1
-          AND type = 'incident.assigned'
-          AND incident_id = $2`,
-      [operator.userId, incidentId],
-    );
-    expect(notif.rows[0].n).toBe(1);
-    expect(notif.rows[0].subject ?? '').toContain('Bache en la avenida');
+    // 2026-10-22 — era `SELECT count(*)` de una sola vez. El listener de
+    // `incident.assigned` corre detrás de `EventEmitter2.emit()`, que no
+    // awaita: el 201 del POST arrive antes del INSERT. En local ganaba la
+    // carrera por poco; en el shard 1/4 de CI perdía y el test caía con
+    // `Expected: 1, Received: 0`. Ahora espera activa.
+    const notif = await pollForNotification(env.pg, {
+      userId: operator.userId,
+      incidentId,
+      type: 'incident.assigned',
+    });
+    expect(notif).not.toBeNull();
+    expect(notif!.message).toContain('Bache en la avenida');
   });
 
   it(`priority='medium' — admin_org asigna, operador recibe in-app, admin NO recibe Telegram de creación`, async () => {
@@ -219,15 +230,13 @@ describe('E2E prioridad — admin_org asigna low y medium', () => {
     );
     expect(assignments.rows[0].n).toBe(1);
 
-    const notif = await env.pg.query<{ n: number; subject: string | null }>(
-      `SELECT count(*)::int AS n, min(message) AS subject
-         FROM notifications
-        WHERE user_id = $1
-          AND type = 'incident.assigned'
-          AND incident_id = $2`,
-      [operator.userId, incidentId],
-    );
-    expect(notif.rows[0].n).toBe(1);
-    expect(notif.rows[0].subject ?? '').toContain('Vehículo varado');
+    // Misma espera activa que el test de `low` (ver el comentario allá).
+    const notif = await pollForNotification(env.pg, {
+      userId: operator.userId,
+      incidentId,
+      type: 'incident.assigned',
+    });
+    expect(notif).not.toBeNull();
+    expect(notif!.message).toContain('Vehículo varado');
   });
 });
