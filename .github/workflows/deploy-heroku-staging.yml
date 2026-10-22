@@ -20,17 +20,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for migrations
+          fetch-depth: 0
 
       - name: Deploy to Heroku
-        uses: akhileshns/heroku-deploy@v3.14.0
-        with:
-          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-          heroku_app_name: "tase-staging"
-          heroku_email: ${{ secrets.HEROKU_EMAIL }}
-          usedocker: true
-          docker_heroku_process_type: web
-          appdir: "."
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: tase-staging
+        run: |
+          git remote add heroku "https://git.heroku.com/${HEROKU_APP_NAME}.git" || true
+          git push "https://oauth:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git" develop:main
+          echo "✅ Deploy triggered"
 
       - name: Verify deployment
         env:
