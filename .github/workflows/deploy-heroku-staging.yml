@@ -1,0 +1,67 @@
+name: Deploy — Heroku Staging
+
+# Despliega a Heroku en cada push a develop
+# Reemplaza el viejo `deploy-staging.yml` (Proxmox self-hosted runner)
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: deploy-heroku-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to Heroku
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for migrations
+
+      - name: Deploy to Heroku
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: tase-staging
+        run: |
+          # Install Heroku CLI
+          curl https://cli-assets.heroku.com/install.sh | sh
+
+          # Login to Heroku
+          heroku auth:token
+
+          # Add Heroku remote
+          heroku git:remote -a "$HEROKU_APP_NAME" --exit-code || true
+
+          # Push to Heroku (triggers build + deploy)
+          git push heroku develop:main
+
+          echo "✅ Heroku deploy triggered"
+
+      - name: Verify deployment
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: tase-staging
+        run: |
+          # Wait for dyno to be ready
+          echo "Waiting for app to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf "https://${HEROKU_APP_NAME}.herokuapp.com/api/health" > /dev/null 2>&1; then
+              echo "✅ App is healthy"
+              exit 0
+            fi
+            echo "Attempt ${i}/30 — waiting 3s..."
+            sleep 3
+          done
+
+          echo "⚠️  App health check timeout (may still be starting)"
+          exit 0
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Heroku deployment failed"
+          echo "Check logs: heroku logs --tail -a tase-staging"

@@ -1,0 +1,160 @@
+# Dockerfile.staging — Backend + Frontend en un contenedor para Heroku staging
+#
+# Compila:
+# 1. Backend NestJS (dist/backend)
+# 2. Frontend Angular (dist/browser)
+#
+# Ejecuta:
+# - Backend en puerto 3001 (node)
+# - Frontend en puerto 8080 (nginx)
+# - supervisord orquesta ambos procesos
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE 1: Backend Build
+# ══════════════════════════════════════════════════════════════════════════════
+FROM node:22-alpine AS backend-build
+WORKDIR /app
+RUN corepack enable
+
+# Instalar dependencias backend
+COPY backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
+RUN CI=true pnpm install --frozen-lockfile
+
+# Construir backend
+WORKDIR /app/backend
+COPY --from=backend-build /app/node_modules /app/backend/node_modules
+COPY backend/ /app/backend/
+COPY database/seeds/lib /app/database/seeds/lib
+RUN CI=true pnpm run build
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE 2: Frontend Build
+# ══════════════════════════════════════════════════════════════════════════════
+FROM node:22-alpine AS frontend-build
+WORKDIR /app
+RUN corepack enable
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN CI=true pnpm install --frozen-lockfile
+
+COPY . .
+# Build Angular for production
+RUN CI=true pnpm run build --project=frontend
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE 3: Runtime — Backend + nginx + supervisord
+# ══════════════════════════════════════════════════════════════════════════════
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Instalar supervisord + nginx
+RUN apk add --no-cache supervisor nginx bash
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Backend setup
+# ─────────────────────────────────────────────────────────────────────────────
+COPY backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
+RUN corepack enable && \
+    chown nobody:nobody /app && \
+    cd /app && \
+    CI=true pnpm install --frozen-lockfile --prod
+
+# Copy backend dist
+COPY --from=backend-build /app/backend/dist /app/dist
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Frontend setup (nginx)
+# ─────────────────────────────────────────────────────────────────────────────
+COPY --from=frontend-build /app/dist/browser /usr/share/nginx/html
+
+# nginx config: serve frontend + proxy /api to backend
+COPY <<'EOF' /etc/nginx/nginx.conf
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log /var/log/nginx/access.log main;
+    sendfile on;
+    tcp_nopush on;
+    keepalive_timeout 65;
+    gzip on;
+
+    server {
+        listen 8080;
+        server_name _;
+
+        # Frontend: Angular SPA (fallback a index.html)
+        location / {
+            root /usr/share/nginx/html;
+            index index.html index.htm;
+            try_files $uri $uri/ /index.html;
+        }
+
+        # Backend API proxy
+        location /api {
+            proxy_pass http://localhost:3001;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}
+EOF
+
+# ─────────────────────────────────────────────────────────────────────────────
+# supervisord config
+# ─────────────────────────────────────────────────────────────────────────────
+COPY <<'EOF' /etc/supervisord.conf
+[supervisord]
+nodaemon=true
+user=nobody
+logfile=/var/log/supervisord.log
+pidfile=/var/run/supervisord.pid
+
+[program:backend]
+command=node /app/dist/main.js
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+autostart=true
+autorestart=true
+startsecs=10
+stopasgroup=true
+
+[program:nginx]
+command=/usr/sbin/nginx -g "daemon off;"
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+autostart=true
+autorestart=true
+stopasgroup=true
+EOF
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Healthcheck
+# ─────────────────────────────────────────────────────────────────────────────
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD wget -qO- http://localhost:8080 || exit 1
+
+EXPOSE 8080
+
+# Start supervisord (manages both backend + nginx)
+CMD ["/usr/sbin/supervisord", "-c", "/etc/supervisord.conf"]
