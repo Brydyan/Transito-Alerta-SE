@@ -23,30 +23,19 @@ jobs:
           fetch-depth: 0  # Full history for migrations
 
       - name: Deploy to Heroku
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-          HEROKU_APP_NAME: tase-staging
-        run: |
-          # Install Heroku CLI
-          curl https://cli-assets.heroku.com/install.sh | sh
-
-          # Login to Heroku
-          heroku auth:token
-
-          # Add Heroku remote
-          heroku git:remote -a "$HEROKU_APP_NAME" --exit-code || true
-
-          # Push to Heroku (triggers build + deploy)
-          git push heroku develop:main
-
-          echo "✅ Heroku deploy triggered"
+        uses: akhileshns/heroku-deploy@v3.14.0
+        with:
+          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+          heroku_app_name: "tase-staging"
+          heroku_email: ${{ secrets.HEROKU_EMAIL }}
+          usedocker: true
+          docker_heroku_process_type: web
+          appdir: "."
 
       - name: Verify deployment
         env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
           HEROKU_APP_NAME: tase-staging
         run: |
-          # Wait for dyno to be ready
           echo "Waiting for app to be ready..."
           for i in $(seq 1 30); do
             if curl -sf "https://${HEROKU_APP_NAME}.herokuapp.com/api/health" > /dev/null 2>&1; then
@@ -64,4 +53,4 @@ jobs:
         if: failure()
         run: |
           echo "❌ Heroku deployment failed"
-          echo "Check logs: heroku logs --tail -a tase-staging"
+          echo "Check logs: https://dashboard.heroku.com/apps/tase-staging/logs"
