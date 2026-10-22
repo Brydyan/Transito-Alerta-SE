@@ -5,25 +5,25 @@
 # 2. Frontend Angular (dist/browser)
 #
 # Ejecuta:
-# - Backend en puerto 3001 (node)
+# - Backend en $PORT (inyectado por Heroku)
 # - Frontend en puerto 8080 (nginx)
-# - supervisord orquesta ambos procesos
+# - Un script inicia ambos procesos
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STAGE 1: Backend Build
+# STAGE 1: Backend Dependencies + Build
 # ══════════════════════════════════════════════════════════════════════════════
-FROM node:22-alpine AS backend-build
+FROM node:22-alpine AS backend-deps
 WORKDIR /app
 RUN corepack enable
-
-# Instalar dependencias backend
 COPY backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
 RUN CI=true pnpm install --frozen-lockfile
 
-# Construir backend
-WORKDIR /app/backend
-COPY --from=backend-build /app/node_modules /app/backend/node_modules
-COPY backend/ /app/backend/
+FROM node:22-alpine AS backend-build
+WORKDIR /app
+RUN corepack enable
+COPY backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
+COPY --from=backend-deps /app/node_modules ./node_modules
+COPY backend/ ./
 COPY database/seeds/lib /app/database/seeds/lib
 RUN CI=true pnpm run build
 
@@ -33,35 +33,29 @@ RUN CI=true pnpm run build
 FROM node:22-alpine AS frontend-build
 WORKDIR /app
 RUN corepack enable
-
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN CI=true pnpm install --frozen-lockfile
-
 COPY . .
-# Build Angular for production
 RUN CI=true pnpm run build --project=frontend
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STAGE 3: Runtime — Backend + nginx + supervisord
+# STAGE 3: Runtime — Backend + nginx
 # ══════════════════════════════════════════════════════════════════════════════
 FROM node:22-alpine
 
 WORKDIR /app
 
-# Instalar supervisord + nginx
-RUN apk add --no-cache supervisor nginx bash
+# Instalar nginx + bash (sin supervisord)
+RUN apk add --no-cache nginx bash curl
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Backend setup
 # ─────────────────────────────────────────────────────────────────────────────
 COPY backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
 RUN corepack enable && \
-    chown nobody:nobody /app && \
-    cd /app && \
     CI=true pnpm install --frozen-lockfile --prod
 
-# Copy backend dist
-COPY --from=backend-build /app/backend/dist /app/dist
+COPY --from=backend-build /app/dist ./dist
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Frontend setup (nginx)
@@ -69,6 +63,7 @@ COPY --from=backend-build /app/backend/dist /app/dist
 COPY --from=frontend-build /app/dist/browser /usr/share/nginx/html
 
 # nginx config: serve frontend + proxy /api to backend
+RUN mkdir -p /etc/nginx/conf.d
 COPY <<'EOF' /etc/nginx/nginx.conf
 user nginx;
 worker_processes auto;
@@ -104,7 +99,7 @@ http {
             try_files $uri $uri/ /index.html;
         }
 
-        # Backend API proxy
+        # Backend API proxy (backend escucha en 3001 internamente)
         location /api {
             proxy_pass http://localhost:3001;
             proxy_set_header Host $host;
@@ -117,44 +112,41 @@ http {
 EOF
 
 # ─────────────────────────────────────────────────────────────────────────────
-# supervisord config
+# Entrypoint script: arranca backend + nginx
 # ─────────────────────────────────────────────────────────────────────────────
-COPY <<'EOF' /etc/supervisord.conf
-[supervisord]
-nodaemon=true
-user=nobody
-logfile=/var/log/supervisord.log
-pidfile=/var/run/supervisord.pid
+COPY <<'EOF' /entrypoint.sh
+#!/bin/bash
+set -e
 
-[program:backend]
-command=node /app/dist/main.js
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-autostart=true
-autorestart=true
-startsecs=10
-stopasgroup=true
+# Backend escucha en puerto 3001 internamente
+# nginx escucha en puerto 8080 internamente
+# Heroku redirige el puerto $PORT (inyectado) a 8080
 
-[program:nginx]
-command=/usr/sbin/nginx -g "daemon off;"
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-autostart=true
-autorestart=true
-stopasgroup=true
+echo "Starting backend..."
+node /app/dist/main.js &
+BACKEND_PID=$!
+
+echo "Starting nginx..."
+/usr/sbin/nginx -g "daemon off;" &
+NGINX_PID=$!
+
+# Esperar a que cualquiera de los dos falle
+wait -n
+echo "One process exited, stopping..."
+kill $BACKEND_PID $NGINX_PID 2>/dev/null || true
+exit 1
 EOF
+
+RUN chmod +x /entrypoint.sh
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Healthcheck
 # ─────────────────────────────────────────────────────────────────────────────
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD wget -qO- http://localhost:8080 || exit 1
+    CMD curl -f http://localhost:8080 || exit 1
 
+# Heroku inyecta $PORT; nginx escucha en 8080 internamente
+# El dyno publica $PORT → 8080
 EXPOSE 8080
 
-# Start supervisord (manages both backend + nginx)
-CMD ["/usr/sbin/supervisord", "-c", "/etc/supervisord.conf"]
+CMD ["/entrypoint.sh"]
