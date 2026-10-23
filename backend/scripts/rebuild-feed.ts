@@ -39,7 +39,7 @@ import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from '../src/app.module';
 import { FeedRecoveryService } from '../src/modules/incidents/feed-recovery.service';
-import { enforce } from '../../database/seeds/lib/guard';
+import { enforce } from '../../database/seeds/lib/guard.js';
 
 interface CliOptions {
   limit: number;
