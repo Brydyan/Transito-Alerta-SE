@@ -20,18 +20,18 @@ describe('E2E T7.9.B notification permissions (0039)', () => {
 
   const STAFF_ROLES = [
     'master',
-    'operador_sistema',
+    'agent_system',
     'admin_org',
-    'operador_org',
+    'operator_org',
   ];
 
-  // Applies through 0040, not 0039: the grants in 0039 are written against the
-  // pre-rename role names, and 0040_rename_roles is what turns them into the
-  // `master` / `admin_org` / `operador_org` this suite asserts on. A rename
+  // Applies through 0023, not 0039: the grants in 0039 are written against the
+  // pre-rename role names, and 0023_t7_data_migrations is what turns them into the
+  // `master` / `admin_org` / `operator_org` this suite asserts on. A rename
   // does not touch the `permissions` JSONB, so the grants travel with the row.
   beforeAll(async () => {
     h = await MigrationHarness.start();
-    await h.applyRange({ to: '0040' });
+    await h.applyRange({ to: '0023' });
   }, 120_000);
 
   afterAll(async () => {
@@ -80,8 +80,8 @@ describe('E2E T7.9.B notification permissions (0039)', () => {
   // The guard itself is covered against the pre-rename state in the migration
   // harness range applied by `beforeAll`.
   it('R20.3: re-applying 0039 does not duplicate the catalog rows or the JSONB grants', async () => {
-    await h.applyVersion('0039');
-    await h.applyVersion('0039');
+    await h.applyVersion('0009');
+    await h.applyVersion('0009');
 
     const catalogRows = await h.rows<{ count: string }>(
       `SELECT COUNT(*)::int AS count FROM permissions WHERE resource = 'notifications'`,

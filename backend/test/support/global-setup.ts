@@ -8,10 +8,10 @@ import { applyMigrations } from './run-migrations';
 export const E2E_SHARED_ENV_FILE = path.join(os.tmpdir(), 'tase-e2e-shared.json');
 
 export default async function globalSetup(): Promise<void> {
-  // Prevent Ryuk from killing containers while Jest workers are running.
-  // globalSetup and globalTeardown run in the same main Jest process, so
-  // container references in `global` survive across the full test run.
-  process.env.TESTCONTAINERS_RYUK_DISABLED = 'true';
+  // Do NOT disable Ryuk. globalSetup and globalTeardown run in the same main
+  // Jest process; Ryuk only reaps containers when that process exits, which
+  // happens after globalTeardown has already stopped them. Disabling Ryuk
+  // causes containers to leak on interrupted runs (Ctrl-C, crash).
 
   const postgresContainer = await new GenericContainer('postgis/postgis:16-3.4')
     .withExposedPorts(5432)

@@ -10,10 +10,10 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionGuard } from '../../common/guards/permission.guard';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
 import { UpdateLocationDto } from './dto/update-location.dto';
 import { DashboardQueryDto } from './dto/dashboard-query.dto';
 import { OPERATOR_PING_ROLES, OPERATOR_QUERY_ROLES } from './operator-role.constants';

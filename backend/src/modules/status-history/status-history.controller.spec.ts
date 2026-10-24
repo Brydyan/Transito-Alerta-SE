@@ -1,8 +1,8 @@
 import { Reflector } from '@nestjs/core';
 
-import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
-import { SubjectScope } from '../../common/authz/subject-scope';
+import { REQUIRE_PERMISSION_KEY } from '../../shared/decorators/require-permission.decorator';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
+import { SubjectScope } from '../../shared/authz/subject-scope';
 import { StatusHistoryController } from './status-history.controller';
 import { StatusHistoryService } from './status-history.service';
 

@@ -10,7 +10,7 @@ describe('F4 - Migration 0054 (Citizen Social Features)', () => {
     // originally 0049, renumbered due to conflict). The base is 0048: the
     // migrations between 0048 and 0054 (0049/0050/0051/0052/0053) are applied
     // before testing 0054.
-    await db.applyRange({ to: '0053' });
+    await db.applyRange({ to: '0026' });
   }, 180_000);
 
   afterAll(async () => {
@@ -19,7 +19,7 @@ describe('F4 - Migration 0054 (Citizen Social Features)', () => {
 
   it('A.1.8 - on a base with pre-existing users, their users.permissions contains the new permissions (as UUIDs)', async () => {
     // 1. Insert a role if needed, or get one.
-    const roles = await db.rows<{ id: string; name: string; permissions: string[] }>('SELECT * FROM roles WHERE name = $1', ['operador_sistema']);
+    const roles = await db.rows<{ id: string; name: string; permissions: string[] }>('SELECT * FROM roles WHERE name = $1', ['agent_system']);
     expect(roles.length).toBeGreaterThan(0);
     const roleId = roles[0].id;
 
@@ -34,7 +34,7 @@ describe('F4 - Migration 0054 (Citizen Social Features)', () => {
     await db.client.query('UPDATE users SET permissions = $1::jsonb, permission_version = 1 WHERE id = $2', [JSON.stringify(roles[0].permissions), userId]);
 
     // 4. Apply 0054 — this migration inserts the new permission catalog rows
-    await db.applyVersion('0054');
+    await db.applyVersion('0027');
 
     // 5. Verify that the new permission rows were inserted by 0054
     const expectedPerms = await db.rows<{ id: string }>(`

@@ -235,44 +235,80 @@ si se envía email al usuario tras la creación.
 
 ### Requirement: Geographic Location Fields (OUT OF SCOPE F7)
 
-El sistema MUST renderizar los inputs de "Cantón / Parroquia
-Asignada" y "Zona / Sector Operativo" según el mock, pero
-**deshabilitados** hasta F7.
+The system MUST render the "Cantón / Parroquia Asignada" select populated
+from `GeoZoneService.getFormData().parents` and allow the admin to optionally
+pick one geo zone. The "Zona / Sector Operativo" text input MUST remain
+disabled (different concept, future scope).
 
-#### Scenario: Inputs de geolocalización deshabilitados
+(Reason: Promote from F7 to F6: "Cantón / Parroquia Asignada" (Geo Zone Assignment) is now enabled and functional; "Zona / Sector Operativo" remains disabled.)
 
-- **GIVEN** la pantalla está cargada
-- **WHEN** el admin intenta interactuar con los inputs de cantón /
-  parroquia / zona
-- **THEN** los inputs están deshabilitados (atributo `disabled`,
-  estilo visual atenuado)
-- **AND** aparece tooltip al hover: "Disponible en F7"
+#### Scenario: Geo zone dropdown loads on form open
 
----
+- GIVEN the admin navigates to `/app/admin/usuarios/new`
+- WHEN the form finishes initializing
+- THEN `GET /api/geo-zones/form-data` is called
+- AND the "Cantón / Parroquia Asignada" select is enabled and populated with
+  the returned parent geo zones (`{ id, name, code, level }`)
+- AND the "Zona / Sector Operativo" input remains disabled
+
+#### Scenario: Admin selects a geo zone
+
+- GIVEN the "Cantón / Parroquia Asignada" dropdown has entries loaded
+- WHEN the admin selects one entry (e.g. "Quito")
+- THEN the form state reflects `geoZoneId = <selected-uuid>`
+- AND the selected entry is visually highlighted in the dropdown
+
+#### Scenario: Admin leaves geo zone unselected
+
+- GIVEN the dropdown is shown with the default placeholder
+- WHEN the admin submits the form without selecting a geo zone
+- THEN the form submits with `geo_zone_id: null` in the payload
+- AND no validation error is shown (field is optional)
+
+#### Scenario: Geo zone list fails to load
+
+- GIVEN `GET /api/geo-zones/form-data` returns 5xx
+- WHEN the form finishes initializing
+- THEN the "Cantón / Parroquia Asignada" select remains empty
+- AND form submission is NOT blocked (geo zone is optional)
+- AND an inline warning MAY be shown on the geo zone section
+
+#### Scenario: Zona / Sector Operativo stays disabled
+
+- GIVEN the form is fully loaded including a populated geo zone dropdown
+- WHEN the admin interacts with the "Zona / Sector Operativo" input
+- THEN the input is disabled (no interaction is possible)
 
 ### Requirement: Initial Status and Notification Channel (FIXED)
 
-El sistema MUST mostrar los dropdowns "Estado inicial" y "Canal
-de notificaciones preferido" según el mock, con un único valor
-visible y deshabilitado.
+The new-user form MUST render the account status section with the label
+"Cuenta" (previously "Estado inicial"). The select inside this section MUST
+remain disabled and display the fixed value "Activo". No behavioral change
+is introduced by this rename.
 
-#### Scenario: Estado inicial fijo en Activo
+(Previously: The section label read "Estado inicial".)
 
-- **GIVEN** la pantalla está cargada
-- **WHEN** el admin observa el dropdown "Estado inicial"
-- **THEN** muestra "Activo" como único valor
-- **AND** el dropdown está deshabilitado
+#### Scenario: Admin opens new user form — label reads "Cuenta"
 
-#### Scenario: Canal fijo en Correo Electrónico
+- GIVEN a user with any admin-capable role navigates to `/app/admin/usuarios/new`
+- WHEN the form finishes rendering
+- THEN the account status section label reads "Cuenta"
+- AND the label "Estado inicial" is NOT present anywhere in the form
 
-- **GIVEN** la pantalla está cargada
-- **WHEN** el admin observa el dropdown "Canal de notificaciones
-  preferido"
-- **THEN** muestra "Correo Electrónico" como único valor
-- **AND** el dropdown está deshabilitado
+#### Scenario: Account status select remains disabled and shows Activo
 
----
+- GIVEN the new-user form is fully loaded
+- WHEN the admin observes the account status select inside the "Cuenta" section
+- THEN the select displays "Activo" as its value
+- AND the select is disabled (not interactive)
+- AND no other values are selectable
 
+#### Scenario: Canal fijo en Correo Electrónico (unchanged)
+
+- GIVEN the new-user form is fully loaded
+- WHEN the admin observes the "Canal de notificaciones preferido" dropdown
+- THEN it displays "Correo Electrónico" as its value
+- AND the dropdown is disabled
 ### Requirement: Form Submission and Success State
 
 El sistema MUST enviar `POST /api/users` con todos los datos y,
@@ -348,6 +384,71 @@ clickear "Cancelar" o la `×`.
 > sin confirmación.
 
 ---
+
+### Requirement: Geo Zone Included in Create User Payload
+
+The system MUST include `geo_zone_id` in the `POST /api/users` payload when
+a geo zone is selected, and MUST send `geo_zone_id: null` (or omit the field)
+when no geo zone is selected.
+
+#### Scenario: Payload includes geo_zone_id when selected
+
+- GIVEN the admin has filled all required fields and selected a geo zone
+- WHEN the admin clicks "Guardar Usuario"
+- THEN `POST /api/users` is called with `geo_zone_id: "<uuid>"` in the body
+- AND the server returns 201
+- AND the user is created with that geo zone assigned
+
+#### Scenario: Payload omits or nulls geo_zone_id when not selected
+
+- GIVEN the admin has filled all required fields and left geo zone unselected
+- WHEN the admin clicks "Guardar Usuario"
+- THEN `POST /api/users` is called with `geo_zone_id: null` or without the field
+- AND the server returns 201
+- AND the user is created with `geo_zone_id = NULL`
+### Requirement: Account Status Toggle in User Edit Form (Master-Only)
+
+The user edit form MUST render a "Cuenta" section containing an
+active/inactive toggle when the authenticated user has the `master` role.
+The section MUST NOT be visible to non-master roles. Toggling to inactive
+MUST trigger a confirmation dialog before the PATCH is sent.
+
+#### Scenario: Master opens edit form and sees Cuenta section
+
+- GIVEN a master-role user is authenticated
+- WHEN the master opens the edit form for any staff user
+- THEN a "Cuenta" section is visible in the form
+- AND the section contains a toggle that reflects the target user's current `is_active` value
+
+#### Scenario: Master toggles user to inactive — confirmation dialog appears
+
+- GIVEN the master has the edit form open for an active user (`is_active = true`)
+- WHEN the master switches the toggle to inactive
+- THEN a confirmation dialog appears
+- AND the dialog text warns that active sessions will be invalidated
+- AND no PATCH request is sent yet
+
+#### Scenario: Master confirms deactivation
+
+- GIVEN the confirmation dialog is open
+- WHEN the master clicks the confirm action
+- THEN `PATCH /api/users/:id` is sent with body `{ "is_active": false }`
+- AND the form reflects the user as inactive after a successful 200 response
+
+#### Scenario: Master cancels deactivation
+
+- GIVEN the confirmation dialog is open
+- WHEN the master clicks the cancel action
+- THEN the dialog closes
+- AND no PATCH request is sent
+- AND the toggle reverts to its previous state (active)
+
+#### Scenario: Non-master opens edit form — Cuenta section not visible
+
+- GIVEN a user with a role other than `master` (e.g. `admin_org`) is authenticated
+- WHEN that user opens the edit form for another user
+- THEN the "Cuenta" section is NOT rendered in the form
+- AND no is_active toggle is visible
 
 ## Out of Scope (F7+)
 

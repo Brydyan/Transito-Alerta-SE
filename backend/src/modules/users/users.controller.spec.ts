@@ -1,9 +1,11 @@
+import { ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { TelegramLinkService } from '../telegram/telegram-link.service';
 import { UploadedFile } from './avatar-storage.service';
-import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { REQUIRE_PERMISSION_KEY } from '../../shared/decorators/require-permission.decorator';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 
 const GLOBAL_SCOPE = { kind: 'global' as const };
 
@@ -16,6 +18,14 @@ describe('UsersController', () => {
     updateOrganization: jest.Mock;
     getSessionsForSelf: jest.Mock;
     getSessionsForUser: jest.Mock;
+    // 2026-10-16 — admin-side Telegram link regeneration
+    // (POST /users/:id/telegram-link). Typed as `jest.Mock` so the
+    // `mockResolvedValueOnce(...)` call type-checks.
+    adminGenerateTelegramLink: jest.Mock;
+  };
+  let telegramLinkService: {
+    issueFor: jest.Mock;
+    composeDeepLink: jest.Mock;
   };
   let controller: UsersController;
 
@@ -28,8 +38,19 @@ describe('UsersController', () => {
       updateOrganization: jest.fn(),
       getSessionsForSelf: jest.fn(),
       getSessionsForUser: jest.fn(),
+      // 2026-10-16 — admin-side Telegram link regeneration
+      // (POST /users/:id/telegram-link). The controller delegates;
+      // the service owns 404/403/reporter checks.
+      adminGenerateTelegramLink: jest.fn(),
     };
-    controller = new UsersController(service as unknown as UsersService);
+    telegramLinkService = {
+      issueFor: jest.fn(),
+      composeDeepLink: jest.fn(),
+    };
+    controller = new UsersController(
+      service as unknown as UsersService,
+      telegramLinkService as unknown as TelegramLinkService,
+    );
   });
 
   it('GET / (list) requires READ users', () => {
@@ -77,7 +98,44 @@ describe('UsersController', () => {
 
     await controller.list(req, '2', '50');
 
-    expect(service.list).toHaveBeenCalledWith(2, 50, GLOBAL_SCOPE, 'u1');
+    expect(service.list).toHaveBeenCalledWith(2, 50, GLOBAL_SCOPE, 'u1', undefined);
+  });
+
+  // 2026-10-16 — toggle "mostrar inactivos".
+  it('GET / with active=false forwards activeOnly=false to the service', async () => {
+    service.list.mockResolvedValue({ items: [], total: 0 });
+    const req = {
+      user: { userId: 'u1', permissions: [], scope: GLOBAL_SCOPE },
+    } as unknown as AuthenticatedRequest;
+
+    await controller.list(req, undefined, undefined, 'false');
+
+    expect(service.list).toHaveBeenCalledWith(undefined, undefined, GLOBAL_SCOPE, 'u1', false);
+  });
+
+  it('GET / with active=true forwards activeOnly=true to the service', async () => {
+    service.list.mockResolvedValue({ items: [], total: 0 });
+    const req = {
+      user: { userId: 'u1', permissions: [], scope: GLOBAL_SCOPE },
+    } as unknown as AuthenticatedRequest;
+
+    await controller.list(req, undefined, undefined, 'true');
+
+    expect(service.list).toHaveBeenCalledWith(undefined, undefined, GLOBAL_SCOPE, 'u1', true);
+  });
+
+  it('GET / with unknown active value forwards undefined (defensive)', async () => {
+    service.list.mockResolvedValue({ items: [], total: 0 });
+    const req = {
+      user: { userId: 'u1', permissions: [], scope: GLOBAL_SCOPE },
+    } as unknown as AuthenticatedRequest;
+
+    await controller.list(req, undefined, undefined, 'foo');
+
+    // `active === 'foo'` does not match 'true' or 'false' → undefined
+    // → service sees activeOnly=undefined → no extra filter beyond
+    // the historical `isActive: true` baseline.
+    expect(service.list).toHaveBeenCalledWith(undefined, undefined, GLOBAL_SCOPE, 'u1', undefined);
   });
 
   it('PATCH /:id/organization requires UPDATE users', () => {
@@ -99,6 +157,55 @@ describe('UsersController', () => {
 
     expect(service.updateOrganization).toHaveBeenCalledWith(actor, 'target-1', 'org-A');
     expect(result).toEqual({ id: 'target-1', organizationId: 'org-A' });
+  });
+
+  describe('POST /me/telegram-link — D3 endpoint', () => {
+    it('staff user (admin_org) returns { telegram_link }', async () => {
+      telegramLinkService.issueFor.mockResolvedValue('tok123');
+      telegramLinkService.composeDeepLink.mockReturnValue('https://t.me/bot?start=tok123');
+      const req = {
+        user: { userId: 'u-staff', roleName: 'admin_org', permissions: [], scope: GLOBAL_SCOPE },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.generateTelegramLink(req);
+
+      expect(telegramLinkService.issueFor).toHaveBeenCalledWith('u-staff');
+      expect(telegramLinkService.composeDeepLink).toHaveBeenCalledWith('tok123');
+      expect(result).toEqual({ telegram_link: 'https://t.me/bot?start=tok123' });
+    });
+
+    it('reporter role throws ForbiddenException (403)', async () => {
+      const req = {
+        user: { userId: 'u-reporter', roleName: 'reporter', permissions: [], scope: GLOBAL_SCOPE },
+      } as unknown as AuthenticatedRequest;
+
+      await expect(controller.generateTelegramLink(req)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(telegramLinkService.issueFor).not.toHaveBeenCalled();
+    });
+
+    it('master role is allowed (staff check only blocks reporter)', async () => {
+      telegramLinkService.issueFor.mockResolvedValue('tok-master');
+      telegramLinkService.composeDeepLink.mockReturnValue('https://t.me/bot?start=tok-master');
+      const req = {
+        user: { userId: 'u-master', roleName: 'master', permissions: [], scope: GLOBAL_SCOPE },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.generateTelegramLink(req);
+
+      expect(result).toEqual({ telegram_link: 'https://t.me/bot?start=tok-master' });
+    });
+
+    it('null composeDeepLink returns telegram_link: null', async () => {
+      telegramLinkService.issueFor.mockResolvedValue('tok-no-bot');
+      telegramLinkService.composeDeepLink.mockReturnValue(null);
+      const req = {
+        user: { userId: 'u-admin', roleName: 'admin_org', permissions: [], scope: GLOBAL_SCOPE },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.generateTelegramLink(req);
+
+      expect(result).toEqual({ telegram_link: null });
+    });
   });
 
   describe('T3.9 — session listing routes', () => {
@@ -134,4 +241,51 @@ describe('UsersController', () => {
       expect(result).toEqual([]);
     });
   });
+
+  // 2026-10-16 — adminGenerateTelegramLink() (POST
+  // /users/:id/telegram-link). The controller delegates to
+  // `usersService.adminGenerateTelegramLink(req.user!, id)` — the
+  // 404 / 403 paths live in the service, so the controller-level
+  // spec just verifies the wiring (delegate + shape).
+  describe('POST /:id/telegram-link — admin regeneration (2026-10-16)', () => {
+    it('delegates to usersService.adminGenerateTelegramLink with the caller and target id', async () => {
+      service.adminGenerateTelegramLink.mockResolvedValueOnce({
+        telegram_link: 'https://t.me/bot?start=tok-admin',
+      });
+      const actor = {
+        userId: 'admin-1', roleName: 'master', permissions: [], scope: GLOBAL_SCOPE,
+      };
+      const req = { user: actor } as unknown as AuthenticatedRequest;
+
+      const result = await controller.adminGenerateTelegramLink('target-1', req);
+
+      expect(service.adminGenerateTelegramLink).toHaveBeenCalledWith(actor, 'target-1');
+      expect(result).toEqual({ telegram_link: 'https://t.me/bot?start=tok-admin' });
+    });
+
+    it('propagates null telegram_link (TELEGRAM_BOT_USERNAME unset) without 500', async () => {
+      service.adminGenerateTelegramLink.mockResolvedValueOnce({ telegram_link: null });
+      const req = {
+        user: { userId: 'admin-1', roleName: 'master', permissions: [], scope: GLOBAL_SCOPE },
+      } as unknown as AuthenticatedRequest;
+
+      const result = await controller.adminGenerateTelegramLink('target-1', req);
+
+      expect(result).toEqual({ telegram_link: null });
+    });
+
+    // Gap 3 (2026-10-16) — el endpoint está protegido por
+    // `@RequirePermission('UPDATE', 'users')`. La metadata la lee
+    // el `PermissionGuard` para autorizar la acción. Sin este
+    // chequeo, un cambio de wiring en el controller podría
+    // desproteger la ruta silenciosamente.
+    it('has @RequirePermission("UPDATE", "users") metadata', () => {
+      const metadata = Reflect.getMetadata(
+        REQUIRE_PERMISSION_KEY,
+        UsersController.prototype.adminGenerateTelegramLink,
+      );
+      expect(metadata).toEqual({ action: 'UPDATE', resource: 'users' });
+    });
+  });
+
 });

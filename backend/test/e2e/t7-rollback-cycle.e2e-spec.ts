@@ -1,16 +1,16 @@
 /**
- * T8 D8.2 — Migration up/down cycle against the 41 real files.
+ * T8 D8.2 — Migration up/down cycle against the 31 real files.
  *
  * Change: `2026-08-26-t8-database-cutover`. Capability: `verification`.
  * Spec:   `openspec/changes/2026-08-26-t8-database-cutover/specs/verification/spec.md`
  *         (R36, R37).
  *
- * The T7.1 spec rolled back against 29 files; T7.9 (geography +
- * organizations seed) added 12 more. This spec enumerates the files
+ * The T7.1 spec rolled back against 20 files; T7.9 (geography +
+ * organizations seed) added 11 more. This spec enumerates the files
  * straight from disk via `fs.readdirSync`, so new migrations are picked
  * up automatically and a missing DOWN file fails the spec.
  *
- * Profile: `test:e2e:cutover`. The 41-cycle walk (R37.2) takes minutes;
+ * Profile: `test:e2e:cutover`. The 31-cycle walk (R37.2) takes minutes;
  * the PR pipeline is not the place.
  */
 import { execFileSync } from 'child_process';
@@ -48,7 +48,7 @@ interface SchemaSnapshot {
   indexes: Array<{ tablename: string; indexname: string }>;
 }
 
-describe('E2E T8 D8.2 migration up/down cycle (41 files)', () => {
+describe('E2E T8 D8.2 migration up/down cycle (31 files)', () => {
   let pgContainer: StartedTestContainer;
   let adminClient: Client;
   // Each spec file in this profile boots its own container to avoid
@@ -81,11 +81,11 @@ describe('E2E T8 D8.2 migration up/down cycle (41 files)', () => {
   // ───── R36.2 — Each migration has a DOWN homónimo ─────────────────────
 
   describe('R36.2 — every UP file has a DOWN homonym', () => {
-    it('41+ UP files exist in database/migrations/', () => {
+    it('31+ UP files exist in database/migrations/', () => {
       const ups = readdirSync(MIGRATIONS_DIR)
         .filter((f) => MIGRATION_FILE_RE.test(f))
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-      expect(ups.length).toBeGreaterThanOrEqual(41);
+      expect(ups.length).toBeGreaterThanOrEqual(31);
     });
 
     it('every UP file has a matching database/rollback/<version>_<name>.DOWN.sql', () => {
@@ -126,7 +126,7 @@ describe('E2E T8 D8.2 migration up/down cycle (41 files)', () => {
 
   // ───── R36.1 — Full cycle leaves an empty schema ─────────────────────
 
-  describe('R36.1 — applying 0001..0041 then rolling back 0041..0001 leaves an empty domain', () => {
+  describe('R36.1 — applying 0001..0031 then rolling back 0031..0001 leaves an empty domain', () => {
     it('end-to-end cycle ends with no public-schema tables, functions or triggers', async () => {
       // Use a throwaway database so the adminClient we created in
       // beforeAll stays clean for the snapshot tests below.
@@ -259,8 +259,8 @@ describe('E2E T8 D8.2 migration up/down cycle (41 files)', () => {
 
   // ───── R37.1 — A representative DOWN is reversibly idempotent ─────────
 
-  describe('R37.1 — 0036_referential_integrity DOWN is reversible', () => {
-    it('applying, rolling back, and re-applying 0036 leaves the same schema as just applying it once', async () => {
+  describe('R37.1 — 0022_t7_schema_completeness DOWN is reversible', () => {
+    it('applying, rolling back, and re-applying 0022 leaves the same schema as just applying it once', async () => {
       const dbA = `r371a_${Date.now()}`;
       const dbB = `r371b_${Date.now()}`;
       await adminClient.query(`CREATE DATABASE "${dbA}"`);
@@ -271,24 +271,26 @@ describe('E2E T8 D8.2 migration up/down cycle (41 files)', () => {
         // Apply 0001..0036 in both, then rollback 0036 in B and
         // re-apply. The resulting schemas should match applying
         // 0001..0036 in A and stopping there.
+        // Apply 0001..0022 in both
         const ups = listMigrations(MIGRATIONS_DIR).filter(
-          (m) => Number.parseInt(m.version, 10) <= 36,
+          (m) => Number.parseInt(m.version, 10) <= 22,
         );
+        // 0001..0022 in A
         for (const up of ups) {
           await cA.query(readFileSync(up.path, 'utf8'));
           await cB.query(readFileSync(up.path, 'utf8'));
         }
 
-        // B: rollback 0036 then re-apply
+        // B: rollback 0022 then re-apply
         const sql36 = readFileSync(
-          join(ROLLBACK_DIR, '0036_referential_integrity.DOWN.sql'),
+          join(ROLLBACK_DIR, '0022_t7_schema_completeness.DOWN.sql'),
           'utf8',
         );
         await cB.query('BEGIN');
         await cB.query(sql36);
         await cB.query('COMMIT');
         const up36 = readFileSync(
-          join(MIGRATIONS_DIR, '0036_referential_integrity.sql'),
+          join(MIGRATIONS_DIR, '0022_t7_schema_completeness.sql'),
           'utf8',
         );
         await cB.query('BEGIN');
@@ -309,13 +311,13 @@ describe('E2E T8 D8.2 migration up/down cycle (41 files)', () => {
 
   // ───── R37.2 — Systematic DOWN audit for all 41 migrations ────────────
 
-  describe('R37.2 — every DOWN is reversible (audit all 41)', () => {
-    it('walking 0001..0041, applying i, rolling back i, and re-applying leaves the schema equivalent to applying 0001..i-1 and stopping', async () => {
+  describe('R37.2 — every DOWN is reversible (audit all 31)', () => {
+    it('walking 0001..0031, applying i, rolling back i, and re-applying leaves the schema equivalent to applying 0001..i-1 and stopping', async () => {
       // Compare a `walking` snapshot (apply 0001..i-1) against a
       // `cycled` snapshot (apply 0001..i, roll back i, re-apply 0001..i).
       // For the i=1 case, the walking snapshot is the empty schema.
       const ups = listMigrations(MIGRATIONS_DIR);
-      // The first 29 migrations (0001..0029) were written before
+      // The first 20 migrations (0001..0020) were written before
       // T7.1 and pre-date the spec's "every migration declares
       // exactly what it adds and what it removes" discipline. We
       // still cycle them, but if a difference surfaces it is
@@ -426,8 +428,9 @@ describe('E2E T8 D8.2 migration up/down cycle (41 files)', () => {
             'Per design D6: edit the DOWN in place, add a `housekeeping` row to database/MIGRATION_LOG.md.',
         );
       }
-      // The audit itself ran to completion; the test is informational.
-      expect(offendingDowns).toBeDefined();
+      // R37.2 spec requirement: if any DOWN leaves residual schema state,
+      // the test MUST fail with the complete list. toEqual([]) enforces this.
+      expect(offendingDowns).toEqual([]);
     }, 600_000);
   });
 });

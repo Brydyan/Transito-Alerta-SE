@@ -4,6 +4,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 // Import updated AuthService
 import { AuthService } from '../../../core/services/auth.service';
+import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 import {
   fadeAnimation,
   slideUpAnimation,
@@ -13,7 +14,7 @@ import {
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, UiIconComponent],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
   animations: [fadeAnimation, slideUpAnimation, staggerFormElements],
@@ -29,6 +30,16 @@ export class LoginComponent {
   readonly submitted = signal(false);
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
+  // 2026-10-16-password-visibility-toggle — toggle que cambia
+  // `type="password"` ↔ `type="text"` en el input. Default false
+  // (oculto) — el standard de la industria es no mostrar la
+  // contraseña por defecto, especialmente en pantallas públicas.
+  readonly showPassword = signal(false);
+
+  /** 2026-10-16 — flip del `showPassword`. */
+  togglePassword(): void {
+    this.showPassword.update((v) => !v);
+  }
 
   constructor() {
     this.loginForm = this.formBuilder.group({
@@ -76,8 +87,20 @@ export class LoginComponent {
           return;
         }
 
-        const returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/app/dashboard';
-        this.router.navigate([returnUrl]);
+        const returnUrl = this.route.snapshot.queryParams['returnUrl'];
+        // 2026-10-19-post-login-redirect-by-role — el `reporter`
+        // no tiene el permiso `READ dashboard` (su menú llega a
+        // `/app/inicio` y `/app/reportar`), así que mandarlo al
+        // dashboard por defecto lo estrella contra el guard nuevo
+        // y termina en errores `403 Forbidden` por
+        // `/api/incident-categories` y compañía. El personal
+        // (cualquier otro rol) sigue cayendo al dashboard como
+        // antes. Si viene `returnUrl` en la query, respetamos la
+        // intención del visitante — el guard de la ruta de
+        // destino decidirá si tiene permiso.
+        const roleBasedDefault =
+          current?.roleName === 'reporter' ? '/app/inicio' : '/app/dashboard';
+        this.router.navigate([returnUrl ?? roleBasedDefault]);
       },
       error: (error: Error) => {
         console.error('Error en login:', error);

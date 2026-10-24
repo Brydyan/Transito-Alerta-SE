@@ -17,6 +17,13 @@ describe('Header', () => {
       isAuthenticated: signal(true),
       currentUser: signal({ name: 'Test User', roleName: 'Admin' }),
       token: signal('mock-token'),
+      // 2026-10-17-header-notification-dropdown — RealtimeService
+      // (que el Header ahora importa transitivamente vía
+      // NotificationDropdownComponent) lee `accessToken()` en su
+      // `effect()` de ciclo de vida. Sin esta entrada el effect
+      // truena con `TypeError: this.authService.accessToken is not
+      // a function` durante la creación del Header.
+      accessToken: signal('mock-token'),
       sid: signal('mock-sid'),
       tokenCreatedAt: signal(new Date().toISOString()),
       tokenExpiresAt: signal(new Date().toISOString()),

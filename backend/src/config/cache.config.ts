@@ -13,6 +13,15 @@ export interface CacheConfig {
   rateLimit: {
     windowSeconds: number;
     maxRequests: number;
+    /**
+     * P16 (MINIMAX_BUILDER_SECURITY_IMPLEMENTATION.md) — límite
+     * más estricto (default 10/min) para rutas CPU-bound como
+     * `/auth/login` y `/auth/register` donde bcrypt cost 12 = ~250ms
+     * por intento. Sin este override, una IP atacante puede saturar
+     * CPU con 100 logins fallidos por minuto (25s de CPU total).
+     * Con strictMaxRequests=10: 2.5s de CPU por IP por minuto.
+     */
+    strictMaxRequests: number;
   };
   geofencing: {
     ttlSeconds: number;
@@ -59,6 +68,10 @@ export default registerAs('cache', (): CacheConfig => {
       maxRequests: process.env.RATE_LIMIT_MAX_REQUESTS
         ? parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10)
         : 100,
+      // P16 — strict limit para rutas CPU-bound. Default 10/min.
+      strictMaxRequests: process.env.RATE_LIMIT_STRICT_MAX_REQUESTS
+        ? parseInt(process.env.RATE_LIMIT_STRICT_MAX_REQUESTS, 10)
+        : 10,
     },
     geofencing: {
       ttlSeconds: process.env.GEOFENCING_CACHE_TTL_SECONDS

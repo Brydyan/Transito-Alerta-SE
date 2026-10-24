@@ -5,3 +5,6 @@ test/
 .env*
 *.spec.ts
 *.e2e-spec.ts
+.storage/
+.codegraph/
+*.md

@@ -1,26 +1,27 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
+import { catchError, of } from 'rxjs';
 
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
+import { UserService } from '../../../core/services/user.service';
+import { ToastService } from '../../../shared/components/toast/toast.service';
 
 /**
  * ProfileActionCardsComponent — F6 (`2026-09-08-f6-perfil-redesign`).
  *
- * 3 tarjetas (mock 10-01):
- *  1. **Contraseña** — link a `/app/cambiar-contrasena` (placeholder,
- *     fuera de alcance de esta fase).
+ * 4 tarjetas (D4, 2026-10-11 user-form-departments-telegram-hybrid):
+ *  1. **Contraseña** — link a `/app/cambiar-contrasena` (placeholder).
  *  2. **Preferencia de Zona** — link a `/app/zonas` (placeholder).
- *  3. **Soporte Técnico** — mailto al Admin Global (decisión del
- *     design: "Contacte con el Administrador Global").
+ *  3. **Soporte Técnico** — mailto al Admin Global.
+ *  4. **Notificaciones Telegram** — self-service de vinculación de bot.
  *
  * Decisiones:
- *  - Sin `*hasPermission` (D7: el panel de perfil es universal
- *    para cualquier usuario autenticado).
- *  - Sin inputs/outputs: las tarjetas son presentacionales. El
- *    padre las monta en la sección inferior de la página.
- *  - Los `href` de "Soporte" es un mailto (no navega dentro
- *    de la SPA). Los de "Contraseña" y "Preferencia" usan
- *    `routerLink` para mantener la navegación SPA.
+ *  - D4: la 4ta tarjeta lee `UserService.getCurrentUser()` para
+ *    verificar `telegram_chat_id`. Si existe, muestra badge "Vinculado"
+ *    y botón "Re-vincular". Si no, muestra "No configurado" y "Vincular".
+ *  - El click llama a `generateTelegramLink()` y abre la URL en nueva
+ *    pestaña (`window.open(link, '_blank')`).
  */
 @Component({
   selector: 'app-profile-action-cards',
@@ -57,6 +58,47 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
         <a class="card-link" href="mailto:admin@jasrapo.com">
           Contactar soporte …
         </a>
+      </article>
+      <article class="action-card">
+        <div class="icon-box icon-box--brand" aria-hidden="true">
+          <ui-icon name="send" [size]="22" [strokeWidth]="1.75" />
+        </div>
+        <h3 class="card-title">Notificaciones Telegram</h3>
+        <p class="card-desc">Reciba alertas de emergencia directamente en Telegram.</p>
+        <div class="card-telegram">
+          @if (currentUser()?.telegram_chat_id) {
+            <span
+              class="card-badge card-badge--linked"
+              data-testid="telegram-status"
+              aria-label="Estado de vinculación Telegram"
+            >
+              Vinculado
+            </span>
+          } @else {
+            <span
+              class="card-badge card-badge--unlinked"
+              data-testid="telegram-status"
+              aria-label="Estado de vinculación Telegram"
+            >
+              No configurado
+            </span>
+          }
+          <button
+            type="button"
+            class="card-link"
+            data-testid="telegram-link-btn"
+            [disabled]="isLinking()"
+            (click)="onLinkTelegram()"
+          >
+            @if (isLinking()) {
+              Generando enlace…
+            } @else if (currentUser()?.telegram_chat_id) {
+              Re-vincular
+            } @else {
+              Vincular bot de Telegram
+            }
+          </button>
+        </div>
       </article>
     </section>
   `,
@@ -114,12 +156,79 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
         text-decoration: none;
         font-weight: 500;
         margin-top: 0.25rem;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        text-align: left;
       }
       .card-link:hover {
         text-decoration: underline;
+      }
+      .card-link:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .card-telegram {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        margin-top: 0.25rem;
+      }
+      .card-badge {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.125rem 0.5rem;
+        border-radius: 9999px;
+      }
+      .card-badge--linked {
+        background: var(--color-success-soft, #dcfce7);
+        color: var(--color-success-fg, #15803d);
+      }
+      .card-badge--unlinked {
+        background: var(--color-slate-100, #f1f5f9);
+        color: var(--color-slate-500, #64748b);
       }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ProfileActionCardsComponent {}
+export class ProfileActionCardsComponent {
+  private readonly userService = inject(UserService);
+  private readonly toastService = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly currentUser = toSignal(
+    this.userService.getCurrentUser().pipe(catchError(() => of(null))),
+  );
+  readonly isLinking = signal(false);
+
+  onLinkTelegram(): void {
+    if (this.isLinking()) return;
+    this.isLinking.set(true);
+    this.userService
+      .generateTelegramLink()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ telegram_link }) => {
+          this.isLinking.set(false);
+          if (telegram_link) {
+            window.open(telegram_link, '_blank');
+          } else {
+            this.toastService.warning(
+              'El bot de Telegram no está configurado en este servidor.',
+              'Sin enlace',
+            );
+          }
+        },
+        error: () => {
+          this.isLinking.set(false);
+          this.toastService.error(
+            'No se pudo generar el enlace de Telegram. Intenta nuevamente.',
+            'Error',
+          );
+        },
+      });
+  }
+}

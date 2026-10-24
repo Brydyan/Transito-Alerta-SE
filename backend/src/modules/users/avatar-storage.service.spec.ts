@@ -1,5 +1,5 @@
-import { ImageCompressionService } from '../../core/image/image-compression.service';
-import { IStorageClient } from '../../core/storage/storage-client.interface';
+import { ImageCompressionService } from '../../infra/image/image-compression.service';
+import { IStorageClient } from '../../infra/storage/storage-client.interface';
 import { AvatarStorageService } from './avatar-storage.service';
 
 function makeClientMock(): jest.Mocked<IStorageClient> {
@@ -130,7 +130,7 @@ describe('AvatarStorageService', () => {
 
     it('propagates compress() errors (FileTooLargeError) so HTTP gets 4xx', async () => {
       const { FileTooLargeError } = await import(
-        '../../core/image/compression-error.exception'
+        '../../infra/image/compression-error.exception'
       );
       const err = new FileTooLargeError(150_000);
       imageCompression.compress.mockRejectedValue(err);
@@ -148,7 +148,7 @@ describe('AvatarStorageService', () => {
 
     it('propagates compress() errors (UnsupportedMimeType) so HTTP gets 415', async () => {
       const { UnsupportedMimeType } = await import(
-        '../../core/image/compression-error.exception'
+        '../../infra/image/compression-error.exception'
       );
       const err = new UnsupportedMimeType('image/bmp');
       imageCompression.compress.mockRejectedValue(err);
@@ -166,7 +166,7 @@ describe('AvatarStorageService', () => {
 
     it('propagates compress() errors (CompressionSizeExceeded) so HTTP gets 4xx', async () => {
       const { CompressionSizeExceeded } = await import(
-        '../../core/image/compression-error.exception'
+        '../../infra/image/compression-error.exception'
       );
       const err = new CompressionSizeExceeded('avatar', 150, 100);
       imageCompression.compress.mockRejectedValue(err);
@@ -184,7 +184,7 @@ describe('AvatarStorageService', () => {
 
     it('propagates compress() errors (CompressionFailed) so HTTP gets 422', async () => {
       const { CompressionFailed } = await import(
-        '../../core/image/compression-error.exception'
+        '../../infra/image/compression-error.exception'
       );
       const err = new CompressionFailed(new Error('corrupt'));
       imageCompression.compress.mockRejectedValue(err);

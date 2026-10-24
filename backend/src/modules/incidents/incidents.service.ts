@@ -7,13 +7,14 @@ import type { Cache } from 'cache-manager';
 import type Redis from 'ioredis';
 import { DataSource } from 'typeorm';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
 import { AuthConfig } from '../../config/auth.config';
-import { IncidentStatus } from '../../entities/incident.entity';
+import { IncidentStatus } from './entities/incident.entity';
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
 import { OrganizationsService } from '../organizations/organizations.service';
-import { SubjectScope } from '../../common/authz/subject-scope';
-import { scopeCacheKey } from '../../common/authz/scope-sql';
+import { AuditService } from '../audit/audit.service';
+import { SubjectScope } from '../../shared/authz/subject-scope';
+import { scopeCacheKey } from '../../shared/authz/scope-sql';
 import { ALLOWED_STATUSES } from './incident-state-machine';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { IncidentRow, IncidentsRepository } from './incidents.repository';
@@ -70,6 +71,13 @@ export class IncidentsService {
     // desde la config.
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
+    // 2026-10-16 — AUD (sc-327) — `create()` records the
+    // `CREATE_INCIDENT` audit row inside the same transaction as
+    // the incident insert so the audit cannot be lost if the insert
+    // is rolled back. We don't audit the workflow transitions
+    // (REVEAL / CLOSE / REASSIGN) here — they belong to the
+    // `IncidentWorkflowService` and `RevealService` audit chains.
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -110,40 +118,21 @@ export class IncidentsService {
       ? await this.resolveMaskUserId()
       : citizenId;
 
-    const row = isAnonymous
-      ? await this.dataSource.transaction(async (manager) => {
-          // FIX-1 (ronda 11): el INSERT de `incidents` debe
-          // correr sobre el `manager` de la transacción. Sin
-          // esto, la fila commitea inmediatamente y queda
-          // huérfana si el INSERT de `incident_reporters`
-          // falla después. Mismo patrón que `AuditService`.
-          const created = await this.incidentsRepository.create(
-            {
-              title: dto.title,
-              description: dto.description ?? null,
-              lat: dto.lat,
-              lng: dto.lng,
-              priority: dto.priority ?? 'medium',
-              citizenId: finalCitizenId,
-              zoneId,
-              geofenceMatched: zoneId !== null,
-              organizationId: org?.id ?? null,
-              isAnonymous: true,
-              categoryId: dto.category_id ?? null,
-            },
-            manager,
-          );
-          // Sello del autor real. Misma transacción: si la
-          // inserción falla, el INSERT de `incidents` se
-          // revierte. D2 (diseño): "una acción cuyo rastro
-          // no se pudo guardar no debe quedar hecha".
-          await manager.query(
-            `INSERT INTO incident_reporters (incident_id, user_id) VALUES ($1, $2)`,
-            [created.id, citizenId],
-          );
-          return created;
-        })
-      : await this.incidentsRepository.create({
+    // sc-405 (R-historia): la incidencia nace en `pending` (D9) y la
+    // primera fila de `status_history` se siembra en la MISMA
+    // transacción que el INSERT de `incidents` — "un cambio sin registro
+    // es peor que no haber cambiado" (sc-315). Antes del fix, el
+    // historial quedaba vacío hasta la primera transición manual.
+    // `previous_status` usa el sentinel `created`: el modelo frontend
+    // declara explícitamente que el timeline puede incluir estados fuera
+    // de la máquina de 4 estados (status-history.model.ts).
+    //
+    // Tanto la rama anónima (FIX-1, ronda 11) como la normal corren
+    // sobre el `manager` de la transacción: si la siembra del historial
+    // falla, el INSERT de `incidents` se revierte (S.5.1).
+    const row = await this.dataSource.transaction(async (manager) => {
+      const created = await this.incidentsRepository.create(
+        {
           title: dto.title,
           description: dto.description ?? null,
           lat: dto.lat,
@@ -153,12 +142,44 @@ export class IncidentsService {
           zoneId,
           geofenceMatched: zoneId !== null,
           organizationId: org?.id ?? null,
-          isAnonymous: false,
+          isAnonymous,
           categoryId: dto.category_id ?? null,
-        });
+        },
+        manager,
+      );
+      if (isAnonymous) {
+        // Sello del autor real. Misma transacción: si la
+        // inserción falla, el INSERT de `incidents` se
+        // revierte. D2 (diseño): "una acción cuyo rastro
+        // no se pudo guardar no debe quedar hecha".
+        await manager.query(
+          `INSERT INTO incident_reporters (incident_id, user_id) VALUES ($1, $2)`,
+          [created.id, citizenId],
+        );
+      }
+      await manager.query(
+        `INSERT INTO status_history
+           (incident_id, changed_by_user_id, previous_status, new_status, event_id)
+         VALUES ($1, $2, $3, $4, gen_random_uuid()::text)`,
+        [created.id, finalCitizenId, 'created', 'pending'],
+      );
+      return created;
+    });
 
     await this.purgeListCaches(zoneId);
     await this.publish('incident.created', row);
+
+    // 2026-10-16 — AUD (sc-327) — CREATE_INCIDENT. Citizen-side
+    // path: `citizenId` is the only actor we have for a public sign-up
+    // (the citizen may be anonymous — `users.id = ANON_USER_ID` —
+    // in which case `actorId` lands on the masked row and the UI
+    // surfaces "sistema" instead of an email, see D6 fallback).
+    await this.auditService.record({
+      actorId: finalCitizenId,
+      action: 'CREATE_INCIDENT',
+      resourceType: 'incidents',
+      resourceId: row.id,
+    });
 
     return row;
   }

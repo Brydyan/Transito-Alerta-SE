@@ -1,10 +1,12 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import type Redis from 'ioredis';
 import { DataSource, Repository } from 'typeorm';
 
-import { MAIL_EVENTS_BLOCKING_CLIENT } from '../../core/core.module';
-import { UserEntity } from '../../entities/user.entity';
+import { MAIL_EVENTS_BLOCKING_CLIENT } from '../../infra/core.module';
+import { resolveCommentAudience } from '../../shared/events/comment-audience';
+import { UserEntity } from '../users/entities/user.entity';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
 import { decodeStreamEntry } from '../realtime/stream-event.util';
 import { MailService } from './mail.service';
@@ -15,14 +17,6 @@ export const INCIDENT_MAIL_CONSUMER_GROUP = 'mail';
 /** Pause after a failed read so a Redis outage cannot spin the loop hot (mirrors streams.consumer.ts). */
 export const RETRY_BACKOFF_MS = 1000;
 
-/** In-process admin-list memoisation window (design D10 — a short TTL, not the perm: cache). */
-const ADMIN_LIST_TTL_MS = 60_000;
-
-interface CachedAdmins {
-  emails: string[];
-  expiresAt: number;
-}
-
 /**
  * IncidentMailListener (design D8/D10) — its own consumer group (`mail`,
  * same group name as `MailOutboxConsumer` uses on the *other* stream, but
@@ -30,15 +24,16 @@ interface CachedAdmins {
  * `realtime`'s group on the same stream (D7): Streams consumer groups are
  * independent per-group cursors, so `mail` and `realtime` each see every
  * event exactly once without coordinating. Zero import edges from
- * Incidents into Mail — this class only ever reads the stream Incidents
- * already publishes to, never imports IncidentsService/CommentsService.
+ * Incidents into Mail — this listener never imports IncidentsService or
+ * CommentsService. It reads the stream Incidents already publishes to, and
+ * listens on the in-process bus for `comment.added` (which Comments
+ * publishes only there).
  */
 @Injectable()
 export class IncidentMailListener implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(IncidentMailListener.name);
   private readonly consumerName = `mail-events-consumer-${process.pid}-${Math.random().toString(36).slice(2)}`;
   private running = false;
-  private adminCache: CachedAdmins | null = null;
 
   constructor(
     // Dedicated connection (D13) — separate from MailOutboxConsumer's own
@@ -127,25 +122,95 @@ export class IncidentMailListener implements OnModuleInit, OnModuleDestroy {
       case 'incident.status_changed':
         await this.handleStatusChanged(data);
         break;
-      case 'comment.created':
-        await this.handleCommentCreated(data);
-        break;
       default:
         // Every other event on incidents:events (e.g. types this listener
         // does not translate to mail) is intentionally ignored.
+        //
+        // `comment.added` used to be listed here as `comment.created`,
+        // and that case could never fire — for two independent reasons.
+        // The producer emits `comment.added`, never `comment.created`; and
+        // `CommentsService` publishes to the EventEmitter only, it never
+        // XADDs to `incidents:events`, which is the stream this listener
+        // reads. The handler lives further down, on `@OnEvent`.
         break;
     }
   }
 
-  private async handleIncidentCreated(data: Record<string, unknown>): Promise<void> {
-    const reporterId = data.citizen_id as string | undefined;
-    const mailData = { title: data.title, description: data.description };
-    await this.enqueueToUsers(
-      [reporterId].filter((id): id is string => Boolean(id)),
-      'incident.created',
-      mailData,
+  /**
+   * 2026-10-20 — this handler used to sit in `route()` as a `comment.created`
+   * case, where it was unreachable on both counts. It now listens on the
+   * in-process bus, which is the channel `CommentsService` actually
+   * publishes to (`comments.service.ts:66`).
+   *
+   * Deliberately NOT wired into the Redis stream: publishing comments to
+   * `incidents:events` would also hand them to `RealtimeStreamsConsumer`,
+   * which forwards every entry to the WebSocket gateway unfiltered
+   * (`streams.consumer.ts:96-106`). Whether comments should be realtime is
+   * a product decision, and taking it here would be a change of behaviour
+   * disguised as a bug fix.
+   *
+   * The audience comes from `shared/events/comment-audience.ts` — the same
+   * resolver the in-app notification listener uses. Two copies of that rule
+   * would drift, and when they drift one channel notifies and the other
+   * does not, silently.
+   */
+  @OnEvent('comment.added')
+  async onCommentAdded(payload: {
+    id: string;
+    incidentId: string;
+    userId: string;
+    content: string;
+    parentId: string | null;
+  }): Promise<void> {
+    const audience = await resolveCommentAudience(
+      this.dataSource,
+      payload.incidentId,
+      payload.userId,
     );
-    await this.enqueueToEmails(await this.getAdminEmails(), 'incident.created', mailData);
+    const recipientIds = [audience.reporterId, ...audience.priorCommenterIds].filter(
+      (id): id is string => Boolean(id) && id !== payload.userId,
+    );
+    await this.enqueueToUsers(recipientIds, 'comment.created', {
+      content: payload.content,
+    });
+  }
+
+  /**
+   * F7 emergency-dispatch (post-Round-2) — `incident.created` only
+   * notifies by mail when the incident is **critical** AND the
+   * organisation was resolved. The audience is the **admin_org** users
+   * of that organisation, mirroring the Telegram listener's audience
+   * (`critical-incident.listener.ts`). Low/medium/high priority and
+   * org-less incidents deliberately do not send mail — that's what
+   * `incident.assigned` / `incident.status_changed` already cover for
+   * the operator working the ticket.
+   *
+   * Previously the listener also fired an "acuse de recibo" to the
+   * citizen (`citizen_id` in `data`); removed per requirements: the
+   * reporter never gets a copy of their own report.
+   */
+  private async handleIncidentCreated(data: Record<string, unknown>): Promise<void> {
+    const priority = typeof data.priority === 'string' ? data.priority : null;
+    if (priority !== 'critical') {
+      // Low / medium / high: no mass email on creation.
+      return;
+    }
+    const organizationId = (data.organization_id as string | null | undefined) ?? null;
+    if (!organizationId) {
+      // Critical but no zone match → no audience; nothing to enqueue.
+      this.logger.debug(
+        `incident.created: critical incident ${String(data.id)} has no organization; no admin_org mail`,
+      );
+      return;
+    }
+
+    const mailData = {
+      title: data.title,
+      description: data.description,
+      incidentId: data.id,
+    };
+    const emails = await this.getOrgAdminEmails(organizationId);
+    await this.enqueueToEmails(emails, 'incident.created', mailData);
   }
 
   private async handleIncidentAssigned(data: Record<string, unknown>): Promise<void> {
@@ -164,13 +229,6 @@ export class IncidentMailListener implements OnModuleInit, OnModuleDestroy {
       title: data.title,
       status: data.status,
     });
-  }
-
-  private async handleCommentCreated(data: Record<string, unknown>): Promise<void> {
-    const reporterId = data.reporter_id as string | undefined;
-    const priorCommenterIds = (data.prior_commenter_ids as string[] | undefined) ?? [];
-    const recipientIds = [reporterId, ...priorCommenterIds].filter((id): id is string => Boolean(id));
-    await this.enqueueToUsers(recipientIds, 'comment.created', { content: data.content });
   }
 
   /** Resolves each id to an email (null -> skip + debug log, never retried) and enqueues one mail per resolved recipient. */
@@ -210,7 +268,7 @@ export class IncidentMailListener implements OnModuleInit, OnModuleDestroy {
     const title = typeof data.title === 'string' ? data.title : '';
     switch (template) {
       case 'incident.created':
-        return `New incident reported: ${title}`;
+        return `Critical incident reported: ${title}`;
       case 'incident.assigned':
         return `Incident assigned to you: ${title}`;
       case 'incident.status_changed':
@@ -223,26 +281,29 @@ export class IncidentMailListener implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Admin resolution (D10) — reads `users` joined to `roles` by
-   * `role_id`, memoised in-process for ADMIN_LIST_TTL_MS. Deliberately
-   * NOT the `perm:` cache: that one is keyed per-user and owned by Auth's
-   * own invalidation contract (role reassignment bumps `permission_version`
-   * — coupling Mail to it would mean an admin list going stale for reasons
-   * that have nothing to do with mail).
+   * F7 audience resolution (mirrors `critical-incident.listener.ts`):
+   *   - role = `admin_org` (the post-0040 admin role; the legacy
+   *     `'admin'` name is dead since the role rename migration).
+   *   - `organization_id` = the incident's resolved org.
+   *   - active and not soft-deleted.
+   *
+   * The query is keyed by `(organization_id, role)` and runs once per
+   * critical incident (a rare event). No in-process memo — if this
+   * ever shows up in a profile we'd rather rely on the role-reassignment
+   * contract than a stale TTL. Users without an email are filtered
+   * client-side to match `enqueueToEmails`'s contract.
    */
-  private async getAdminEmails(): Promise<string[]> {
-    const now = Date.now();
-    if (this.adminCache && this.adminCache.expiresAt > now) {
-      return this.adminCache.emails;
-    }
-
-    const rows = await this.dataSource.query<Array<{ id: string; email: string | null }>>(
-      `SELECT u.id, u.email FROM users u
-       JOIN roles r ON u.role_id = r.id
-       WHERE r.name = 'admin' AND u.is_active = true`,
+  private async getOrgAdminEmails(organizationId: string): Promise<string[]> {
+    const rows = await this.dataSource.query<Array<{ email: string | null }>>(
+      `SELECT u.email
+         FROM users u
+         JOIN roles r ON r.id = u.role_id
+        WHERE u.is_active = true
+          AND u.deleted_at IS NULL
+          AND u.organization_id = $1
+          AND r.name = 'admin_org'`,
+      [organizationId],
     );
-    const emails = rows.map((row) => row.email).filter((email): email is string => Boolean(email));
-    this.adminCache = { emails, expiresAt: now + ADMIN_LIST_TTL_MS };
-    return emails;
+    return rows.map((row) => row.email).filter((email): email is string => Boolean(email));
   }
 }

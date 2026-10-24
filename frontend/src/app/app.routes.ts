@@ -27,6 +27,31 @@ export const routes: Routes = [
       ),
     canActivate: [guestGuard],
   },
+  // 2026-10-16-forgot-reset-password-flow — "¿Olvidaste tu
+  // contraseña?" (raíz, no `/auth/`). `guestGuard` porque el
+  // visitante llega sin sesión; un usuario autenticado cae al
+  // dashboard (decisión coherente con `login` y `registro`).
+  {
+    path: 'forgot-password',
+    loadComponent: () =>
+      import(
+        './features/auth/forgot-password/forgot-password.component'
+      ).then((m) => m.ForgotPasswordComponent),
+    canActivate: [guestGuard],
+  },
+  // 2026-10-16-forgot-reset-password-flow — destino del link
+  // del email (raíz, no `/auth/`). SIN `guestGuard` porque un
+  // usuario autenticado que cambia la contraseña desde su perfil
+  // también puede terminar acá — la pantalla deshabilita el form
+  // si no hay token, pero el guard de ruta no aplica a
+  // autenticados.
+  {
+    path: 'reset-password',
+    loadComponent: () =>
+      import(
+        './features/auth/reset-password/reset-password.component'
+      ).then((m) => m.ResetPasswordComponent),
+  },
   // REG (sc-325) — Fix 9 (ronda 6): destino de la navegación de
   // `register.component.ts:onSubmit` al alta exitosa. Sin esta
   // ruta, el ciudadano cae en el comodín `path: '**'` y termina
@@ -84,7 +109,16 @@ export const routes: Routes = [
     children: [
       {
         path: 'dashboard',
-        data: { breadcrumb: 'Dashboard' },
+        // 2026-10-19-dashboard-permission-gate — el dashboard es
+        // un panel administrativo (consulta `/api/incident-categories`
+        // y otros endpoints sensibles). El `reporter` no tiene el
+        // permiso `READ dashboard`, así que el guard lo rebota a
+        // `/app/dashboard` (que NO renderea este componente, sólo
+        // redirige desde el guard — el bug era entrar a la pantalla
+        // y pegar contra endpoints con 403). El personal (staff)
+        // sí tiene el permiso, así que pasa.
+        canActivate: [permissionGuard],
+        data: { breadcrumb: 'Dashboard', permission: 'READ dashboard' },
         loadComponent: () =>
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
@@ -102,6 +136,8 @@ export const routes: Routes = [
               {
                 path: '',
                 pathMatch: 'full',
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Usuarios', permission: 'READ users' },
                 loadComponent: () =>
                   import('./features/admin/users/users-list/users-list.component').then(
                     (m) => m.UsersListComponent,
@@ -131,7 +167,8 @@ export const routes: Routes = [
           },
           {
             path: 'roles',
-            data: { breadcrumb: 'Roles' },
+            canActivate: [permissionGuard],
+            data: { breadcrumb: 'Roles', permission: 'READ roles' },
             loadComponent: () =>
               import('./features/admin/roles/roles.component').then((m) => m.RolesComponent),
           },
@@ -172,7 +209,7 @@ export const routes: Routes = [
           },
           {
             path: 'config',
-            data: { breadcrumb: 'Configuración' },
+            data: { breadcrumb: 'Configuración', permission: 'READ system-config' },
             canActivate: [permissionGuard],
             loadComponent: () =>
               import('./features/admin/system-config/system-config.component').then(
@@ -206,7 +243,8 @@ export const routes: Routes = [
             children: [
               {
                 path: '',
-                data: { breadcrumb: 'Departamentos' },
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Departamentos', permission: 'READ departments' },
                 loadComponent: () =>
                   import(
                     './features/catalogs/departments/department-list/department-list.component'
@@ -238,7 +276,8 @@ export const routes: Routes = [
             children: [
               {
                 path: '',
-                data: { breadcrumb: 'Organizaciones' },
+                canActivate: [permissionGuard],
+                data: { breadcrumb: 'Organizaciones', permission: 'READ organizations' },
                 loadComponent: () =>
                   import('./features/catalogs/organizations/organization-list/organization-list.component').then(
                     (m) => m.OrganizationListComponent,
@@ -347,9 +386,24 @@ export const routes: Routes = [
       // F1.5.3 — `citizen-report` era código muerto (sólo importable).
       // F1 lo registra como ruta real del menú `Reportar`. La pantalla
       // existe y se conserva tal cual.
+      //
+      // 2026-10-20 — el menú ocultaba esta entrada a los roles sin
+      // `CREATE incidents` (`0029:174-185`, el "reportar-operator-org-block"),
+      // pero la RUTA quedaba abierta: un `operator_org` podía escribir
+      // `/app/reportar` a mano, cargar el formulario completo y recién ahí
+      // recibir un 403 de `POST /api/incidents`
+      // (`incidents.controller.ts:93-95`). El menú y la ruta discrepaban, y el
+      // usuario se enteraba del permiso por un error genérico en vez de por la
+      // UI que ya le decía que no podía.
+      //
+      // El permiso va en `data` para que `permissionGuard` lo aplique igual
+      // que en `/app/dashboard`: mismo guard, mismo rebote por rol, sin lógica
+      // nueva. La autorización real ya la hacía el backend — esto sólo evita
+      // llevar al usuario a una pantalla que no puede usar.
       {
         path: 'reportar',
-        data: { breadcrumb: 'Reportar' },
+        canActivate: [permissionGuard],
+        data: { breadcrumb: 'Reportar', permission: 'CREATE incidents' },
         loadComponent: () =>
           import('./features/citizen-report/citizen-report.component').then(
             (m) => m.CitizenReportComponent,

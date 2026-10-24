@@ -1,6 +1,6 @@
 import { TestEnvironment } from '../support/test-environment';
 import { IncidentsService } from '../../src/modules/incidents/incidents.service';
-import { SubjectScope } from '../../src/common/authz/subject-scope';
+import { SubjectScope } from '../../src/shared/authz/subject-scope';
 import { DataSource } from 'typeorm';
 
 describe('A.4.3 - Query count test for incident list', () => {

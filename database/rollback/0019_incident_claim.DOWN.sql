@@ -15,12 +15,9 @@ ALTER TABLE organizations DROP COLUMN IF EXISTS max_active_claims;
 DROP INDEX IF EXISTS idx_incidents_claimed_by;
 ALTER TABLE incidents DROP COLUMN IF EXISTS claimed_by;
 
--- 4) Restore the original CHECK constraint on permissions.action.
-ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_action_check;
-
-ALTER TABLE permissions
-  ADD CONSTRAINT permissions_action_check
-  CHECK (action IN ('READ', 'CREATE', 'UPDATE', 'DELETE', 'ASSIGN'));
+-- 4) permissions_action_check is now owned by 0009 (roles_permissions, consolidated).
+--    0019 does NOT drop or recreate it; narrowing it here would conflict with
+--    the wider action set that 0009 manages (CLOSE, REVEAL, etc.).
 
 -- 5) Drop the JSONB entries added to roles.permissions.
 UPDATE roles
@@ -29,6 +26,6 @@ UPDATE roles
        FROM jsonb_array_elements(permissions) AS elem
       WHERE elem NOT IN ('"CLAIM incidents"'::jsonb, '"RELEASE incidents"'::jsonb)
    )
- WHERE name IN ('operador_organizacion', 'operador_sistema');
+ WHERE name IN ('operator_organizacion', 'agent_system');
 
 COMMIT;

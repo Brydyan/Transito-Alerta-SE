@@ -4,7 +4,11 @@ import {
   computed,
   inject,
   OnInit,
+  OnDestroy,
+  ElementRef,
   signal,
+  effect,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -16,6 +20,7 @@ import { CommentService } from '../../../core/services/comment.service';
 import { StatusHistoryService } from '../../../core/services/status-history.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../shared/components/toast/toast.service';
+import { AssignmentService } from '../../../core/services/assignment.service';
 import {
   Incident,
   IncidentStatus,
@@ -35,6 +40,18 @@ import { UiCardComponent } from '../../../shared/components/ui-card/ui-card.comp
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { CommentThreadComponent } from '../components/comment-thread/comment-thread.component';
+import { AssignDialogComponent } from '../assign-dialog/assign-dialog.component';
+// 2026-10-19-incident-gallery-mount — el componente reutilizable
+// de galería ya estaba implementado y probado; sólo faltaba
+// montarlo bajo la sección Galería del detalle. El componente
+// resuelve bytes por sí mismo vía el byte route
+// (`/incidents/:id/images/:imageId/file`), sin asumir URLs en el
+// payload (cambio D3 de 2026-10-06-incident-images-read-path).
+import { IncidentImagesComponent } from '../../../shared/components/incident-images/incident-images.component';
+// 2026-10-06-incident-images-read-path (D5) — shared util that the
+// status badge (and a future timeline re-enable) delegate to.
+import { mapStatusLabel } from '../../../shared/utils/incident-status.util';
+import * as L from 'leaflet';
 
 /**
  * F3 (sc-303) — F3.4 Detalle de Incidencia.
@@ -74,12 +91,14 @@ import { CommentThreadComponent } from '../components/comment-thread/comment-thr
     UiIconComponent,
     EmptyStateComponent,
     CommentThreadComponent,
+    AssignDialogComponent,
+    IncidentImagesComponent,
   ],
   templateUrl: './incident-detail.component.html',
   styleUrl: './incident-detail.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class IncidentDetailComponent implements OnInit {
+export class IncidentDetailComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly incidentService = inject(IncidentService);
@@ -87,6 +106,10 @@ export class IncidentDetailComponent implements OnInit {
   private readonly statusHistoryService = inject(StatusHistoryService);
   private readonly authService = inject(AuthService);
   private readonly toast = inject(ToastService);
+  // 2026-10-17-F7-dispatch-ui — el botón "Asignar" abre el
+  // AssignDialogComponent. El service ya tenía assign/reassign pero
+  // no se consumía desde la UI — sólo se mostraba un toast "TODO".
+  private readonly assignmentService = inject(AssignmentService);
 
   // ── Resource state ────────────────────────────────────────────────
   readonly loading = signal<boolean>(true);
@@ -94,6 +117,16 @@ export class IncidentDetailComponent implements OnInit {
   readonly incident = signal<Incident | null>(null);
   readonly comments = signal<Comment[]>([]);
   readonly history = signal<StatusHistoryEntry[]>([]);
+
+  // ── F7 dispatch dialog state ─────────────────────────────────────
+  // `assignDialogOpen` toggles el `<app-assign-dialog>`. Cuando el
+  // incidente ya tiene una asignación activa, pasamos su id como
+  // `existingAssignmentId` para que el dialog use PATCH en lugar
+  // de POST (reasignar en vez de crear). El dialog cierra y emite
+  // un toast de éxito → este componente refresca el detalle via
+  // `reloadIncident()`.
+  readonly assignDialogOpen = signal<boolean>(false);
+  readonly existingAssignmentId = signal<string | null>(null);
 
   // ── UI helpers ────────────────────────────────────────────────────
   readonly currentUserId = computed(
@@ -114,6 +147,28 @@ export class IncidentDetailComponent implements OnInit {
     const inc = this.incident();
     return !!inc && Number.isFinite(inc.lat) && Number.isFinite(inc.lng);
   });
+
+  // ── Map State ─────────────────────────────────────────────────────
+  readonly mapContainer = viewChild<ElementRef<HTMLElement>>('mapContainer');
+  private mapInstance: L.Map | null = null;
+
+  constructor() {
+    effect(() => {
+      const el = this.mapContainer();
+      const inc = this.incident();
+      if (el && inc && this.hasCoordinates()) {
+        if (!this.mapInstance) {
+          this.mapInstance = L.map(el.nativeElement).setView([inc.lat, inc.lng], 15);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+          }).addTo(this.mapInstance);
+          L.marker([inc.lat, inc.lng]).addTo(this.mapInstance);
+        } else {
+          this.mapInstance.setView([inc.lat, inc.lng], 15);
+        }
+      }
+    });
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -230,15 +285,44 @@ export class IncidentDetailComponent implements OnInit {
           break;
         }
       case 'assign':
-        // F3.4.8 — la asignación consume GET /available-operators
-        // y POST /assignments/:id. El endpoint de assignments no
-        // es scope de F3 (es F3.4.8 con la salvedad documentada:
-        // los operadores ocupados se filtran en backend por hoy).
-        this.toast.show(
-          'Asignación: requiere integración con módulo assignments (F3.4.8).',
-          'info',
-        );
+        // 2026-10-17-F7-dispatch-ui — abrir el modal de despacho.
+        // Cargamos el assignment activo del incidente (si existe)
+        // para que el dialog sepa si tiene que POST (asignar) o
+        // PATCH (reasignar). Si no hay assignment activo, abrimos
+        // con `existingAssignmentId = null`.
+        this.assignmentService
+          .getLatestAssignment(inc.id)
+          .subscribe({
+            next: (assignment) => {
+              this.existingAssignmentId.set(assignment?.id ?? null);
+              this.assignDialogOpen.set(true);
+            },
+            error: () => {
+              // Si falla el lookup del assignment, igual abrimos
+              // el dialog para asignación nueva. El dialog hace su
+              // propio fetch de available-operators.
+              this.existingAssignmentId.set(null);
+              this.assignDialogOpen.set(true);
+            },
+          });
         break;
+    }
+  }
+
+  /**
+   * 2026-10-17-F7-dispatch-ui — el dialog emite `closed` después
+   * de un submit exitoso o un cancel. El padre cierra el flag
+   * `assignDialogOpen` para que el `@if (open())` desmonte el
+   * componente (libera memoria del form). También recarga el
+   * detalle para reflejar el cambio de asignación.
+   */
+  onAssignDialogClosed(): void {
+    this.assignDialogOpen.set(false);
+    const inc = this.incident();
+    if (inc) {
+      this.incidentService.getIncident(inc.id).subscribe({
+        next: (refreshed) => this.incident.set(refreshed),
+      });
     }
   }
 
@@ -277,7 +361,19 @@ export class IncidentDetailComponent implements OnInit {
   }
 
   // ── Helpers de UI ────────────────────────────────────────────────
+  // 2026-10-06-incident-images-read-path (D5) — expose the shared
+  // status label helper so the template can bind `[label]` on the
+  // status badge. Function-as-property keeps the call site terse
+  // and lets Angular template check treat it as a pure call.
+  protected readonly mapStatusLabel = mapStatusLabel;
+
   badgeStatusFor(s: IncidentStatus): 'pendiente' | 'en_proceso' | 'resuelto' | 'cerrada' {
+    // 2026-10-06-incident-images-read-path (D5) — keep the
+    // variant TOKEN (lowercase, underscore-joined) here so the
+    // `ui-badge [variant]` binding stays correct. The DISPLAY
+    // label is computed by `mapStatusLabel` (used in the
+    // template's `[label]="mapStatusLabel(inc.status)"`) — one
+    // source of truth across badges and (future) timelines.
     return (
       {
         pending: 'pendiente',
@@ -320,7 +416,47 @@ export class IncidentDetailComponent implements OnInit {
     this.comments.set(comments);
   }
 
+  /**
+   * Usabilidad del operador — el mini-mapa Leaflet es una vista previa;
+   * un toque en "Abrir en Google Maps" delega la navegación real a
+   * Google Maps con la URL armada desde lat/lng (evita mantener un
+   * cliente de mapas pesado embebido).
+   */
+  openInGoogleMaps(): void {
+    const inc = this.incident();
+    if (!inc || !this.hasCoordinates()) return;
+    const url = `https://www.google.com/maps?q=${inc.lat},${inc.lng}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  ngOnDestroy(): void {
+    if (this.mapInstance) {
+      this.mapInstance.remove();
+      this.mapInstance = null;
+    }
+  }
+
+  /**
+   * 2026-10-19-post-login-redirect-by-role — el botón "Volver"
+   * depende del rol. `reporter` no tiene acceso al listado
+   * administrativo de `/app/incidencias`; su feed vive en
+   * `/app/inicio`, así que vuelve al feed. El personal (cualquier
+   * otro rol) cae al listado como antes. Mirror de las reglas del
+   * `LoginComponent` y `permissionGuard`: si alguna se mueve, las
+   * tres tienen que moverse juntas.
+   */
   goBack(): void {
+    if (this.authService.user()?.roleName === 'reporter') {
+      this.router.navigate(['/app/inicio']);
+      return;
+    }
     this.router.navigate(['/app/incidencias']);
   }
+
+  /** Etiqueta del botón "Volver" según el rol del usuario. */
+  readonly backButtonLabel = computed(() =>
+    this.authService.user()?.roleName === 'reporter'
+      ? 'Volver al inicio'
+      : 'Volver al listado',
+  );
 }

@@ -3,8 +3,8 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 
-import { CommentEntity } from '../../entities/comment.entity';
-import { IncidentEntity, IncidentStatus } from '../../entities/incident.entity';
+import { CommentEntity } from '../comments/entities/comment.entity';
+import { IncidentEntity, IncidentStatus } from '../incidents/entities/incident.entity';
 import { IncidentApprovalService } from './incident-approval.service';
 import { Notification, NotificationType } from './entities/notification.entity';
 

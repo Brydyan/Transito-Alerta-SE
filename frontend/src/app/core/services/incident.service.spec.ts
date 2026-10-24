@@ -35,6 +35,7 @@ describe('IncidentService (F3.1 contract revalidation)', () => {
     geofence_matched: true,
     organization_id: 'org-A',
     citizen_id: 'user-1',
+    is_anonymous: false,
     assigned_to: null,
     category_id: 'cat-1',
     claimed_by: null,

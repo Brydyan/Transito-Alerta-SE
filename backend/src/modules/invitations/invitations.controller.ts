@@ -15,9 +15,9 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { PermissionGuard } from '../../common/guards/permission.guard';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AuthService, AuthTokens, RequestMeta } from '../auth/auth.service';
 import { AcceptInvitationDto } from '../auth/dto/accept-invitation.dto';

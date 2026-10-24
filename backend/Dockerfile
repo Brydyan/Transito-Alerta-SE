@@ -31,10 +31,31 @@ RUN CI=true pnpm run build
 FROM node:22-alpine AS production
 WORKDIR /app/backend
 RUN corepack enable
-COPY backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
+COPY --chown=node:node backend/package.json backend/pnpm-lock.yaml backend/pnpm-workspace.yaml ./
+
+# 2026-10-20 — el `chown -R node:node /app/backend` que cerraba este stage
+# costaba 25 MINUTOS de los 26 del build: recorría `node_modules` entero
+# (cientos de miles de archivos) escribiendo un cambio por archivo. El
+# context de Docker es la raíz del repo y el `data-root` vive en un
+# virtiofs, donde `dd` mide 62 MB/s contra 1,2 GB/s del disco local — 19x
+# menos. El patrón es O(archivos) y el disco amplifica cada archivo.
+#
+# Lo que hace esto en su lugar, todo O(1) o integrado en una sola pasada
+# de E/S que ya estaba haciendo el COPY:
+#
+#   1. `chown node:node /app/backend` sin `-R`: un solo inode, el
+#      directorio. Da a `node` permiso de escritura ahí.
+#   2. `pnpm install` corre como `node`, así que lo crea con el dueño
+#      correcto desde el principio. Nada que corregir después.
+#   3. El `dist` llega con `--chown`, que es parte de la copia.
+#
+# El resultado es idéntico — el proceso sigue corriendo como `node`, sin
+# privilegios — pero el build pasa de 26 minutos a menos de 4.
+RUN chown node:node /app/backend
+USER node
 RUN CI=true pnpm install --frozen-lockfile --prod
 # dist ahora vive en /app/backend/dist (porque el build stage corre
 # desde /app/backend), no en /app/dist.
-COPY --from=build /app/backend/dist /app/backend/dist
+COPY --from=build --chown=node:node /app/backend/dist /app/backend/dist
 EXPOSE 3001
 CMD ["node", "dist/src/main.js"]

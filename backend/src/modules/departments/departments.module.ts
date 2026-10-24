@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { OrganizationsModule } from '../organizations/organizations.module';
-import { DepartmentEntity } from '../../entities/department.entity';
+import { DepartmentEntity } from './entities/department.entity';
 import { DepartmentsController } from './departments.controller';
 import { DepartmentsRepository } from './departments.repository';
 import { DepartmentsService } from './departments.service';

@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { IncidentCategoryEntity } from '../../entities/incident-category.entity';
+import { IncidentCategoryEntity } from './entities/incident-category.entity';
 import { CreateIncidentCategoryDto } from './dto/create-incident-category.dto';
 import { UpdateIncidentCategoryDto } from './dto/update-incident-category.dto';
 import { CategoryNode, IncidentCategoriesRepository } from './incident-categories.repository';

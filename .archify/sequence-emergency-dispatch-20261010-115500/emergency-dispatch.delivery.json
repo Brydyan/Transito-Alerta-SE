@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "34842872-0b7b-43b6-8d4c-dbd309d8a7f2",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/candidate.json",
+  "output": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+  "specification": {
+    "sha256": "08f7ebb593541dbf75dae97a3af47bcdb366856ee07451f4aa09aa426f04ef08",
+    "bytes": 4930
+  },
+  "artifact": {
+    "sha256": "631b191e93446fd0c74d1626e72dc9633fa6f651d5e06d389f1e9de0b4cb96cf",
+    "bytes": 764255
+  }
+}

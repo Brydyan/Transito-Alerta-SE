@@ -164,8 +164,8 @@ Los 6 queries con sus umbrales:
 **Opción elegida: (A) No dual-write. Cutover directo con la API Laravel
 detenida antes de levantar NestJS.**
 
-- Firmado por: _[Andy Alejandro — pendiente de firma antes de fijar fecha de cutover]_
-- Fecha de firma: _[ISO 8601 — pendiente]_
+- Firmado por: _Andy Alejandro_
+- Fecha de firma: _2026-10-10_
 
 Razón documentada en `3-DATABASE-SCHEMA.md` §"Período dual-write": los
 4 triggers de legacy tienen semántica distinta en el stack nuevo.

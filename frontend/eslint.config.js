@@ -46,6 +46,11 @@ module.exports = [
         history: 'readonly',
         location: 'readonly',
         screen: 'readonly',
+        // Usadas por actions-dropdown para medir el desbordamiento del menú
+        // y el alto disponible antes de decidir si lo voltea.
+        HTMLUListElement: 'readonly',
+        DOMRect: 'readonly',
+        getComputedStyle: 'readonly',
       },
     },
     plugins: {
@@ -103,6 +108,9 @@ module.exports = [
         Event: 'readonly',
         MouseEvent: 'readonly',
         KeyboardEvent: 'readonly',
+        // El grupo de e2e ya la declara; los specs de componente la usan
+        // para importar módulos dentro del test (p. ej. rxjs).
+        require: 'readonly',
       },
     },
     plugins: {

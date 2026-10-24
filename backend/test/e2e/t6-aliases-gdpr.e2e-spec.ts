@@ -56,6 +56,14 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1)', () => {
     );
     const roleId = roleRows[0].id;
 
+    // createInvitation requiere un shadow user (is_active = FALSE) — el flujo
+    // real lo crea vía POST /api/users antes del invite.
+    await request(env.httpServer)
+      .post('/api/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ email })
+      .expect(201);
+
     const res = await request(env.httpServer)
       .post('/api/admin/users/invite')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -83,11 +91,11 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1)', () => {
   // ---- T6.8.A5 — GET /invitations/:token/preview alias ----------------------
 
   it('T6.8.A5: GET /api/invitations/:token/preview returns same body as GET /api/invitations/preview?token=', async () => {
-    const admin = await env.provisionUser(['CREATE invitations', 'READ invitations'], {
+    const admin = await env.provisionUser(['CREATE invitations', 'READ invitations', 'CREATE users'], {
       roleName: 'master',
     });
     const email = `preview-${randomUUID()}@example.com`;
-    const { token } = await createInvitation(admin.accessToken, email, 'operador_org');
+    const { token } = await createInvitation(admin.accessToken, email, 'operator_org');
 
     const r1 = await request(env.httpServer)
       .get(`/api/invitations/preview?token=${encodeURIComponent(token)}`)
@@ -104,11 +112,11 @@ describe('E2E T6 path aliases + GDPR (T6.8.A5, T6.8.D1)', () => {
   // ---- T6.8.A5 — POST /invitations/accept alias ------------------------------
 
   it('T6.8.A5: POST /api/invitations/accept redeems invitation same as POST /api/auth/accept-invitation', async () => {
-    const admin = await env.provisionUser(['CREATE invitations', 'READ invitations'], {
+    const admin = await env.provisionUser(['CREATE invitations', 'READ invitations', 'CREATE users'], {
       roleName: 'master',
     });
     const email = `accept-${randomUUID()}@example.com`;
-    const { token } = await createInvitation(admin.accessToken, email, 'operador_org');
+    const { token } = await createInvitation(admin.accessToken, email, 'operator_org');
 
     const res = await request(env.httpServer)
       .post('/api/invitations/accept')

@@ -1,6 +1,6 @@
 import type { Repository } from 'typeorm';
 import { PermissionsService } from './permissions.service';
-import { PermissionEntity } from '../../entities/permission.entity';
+import { PermissionEntity } from './entities/permission.entity';
 
 describe('PermissionsService', () => {
   let repo: { find: jest.Mock };

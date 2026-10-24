@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import type Redis from 'ioredis';
 
-import { REDIS_BLOCKING_CLIENT } from '../../core/core.module';
+import { REDIS_BLOCKING_CLIENT } from '../../infra/core.module';
 import { INCIDENTS_STREAM_KEY } from '../incidents/incidents.service';
 import { EventsGateway } from './events.gateway';
 import { decodeStreamEntry } from './stream-event.util';

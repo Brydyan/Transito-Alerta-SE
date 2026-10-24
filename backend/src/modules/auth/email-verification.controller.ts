@@ -1,6 +1,6 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
 import { IsString } from 'class-validator';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { EmailVerificationService } from './email-verification.service';
 

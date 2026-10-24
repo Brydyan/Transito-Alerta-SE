@@ -1,11 +1,148 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter, Router, ActivatedRoute } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 
 import { LoginComponent } from './login.component';
 import { AuthService } from '../../../core/services/auth.service';
 import { User } from '../../../core/models/auth.model';
+
+/**
+ * 2026-10-16-login-ux-polish — ajustes al template del login:
+ *  - Quitar "Volver al inicio" (href="#!" no hace nada)
+ *  - Agregar heading "Bienvenido de vuelta" + subtítulo
+ *  - Mover "¿Olvidaste tu contraseña?" inline con el label de
+ *    contraseña (patrón estándar — Gmail, GitHub, etc.)
+ *  - "Usuario" → "Correo electrónico" (consistencia con el placeholder)
+ *  - "¿No tenés cuenta?" → "¿No tienes cuenta?" (voseo → tuteo)
+ */
+describe('LoginComponent (2026-10-16 template polish)', () => {
+  function setupDom() {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        LoginComponent,
+        {
+          provide: AuthService,
+          useValue: {
+            login: jest.fn().mockReturnValue(of({ access_token: 'jwt', refresh_token: 'rt', permissions: [] })),
+            user: jest.fn().mockReturnValue(null),
+          } as unknown as AuthService,
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.componentInstance.loginForm.patchValue({
+      email: 'admin@correo.com',
+      password: 'Password123!',
+    });
+    fixture.detectChanges();
+    return { fixture, component: fixture.componentInstance };
+  }
+
+  it('no renderiza el enlace "Volver al inicio" (era href="#!" y no hacía nada)', () => {
+    const { fixture } = setupDom();
+    const html = fixture.nativeElement.textContent ?? '';
+    expect(html).not.toContain('Volver al inicio');
+    expect(fixture.nativeElement.querySelector('a[href="#!"]')).toBeNull();
+  });
+
+  it('muestra el heading "Bienvenido de vuelta" + subtítulo después del logo', () => {
+    const { fixture } = setupDom();
+    const html = fixture.nativeElement.textContent ?? '';
+    expect(html).toContain('Bienvenido de vuelta');
+    expect(html).toContain('Ingresa tus credenciales para continuar');
+  });
+
+  it('label de email dice "Correo electrónico" (sin la palabra "Usuario")', () => {
+    const { fixture } = setupDom();
+    const label = fixture.nativeElement.querySelector('label[for="email"]');
+    expect(label?.textContent?.trim()).toBe('Correo electrónico');
+    // La palabra suelta "Usuario" sólo debería aparecer dentro del
+    // placeholder, no en un `<label>` accesible.
+    expect(label?.textContent).not.toMatch(/^Usuario\b/);
+  });
+
+  it('"¿Olvidaste tu contraseña?" está inline con el label de contraseña', () => {
+    const { fixture } = setupDom();
+    const passwordLabel = fixture.nativeElement.querySelector(
+      'label[for="password"]',
+    ) as HTMLElement | null;
+    expect(passwordLabel).toBeTruthy();
+    // El enlace vive en el mismo contenedor padre que el label
+    // (patrón flex row). Si quedó debajo del input, el contenedor
+    // padre sería el `<div class="mb-6">` y no compartiría fila
+    // con el label.
+    const forgotLink = fixture.nativeElement.querySelector(
+      '[data-testid="link-forgot-password"]',
+    ) as HTMLElement | null;
+    expect(forgotLink).toBeTruthy();
+    expect(forgotLink?.textContent?.trim()).toMatch(/¿Olvidaste tu contraseña\?/);
+    // El label y el enlace comparten padre directo.
+    expect(passwordLabel?.parentElement).toBe(forgotLink?.parentElement);
+  });
+
+  it('texto del enlace "¿No tenés cuenta?" → "¿No tienes cuenta?" (tuteo)', () => {
+    const { fixture } = setupDom();
+    const html = fixture.nativeElement.textContent ?? '';
+    expect(html).toContain('¿No tienes cuenta?');
+    expect(html).not.toContain('¿No tenés cuenta?');
+  });
+
+  // 2026-10-16-password-visibility-toggle — el input de contraseña
+  // arranca oculto (`type="password"`); un botón con icono Lucide
+  // (`eye` / `eye-off`) al lado del input toggle entre password y
+  // text. El botón tiene `aria-label` dinámico y `type="button"`
+  // para no disparar submit del form.
+  describe('password visibility toggle', () => {
+    it('estado inicial: input es type="password"', () => {
+      const { fixture, component } = setupDom();
+      const input = fixture.nativeElement.querySelector(
+        'input[formControlName="password"]',
+      ) as HTMLInputElement;
+      expect(input.type).toBe('password');
+      expect(component.showPassword()).toBe(false);
+    });
+
+    it('click en el toggle: input pasa a type="text"', () => {
+      const { fixture, component } = setupDom();
+      component.togglePassword();
+      fixture.detectChanges();
+      const input = fixture.nativeElement.querySelector(
+        'input[formControlName="password"]',
+      ) as HTMLInputElement;
+      expect(input.type).toBe('text');
+      expect(component.showPassword()).toBe(true);
+    });
+
+    it('doble click: vuelve a type="password"', () => {
+      const { fixture, component } = setupDom();
+      component.togglePassword();
+      component.togglePassword();
+      fixture.detectChanges();
+      const input = fixture.nativeElement.querySelector(
+        'input[formControlName="password"]',
+      ) as HTMLInputElement;
+      expect(input.type).toBe('password');
+      expect(component.showPassword()).toBe(false);
+    });
+
+    it('botón toggle tiene type="button" (no dispara submit) y aria-label dinámico', () => {
+      const { fixture, component } = setupDom();
+      const btn = fixture.nativeElement.querySelector(
+        '[data-testid="toggle-password-visibility"]',
+      ) as HTMLButtonElement;
+      expect(btn).toBeTruthy();
+      expect(btn.type).toBe('button');
+      // Estado inicial: oculto → "Mostrar contraseña"
+      expect(btn.getAttribute('aria-label')).toMatch(/Mostrar/);
+      component.togglePassword();
+      fixture.detectChanges();
+      expect(btn.getAttribute('aria-label')).toMatch(/Ocultar/);
+    });
+  });
+});
 
 /**
  * REG (sc-325) — Fix A (ronda 10): `LoginComponent.onSubmit` redirige
@@ -105,7 +242,7 @@ describe('LoginComponent (REG sc-325 Fix A — C.4 redirect)', () => {
     // del routing real, fuera del scope de C.4.
   });
 
-  it('Fix A: operador_org sin verificar → NO navega a /verificar', async () => {
+  it('Fix A: operator_org sin verificar → NO navega a /verificar', async () => {
     // La verificación no aplica al staff. Aunque `emailVerified`
     // sea `false`, la condición no se cumple porque `roleName`
     // no es `'reporter'`. Si esto falla, es el defecto de
@@ -114,7 +251,7 @@ describe('LoginComponent (REG sc-325 Fix A — C.4 redirect)', () => {
     // útil.
     const { component, router } = setup({
       id: 'u-staff-1',
-      roleName: 'operador_org',
+      roleName: 'operator_org',
       emailVerified: false,
     });
     const navSpy = jest.spyOn(router, 'navigate');
@@ -133,10 +270,10 @@ describe('LoginComponent (REG sc-325 Fix A — C.4 redirect)', () => {
     expect(navSpy).not.toHaveBeenCalledWith(['/verificar']);
   });
 
-  it('Fix A: operador_sistema sin verificar → NO navega a /verificar', async () => {
+  it('Fix A: agent_system sin verificar → NO navega a /verificar', async () => {
     const { component, router } = setup({
       id: 'u-staff-3',
-      roleName: 'operador_sistema',
+      roleName: 'agent_system',
       emailVerified: false,
     });
     const navSpy = jest.spyOn(router, 'navigate');
@@ -212,5 +349,143 @@ describe('LoginComponent (REG sc-325 Fix A — C.4 redirect)', () => {
     // Lo que importa es que el navigate no ocurrió: el `error:`
     // del subscribe no navega.
     expect(component.loading()).toBe(false);
+  });
+});
+
+/**
+ * 2026-10-19-post-login-redirect-by-role — el destino por
+ * defecto del login depende del rol del usuario hidratado:
+ *  - `reporter` → `/app/inicio` (NO tiene `READ dashboard`)
+ *  - staff (cualquier otro rol) → `/app/dashboard`
+ *
+ * Si la query trae `returnUrl=...`, ese valor gana — el guard
+ * de la ruta destino decidirá si el usuario puede entrar.
+ *
+ * Verificación por mutación:
+ *  - quitar la rama `current?.roleName === 'reporter'` en
+ *    `LoginComponent.onSubmit` → el caso reporter cae al
+ *    `/app/dashboard` por defecto y los tests de reporter fallan.
+ *  - invertir la condición a `!== 'reporter'` → el staff cae a
+ *    `/app/inicio` y los tests de staff fallan.
+ *  - siempre pisar la query `returnUrl` con la rama de rol →
+ *    los tests con `?returnUrl=...` fallan.
+ */
+describe('LoginComponent (2026-10-19 post-login redirect by role)', () => {
+  function setupWithRoute(qp: Record<string, string> = {}, user: Partial<User> | null = null) {
+    const login = jest
+      .fn()
+      .mockReturnValue(of({ access_token: 'jwt', refresh_token: 'rt', permissions: [] }));
+    const authStub = {
+      login,
+      user: jest.fn().mockImplementation(() => user),
+    } as unknown as AuthService;
+    // El componente lee `route.snapshot.queryParams['returnUrl']`
+    // directamente (NO `queryParamMap.get`). Stub mínimo.
+    const routeStub = {
+      snapshot: { queryParams: qp },
+    } as unknown as ActivatedRoute;
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        LoginComponent,
+        { provide: AuthService, useValue: authStub },
+        { provide: ActivatedRoute, useValue: routeStub },
+      ],
+    });
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.componentInstance.loginForm.patchValue({
+      email: 'x@example.com',
+      password: 'Password123!',
+    });
+    return {
+      fixture,
+      component: fixture.componentInstance,
+      router: TestBed.inject(Router),
+      navSpy: jest.spyOn(TestBed.inject(Router), 'navigate'),
+    };
+  }
+
+  it('reporter verificado, sin returnUrl → navega a /app/inicio (no dashboard)', async () => {
+    const { component, navSpy } = setupWithRoute({}, {
+      id: 'r-1',
+      roleName: 'reporter',
+      emailVerified: true,
+    });
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/inicio']);
+    expect(navSpy).not.toHaveBeenCalledWith(['/app/dashboard']);
+  });
+
+  it('operator_org sin returnUrl → navega a /app/dashboard (default staff)', async () => {
+    const { component, navSpy } = setupWithRoute({}, {
+      id: 's-1',
+      roleName: 'operator_org',
+      emailVerified: true,
+    });
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/dashboard']);
+    expect(navSpy).not.toHaveBeenCalledWith(['/app/inicio']);
+  });
+
+  it('admin_org sin returnUrl → navega a /app/dashboard', async () => {
+    const { component, navSpy } = setupWithRoute({}, {
+      id: 's-2',
+      roleName: 'admin_org',
+      emailVerified: true,
+    });
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/dashboard']);
+  });
+
+  it('reporter con returnUrl=/app/reportar → respeta el returnUrl de la query', async () => {
+    const { component, navSpy } = setupWithRoute(
+      { returnUrl: '/app/reportar' },
+      { id: 'r-2', roleName: 'reporter', emailVerified: true },
+    );
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/reportar']);
+  });
+
+  it('staff con returnUrl=/app/admin/users → respeta el returnUrl (no aplica default de staff)', async () => {
+    const { component, navSpy } = setupWithRoute(
+      { returnUrl: '/app/admin/users' },
+      { id: 's-3', roleName: 'admin_org', emailVerified: true },
+    );
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/admin/users']);
+  });
+
+  it('reporter sin verificar sigue yendo a /verificar (precedencia del OTP)', async () => {
+    // Defensa contra una mutación que quite la rama `/verificar`:
+    // el reporter no verificado debe seguir aterrizando en el
+    // composer, no en /app/inicio.
+    const { component, navSpy } = setupWithRoute({}, {
+      id: 'r-3',
+      roleName: 'reporter',
+      emailVerified: false,
+    });
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/verificar']);
+    expect(navSpy).not.toHaveBeenCalledWith(['/app/inicio']);
+    expect(navSpy).not.toHaveBeenCalledWith(['/app/dashboard']);
+  });
+
+  it('user=null (señal no hidratada) sin returnUrl → cae al dashboard (defensivo)', async () => {
+    // Si la sesión no llegó a hidratarse, no sabemos el rol. El
+    // default razonable es el dashboard (donde el guard después
+    // rebotará al /login por falta de permisos, no por falta de
+    // sesión). La condición `current?.roleName === 'reporter'`
+    // es falsy con `null`, así que caemos a `/app/dashboard`.
+    const { component, navSpy } = setupWithRoute({}, null);
+    component.onSubmit();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(navSpy).toHaveBeenCalledWith(['/app/dashboard']);
   });
 });

@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
-import { AuditEventEntity } from '../../entities/audit-event.entity';
+import { AuditEventEntity } from './entities/audit-event.entity';
 import { AuditLogFilterDto } from './dto/audit-log-filter.dto';
 import { AuditService } from './audit.service';
 

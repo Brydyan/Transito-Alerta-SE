@@ -1,5 +1,7 @@
 import {
+  IsBoolean,
   IsEmail,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -13,7 +15,7 @@ import {
  * field is optional; only present fields are touched.
  *
  * F6 fix: se agregan `email` y `phone` al DTO. El admin (master u
- * operador_sistema) puede actualizar el correo y teléfono de un
+ * agent_system) puede actualizar el correo y teléfono de un
  * usuario bajo su alcance. Antes el form del frontend intentaba
  * mandarlos pero el DTO los rechazaba con
  * `forbidNonWhitelisted` (validación global del `main.ts`) y el
@@ -71,4 +73,40 @@ export class AdminUpdateUserDto {
   @IsOptional()
   @IsUUID()
   organization_id?: string;
+
+  /**
+   * 2026-10-10-user-onboarding-telegram-tour (D1) — department move.
+   * Same cross-row rule as in `AdminCreateUserDto`: the service
+   * validates that `dept.organization_id === target.organization_id`
+   * and forces `null` for global roles.
+   */
+  @IsOptional()
+  @IsUUID()
+  department_id?: string;
+
+  /**
+   * 2026-10-15-user-status-notif-channel (S1) — Master-only toggle.
+   * The wire field is `is_active` (snake_case, matches the rest of
+   * the DTO). The service enforces Master-only application AND a
+   * self-deactivation guard (`ForbiddenException`) — see
+   * `UsersService.adminUpdate()`. Non-master callers that send the
+   * field have it silently ignored (spec S1 escenario "Non-master
+   * sends is_active field (field ignored)").
+   */
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+
+  /**
+   * 2026-10-15-user-status-notif-channel (S2) — preferred notification
+   * channel preference. Wire `preferred_notification_channel`. The DTO
+   * uses `@IsIn(['email', 'telegram'])` so an invalid value like
+   * `'sms'` is rejected at the validation pipe with 400 — see
+   * `ValidationPipe` global `forbidNonWhitelisted`. Allowed today;
+   * additional channels can be added without an ALTER TYPE because
+   * the underlying column is `VARCHAR(20)` (design D4).
+   */
+  @IsOptional()
+  @IsIn(['email', 'telegram'])
+  preferred_notification_channel?: string;
 }

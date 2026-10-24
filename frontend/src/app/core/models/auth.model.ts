@@ -44,12 +44,30 @@ export interface MeResponse {
   email_verified: boolean;
   /**
    * REG (sc-325) Fix A (ronda 10) — nombre del rol (`reporter`,
-   * `operador_org`, `admin_org`, `operador_sistema`, `master`) o
+   * `operator_org`, `admin_org`, `agent_system`, `master`) o
    * `null` para el dispositivo anónimo. Sin este campo, C.4 no
    * puede decidir el redirect (`current?.roleName === 'reporter'`
    * era siempre `false` antes del fix).
    */
   role_name: string | null;
+  /**
+   * 2026-10-17-avatar-empty-fix — datos de perfil para que el
+   * header del frontend componga la inicial del avatar y muestre
+   * nombre + email. Antes del fix el wire no exponía estos campos
+   * y `fetchUser()` hardcodeaba `name: null` → el avatar renderizaba
+   * sólo el círculo purple sin letra.
+   *
+   * Snake_case vía `SnakeCaseResponseInterceptor` del backend; el
+   * frontend los lee tal cual llegan por la red.
+   */
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  /**
+   * URL del avatar del user (S3 / Cloudinary / etc). Si es
+   * `null`, el header muestra la inicial de `first_name` o `email`.
+   */
+  avatar_url: string | null;
 }
 
 /** POST /auth/logout */

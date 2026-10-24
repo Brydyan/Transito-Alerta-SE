@@ -1,12 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
 import { MenuOptionEntity } from './entities/menu-option.entity';
 import { MenuOptionRoleEntity } from './entities/menu-option-role.entity';
-import { UserEntity } from '../../entities/user.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
+import { UserEntity } from '../users/entities/user.entity';
 import { AuthService } from '../auth/auth.service';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { MenusService } from './menus.service';
 
 /**
@@ -103,6 +104,9 @@ describe('MenusService', () => {
         MenusService,
         { provide: getRepositoryToken(MenuOptionEntity), useValue: optionRepo },
         { provide: getRepositoryToken(MenuOptionRoleEntity), useValue: {} },
+        // 2026-10-20 — MenusService resuelve el rol para no servirle menú a
+        // un rol soft-deleted. Mock: cualquier rol vigente pasa.
+        { provide: getRepositoryToken(RoleEntity), useValue: { findOne: jest.fn().mockResolvedValue({ id: 'r1' }) } },
         { provide: getRepositoryToken(UserEntity), useValue: userRepo },
         { provide: REDIS_CLIENT, useValue: redis },
         { provide: AuthService, useValue: authService },
@@ -353,7 +357,7 @@ describe('MenusService', () => {
     expect(permissionLookup.getUuid).toHaveBeenCalledWith('CREATE', 'incidents');
   });
 
-  it.skip('operador_sistema with matrix can_read=true for /admin/users but WITHOUT READ users UUID does NOT see Usuarios', async () => {
+  it.skip('agent_system with matrix can_read=true for /admin/users but WITHOUT READ users UUID does NOT see Usuarios', async () => {
     authService.getPermissionsByUserId.mockResolvedValue([UUID_READ_INCIDENTS, UUID_READ_ORGANIZATIONS]);
     const usuarios = Object.assign(new MenuOptionEntity(), {
       id: 'op1', name: 'Usuarios', route: '/admin/users', parentId: null, displayOrder: 60, isActive: true, deletedAt: null,
@@ -422,7 +426,7 @@ describe('MenusService', () => {
     expect(result.map((e) => e.label)).not.toContain('Ubicaciones');
   });
 
-  it.skip('operador_org (15 permisos) sees a coherent subset without orphan headers (F1.2.3)', async () => {
+  it.skip('operator_org (15 permisos) sees a coherent subset without orphan headers (F1.2.3)', async () => {
     // Subset representativo: el operador de organización tiene acceso a
     // incidencias (lectura y creación) y a organizaciones. NO ve usuarios,
     // roles, categorías, ni ubicaciones. El menú resultante no debe tener
@@ -501,5 +505,61 @@ describe('MenusService', () => {
 
     expect(result.find((e) => e.label === 'Reportar')).toBeDefined();
     expect(result).toHaveLength(11); // Full menu
+  });
+
+  // 2026-10-17-reportar-operator-org-block — operator_org NO debe ver
+  // el menú "Reportar" porque no tiene CREATE incidents (decisión de
+  // negocio: operator_org sólo atiende, no reporta). El menú se filtra
+  // en backend por `menu_option_roles.role_id = user.roleId` (post-0055).
+  // El test simula el resultado de la query para operator_org: la query
+  // retorna SOLO los menús que operator_org SÍ ve. Si Reportar está
+  // en el array, falla — es exactamente lo que pasa hoy en staging
+  // (0029_dynamic_menus_data_migration.sql incluye operator_org en
+  // la INSERT de menu_option_roles para Reportar).
+  const ROLE_OPERATOR_ORG = '22222222-2222-2222-2222-222222222222';
+  const USER_OPERATOR = 'user-operator';
+
+  it('operator_org: Reportar NO está en el menú (fix 0029)', async () => {
+    userRepo.findOne.mockResolvedValue(
+      Object.assign(new UserEntity(), { id: USER_OPERATOR, roleId: ROLE_OPERATOR_ORG }),
+    );
+    // Mock: la query JOIN menu_option_roles con roleId=operator_org
+    // retorna sólo los menús que operator_org SÍ ve. Reportar NO
+    // está en este array (post-fix).
+    const operatorAccessible = ALL_MENU_OPTIONS.filter((m) => m.name !== 'Reportar');
+    optionRepo.qb.getMany.mockResolvedValue(operatorAccessible);
+    // operator_org SÍ tiene READ incidents (su backend permission set
+    // lo confirma), pero NO CREATE — la matriz del menú decide.
+    authService.getPermissionsByUserId.mockResolvedValue([
+      UUID_READ_INCIDENTS,
+      UUID_READ_ORGANIZATIONS,
+    ]);
+
+    const result = await service.getMenuForUser(USER_OPERATOR);
+
+    expect(result.find((e) => e.label === 'Reportar')).toBeUndefined();
+    // Sí ve los demás (Dashboard, Inicio, Lista, Mapa, etc.)
+    expect(result.find((e) => e.label === 'Dashboard')).toBeDefined();
+    expect(result.find((e) => e.label === 'Inicio')).toBeDefined();
+  });
+
+  // Documenta el caso negativo: si la query (mal seeded) incluyera
+  // Reportar para operator_org, el menú NO lo filtra (post-0055
+  // HOTFIX). El backend rechaza con 403 en el POST — el cliente
+  // muestra error genérico. El fix está en la capa de menu_option_roles.
+  it.skip('anti-regresión: si menu_option_roles incluye Reportar para operator_org, el menú lo muestra (HOTFIX documentado)', async () => {
+    userRepo.findOne.mockResolvedValue(
+      Object.assign(new UserEntity(), { id: USER_OPERATOR, roleId: ROLE_OPERATOR_ORG }),
+    );
+    optionRepo.qb.getMany.mockResolvedValue(ALL_MENU_OPTIONS); // INCLUYE Reportar
+    authService.getPermissionsByUserId.mockResolvedValue([UUID_READ_INCIDENTS]);
+
+    const result = await service.getMenuForUser(USER_OPERATOR);
+
+    // Post-0055 el menú NO filtra por permission UUID — la matriz
+    // es la fuente de verdad. Por lo tanto Reportar ES visible aunque
+    // operator_org no tenga CREATE. La capa que rechaza es el
+    // `@RequirePermission('CREATE incidents')` en el controller.
+    expect(result.find((e) => e.label === 'Reportar')).toBeDefined();
   });
 });

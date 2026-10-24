@@ -1,0 +1,378 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "architecture",
+  "quality": "showcase",
+  "startedAt": "2026-10-10T16:46:17.574Z",
+  "specification": {
+    "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/candidate.json",
+    "sha256": "2f0847a0d8aca20299397ad52608a274f09ac3e7291f6f2de670d79a59aa9fbb",
+    "bytes": 4352
+  },
+  "artifact": {
+    "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+    "sha256": "f25b088414c75f2c2e5414c9474738737f9c15d4fb9b2ab240fd5b278dd814d4",
+    "bytes": 761528
+  },
+  "stages": {
+    "validate": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": null,
+      "execution": "embedded-in-deliver",
+      "command": [
+        "/usr/bin/node",
+        "/home/andy/.agents/skills/archify/bin/archify.mjs",
+        "deliver",
+        "architecture",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/candidate.json",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "validate",
+        "specification": {
+          "sha256": "2f0847a0d8aca20299397ad52608a274f09ac3e7291f6f2de670d79a59aa9fbb",
+          "bytes": 4352
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        }
+      }
+    },
+    "deliver": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 210,
+      "command": [
+        "/usr/bin/node",
+        "/home/andy/.agents/skills/archify/bin/archify.mjs",
+        "deliver",
+        "architecture",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/candidate.json",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "receiptId": "b58c858f-5f04-4c5a-9ddb-c2965aa660ea",
+        "ok": true,
+        "command": "deliver",
+        "type": "architecture",
+        "input": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/candidate.json",
+        "output": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+        "specification": {
+          "sha256": "2f0847a0d8aca20299397ad52608a274f09ac3e7291f6f2de670d79a59aa9fbb",
+          "bytes": 4352
+        },
+        "artifact": {
+          "sha256": "f25b088414c75f2c2e5414c9474738737f9c15d4fb9b2ab240fd5b278dd814d4",
+          "bytes": 761528
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        },
+        "evidence": {
+          "verified": true,
+          "repository": "https://github.com/Brydyan/Transito-Alerta-SE",
+          "revision": "ea71d353abaef60b5592e8b5abd48a3c9040506b",
+          "references": 2
+        },
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      }
+    },
+    "check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 90,
+      "command": [
+        "/usr/bin/node",
+        "/home/andy/.agents/skills/archify/bin/archify.mjs",
+        "check",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+        "--require-provenance"
+      ],
+      "receipt": {
+        "ok": true,
+        "file": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+        "artifact": {
+          "sha256": "f25b088414c75f2c2e5414c9474738737f9c15d4fb9b2ab240fd5b278dd814d4",
+          "bytes": 761528
+        },
+        "checks": [
+          {
+            "name": "single_svg",
+            "ok": true,
+            "details": [
+              "found 1 <svg> block(s)"
+            ]
+          },
+          {
+            "name": "finite_svg",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "orthogonal_arrows",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "label_route_clearance",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_crossings",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_corridors",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "container_border_runs",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "route_rhythm",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "legend_clearance",
+            "ok": true,
+            "details": []
+          }
+        ],
+        "composition": {
+          "schemaVersion": 1,
+          "profile": "showcase",
+          "status": "pass",
+          "summary": {
+            "errors": 0,
+            "warnings": 0
+          },
+          "metrics": {
+            "properCrossings": 0,
+            "resolvedCrossovers": 0,
+            "ambiguousCorridors": 0,
+            "arrowheadCollisions": 0,
+            "containerBorderRuns": 0,
+            "labelRouteClearanceIssues": 0,
+            "labelCanvasOverflowIssues": 0,
+            "minLabelRouteClearance": 21.1,
+            "desktopReadabilityIssues": 0,
+            "viewportHeightIssues": 0,
+            "minProjectedNodeTextPx": 7.2,
+            "maxBends": 2,
+            "routesOverSuggestedBends": 0,
+            "maxStretch": 1,
+            "routesOverSuggestedStretch": 0,
+            "minSegmentPx": 55,
+            "minInteriorSegmentPx": 153,
+            "shortSegmentCount": 0,
+            "shortEndpointSegmentCount": 0,
+            "shortInteriorSegmentCount": 0,
+            "microSegmentCount": 0
+          },
+          "suggestedLimits": {
+            "bendsPerRelationship": 2,
+            "stretch": 1.35,
+            "segmentPx": 16,
+            "microSegmentPx": 8
+          },
+          "routeReview": {
+            "crossings": [],
+            "detours": []
+          },
+          "leadingSpace": {
+            "measured": true,
+            "emptyTopPx": 90,
+            "emptyTopRatio": 0.153,
+            "occupiedTop": 90,
+            "viewBoxTop": 0,
+            "canvasHeight": 588,
+            "typicalNodeHeight": 60,
+            "reviewSuggested": false
+          },
+          "desktopReadability": {
+            "budgetBasis": "recognized-declared-wide",
+            "readerContract": "declared-wide-v1",
+            "availableDiagramWidth": 950,
+            "actualBudgetPx": 950,
+            "actualReaderWidth": 980,
+            "desiredReaderWidth": 980,
+            "viewportCap": 1376,
+            "limit": "source-size",
+            "requestedTargetPx": 7.5,
+            "requestedTargetMet": false,
+            "hardFloorPx": 6,
+            "hardFloorMet": true,
+            "minimumOwner": {
+              "kind": "node",
+              "id": "client"
+            },
+            "minimumSourceTextPx": 7.2,
+            "minimumProjectedTextPx": 7.2,
+            "semanticTextCount": 24
+          },
+          "issues": []
+        },
+        "provenance": "current",
+        "deliveryReceiptId": "b58c858f-5f04-4c5a-9ddb-c2965aa660ea"
+      }
+    },
+    "browser-check": {
+      "status": "skipped",
+      "exitCode": 2,
+      "durationMs": 11,
+      "command": [
+        "/usr/bin/node",
+        "/home/andy/.agents/skills/archify/bin/archify.mjs",
+        "browser-check",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+        "--json",
+        "--require-provenance"
+      ],
+      "execution": "in-process",
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "browser-check",
+        "evidenceKind": "automated-browser",
+        "status": "skipped",
+        "visualReview": "not-requested",
+        "provenance": "current",
+        "deliveryReceiptId": "b58c858f-5f04-4c5a-9ddb-c2965aa660ea",
+        "artifact": {
+          "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+          "sha256": "f25b088414c75f2c2e5414c9474738737f9c15d4fb9b2ab240fd5b278dd814d4",
+          "bytes": 761528
+        },
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "chrome": {
+          "status": "unavailable",
+          "executable": null
+        },
+        "diagnostics": [
+          {
+            "code": "viewer/chrome-unavailable",
+            "severity": "warning",
+            "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+            "subject": {
+              "artifact": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html"
+            },
+            "evidence": {
+              "executable": null
+            },
+            "supportedFixes": [
+              "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+            ]
+          }
+        ],
+        "containment": {
+          "status": "skipped",
+          "policy": "fit-or-reader-declared-readable-vertical-scroll",
+          "viewports": []
+        },
+        "themeStates": {
+          "status": "skipped",
+          "viewports": []
+        },
+        "readability": {
+          "status": "skipped",
+          "minimumProjectedNodeTextPx": 6,
+          "viewports": []
+        },
+        "viewerChrome": {
+          "status": "skipped",
+          "viewports": []
+        },
+        "captures": {
+          "status": "not-requested",
+          "screenshots": [],
+          "contactSheet": null
+        },
+        "sidecars": {
+          "receipt": "tase-infra.browser-check.json",
+          "files": []
+        },
+        "error": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path."
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+      ]
+    }
+  ],
+  "evidence": {
+    "receipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.finalize.json",
+    "summaryReceipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.finalize-summary.json",
+    "browserCheckReceipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "browser-check",
+  "finishedAt": "2026-10-10T16:46:17.962Z",
+  "durationMs": 387,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-10T16:18:40.834Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}

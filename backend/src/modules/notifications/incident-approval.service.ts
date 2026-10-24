@@ -7,8 +7,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
-import { CommentEntity } from '../../entities/comment.entity';
-import { IncidentEntity } from '../../entities/incident.entity';
+import { CommentEntity } from '../comments/entities/comment.entity';
+import { IncidentEntity } from '../incidents/entities/incident.entity';
 import { Notification, NotificationType } from './entities/notification.entity';
 
 /**

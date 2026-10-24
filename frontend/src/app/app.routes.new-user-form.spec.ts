@@ -28,11 +28,27 @@ describe('app.routes.ts (F6 — new user form wiring)', () => {
     // dentro del children de 'users'. Esta regex captura la
     // estructura con un lookbehind para asegurar que 'new' está
     // dentro de un bloque children de 'users'.
-    const usersBlock = routesSrc.match(
-      /path:\s*['"]users['"][\s\S]*?children:\s*\[([\s\S]*?)\][\s\S]*?\],/,
-    );
-    expect(usersBlock).not.toBeNull();
-    const children = usersBlock![1];
+    // The non-greedy `[\s\S]*?` stops at the first `]` it finds, which is
+    // now inside the `canActivate: [permissionGuard]` array added by
+    // front/2026-10-14-admin-route-guards. Use indexOf/slice to extract the
+    // full children block instead so that nested brackets do not truncate it.
+    const usersPathIdx = routesSrc.indexOf("path: 'users'");
+    expect(usersPathIdx).toBeGreaterThan(-1);
+    const childrenKwIdx = routesSrc.indexOf('children: [', usersPathIdx);
+    expect(childrenKwIdx).toBeGreaterThan(-1);
+    // Walk forward matching brackets to find the closing `]` of the children array.
+    const openBracket = routesSrc.indexOf('[', childrenKwIdx + 'children: '.length);
+    let depth = 0;
+    let closeIdx = -1;
+    for (let i = openBracket; i < routesSrc.length; i++) {
+      if (routesSrc[i] === '[') depth++;
+      else if (routesSrc[i] === ']') {
+        depth--;
+        if (depth === 0) { closeIdx = i; break; }
+      }
+    }
+    expect(closeIdx).toBeGreaterThan(-1);
+    const children = routesSrc.slice(openBracket + 1, closeIdx);
     const newIdx = children.search(/path:\s*['"]new['"]/);
     const idEditIdx = children.search(/path:\s*['"]:id\/edit['"]/);
     expect(newIdx).toBeGreaterThan(-1);

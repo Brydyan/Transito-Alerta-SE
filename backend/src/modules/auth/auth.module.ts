@@ -4,8 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { UserEntity } from '../../entities/user.entity';
-import { RoleEntity } from '../../entities/role.entity';
+import { UserEntity } from '../users/entities/user.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
 import { AuthConfig } from '../../config/auth.config';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { MailModule } from '../mail/mail.module';
@@ -13,6 +13,8 @@ import { SessionsModule } from '../sessions/sessions.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthRegisterService } from './auth.register';
+import { AuthUserRepository } from './auth-user.repository';
+import { AuthContextService } from './auth-context.service';
 import { EmailVerificationController } from './email-verification.controller';
 import { EmailVerificationService } from './email-verification.service';
 import { JwtStrategy } from './jwt.strategy';
@@ -64,6 +66,8 @@ import { PasswordResetService } from './password-reset.service';
   providers: [
     AuthService,
     AuthRegisterService,
+    AuthUserRepository,
+    AuthContextService,
     JwtStrategy,
     PasswordHasher,
     PasswordResetRepository,

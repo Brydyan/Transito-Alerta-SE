@@ -1,5 +1,36 @@
 packages: []
 
+# 2026-10-18 — security (P1..P5) — `overrides` reemplazó al campo
+# `pnpm.overrides` en package.json a partir de pnpm 10. Cada entrada
+# fuerza una versión mínima para cerrar CVEs conocidos sin esperar a
+# que las deps transitivas (express/nestjs) suban de versión.
+#
+# - proxy-addr >=2.0.8 — GHSA-jqcg-44mw-7w3h (CRITICAL: IP spoofing vía
+#   IPv4-mapped IPv6 trust subnet, bypasea el RateLimiterGuard).
+# - multer >=2.2.0     — DoS por cleanup incompleto en uploads abortados.
+# - engine.io >=6.6.10 — Socket.IO protocol revision mismatch DoS.
+# - tar >=7.4.3        — Path traversal hardlink chain.
+# - nodemailer >=7.0.0 — addressparser DoS + bypass de file/url access.
+# - brace-expansion >=1.1.20 — DoS uncontrolled recursion (transitivo).
+# - lodash >=4.17.24   — Code injection via `_.template`.
+#
+# Pendiente (requiere revisión arquitectónica separada, NO auto-fix):
+# - nodemailer >=9.x — necesitaría otro major upgrade con breaking changes
+#   adicionales. Cobertura actual (>=7.0.0) mitiga los 2 advisories más
+#   críticos; los restantes (>=9.x) los aborda Dependabot cuando aparezca
+#   el PR.
+#
+# Documentado en odd/tasks/SECURITY_AUDIT_2026-10-18.md y
+# odd/tasks/SECURITY_ACTION_PLAN_2026-10-18.md.
+overrides:
+  proxy-addr: ^2.0.8
+  multer: ^2.2.0
+  engine.io: ^6.6.10
+  tar: ^7.4.3
+  nodemailer: ^7.0.0
+  brace-expansion: ^1.1.20
+  lodash: ^4.17.24
+
 allowBuilds:
   '@nestjs/core': true
   '@scarf/scarf': true

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -17,11 +18,11 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { PermissionGuard } from '../../common/guards/permission.guard';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { UserEntity } from '../../entities/user.entity';
+import { UserEntity } from './entities/user.entity';
 import { SessionResponseDto } from '../sessions/dto/session-response.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
@@ -30,11 +31,15 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserOrganizationDto } from './dto/update-user-organization.dto';
 import { UploadedFile as AvatarFile } from './avatar-storage.service';
 import { UsersService } from './users.service';
+import { TelegramLinkService } from '../telegram/telegram-link.service';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly telegramLinkService: TelegramLinkService,
+  ) {}
 
   @Get('me')
   me(@Req() req: AuthenticatedRequest): Promise<UserEntity> {
@@ -76,20 +81,73 @@ export class UsersController {
     return this.usersService.getSessionsForSelf(req.user!);
   }
 
+  /**
+   * D3 — `POST /api/users/me/telegram-link` (2026-10-11-user-form-departments-telegram-hybrid).
+   *
+   * Issues a fresh Telegram deep-link token for the authenticated staff user.
+   * Blocked for `reporter` role (citizens cannot link to the admin bot).
+   * Protected by `JwtAuthGuard`; no extra `@RequirePermission` (self-service).
+   */
+  @Post('me/telegram-link')
+  async generateTelegramLink(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ telegram_link: string | null }> {
+    if (req.user!.roleName === 'reporter') {
+      throw new ForbiddenException(
+        'Los reporteros no pueden vincularse al bot de Telegram de gestión interna.',
+      );
+    }
+    const token = await this.telegramLinkService.issueFor(req.user!.userId);
+    const telegram_link = this.telegramLinkService.composeDeepLink(token);
+    return { telegram_link };
+  }
+
   // ---- T5.6 admin CRUD: create / show / update / delete
   // Declared BEFORE `:id` and `:id/...` to avoid the literal segment
   // being captured as an id param (defense in depth).
 
   @Post()
   @RequirePermission('CREATE')
-  adminCreate(@Body() dto: AdminCreateUserDto): Promise<UserEntity> {
-    return this.usersService.adminCreate(dto);
+  adminCreate(
+    @Body() dto: AdminCreateUserDto,
+    // 2026-10-16 — AUD (sc-327) — the controller hands the
+    // caller's id to `adminCreate` so the service can emit a
+    // `CREATE_USER` audit row. `req.user!.userId` is non-null
+    // because `JwtAuthGuard` enforces a populated `AuthContext`
+    // on every authenticated route.
+    @Req() req: AuthenticatedRequest,
+  ): Promise<UserEntity> {
+    return this.usersService.adminCreate(dto, req.user!.userId);
   }
 
   @Get(':id')
   @RequirePermission('READ')
-  adminShow(@Param('id', ParseUUIDPipe) id: string): Promise<UserEntity> {
-    return this.usersService.findById(id);
+  adminShow(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<UserEntity & { hasPendingInvitation: boolean }> {
+    // 2026-10-16-resend-invitation (D1) — el form de edición usa el
+    // flag `hasPendingInvitation` para mostrar el botón "Reenviar
+    // invitación". El EXISTS extra no afecta a callers no-admin.
+    return this.usersService.findByIdWithPendingFlag(id);
+  }
+
+  /**
+   * 2026-10-16 — admin-side Telegram link regeneration
+   * (POST /users/:id/telegram-link). The route gate
+   * `@RequirePermission('UPDATE', 'users')` covers the capability
+   * check; `assertCanManage` (called from the service) handles the
+   * scope/rank surface so master sees all and admin_org sees only
+   * their own org — same pattern as updateOrganization. 201 by
+   * default for POST is correct here (a new token is minted every
+   * call).
+   */
+  @Post(':id/telegram-link')
+  @RequirePermission('UPDATE', 'users')
+  adminGenerateTelegramLink(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ telegram_link: string | null }> {
+    return this.usersService.adminGenerateTelegramLink(req.user!, id);
   }
 
   @Patch(':id')
@@ -97,15 +155,33 @@ export class UsersController {
   adminUpdate(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AdminUpdateUserDto,
+    // 2026-10-15-user-status-notif-channel — the new `is_active` field
+    // is Master-only at the service layer (self-deactivation guard +
+    // role gate). The controller hands `req.user!.userId` and
+    // `req.user!.roleName` to the service so the guard works without
+    // a second round-trip to the auth layer. `roleName` is nullable on
+    // `AuthContext`; an absent role cannot be master, so the service
+    // guard naturally drops `is_active`.
+    @Req() req: AuthenticatedRequest,
   ): Promise<UserEntity> {
-    return this.usersService.adminUpdate(id, dto);
+    return this.usersService.adminUpdate(
+      id,
+      dto,
+      req.user!.userId,
+      req.user!.roleName ?? '',
+    );
   }
 
   @Delete(':id')
   @RequirePermission('DELETE')
   @HttpCode(HttpStatus.NO_CONTENT)
-  adminDelete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    return this.usersService.softDelete(id);
+  adminDelete(
+    @Param('id', ParseUUIDPipe) id: string,
+    // 2026-10-16 — AUD (sc-327) — controller hands the caller id
+    // to `softDelete` so the service can emit `DELETE_USER`.
+    @Req() req: AuthenticatedRequest,
+  ): Promise<void> {
+    return this.usersService.softDelete(id, req.user!.userId);
   }
 
   /**
@@ -128,12 +204,32 @@ export class UsersController {
     @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    // 2026-10-16 — toggle "mostrar inactivos" en la lista de
+    // usuarios. Wire values: `active=true` → solo activos;
+    // `active=false` → solo inactivos (shadow-users de adminCreate);
+    // ausente → todos (default histórico, isActive=true).
+    // `forbidNonWhitelisted` is NOT enabled globally here — the
+    // controller does not apply ValidationPipe for query params on
+    // this route, so unknown values (`active=foo`) fall through to
+    // `activeOnly = undefined` and the caller still gets the full
+    // list (defensive).
+    @Query('active') active?: string,
   ): Promise<{ items: UserEntity[]; total: number }> {
+    const activeOnly =
+      active === undefined
+        ? undefined
+        : active === 'true'
+          ? true
+          : active === 'false'
+            ? false
+            : undefined;
+
     return this.usersService.list(
       page ? parseInt(page, 10) : undefined,
       limit ? parseInt(limit, 10) : undefined,
       req.user!.scope,
       req.user!.userId,
+      activeOnly,
     );
   }
 

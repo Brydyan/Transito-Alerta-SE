@@ -46,14 +46,17 @@ describe('UsersService (F6 new-user-form)', () => {
 
   afterEach(() => http.verify());
 
-  it('getFormData — GET /api/users/form-data y aplana { roles, organizations }', () => {
+  it('getFormData — GET /api/users/form-data y aplana { roles, organizations, departments }', () => {
     service.getFormData().subscribe((data) => {
       expect(data.roles).toEqual([
         { id: 'r1', name: 'admin_org' },
-        { id: 'r2', name: 'operador_org' },
+        { id: 'r2', name: 'operator_org' },
       ]);
       expect(data.organizations).toEqual([
-        { id: 'o1', name: 'GAD Norte' },
+        { id: 'o1', nombre: 'GAD Norte' },
+      ]);
+      expect(data.departments).toEqual([
+        { id: 'd1', nombre: 'Gestión Vial', organizationId: 'o1' },
       ]);
     });
     const req = http.expectOne(`${base}/form-data`);
@@ -62,9 +65,21 @@ describe('UsersService (F6 new-user-form)', () => {
     req.flush({
       roles: [
         { id: 'r1', name: 'admin_org' },
-        { id: 'r2', name: 'operador_org' },
+        { id: 'r2', name: 'operator_org' },
       ],
       organizations: [{ id: 'o1', name: 'GAD Norte' }],
+      departments: [{ id: 'd1', name: 'Gestión Vial', organization_id: 'o1' }],
+    });
+  });
+
+  it('getFormData — departments vacío cuando el backend no lo retorna', () => {
+    service.getFormData().subscribe((data) => {
+      expect(data.departments).toEqual([]);
+    });
+    const req = http.expectOne(`${base}/form-data`);
+    req.flush({
+      roles: [],
+      organizations: [],
     });
   });
 
@@ -76,6 +91,8 @@ describe('UsersService (F6 new-user-form)', () => {
       phone: '+593 99 999 9999',
       role_id: 'r1',
       organization_id: 'o1',
+      department_id: 'd1',
+      geo_zone_id: null,
     };
     service.createUserJson(payload).subscribe((user) => {
       expect(user).toEqual({ id: 'new-id', email: payload.email });
@@ -292,6 +309,88 @@ describe('UsersService (F6 new-user-form)', () => {
           accion: 'READ',
         },
       ]);
+    });
+  });
+
+  // 2026-10-16 — toggle "mostrar inactivos" en lista de usuarios.
+  // El `active` query param se agrega cuando `activeOnly !== undefined`.
+  // La ausencia del param (default `undefined`) NO agrega nada.
+  describe('getUsers — activeOnly toggle', () => {
+    it('does not add `active` param when activeOnly is undefined (default — all users)', () => {
+      service.getUsers(1, 10).subscribe();
+      const req = http.expectOne(`${environment.apiUrl}/users?page=1&limit=10`);
+      expect(req.request.params.has('active')).toBe(false);
+      req.flush({ items: [], total: 0 });
+    });
+
+    it('adds `active=true` when activeOnly is true (toggle off — historical default)', () => {
+      service.getUsers(1, 10, undefined, undefined, true).subscribe();
+      const req = http.expectOne(`${environment.apiUrl}/users?page=1&limit=10&active=true`);
+      expect(req.request.params.get('active')).toBe('true');
+      req.flush({ items: [], total: 0 });
+    });
+
+    it('adds `active=false` when activeOnly is false (toggle on — shadow users)', () => {
+      service.getUsers(1, 10, undefined, undefined, false).subscribe();
+      const req = http.expectOne(`${environment.apiUrl}/users?page=1&limit=10&active=false`);
+      expect(req.request.params.get('active')).toBe('false');
+      req.flush({ items: [], total: 0 });
+    });
+
+    it('combines `active` with `role` and `org` params', () => {
+      service.getUsers(1, 10, 'admin_org', 'org-A', false).subscribe();
+      const req = http.expectOne(
+        `${environment.apiUrl}/users?page=1&limit=10&role=admin_org&org=org-A&active=false`,
+      );
+      expect(req.request.params.get('role')).toBe('admin_org');
+      expect(req.request.params.get('org')).toBe('org-A');
+      expect(req.request.params.get('active')).toBe('false');
+      req.flush({ items: [], total: 0 });
+    });
+  });
+
+  // 2026-10-16 — admin regenerates the Telegram deep-link via
+  // `POST /api/users/:id/telegram-link`. Wire shape
+  // `{ telegram_link: string | null }`: `null` when the bot is not
+  // configured (TELEGRAM_BOT_USERNAME unset). El método siempre
+  // envía `withCredentials: true` para que la cookie de sesión
+  // llegue al endpoint protegido.
+  describe('regenerateTelegramLink', () => {
+    it('POST /users/:id/telegram-link returns { telegram_link } when the bot is configured', () => {
+      const userId = 'user-123';
+      const mockResponse = {
+        telegram_link: 'https://t.me/tase_alert_bot?start=tok123',
+      };
+      let result: { telegram_link: string | null } | undefined;
+
+      service.regenerateTelegramLink(userId).subscribe((res) => {
+        result = res;
+      });
+
+      const req = http.expectOne(`${environment.apiUrl}/users/${userId}/telegram-link`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.withCredentials).toBe(true);
+      expect(req.request.body).toEqual({});
+      req.flush(mockResponse);
+
+      expect(result).toEqual(mockResponse);
+      expect(result?.telegram_link).toBe('https://t.me/tase_alert_bot?start=tok123');
+    });
+
+    it('POST /users/:id/telegram-link returns { telegram_link: null } when bot is not configured', () => {
+      const userId = 'user-123';
+      let result: { telegram_link: string | null } | undefined;
+
+      service.regenerateTelegramLink(userId).subscribe((res) => {
+        result = res;
+      });
+
+      const req = http.expectOne(`${environment.apiUrl}/users/${userId}/telegram-link`);
+      expect(req.request.method).toBe('POST');
+      req.flush({ telegram_link: null });
+
+      expect(result).toEqual({ telegram_link: null });
+      expect(result?.telegram_link).toBeNull();
     });
   });
 });

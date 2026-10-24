@@ -2,7 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 
-import { CoreModule } from './core/core.module';
+import { CoreModule } from './infra/core.module';
 import { AppController } from './app.controller';
 import { AuthModule } from './modules/auth/auth.module';
 import { GeofencingModule } from './modules/geofencing/geofencing.module';
@@ -17,6 +17,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { MenusModule } from './modules/menus/menus.module';
 import { MailModule } from './modules/mail/mail.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
 import { IncidentCategoriesModule } from './modules/incident-categories/incident-categories.module';
 import { MapModule } from './modules/map/map.module';
 import { GeoZonesModule } from './modules/geo-zones/geo-zones.module';
@@ -27,9 +28,9 @@ import { InvitationsModule } from './modules/invitations/invitations.module';
 import { OperatorsModule } from './modules/operators/operators.module';
 import { IncidentSocialModule } from './modules/incident-social/incident-social.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
-import { RateLimiterGuard } from './common/guards/rate-limiter.guard';
-import { AllExceptionsFilter } from './common/observability/all-exceptions.filter';
-import { RequestIdMiddleware } from './common/observability/request-id.middleware';
+import { RateLimiterGuard } from './shared/guards/rate-limiter.guard';
+import { AllExceptionsFilter } from './shared/observability/all-exceptions.filter';
+import { RequestIdMiddleware } from './shared/observability/request-id.middleware';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { RequestIdMiddleware } from './common/observability/request-id.middlewar
     PermissionsModule,
     MenusModule,
     MailModule,
+    TelegramModule,
     NotificationsModule,
     IncidentCategoriesModule,
     MapModule,

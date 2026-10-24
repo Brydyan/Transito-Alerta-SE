@@ -2,8 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 
-import { OrganizationEntity } from '../../entities/organization.entity';
-import { GeoZoneEntity } from '../../entities/geo-zone.entity';
+import { OrganizationEntity } from './entities/organization.entity';
+import { GeoZoneEntity } from '../geo-zones/entities/geo-zone.entity';
 import { GeofencingService } from '../geofencing/geofencing.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';

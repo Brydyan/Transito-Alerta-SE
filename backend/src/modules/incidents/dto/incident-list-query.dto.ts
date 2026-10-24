@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
-import { IncidentStatus } from '../../../entities/incident.entity';
+import { IncidentStatus } from '../entities/incident.entity';
 
 export class IncidentListQueryDto {
   @IsOptional()

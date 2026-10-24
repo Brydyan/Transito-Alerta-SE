@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, ActivatedRoute, convertToParamMap } from '@angular/router';
+import { provideRouter, ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { of, throwError } from 'rxjs';
@@ -38,6 +38,7 @@ describe('IncidentDetailComponent (F3.4)', () => {
     geofence_matched: true,
     organization_id: 'org-A',
     citizen_id: 'user-1',
+    is_anonymous: false,
     assigned_to: null,
     category_id: null,
     claimed_by: null,
@@ -62,11 +63,13 @@ describe('IncidentDetailComponent (F3.4)', () => {
     id?: string | null;
     permissions?: string[];
     userId?: string | null;
+    roleName?: string;
     incident?: Incident | null;
     notFoundFromServer?: boolean;
   } = {}) {
     const id = opts.id === undefined ? 'inc-1' : opts.id;
     const incidentSvc = {
+      getIncidentImages: jest.fn().mockReturnValue(of([])),
       getIncident: jest.fn(),
       updateIncidentStatus: jest.fn(),
       releaseIncident: jest.fn(),
@@ -82,10 +85,15 @@ describe('IncidentDetailComponent (F3.4)', () => {
         .fn()
         .mockReturnValue(of<{ items: StatusHistoryEntry[]; total: number }>({ items: [], total: 0 })),
     };
+    // 2026-10-19-post-login-redirect-by-role — `roleName` es
+    // parte del shape del `user` que el guard y los redirects
+    // consumen; los tests viejos asumían que faltaba (default
+    // staff `admin_org` para no coincidir con la rama reporter).
     const authSvc = {
       user: () => ({
         id: opts.userId ?? 'user-1',
         permissions: opts.permissions ?? [],
+        roleName: opts.roleName ?? 'admin_org',
       }),
     };
     const toastSvc = { show: jest.fn() };
@@ -315,5 +323,173 @@ describe('IncidentDetailComponent (F3.4)', () => {
     component.onAction('release');
 
     expect(toastSvc.show).toHaveBeenCalledWith('NOT_THE_CLAIMER', 'error');
+  });
+
+  // ── Nuevos Tests T2-T5 ────────────────────────────────────────────────
+
+  it('T2 — renderiza nombres legibles o fallbacks (Ciudadano no disponible)', () => {
+    const inc: Incident = {
+      ...baseIncident,
+      citizen_id: '123',
+      zone_id: '456',
+      citizen: { full_name: 'Juan Perez' },
+      geo_zone: { name: 'Centro' },
+    };
+    const { fixture } = setup({ incident: inc });
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Juan Perez');
+    expect(text).toContain('Centro');
+    expect(text).not.toContain('123');
+    expect(text).not.toContain('456');
+
+    // Test fallbacks
+    const incFallback: Incident = {
+      ...baseIncident,
+      citizen: undefined,
+      geo_zone: undefined,
+    };
+    TestBed.resetTestingModule();
+    const { fixture: fixtureFB } = setup({ incident: incFallback });
+    const textFB = (fixtureFB.nativeElement as HTMLElement).textContent ?? '';
+    expect(textFB).toContain('Ciudadano no disponible');
+    expect(textFB).toContain('Zona no disponible');
+  });
+
+  it('T2 — muestra "Autor anónimo" si is_anonymous es true', () => {
+    const inc: Incident = {
+      ...baseIncident,
+      is_anonymous: true,
+      citizen: undefined,
+    };
+    const { fixture } = setup({ incident: inc });
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Autor anónimo');
+    expect(text).not.toContain('Ciudadano no disponible');
+  });
+
+  it('T3 — oculta el contenedor de ubicación si no hay coordenadas', () => {
+    const inc: Incident = { ...baseIncident, lat: NaN, lng: NaN };
+    const { fixture } = setup({ incident: inc });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('ui-card[title="Ubicación"]')).toBeNull();
+    expect(el.textContent).not.toContain('Zona no disponible');
+  });
+
+  it('T4 — inicializa el mapa Leaflet solo si hay coordenadas y lo limpia en OnDestroy', () => {
+    const { component } = setup({ incident: baseIncident });
+    // el effect de signals ya corrió con fixture.detectChanges() en setup()
+    expect(component['mapInstance']).not.toBeNull();
+    const removeSpy = jest.spyOn(component['mapInstance']!, 'remove');
+    component.ngOnDestroy();
+    expect(removeSpy).toHaveBeenCalled();
+    expect(component['mapInstance']).toBeNull();
+  });
+
+  it('T5 — botón "Abrir en Google Maps" abre la URL armada con lat/lng', () => {
+    const { component, fixture } = setup({ incident: baseIncident });
+    const openSpy = jest
+      .spyOn(window, 'open')
+      .mockImplementation(() => null);
+
+    const btn = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="open-google-maps"]',
+    );
+    expect(btn).not.toBeNull();
+
+    component.openInGoogleMaps();
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://www.google.com/maps?q=-2.2,-80.8',
+      '_blank',
+      'noopener,noreferrer',
+    );
+    openSpy.mockRestore();
+  });
+
+  it('T5 — sin coordenadas el botón de Google Maps no aparece', () => {
+    const inc: Incident = { ...baseIncident, lat: NaN, lng: NaN };
+    const { fixture } = setup({ incident: inc });
+    const btn = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="open-google-maps"]',
+    );
+    expect(btn).toBeNull();
+  });
+
+  // 2026-10-19-incident-gallery-mount — la galería vivía como
+  // comentario en el template y el componente no estaba importado.
+  // Después del fix, cuando la incidencia está cargada el
+  // elemento `<app-incident-images>` debe estar presente (la
+  // sección Galería dejó de ser código muerto).
+  it('T6 — monta <app-incident-images> con [incidentId] cuando la incidencia está cargada', () => {
+    const { fixture } = setup({ incident: baseIncident });
+    const gallery = (fixture.nativeElement as HTMLElement).querySelector(
+      'app-incident-images',
+    );
+    expect(gallery).not.toBeNull();
+  });
+
+  it('T6 — NO monta la galería cuando la incidencia no existe (notFound)', () => {
+    // La galería vive dentro del branch `@else if (incident(); as inc)`,
+    // así que un 404 no debe pintarla. Si se filtrara arriba aparecería
+    // un <ui-card title="Galería"> en el empty-state.
+    const { fixture } = setup({ notFoundFromServer: true });
+    const gallery = (fixture.nativeElement as HTMLElement).querySelector(
+      'app-incident-images',
+    );
+    expect(gallery).toBeNull();
+  });
+
+  // 2026-10-19-post-login-redirect-by-role — el botón "Volver"
+  // debe respetar el rol del usuario. Reporter no tiene acceso a
+  // /app/incidencias; el suyo es /app/inicio.
+  describe('goBack + backButtonLabel (2026-10-19 role-aware)', () => {
+    it('staff (admin_org) → navega a /app/incidencias y etiqueta "Volver al listado"', () => {
+      const { component } = setup({ roleName: 'admin_org' });
+      expect(component.backButtonLabel()).toBe('Volver al listado');
+    });
+
+    it('reporter → navega a /app/inicio y etiqueta "Volver al inicio"', () => {
+      const { component } = setup({ roleName: 'reporter' });
+      expect(component.backButtonLabel()).toBe('Volver al inicio');
+    });
+
+    it('goBack() como staff → router.navigate(["/app/incidencias"])', () => {
+      const { component } = setup({ roleName: 'admin_org' });
+      const router = TestBed.inject(Router);
+      const spy = jest.spyOn(router, 'navigate');
+      component.goBack();
+      expect(spy).toHaveBeenCalledWith(['/app/incidencias']);
+      expect(spy).not.toHaveBeenCalledWith(['/app/inicio']);
+    });
+
+    it('goBack() como reporter → router.navigate(["/app/inicio"]) (no al listado)', () => {
+      const { component } = setup({ roleName: 'reporter' });
+      const router = TestBed.inject(Router);
+      const spy = jest.spyOn(router, 'navigate');
+      component.goBack();
+      expect(spy).toHaveBeenCalledWith(['/app/inicio']);
+      expect(spy).not.toHaveBeenCalledWith(['/app/incidencias']);
+    });
+
+    it('el template del botón header refleja backButtonLabel() según el rol', () => {
+      // staff
+      const { fixture: fixtureStaff } = setup({ roleName: 'admin_org' });
+      expect(fixtureStaff.nativeElement.textContent).toContain('Volver al listado');
+      expect(fixtureStaff.nativeElement.textContent).not.toContain('Volver al inicio');
+
+      // reporter
+      TestBed.resetTestingModule();
+      const { fixture: fixtureReporter } = setup({ roleName: 'reporter' });
+      expect(fixtureReporter.nativeElement.textContent).toContain('Volver al inicio');
+      expect(fixtureReporter.nativeElement.textContent).not.toContain('Volver al listado');
+    });
+
+    it('el empty state del 404 también usa backButtonLabel() (un solo origen del texto)', () => {
+      // Cuando la incidencia no existe y el rol es reporter, el botón
+      // del empty state debe decir "Volver al inicio" también.
+      const { fixture } = setup({ roleName: 'reporter', notFoundFromServer: true });
+      const text = fixture.nativeElement.textContent ?? '';
+      expect(text).toContain('Volver al inicio');
+      expect(text).not.toContain('Volver al listado');
+    });
   });
 });

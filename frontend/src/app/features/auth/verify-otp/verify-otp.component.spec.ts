@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter, Router, ActivatedRoute } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { of } from 'rxjs';
@@ -105,6 +105,19 @@ describe('VerifyOtpComponent (REG sc-325 C.6)', () => {
     expect(component.otpForm.valid).toBe(false);
   });
 
+  // 2026-10-17-form-input-fix — antes el template usaba
+  // `class="form-input"` (clase inexistente en `_forms.css`). El
+  // OTP input colapsaba a altura 0 y el label no se veía.
+  it('2026-10-17: el input del OTP usa `form-control` (no `form-input`)', () => {
+    const { fixture } = setup();
+    const input = fixture.nativeElement.querySelector(
+      'input[formControlName="otp"]',
+    ) as HTMLInputElement | null;
+    expect(input).toBeTruthy();
+    expect(input?.classList.contains('form-input')).toBe(false);
+    expect(input?.classList.contains('form-control')).toBe(true);
+  });
+
   it('C.6: con form vacío, submit() NO llama al servidor (validación cliente)', () => {
     const { component, http } = setup();
     component.submit();
@@ -129,7 +142,7 @@ describe('VerifyOtpComponent (REG sc-325 C.6)', () => {
     expect(component.status()).toBe('idle');
   });
 
-  it('C.6: 200 (verified: true) → status = success, fetchUser refresca el signal, navega al dashboard', async () => {
+  it('C.6: 200 (verified: true) → status = success, fetchUser refresca el signal, navega al destino por defecto', async () => {
     const { component, http, fetchUser, router } = setup();
     component.otpCtrl.setValue('123456');
     const submitP = component.submit();
@@ -145,7 +158,12 @@ describe('VerifyOtpComponent (REG sc-325 C.6)', () => {
     // promesa hueca. Verificación por mutación: quitar la
     // línea `this.router.navigateByUrl(this.returnUrl)` y este
     // assert cae.
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/app/dashboard');
+    //
+    // 2026-10-19-post-login-redirect-by-role — el destino por
+    // defecto del composer es `/app/inicio` (no `/app/dashboard`)
+    // porque el único rol que llega a esta pantalla es `reporter`
+    // y carece del permiso `READ dashboard`.
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/app/inicio');
   });
 
   it('C.6: 422 con code OTP_INVALID → status = invalid, mensaje accionable (no cierra sesión)', async () => {
@@ -172,7 +190,7 @@ describe('VerifyOtpComponent (REG sc-325 C.6)', () => {
     expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
-  it('C.6: 422 con code EMAIL_ALREADY_VERIFIED → status = already, fetchUser, navega al dashboard', async () => {
+  it('C.6: 422 con code EMAIL_ALREADY_VERIFIED → status = already, fetchUser, navega al destino por defecto', async () => {
     const { component, http, fetchUser, router } = setup();
     component.otpCtrl.setValue('111111');
     const submitP = component.submit();
@@ -194,7 +212,10 @@ describe('VerifyOtpComponent (REG sc-325 C.6)', () => {
     // "Volvemos a tu cuenta…". Sin esta navegación el spec
     // "Ya verificado" del requirement queda sin cumplir
     // (CRITICAL 3 del verify de la ronda 9).
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/app/dashboard');
+    //
+    // 2026-10-19-post-login-redirect-by-role — destino por
+    // defecto del reportero es `/app/inicio`.
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/app/inicio');
   });
 
   it('C.6: 429 → status = ratelimit, mensaje neutral, NO es un fallo', async () => {
@@ -249,5 +270,78 @@ describe('VerifyOtpComponent (REG sc-325 C.6)', () => {
     await resendP;
     expect(component.status()).toBe('ratelimit');
     expect(component.message()).toBe('Acabamos de enviarte uno. Esperá un minuto antes de pedir otro.');
+  });
+});
+
+/**
+ * 2026-10-19-post-login-redirect-by-role — el destino por defecto
+ * del composer ya NO es `/app/dashboard` (el reportero carece del
+ * permiso `READ dashboard`). Si el `LoginComponent` (C.4) o un
+ * deep-link trae `?returnUrl=` en la query, ese valor gana —
+ * siempre que sea una ruta interna `/app/...`.
+ */
+describe('VerifyOtpComponent (2026-10-19 returnUrl default)', () => {
+  function setupWithQuery(qp: Record<string, string> = {}) {
+    const authStub = {
+      fetchUser: jest.fn().mockReturnValue(of({})),
+      logout: jest.fn().mockReturnValue(of({ success: true })),
+      accessToken: () => 'token-abc',
+    } as unknown as AuthService;
+    const routeStub = {
+      snapshot: {
+        queryParamMap: {
+          get: (k: string) => (k in qp ? qp[k] : null),
+        },
+      },
+    } as unknown as ActivatedRoute;
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        VerifyOtpComponent,
+        { provide: AuthService, useValue: authStub },
+        { provide: ActivatedRoute, useValue: routeStub },
+      ],
+    });
+    const fixture = TestBed.createComponent(VerifyOtpComponent);
+    fixture.detectChanges();
+    const router = TestBed.inject(Router);
+    const navigateByUrl = jest
+      .spyOn(router, 'navigateByUrl')
+      .mockResolvedValue(true);
+    return {
+      fixture,
+      component: fixture.componentInstance,
+      navigateByUrl,
+      http: TestBed.inject(HttpTestingController),
+    };
+  }
+
+  it('sin returnUrl → el destino por defecto es /app/inicio (no /app/dashboard)', async () => {
+    const { component, http, navigateByUrl } = setupWithQuery({});
+    component.otpCtrl.setValue('424242');
+    const submitP = component.submit();
+    const req = http.expectOne(
+      (r) => r.method === 'POST' && r.url.endsWith('/email/verify-otp'),
+    );
+    req.flush({ verified: true });
+    await submitP;
+    expect(navigateByUrl).toHaveBeenCalledWith('/app/inicio');
+    expect(navigateByUrl).not.toHaveBeenCalledWith('/app/dashboard');
+  });
+
+  it('con ?returnUrl=/app/reportar → respeta la query param del LoginComponent', async () => {
+    const { component, http, navigateByUrl } = setupWithQuery({
+      returnUrl: '/app/reportar',
+    });
+    component.otpCtrl.setValue('525252');
+    const submitP = component.submit();
+    const req = http.expectOne(
+      (r) => r.method === 'POST' && r.url.endsWith('/email/verify-otp'),
+    );
+    req.flush({ verified: true });
+    await submitP;
+    expect(navigateByUrl).toHaveBeenCalledWith('/app/reportar');
   });
 });

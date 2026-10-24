@@ -1,6 +1,6 @@
 import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
-import { GEO_ZONE_LEVELS, GeoZoneLevel } from '../../../entities/geo-zone.entity';
+import { GEO_ZONE_LEVELS, GeoZoneLevel } from '../entities/geo-zone.entity';
 import { GeoJsonGeometry } from '../geo-zones.repository';
 import { IsGeoJsonPolygon } from './is-geojson-polygon.validator';
 
@@ -19,7 +19,7 @@ export class CreateGeoZoneDto {
   level?: GeoZoneLevel;
 
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID('all')
   parent_id?: string;
 
   @IsOptional()

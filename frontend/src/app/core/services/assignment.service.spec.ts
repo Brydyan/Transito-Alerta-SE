@@ -101,14 +101,14 @@ describe('AssignmentService', () => {
 
   // ───── getAvailableOperators() ────────────────────────────────────
 
-  it('getAvailableOperators() calls /operators/locations to get available operators', (done) => {
+  it('getAvailableOperators() calls /operator/locations to get available operators', (done) => {
     const fixtureOps = [{ user_id: 'op-1', lat: 0, lng: 0, updated_at: '2026-09-23' }];
     service.getAvailableOperators().subscribe((ops) => {
       expect(Array.isArray(ops)).toBe(true);
       done();
     });
 
-    const req = http.expectOne(`${base}/operators/locations`);
+    const req = http.expectOne(`${base}/operator/locations`);
     expect(req.request.method).toBe('GET');
     req.flush({ operators: fixtureOps });
   });
@@ -135,5 +135,124 @@ describe('AssignmentService', () => {
 
     const req = http.expectOne(`${base}/assignments/incident/inc-empty`);
     req.flush([]);
+  });
+
+  // ───── 2026-10-17-F7-dispatch-ui ──────────────────────────────────
+  // Nuevos métodos para soportar el modal de despacho del admin_org:
+  //   - getAvailableOperatorsForIncident(incidentId) → GET /incidents/:id/available-operators
+  //   - assign(..., opts) extendido con override_cap/override_reason
+  //   - release(assignmentId) → DELETE /assignments/:id
+  //   - reassign(assignmentId, operatorId, opts) → PATCH /assignments/:id
+  // Los modelos de comunicación son los del backend (AvailableOperatorDto,
+  // UpdateAssignmentDto) y se exponen como tipos públicos del service.
+
+  describe('F7-dispatch: getAvailableOperatorsForIncident()', () => {
+    it('hits GET /incidents/:id/available-operators and flattens the response', (done) => {
+      const fixture = [
+        {
+          id: 'op-1',
+          name: 'Alice',
+          email: 'alice@x.com',
+          activeClaimCount: 1,
+          available: true,
+          maxActive: 3,
+        },
+        {
+          id: 'op-2',
+          name: 'Bob',
+          email: null,
+          activeClaimCount: 3,
+          available: false,
+          maxActive: 3,
+        },
+      ];
+      service.getAvailableOperatorsForIncident('inc-1').subscribe((ops) => {
+        expect(ops.length).toBe(2);
+        expect(ops[0].id).toBe('op-1');
+        expect(ops[0].available).toBe(true);
+        expect(ops[1].available).toBe(false);
+        done();
+      });
+
+      const req = http.expectOne(`${base}/incidents/inc-1/available-operators`);
+      expect(req.request.method).toBe('GET');
+      req.flush(fixture);
+    });
+
+    it('returns [] when the incident has no organization (backend returns empty)', (done) => {
+      service.getAvailableOperatorsForIncident('inc-empty').subscribe((ops) => {
+        expect(ops).toEqual([]);
+        done();
+      });
+      http.expectOne(`${base}/incidents/inc-empty/available-operators`).flush([]);
+    });
+  });
+
+  describe('F7-dispatch: assign() with override fields', () => {
+    it('sends override_cap=true + override_reason when provided', (done) => {
+      service
+        .assign('inc-1', 'op-1', { overrideCap: true, overrideReason: 'Emergencia activa' })
+        .subscribe(() => done());
+      const httpReq = http.expectOne(`${base}/assignments`);
+      expect(httpReq.request.method).toBe('POST');
+      expect(httpReq.request.body).toEqual({
+        incident_id: 'inc-1',
+        operator_id: 'op-1',
+        override_cap: true,
+        override_reason: 'Emergencia activa',
+      });
+      httpReq.flush(fixtureAssignment);
+    });
+
+    it('omits override fields when not provided (back-compat)', (done) => {
+      service.assign('inc-1', 'op-1').subscribe(() => done());
+      const httpReq = http.expectOne(`${base}/assignments`);
+      expect(httpReq.request.body).toEqual({
+        incident_id: 'inc-1',
+        operator_id: 'op-1',
+      });
+      httpReq.flush(fixtureAssignment);
+    });
+
+    it('propagates 429 CLAIM_LIMIT_REACHED without swallowing it', (done) => {
+      service
+        .assign('inc-1', 'op-1', { overrideCap: true, overrideReason: 'x' })
+        .subscribe({
+          next: () => done.fail('expected error'),
+          error: (err) => {
+            expect(err.status).toBe(429);
+            done();
+          },
+        });
+      http.expectOne(`${base}/assignments`).flush(
+        { message: 'CLAIM_LIMIT_REACHED', code: 'CLAIM_LIMIT_REACHED' },
+        { status: 429, statusText: 'Too Many Requests' },
+      );
+    });
+  });
+
+  describe('F7-dispatch: release() (DELETE)', () => {
+    it('hits DELETE /assignments/:id', (done) => {
+      service.release('assign-1').subscribe(() => done());
+      const req = http.expectOne(`${base}/assignments/assign-1`);
+      expect(req.request.method).toBe('DELETE');
+      req.flush(null);
+    });
+  });
+
+  describe('F7-dispatch: reassign() (PATCH /:id)', () => {
+    it('sends PATCH /assignments/:id with new operator + override fields', (done) => {
+      service
+        .reassign('assign-1', 'op-2', { overrideCap: true, overrideReason: 'Reasignación por baja' })
+        .subscribe(() => done());
+      const req = http.expectOne(`${base}/assignments/assign-1`);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({
+        operator_id: 'op-2',
+        override_cap: true,
+        override_reason: 'Reasignación por baja',
+      });
+      req.flush(fixtureAssignment);
+    });
   });
 });

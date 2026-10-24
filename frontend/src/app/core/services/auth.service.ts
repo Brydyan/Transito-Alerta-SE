@@ -188,6 +188,31 @@ export class AuthService {
       .pipe(catchError((err) => this.handleError(err)));
   }
 
+  // 2026-10-16-forgot-reset-password-flow — inicio del flow
+  // "¿Olvidaste tu contraseña?". El backend responde SIEMPRE 200
+  // (design D9) para no leakear si el email existe o no — la
+  // pantalla muestra el mismo mensaje genérico en ambos casos.
+  // El `http.post` se subscribe al final del pipe; el componente
+  // no necesita lógica adicional de errores (4xx no debería
+  // ocurrir en flujo normal; si ocurre, el `catchError` global
+  // lo formatea).
+  requestPasswordReset(email: string): Observable<void> {
+    return this.http
+      .post<void>(`${this.API_URL}/password-reset`, { email })
+      .pipe(catchError((err) => this.handleError(err)));
+  }
+
+  // 2026-10-16-forgot-reset-password-flow — confirmación del flow.
+  // El backend rota `password_hash`, consume el token (one-shot)
+  // y revoca todas las sesiones activas del usuario. 410 si el
+  // token expiró o ya se usó, 404 si el token nunca existió. La
+  // pantalla mapea cada status code a un mensaje dedicado.
+  confirmPasswordReset(token: string, password: string): Observable<void> {
+    return this.http
+      .post<void>(`${this.API_URL}/password-reset/confirm`, { token, password })
+      .pipe(catchError((err) => this.handleError(err)));
+  }
+
   // ───── A.3 — Refresh (single-flight, body-based per backend contract) ─────
   refresh(): Observable<AuthTokens> {
     if (this.refreshInProgress$) {
@@ -249,8 +274,23 @@ export class AuthService {
         tap((me) => {
           this.user.set({
             id: me.user_id,
-            email: null,
-            name: null,
+            // 2026-10-17-avatar-empty-fix — antes `email` se
+            // hardcodeaba en `null`. Ahora lo leemos del wire
+            // (snake_case del backend). Si es null, el header
+            // compone `name` con fallback.
+            email: me.email ?? null,
+            // 2026-10-17-avatar-empty-fix — `name` se compone de
+            // `first_name + ' ' + last_name` (estándar del repo).
+            // Fallbacks: si falta uno, usamos el otro; si faltan
+            // ambos, usamos email; si todo es null, queda null
+            // (no se renderiza inicial pero el círculo purple
+            // sigue visible). El header renderiza
+            // `user.name?.charAt(0)?.toUpperCase()` para la
+            // inicial — antes era siempre cadena vacía.
+            name:
+              me.first_name && me.last_name
+                ? `${me.first_name} ${me.last_name}`
+                : (me.first_name ?? me.last_name ?? me.email ?? null),
             roleId: null,
             // REG (sc-325) Fix A (ronda 10) — el nombre del rol
             // llega por la misma llamada a `/me`. Antes de este

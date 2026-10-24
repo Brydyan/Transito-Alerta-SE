@@ -50,6 +50,16 @@ describe('VerifyEmailComponent (REG sc-325 Fix 9)', () => {
     expect(input?.value).toBe('ciudadano@example.com');
   });
 
+  // 2026-10-17-form-input-fix — antes el template usaba
+  // `class="form-input"` (clase inexistente en `_forms.css`). Sin
+  // estilos base el input colapsaba y absorbía el espacio del label.
+  it('2026-10-17: el input de verify-email usa `form-control` (no `form-input`)', () => {
+    setup({ email: 'ciudadano@example.com', hint: 'algo' });
+    const input = document.querySelector('[data-testid="email-input"]') as HTMLInputElement | null;
+    expect(input?.classList.contains('form-input')).toBe(false);
+    expect(input?.classList.contains('form-control')).toBe(true);
+  });
+
   // MAIL (sc-327) — F.2/F.3 — el `hint` viene del backend
   // (query param), NO de una constante local. Antes la frase
   // «Si ya lo estaba, te avisamos al titular» vivía acá como

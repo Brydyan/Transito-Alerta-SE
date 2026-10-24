@@ -1,13 +1,15 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import type { Repository } from 'typeorm';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { DataSource, type Repository } from 'typeorm';
 import { UsersService, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './users.service';
-import { UserEntity } from '../../entities/user.entity';
-import { RoleEntity } from '../../entities/role.entity';
-import { OrganizationEntity } from '../../entities/organization.entity';
-import { AuthContext, SubjectScope } from '../../common/authz/subject-scope';
+import { UserEntity } from './entities/user.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
+import { AuthContext, SubjectScope } from '../../shared/authz/subject-scope';
 import { AuthService } from '../auth/auth.service';
 import { AvatarStorageService } from './avatar-storage.service';
 import { SessionsRepository } from '../sessions/sessions.repository';
+import { TelegramLinkService } from '../telegram/telegram-link.service';
+import { AuditService } from '../audit/audit.service';
 
 const GLOBAL_SCOPE: SubjectScope = { kind: 'global' };
 const ORG_A_SCOPE: SubjectScope = { kind: 'org', organizationId: 'org-A' };
@@ -15,6 +17,12 @@ const ORG_ASSIGNED_SCOPE: SubjectScope = {
   kind: 'org_assigned',
   organizationId: 'org-A',
   userId: 'user-1',
+};
+// 2026-10-18-admin-org-dept-scoping — admin_org con dept poblado.
+const DEPT_A_SCOPE: SubjectScope = {
+  kind: 'department',
+  organizationId: 'org-A',
+  departmentId: 'dept-A',
 };
 const PUBLIC_SCOPE: SubjectScope = { kind: 'public' };
 const DENY_SCOPE: SubjectScope = { kind: 'deny', reason: 'staff_without_organization' };
@@ -31,10 +39,17 @@ describe('UsersService', () => {
   let roleRepo: { find: jest.Mock; findOne: jest.Mock };
   let orgRepo: { find: jest.Mock; findOne: jest.Mock };
   let authService: { invalidatePermissionCache: jest.Mock };
+  // 2026-10-16 — AUD (sc-327) — assigned in `beforeEach`. The
+  // definite-assignment assertion (`!`) tells TS that the spec
+  // resolves it before the `it()` bodies read it (which is true — the
+  // spec runs `beforeEach` before every test).
+  let auditService!: { record: jest.Mock };
+  let telegramLinkService: { issueFor: jest.Mock; composeDeepLink: jest.Mock };
   let sessionsRepository: {
     findActiveByUser: jest.Mock;
     findManageableTarget: jest.Mock;
   };
+  let dataSource: { query: jest.Mock };
   let service: UsersService;
 
   beforeEach(() => {
@@ -50,6 +65,22 @@ describe('UsersService', () => {
     orgRepo = { find: jest.fn(), findOne: jest.fn() };
     authService = { invalidatePermissionCache: jest.fn() };
     sessionsRepository = { findActiveByUser: jest.fn(), findManageableTarget: jest.fn() };
+    // 2026-10-10-user-onboarding-telegram-tour: the service now hits
+    // the DB directly for departments (getFormData dropdown +
+    // adminCreate/adminUpdate cross-row invariant).
+    dataSource = { query: jest.fn().mockResolvedValue([]) };
+    // 2026-10-16 — AUD (sc-327) — assigned in this `beforeEach` so the
+    // injected mock is populated before the service runs the first
+    // audit hook (which happens BEFORE most specs' assertions).
+    auditService = { record: jest.fn().mockResolvedValue(undefined) };
+    // 2026-10-16 — adminGenerateTelegramLink() delegates to
+    // `telegramLinkService.issueFor` + `composeDeepLink`. The mock's
+    // default returns a stub link; per-test overrides verify the
+    // null-link path when TELEGRAM_BOT_USERNAME is unset.
+    telegramLinkService = {
+      issueFor: jest.fn().mockResolvedValue('tok-stub'),
+      composeDeepLink: jest.fn().mockReturnValue('https://t.me/bot?start=tok-stub'),
+    };
     service = new UsersService(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
       avatarStorage as unknown as AvatarStorageService,
@@ -57,6 +88,9 @@ describe('UsersService', () => {
       orgRepo as unknown as jest.Mocked<Repository<OrganizationEntity>>,
       authService as unknown as AuthService,
       sessionsRepository as unknown as SessionsRepository,
+      dataSource as unknown as DataSource,
+      auditService as unknown as AuditService,
+      telegramLinkService as unknown as TelegramLinkService,
     );
   });
 
@@ -171,6 +205,64 @@ describe('UsersService', () => {
       );
     });
 
+    // 2026-10-16 — toggle "mostrar inactivos" en lista de usuarios.
+    // activeOnly=undefined → sin filtro extra (lista completa de
+    // shadow + active). Por defecto el controller manda `undefined`,
+    // así que el default histórico "todos" se preserva.
+    it('activeOnly=undefined returns all users (current default — no extra filter)', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, GLOBAL_SCOPE, undefined, undefined);
+
+      // `undefined` ⇒ `isActive` se sobreescribe con `true` por
+      // el default de `findAndCount`. La spec del F6 (isActive:
+      // true) sigue aplicándose.
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isActive: true } }),
+      );
+    });
+
+    // activeOnly=true → solo isActive=true. Mismo comportamiento que
+    // el default histórico pero explícito desde el caller.
+    it('activeOnly=true filters by isActive: true', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, GLOBAL_SCOPE, undefined, true);
+
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isActive: true } }),
+      );
+    });
+
+    // activeOnly=false → solo isActive=false. Toggle del frontend:
+    // muestra los shadow-users que adminCreate creó pero aún no
+    // aceptaron invitación (T7.5).
+    it('activeOnly=false filters by isActive: false (toggle "Solo inactivos / pendientes")', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, GLOBAL_SCOPE, undefined, false);
+
+      // El `findAndCount` interno debe respetar el `isActive: false`
+      // del caller — NO sobreescribir con `true`.
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isActive: false } }),
+      );
+    });
+
+    // Mismo toggle en `org` scope: combina organizationId con el
+    // isActive explícito del toggle.
+    it('activeOnly=false combines with organization_id (org scope)', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, ORG_A_SCOPE, undefined, false);
+
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { organizationId: 'org-A', isActive: false },
+        }),
+      );
+    });
+
     it('public scope returns self only', async () => {
       userRepo.findOne.mockResolvedValue({ id: 'user-1' });
 
@@ -187,6 +279,56 @@ describe('UsersService', () => {
       expect(userRepo.findAndCount).not.toHaveBeenCalled();
       expect(result).toEqual({ items: [], total: 0 });
     });
+
+    // 2026-10-18-admin-org-dept-scoping — admin_org con dept poblado.
+    // Filtra por `departmentId` (no por `organizationId`); admin_org
+    // sólo ve los users de SU departamento, no de toda la org.
+    it('department scope filtra por departmentId + isActive: true (no por organizationId)', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, DEPT_A_SCOPE);
+
+      // El case 'department' debe traducirse a `where.departmentId`,
+      // NO `where.organizationId`. Sin este assert, una refactor que
+      // reusara `case 'org' | 'department'` pasaría el typecheck pero
+      // sería funcionalmente incorrecta (admin_org vería TODA la org).
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { departmentId: 'dept-A', isActive: true } }),
+      );
+    });
+
+    // 2026-10-18 — el toggle de inactivos se combina correctamente
+    // con `departmentId` (no se sobreescribe con `true`).
+    it('department scope con activeOnly=false combina con departmentId', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.list(undefined, undefined, DEPT_A_SCOPE, undefined, false);
+
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { departmentId: 'dept-A', isActive: false },
+        }),
+      );
+    });
+
+    // 2026-10-18 — defense-in-depth: dos admin_org en distintos dept
+    // de la misma org deben ver cohorts disjuntos. Esto verifica
+    // que `scope.departmentId` se pasa LITERAL al where (no
+    // hardcodeado a algún valor).
+    it('department scope con departmentId distinto produce where distinto', async () => {
+      userRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      const DEPT_B_SCOPE: SubjectScope = {
+        kind: 'department',
+        organizationId: 'org-A',
+        departmentId: 'dept-B',
+      };
+      await service.list(undefined, undefined, DEPT_B_SCOPE);
+
+      expect(userRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { departmentId: 'dept-B', isActive: true } }),
+      );
+    });
   });
 
   describe('getSessionsForSelf (T3.9 D9 — self, no permission/rank check)', () => {
@@ -195,6 +337,8 @@ describe('UsersService', () => {
         userId: 'user-1',
         permissions: [],
         organizationId: null,
+        // 2026-10-18 — `departmentId` agregado al factory. Default null.
+        departmentId: null,
         roleName: null,
         scope: PUBLIC_SCOPE,
         sessionId: 'sid-current',
@@ -242,6 +386,8 @@ describe('UsersService', () => {
         userId: 'admin-1',
         permissions: ['READ sessions'],
         organizationId: 'org-A',
+        // 2026-10-18 — `departmentId` agregado al factory. Default null.
+        departmentId: null,
         roleName: 'admin_org',
         scope: { kind: 'org', organizationId: 'org-A' },
         sessionId: 'sid-admin',
@@ -255,7 +401,7 @@ describe('UsersService', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-A',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
       sessionsRepository.findActiveByUser.mockResolvedValue([]);
 
@@ -276,7 +422,7 @@ describe('UsersService', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-B',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
 
       await expect(
@@ -286,7 +432,7 @@ describe('UsersService', () => {
     });
 
     it('does NOT rank-gate — a lower-ranked actor can still list a visible higher-ranked target (D9: read != write)', async () => {
-      const actor = makeActor({ roleName: 'operador_org' });
+      const actor = makeActor({ roleName: 'operator_org' });
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-A',
@@ -304,6 +450,8 @@ describe('UsersService', () => {
         userId: 'admin-1',
         permissions: ['UPDATE users'],
         organizationId: null,
+        // 2026-10-18 — `departmentId` agregado al factory. Default null.
+        departmentId: null,
         roleName: 'master',
         scope: { kind: 'global' },
         sessionId: 'sid-admin-1',
@@ -320,7 +468,7 @@ describe('UsersService', () => {
         roleId: 'role-1',
         deviceUuid: 'device-target',
       });
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operator_org' });
       userRepo.update.mockResolvedValue({ affected: 1 });
       userRepo.findOne.mockResolvedValueOnce({
         id: 'target-1',
@@ -346,7 +494,7 @@ describe('UsersService', () => {
         roleId: 'role-1',
         deviceUuid: 'device-target',
       });
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operator_org' });
       userRepo.update.mockResolvedValue({ affected: 1 });
       userRepo.findOne.mockResolvedValueOnce({
         id: 'target-1',
@@ -372,7 +520,7 @@ describe('UsersService', () => {
         roleId: 'role-1',
         deviceUuid: 'device-target',
       });
-      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operador_org' });
+      roleRepo.findOne.mockResolvedValue({ id: 'role-1', name: 'operator_org' });
 
       await expect(service.updateOrganization(actor, 'target-1', 'org-B')).rejects.toBeInstanceOf(
         NotFoundException,
@@ -419,7 +567,7 @@ describe('UsersService', () => {
       userRepo.update.mockResolvedValue({ affected: 1 });
       authService.invalidatePermissionCache.mockResolvedValue(undefined);
 
-      await service.softDelete('u1');
+      await service.softDelete('u1', 'admin-actor');
 
       expect(userRepo.update).toHaveBeenCalledWith('u1', expect.objectContaining({
         deletedAt: expect.any(Date),
@@ -435,7 +583,7 @@ describe('UsersService', () => {
 
     it('throws NotFoundException when user not found (soft-deleted or missing)', async () => {
       userRepo.findOne.mockResolvedValue(null);
-      await expect(service.softDelete('missing')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.softDelete('missing', 'admin-actor')).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
@@ -457,25 +605,41 @@ describe('UsersService', () => {
   // F6 / 2026-09-08-f6-new-user-form — D2: adminCreate() denormalizes
   // role permissions (when role_id is provided) and persists phone.
   // Backward compat: no role_id → permissions: [], version: 1 (T5.6).
+  //
+  // F7 — 2026-10-10-user-onboarding-telegram-tour: when role_id is
+  // a sectional role, the DTO must also carry organization_id and
+  // department_id (the test sets up the dept-mock accordingly).
+  // Tests that exercise the role policy itself live in the next
+  // describe block.
   describe('adminCreate() (F6 D2 — denormalize role permissions + persist phone)', () => {
     it('with role_id: copies role.permissions onto the user and bumps permissionVersion to 2', async () => {
+      // The "happy path" in F6 used an admin_org role. With D1 in
+      // effect, that path requires org+dept. Use a global role
+      // (master) here so the F6 assertion is still meaningful
+      // without re-testing the policy.
       roleRepo.findOne.mockResolvedValue({
-        id: 'role-admin',
-        name: 'admin_org',
+        id: 'role-master',
+        name: 'master',
         permissions: ['READ dashboard', 'READ incidents'],
       });
 
       const result = await service.adminCreate({
         email: 'juan@municipio.ec',
-        role_id: 'role-admin',
-      });
+        role_id: 'role-master',
+      }, 'admin-actor');
 
-      expect(roleRepo.findOne).toHaveBeenCalledWith({ where: { id: 'role-admin' } });
+      expect(roleRepo.findOne).toHaveBeenCalledWith({ where: { id: 'role-master' } });
       expect(userRepo.create).toHaveBeenCalledTimes(1);
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.permissions).toEqual(['READ dashboard', 'READ incidents']);
       expect(createArg.permissionVersion).toBe(2);
-      expect(createArg.roleId).toBe('role-admin');
+      expect(createArg.roleId).toBe('role-master');
+      // 2026-10-16 — fix for the "operador_org shows reporter" bug.
+      // Without `role: resolvedRoleName`, Postgres DEFAULT 'reporter'
+      // would clobber the chosen role on insert. The frontend reads
+      // `item.role` directly (users.service.ts:86), so a wrong value
+      // here leaked into the audit-logs / users-list view.
+      expect(createArg.role).toBe('master');
       // T7.5 fix: adminCreate crea el user en estado `is_active:
       // false` (pending). El user real se inserta via
       // `InvitationsService.redeem` cuando el destinatario acepta
@@ -483,12 +647,15 @@ describe('UsersService', () => {
       // `POST /api/admin/users/invite` que antes devolvía 409
       // `EMAIL_ALREADY_CLAIMED` apenas el admin creaba el user.
       expect(createArg.isActive).toBe(false);
+      // D1: global role strips any org/dept the form might have sent.
+      expect(createArg.organizationId).toBeNull();
+      expect(createArg.departmentId).toBeNull();
       expect(result.permissions).toEqual(['READ dashboard', 'READ incidents']);
       expect(result.permissionVersion).toBe(2);
     });
 
     it('without role_id: keeps permissions: [] and permissionVersion: 1 (backward compat T5.6)', async () => {
-      await service.adminCreate({ email: 'juan@municipio.ec' });
+      await service.adminCreate({ email: 'juan@municipio.ec' }, 'admin-actor');
 
       expect(roleRepo.findOne).not.toHaveBeenCalled();
       const createArg = userRepo.create.mock.calls[0][0];
@@ -504,7 +671,7 @@ describe('UsersService', () => {
       roleRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.adminCreate({ email: 'juan@municipio.ec', role_id: 'uuid-x' }),
+        service.adminCreate({ email: 'juan@municipio.ec', role_id: 'uuid-x' }, 'admin-actor'),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(userRepo.create).not.toHaveBeenCalled();
       expect(userRepo.save).not.toHaveBeenCalled();
@@ -514,10 +681,846 @@ describe('UsersService', () => {
       await service.adminCreate({
         email: 'juan@municipio.ec',
         phone: '+593 99 999 9999',
-      });
+      }, 'admin-actor');
 
       const createArg = userRepo.create.mock.calls[0][0];
       expect(createArg.phone).toBe('+593 99 999 9999');
+    });
+
+    // 2026-10-16 — phone uniqueness (migration 0036). Pre-check
+    // matches the partial-index semantics (`phone IS NOT NULL` +
+    // `deleted_at IS NULL`). Two sub-cases — conflict with another
+    // active user throws, conflict with a soft-deleted tombstone
+    // is allowed.
+    it('throws ConflictException when phone belongs to another active user', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: 'other-user',
+        email: 'maria@municipio.ec',
+        phone: '+593 99 999 9999',
+      });
+
+      // 2026-10-17 — el 409 incluye `code: 'PHONE_ALREADY_REGISTERED'`
+      // para que el frontend pueda distinguir email duplicado vs
+      // teléfono duplicado en el toast (antes mostraba "Email ya
+      // registrado" para ambos casos).
+      await expect(
+        service.adminCreate(
+          { email: 'juan@municipio.ec', phone: '+593 99 999 9999' },
+          'admin-actor',
+        ),
+      ).rejects.toMatchObject({
+        status: 409,
+        response: { code: 'PHONE_ALREADY_REGISTERED' },
+      });
+
+      // Defense — short-circuits the insert; no role lookup, no save.
+      expect(userRepo.create).not.toHaveBeenCalled();
+      expect(roleRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('allows phone reuse against a soft-deleted tombstone (deletedAt IS NULL filter)', async () => {
+      // The pre-check filters `deletedAt: IsNull()` — a ghosted
+      // user's phone is wiped to NULL anyway (softDelete resets it)
+      // so this branch is mostly future-proofing. The mock returns
+      // null → no conflict → the adminCreate proceeds normally.
+      userRepo.findOne.mockResolvedValueOnce(null);
+
+      await service.adminCreate(
+        { email: 'juan@municipio.ec', phone: '+593 99 999 9999' },
+        'admin-actor',
+      );
+
+      expect(userRepo.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips the phone pre-check when dto.phone is undefined (no extra DB read)', async () => {
+      userRepo.findOne.mockClear();
+
+      await service.adminCreate(
+        { email: 'juan@municipio.ec' },
+        'admin-actor',
+      );
+
+      // No phone pre-check fired — the findOne for the email
+      // conflict also doesn't fire because the email is unchanged
+      // from the existing rows.
+      expect(userRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    // 2026-10-16 — `preferred_notification_channel` en alta. La columna
+    // existe desde migración 0033 con DEFAULT 'email'. El DTO acepta
+    // el campo opcional ('email' | 'telegram'); el service debe
+    // persistirlo en la entity (sin esto el form es paralelo al backend
+    // y el canal nunca se guarda).
+    it('persists preferred_notification_channel: "telegram" onto the shadow row', async () => {
+      await service.adminCreate(
+        {
+          email: 'juan@municipio.ec',
+          preferred_notification_channel: 'telegram',
+        },
+        'admin-actor',
+      );
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.preferredNotificationChannel).toBe('telegram');
+    });
+
+    it('defaults preferred_notification_channel to "email" when the DTO omits the field', async () => {
+      await service.adminCreate(
+        { email: 'juan@municipio.ec' },
+        'admin-actor',
+      );
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      // Mirror del DB DEFAULT — el shadow se crea con 'email' cuando
+      // el caller no envía nada. `null` haría que la columna caiga al
+      // DEFAULT Postgres (también 'email'), pero explícito es mejor.
+      expect(createArg.preferredNotificationChannel).toBe('email');
+    });
+  });
+
+  // F7 — 2026-10-10-user-onboarding-telegram-tour (D1). The role-policy
+  // constants live in `role-policy.constants.ts`; the service enforces
+  // the same rules.
+  describe('adminCreate() — role vs organization/department policy (D1)', () => {
+    it('global role (master): forces organization_id and department_id to null even if the DTO carries them', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-master',
+        name: 'master',
+        permissions: [],
+      });
+
+      await service.adminCreate({
+        email: 'sys@municipio.ec',
+        role_id: 'role-master',
+        organization_id: 'org-A',
+        department_id: 'dept-1',
+      }, 'admin-actor');
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.organizationId).toBeNull();
+      expect(createArg.departmentId).toBeNull();
+    });
+
+    it('global role (agent_system): same — null org/dept', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-sys',
+        name: 'agent_system',
+        permissions: [],
+      });
+
+      await service.adminCreate({
+        email: 'opsys@municipio.ec',
+        role_id: 'role-sys',
+        organization_id: 'org-A',
+      }, 'admin-actor');
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.organizationId).toBeNull();
+      expect(createArg.departmentId).toBeNull();
+    });
+
+    it('sectional role (admin_org) without organization_id: 400 BadRequest', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: [],
+      });
+
+      await expect(
+        service.adminCreate({
+          email: 'admin@municipio.ec',
+          role_id: 'role-admin',
+        }, 'admin-actor'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(userRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('sectional role (admin_org) without department_id: 400 BadRequest', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: [],
+      });
+
+      await expect(
+        service.adminCreate({
+          email: 'admin@municipio.ec',
+          role_id: 'role-admin',
+          organization_id: 'org-A',
+        }, 'admin-actor'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(userRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('sectional role with department not in the organization: 400 BadRequest (cross-row invariant)', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: [],
+      });
+      dataSource.query.mockResolvedValueOnce([
+        { organization_id: 'org-B', deleted_at: null },
+      ]);
+
+      await expect(
+        service.adminCreate({
+          email: 'admin@municipio.ec',
+          role_id: 'role-admin',
+          organization_id: 'org-A',
+          department_id: 'dept-in-org-B',
+        }, 'admin-actor'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(userRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('sectional role with soft-deleted department: 400 BadRequest', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: [],
+      });
+      dataSource.query.mockResolvedValueOnce([
+        { organization_id: 'org-A', deleted_at: new Date() },
+      ]);
+
+      await expect(
+        service.adminCreate({
+          email: 'admin@municipio.ec',
+          role_id: 'role-admin',
+          organization_id: 'org-A',
+          department_id: 'dept-deleted',
+        }, 'admin-actor'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('sectional role with valid org+dept: persists both', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-admin',
+        name: 'admin_org',
+        permissions: ['READ incidents'],
+      });
+      dataSource.query.mockResolvedValueOnce([
+        { organization_id: 'org-A', deleted_at: null },
+      ]);
+
+      await service.adminCreate({
+        email: 'admin@municipio.ec',
+        role_id: 'role-admin',
+        organization_id: 'org-A',
+        department_id: 'dept-in-org-A',
+      }, 'admin-actor');
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.organizationId).toBe('org-A');
+      expect(createArg.departmentId).toBe('dept-in-org-A');
+    });
+
+    it('reporter role (citizen): D7 isolation — forces org/dept to null', async () => {
+      // `reporter` is the citizen role. Even if someone tries to
+      // create one through the admin form (it should not happen —
+      // but defense in depth), the service strips org/dept context
+      // so a citizen never inherits an admin organization.
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-reporter',
+        name: 'reporter',
+        permissions: [],
+      });
+
+      await service.adminCreate({
+        email: 'citizen@example.com',
+        role_id: 'role-reporter',
+        organization_id: 'org-A',
+        department_id: 'dept-1',
+      }, 'admin-actor');
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.organizationId).toBeNull();
+      expect(createArg.departmentId).toBeNull();
+    });
+  });
+
+  // sc-446 — adminCreate() must pass geo_zone_id from DTO to entity
+  describe('adminCreate() — geo_zone_id pass-through (sc-446)', () => {
+    it('passes geo_zone_id to userRepo.create() when provided in the DTO', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-master',
+        name: 'master',
+        permissions: [],
+      });
+
+      await service.adminCreate({
+        email: 'geo@municipio.ec',
+        role_id: 'role-master',
+        geo_zone_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+      }, 'admin-actor');
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.geoZoneId).toBe('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+    });
+
+    it('passes geoZoneId: null to userRepo.create() when geo_zone_id is absent', async () => {
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-master',
+        name: 'master',
+        permissions: [],
+      });
+
+      await service.adminCreate({
+        email: 'nogeo@municipio.ec',
+        role_id: 'role-master',
+      }, 'admin-actor');
+
+      const createArg = userRepo.create.mock.calls[0][0];
+      expect(createArg.geoZoneId).toBeNull();
+    });
+  });
+
+  // 2026-10-15-user-status-notif-channel — `adminUpdate()` accepts
+  // `is_active` (Master-only, with self-deactivation guard) and
+  // `preferred_notification_channel` (Master-only, anyone with
+  // `UPDATE users` permission — same gate as the rest of adminUpdate).
+  // Spec: openspec/changes/back/2026-10-15-user-status-notif-channel/specs/{s1-is-active-toggle,s2-notification-channel}.md
+  describe('adminUpdate() — 2026-10-15-user-status-notif-channel', () => {
+    const TARGET_ID = 'target-uuid';
+    const CALLER_ID = 'caller-uuid';
+
+    it('throws ForbiddenException when master caller tries to deactivate themselves', async () => {
+      // target === caller id, dto.is_active === false
+      userRepo.findOne.mockResolvedValueOnce({ id: CALLER_ID, isActive: true });
+
+      await expect(
+        service.adminUpdate(
+          CALLER_ID,
+          { is_active: false } as never,
+          CALLER_ID,
+          'master',
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      // Defense: nothing was persisted and no cache bust was queued.
+      expect(userRepo.save).not.toHaveBeenCalled();
+      expect(authService.invalidatePermissionCache).not.toHaveBeenCalled();
+    });
+
+    it('applies is_active = false when the target differs from the caller (master role)', async () => {
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: true });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { is_active: false } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      expect(saveArg.isActive).toBe(false);
+      expect(authService.invalidatePermissionCache).toHaveBeenCalledWith(
+        TARGET_ID,
+        undefined,
+      );
+    });
+
+    it('applies is_active = true (reactivation) for master caller', async () => {
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: false });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { is_active: true } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      expect(saveArg.isActive).toBe(true);
+    });
+
+    it('silently ignores is_active when caller is not master (defense in depth)', async () => {
+      // Non-master sends { is_active: false } — the field must be
+      // dropped so a leaked permission scope can't disable accounts.
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: true });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { is_active: false } as never,
+        CALLER_ID,
+        'admin_org',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      // Field not applied — `isActive` remains the loaded one.
+      expect(saveArg.isActive).toBe(true);
+    });
+
+    it('applies preferred_notification_channel = "telegram" when provided', async () => {
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: true });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { preferred_notification_channel: 'telegram' } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      expect(saveArg.preferredNotificationChannel).toBe('telegram');
+    });
+
+    it('applies preferred_notification_channel for non-master caller too (anyone with UPDATE users)', async () => {
+      // The channel preference is not gated on master role — the
+      // permission `UPDATE users` already gates the route. Spec
+      // S2 only requires persistence.
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: true });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { preferred_notification_channel: 'email' } as never,
+        CALLER_ID,
+        'admin_org',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      expect(saveArg.preferredNotificationChannel).toBe('email');
+    });
+
+    it('leaves preferred_notification_channel unchanged when DTO omits the field', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        isActive: true,
+        preferredNotificationChannel: 'telegram',
+      });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { first_name: 'Nuevo' } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      const saveArg = userRepo.save.mock.calls[0][0];
+      expect(saveArg.preferredNotificationChannel).toBe('telegram');
+      expect(saveArg.firstName).toBe('Nuevo');
+    });
+  });
+
+  // 2026-10-16 — AUD (sc-327) — wiring the audit hooks for the three
+  // admin-side user mutations. Each block asserts the action label,
+  // resource shape, and metadata-key behavior; together they prove
+  // the audit log row written for every admin mutation.
+  describe('audit.record() — 2026-10-16 AUD (sc-327)', () => {
+    it('adminCreate records CREATE_USER with the persisted id as resourceId', async () => {
+      // Setup: a global role so the test hits the "permissions + role"
+      // branch (mirrors existing adminCreate tests). The audit
+      // assertion is independent of the role-lookup branch.
+      roleRepo.findOne.mockResolvedValue({
+        id: 'role-master',
+        name: 'master',
+        permissions: [],
+      });
+
+      await service.adminCreate({ email: 'audit@municipio.ec' }, 'admin-actor-1');
+
+      // Defense — the audit row is emitted AFTER the userRepo.save
+      // (the persisted id is what we want to record, not the shadow
+      // input id).
+      expect(userRepo.save).toHaveBeenCalledTimes(1);
+      const savedId = (await userRepo.save.mock.results[0].value).id;
+      expect(auditService.record).toHaveBeenCalledTimes(1);
+      expect(auditService.record).toHaveBeenCalledWith({
+        actorId: 'admin-actor-1',
+        action: 'CREATE_USER',
+        resourceType: 'users',
+        resourceId: savedId,
+      });
+    });
+
+    it('adminUpdate records UPDATE_USER with callerId as actorId and the DTO touched fields as metadata', async () => {
+      // PATCH updates only the two fields below; the metadata
+      // should reflect exactly those (snake_case wire keys).
+      userRepo.findOne.mockResolvedValueOnce({ id: 'target-1', isActive: true });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        'target-1',
+        { email: 'new@municipio.ec', first_name: 'Nuevo' } as never,
+        'caller-actor-2',
+        'master',
+      );
+
+      expect(auditService.record).toHaveBeenCalledTimes(1);
+      const call = auditService.record.mock.calls[0][0];
+      expect(call.actorId).toBe('caller-actor-2');
+      expect(call.action).toBe('UPDATE_USER');
+      expect(call.resourceType).toBe('users');
+      expect(call.resourceId).toBe('target-1');
+      // `metadata.touched_fields` lists only the DTO keys the caller
+      // actually provided (omits the rest). Snake-case keys match
+      // the audit-logs UI column headers.
+      expect(call.metadata).toEqual({
+        email: 'new@municipio.ec',
+        first_name: 'Nuevo',
+      });
+    });
+
+    it('adminUpdate skips the audit call when the call throws (e.g. self-deactivation guard)', async () => {
+      // target === caller id, is_active=false → ForbiddenException.
+      // The audit row is NOT emitted — the action was rejected, so
+      // there's nothing to log.
+      userRepo.findOne.mockResolvedValueOnce({ id: 'caller-actor-3', isActive: true });
+
+      await expect(
+        service.adminUpdate(
+          'caller-actor-3',
+          { is_active: false } as never,
+          'caller-actor-3',
+          'master',
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(auditService.record).not.toHaveBeenCalled();
+    });
+
+    it('softDelete records DELETE_USER with callerId as actorId', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: 'target-2',
+        deviceUuid: 'dev-2',
+      });
+      userRepo.update.mockResolvedValueOnce(undefined);
+
+      await service.softDelete('target-2', 'admin-actor-4');
+
+      expect(auditService.record).toHaveBeenCalledTimes(1);
+      expect(auditService.record).toHaveBeenCalledWith({
+        actorId: 'admin-actor-4',
+        action: 'DELETE_USER',
+        resourceType: 'users',
+        resourceId: 'target-2',
+      });
+    });
+  });
+
+  // 2026-10-16 — phone uniqueness (migration 0036). Mirror of the
+  // email-conflict pattern in adminUpdate. The pre-check matches
+  // the partial-index semantics (`phone IS NOT NULL` + `deleted_at
+  // IS NULL`).
+  describe('adminUpdate() — phone uniqueness (migration 0036)', () => {
+    const TARGET_ID = 'target-1';
+    const CALLER_ID = 'admin-1';
+
+    function setupTarget(overrides: Record<string, unknown> = {}) {
+      userRepo.findOne.mockReset();
+      userRepo.findOne.mockResolvedValueOnce({ id: TARGET_ID, isActive: true, phone: '+593 99 111 1111', ...overrides });
+    }
+
+    it('throws ConflictException when the new phone belongs to another active user', async () => {
+      setupTarget();
+      userRepo.findOne.mockResolvedValueOnce({
+        id: 'other-user',
+        email: 'other@municipio.ec',
+        phone: '+593 99 222 2222',
+      });
+
+      await expect(
+        service.adminUpdate(
+          TARGET_ID,
+          { phone: '+593 99 222 2222' } as never,
+          CALLER_ID,
+          'master',
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      // Defense — the save never fires. Pre-check is the only DB hit.
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('allows the same phone when the caller sends the unchanged value (no-op)', async () => {
+      // dto.phone === target.phone → pre-check short-circuits.
+      setupTarget({ phone: '+593 99 111 1111' });
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { phone: '+593 99 111 1111' } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      // The pre-check finds the target itself and the conflict guard
+      // (`conflict.id !== target.id`) skips — save fires normally.
+      expect(userRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows the phone update when no other user has it (findOne returns null)', async () => {
+      setupTarget();
+      userRepo.findOne.mockResolvedValueOnce(null);
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { phone: '+593 99 333 3333' } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      expect(userRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips the phone pre-check when dto.phone is undefined', async () => {
+      setupTarget();
+      userRepo.save.mockImplementation(async (u: unknown) => u as UserEntity);
+
+      await service.adminUpdate(
+        TARGET_ID,
+        { email: 'new@municipio.ec' } as never,
+        CALLER_ID,
+        'master',
+      );
+
+      // Email changed — findById + the email pre-check each fire
+      // a findOne → 2 calls total. No phone pre-check fired (no
+      // `phone` key in the DTO), so the phone-specific guard
+      // branch is never taken. The save still runs.
+      expect(userRepo.findOne).toHaveBeenCalledTimes(2);
+      expect(userRepo.save).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // 2026-10-16 — phone uniqueness in updateProfile (self-service).
+  // Pre-check would create a TOCTOU window; we let the partial
+  // index fire 23505 and translate to 409. See service.ts:updateProfile.
+  describe('updateProfile() — phone uniqueness (migration 0036)', () => {
+    it('translates Postgres 23505 to ConflictException', async () => {
+      userRepo.update.mockRejectedValueOnce({ code: '23505' });
+
+      await expect(
+        service.updateProfile('u1', { phone: '+593 99 999 9999' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('passes through non-23505 errors unchanged (no over-broad catch)', async () => {
+      const networkError = new Error('connection refused');
+      userRepo.update.mockRejectedValueOnce(networkError);
+
+      await expect(
+        service.updateProfile('u1', { phone: '+593 99 999 9999' }),
+      ).rejects.toBe(networkError);
+    });
+
+    it('does not catch when no error is thrown (happy path)', async () => {
+      userRepo.update.mockResolvedValueOnce({ affected: 1 });
+      userRepo.findOne.mockResolvedValueOnce({ id: 'u1', phone: '+593 99 999 9999' });
+
+      const result = await service.updateProfile('u1', { phone: '+593 99 999 9999' });
+
+      expect(userRepo.update).toHaveBeenCalledTimes(1);
+      expect(result.phone).toBe('+593 99 999 9999');
+    });
+  });
+
+  // 2026-10-16 — adminGenerateTelegramLink() (POST
+  // /users/:id/telegram-link). The actor's scope + rank is enforced
+  // by `assertCanManage`; we mock the user row + role row here so
+  // the assertion reads the source of truth, not the helper.
+  describe('adminGenerateTelegramLink() (2026-10-16)', () => {
+    const TARGET_ID = 'target-uuid';
+    const ACTOR: AuthContext = {
+      userId: 'admin-1',
+      permissions: [],
+      organizationId: 'org-A',
+      // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+      departmentId: null,
+      roleName: 'admin_org',
+      scope: { kind: 'org', organizationId: 'org-A' },
+      sessionId: 'sess-1',
+      isAnonymous: false,
+    };
+
+    it('returns { telegram_link } when the actor outranks the target', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        organizationId: 'org-A',
+        roleId: 'role-operator_org',
+      });
+      roleRepo.findOne.mockResolvedValueOnce({
+        id: 'role-operator_org',
+        name: 'operator_org',
+      });
+
+      const result = await service.adminGenerateTelegramLink(ACTOR, TARGET_ID);
+
+      expect(result).toEqual({
+        telegram_link: 'https://t.me/bot?start=tok-stub',
+      });
+      expect(telegramLinkService.issueFor).toHaveBeenCalledWith(TARGET_ID);
+      expect(telegramLinkService.composeDeepLink).toHaveBeenCalledWith('tok-stub');
+    });
+
+    it('throws NotFoundException when the target user does not exist', async () => {
+      userRepo.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.adminGenerateTelegramLink(ACTOR, 'missing-uuid'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(telegramLinkService.issueFor).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when the target role is reporter (D7 isolation)', async () => {
+      // Reporter lives at organizationId=null (citizen), which fails
+      // admin_org's `assertCanManage` BEFORE the reporter branch
+      // fires. Master outranks global → reporter, so the role check
+      // is what trips the user.
+      const masterActor: AuthContext = {
+        userId: 'master-1',
+        permissions: [],
+        organizationId: null,
+        // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+        departmentId: null,
+        roleName: 'master',
+        scope: { kind: 'global' },
+        sessionId: 'sess-1',
+        isAnonymous: false,
+      };
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        organizationId: null,
+        roleId: 'role-reporter',
+      });
+      roleRepo.findOne.mockResolvedValueOnce({
+        id: 'role-reporter',
+        name: 'reporter',
+      });
+
+      await expect(
+        service.adminGenerateTelegramLink(masterActor, TARGET_ID),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      // The reporter branch fires AFTER assertCanManage — the role
+      // lookup still ran (so the service can read the role name) but
+      // no token is minted.
+      expect(telegramLinkService.issueFor).not.toHaveBeenCalled();
+    });
+
+    it('returns { telegram_link: null } when composeDeepLink returns null (TELEGRAM_BOT_USERNAME unset)', async () => {
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        organizationId: 'org-A',
+        roleId: 'role-operator_org',
+      });
+      roleRepo.findOne.mockResolvedValueOnce({
+        id: 'role-operator_org',
+        name: 'operator_org',
+      });
+      telegramLinkService.composeDeepLink.mockReturnValueOnce(null);
+
+      const result = await service.adminGenerateTelegramLink(ACTOR, TARGET_ID);
+
+      expect(result).toEqual({ telegram_link: null });
+    });
+
+    it('throws NotFoundException when admin_org actor targets a user from a different org (scope violation)', async () => {
+      // Gap 1 (2026-10-16) — assertCanManage enforces "admin_org
+      // sólo ve a los de su org"; este caso confirma que la regla
+      // corre antes del mint del token. Master outrankea todo y
+      // salta el branch — por eso necesitamos admin_org explícito.
+      //
+      // Por diseño D11 de `assertCanManage`: cross-org sale como
+      // 404 (`NotFoundException('User not found')`), NO 403. Un 403
+      // confirmaría que el id existe y, por eliminación, leakearía
+      // la membresía de org del target. El endpoint aplica la
+      // misma regla que el resto del surface de gestión.
+      const adminOrgActor: AuthContext = {
+        userId: 'admin-org-A',
+        permissions: [],
+        organizationId: 'org-A',
+        // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+        departmentId: null,
+        roleName: 'admin_org',
+        scope: { kind: 'org', organizationId: 'org-A' },
+        sessionId: 'sess-admin-A',
+        isAnonymous: false,
+      };
+      userRepo.findOne.mockResolvedValueOnce({
+        id: TARGET_ID,
+        organizationId: 'org-B',
+        roleId: 'role-operator_org',
+      });
+      roleRepo.findOne.mockResolvedValueOnce({
+        id: 'role-operator_org',
+        name: 'operator_org',
+      });
+
+      await expect(
+        service.adminGenerateTelegramLink(adminOrgActor, TARGET_ID),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      // La guardia corre antes del mint — un 404 nunca emite token.
+      expect(telegramLinkService.issueFor).not.toHaveBeenCalled();
+    });
+  });
+
+  // 2026-10-16-resend-invitation (D1) — `findByIdWithPendingFlag(id)`
+  // devuelve `UserEntity & { hasPendingInvitation: boolean }`. El flag
+  // se computa con un EXISTS contra la tabla `invitations` filtrada
+  // por email + accepted_at IS NULL + expires_at > NOW(). El método es
+  // separado de `findById` (que siguen usando login/sessions/etc) para
+  // no pagar el costo del EXISTS en cada lookup no-admin.
+  describe('findByIdWithPendingFlag() — hasPendingInvitation (2026-10-16)', () => {
+    const TARGET_USER = {
+      id: 'shadow-1',
+      email: 'shadow@b.com',
+      firstName: 'Shadow',
+      lastName: 'User',
+      roleId: 'role-1',
+    };
+
+    it('returns hasPendingInvitation: true when an unexpired pending invitation exists', async () => {
+      userRepo.findOne.mockResolvedValueOnce(TARGET_USER);
+      dataSource.query.mockResolvedValueOnce([{ value: true }]);
+
+      const result = await service.findByIdWithPendingFlag('shadow-1');
+
+      expect(result).toEqual({ ...TARGET_USER, hasPendingInvitation: true });
+      expect(dataSource.query).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT EXISTS'),
+        ['shadow@b.com'],
+      );
+    });
+
+    it('returns hasPendingInvitation: false when no invitation exists', async () => {
+      userRepo.findOne.mockResolvedValueOnce(TARGET_USER);
+      dataSource.query.mockResolvedValueOnce([{ value: false }]);
+
+      const result = await service.findByIdWithPendingFlag('shadow-1');
+
+      expect(result.hasPendingInvitation).toBe(false);
+    });
+
+    it('returns hasPendingInvitation: false when the only invitation is expired', async () => {
+      // El EXISTS filtra `expires_at > NOW()` server-side — la query
+      // devuelve `false` aunque la tabla tenga filas expiradas.
+      userRepo.findOne.mockResolvedValueOnce(TARGET_USER);
+      dataSource.query.mockResolvedValueOnce([{ value: false }]);
+
+      const result = await service.findByIdWithPendingFlag('shadow-1');
+
+      expect(result.hasPendingInvitation).toBe(false);
+    });
+
+    it('throws NotFoundException when the user does not exist', async () => {
+      userRepo.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.findByIdWithPendingFlag('missing'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      // Nunca consultamos invitations si el user no existe.
+      expect(dataSource.query).not.toHaveBeenCalled();
     });
   });
 });

@@ -3,9 +3,12 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Cache } from 'cache-manager';
 import type { DataSource, Repository } from 'typeorm';
-import { AuthService, PERMISSION_CACHE_PREFIX } from './auth.service';
-import { UserEntity } from '../../entities/user.entity';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { AuthService } from './auth.service';
+import { AuthContextService, PERMISSION_CACHE_PREFIX } from './auth-context.service';
+import { AuthUserRepository } from './auth-user.repository';
+import { UserEntity } from '../users/entities/user.entity';
+import { PasswordHasher } from './password-hasher';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { SessionsRepository } from '../sessions/sessions.repository';
@@ -61,6 +64,10 @@ function makePermissionLookup() {
   };
 }
 
+function makePasswordHasher() {
+  return { hash: jest.fn(), verify: jest.fn() };
+}
+
 function makeSessionRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 'sid-1',
@@ -89,6 +96,7 @@ describe('AuthService', () => {
   let revocationCache: ReturnType<typeof makeRevocationCache>;
   let graceBuffer: ReturnType<typeof makeGraceBuffer>;
   let permissionLookup: ReturnType<typeof makePermissionLookup>;
+  let passwordHasher: ReturnType<typeof makePasswordHasher>;
   let service: AuthService;
 
   beforeEach(() => {
@@ -101,16 +109,21 @@ describe('AuthService', () => {
     revocationCache = makeRevocationCache();
     graceBuffer = makeGraceBuffer();
     permissionLookup = makePermissionLookup();
-    service = new AuthService(
+    passwordHasher = makePasswordHasher();
+    const authUserRepo = new AuthUserRepository(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
-      jwtService as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
-      configService,
       dataSource as unknown as DataSource,
+    );
+    service = new AuthService(
+      authUserRepo,
+      jwtService as unknown as JwtService,
+      new AuthContextService(cache as unknown as Cache, configService, authUserRepo),
+      configService,
       sessionsRepository as unknown as SessionsRepository,
       revocationCache as unknown as RevocationCache,
       graceBuffer as unknown as GraceBuffer,
       permissionLookup as unknown as PermissionLookupService,
+      passwordHasher as unknown as PasswordHasher,
     );
   });
 
@@ -549,16 +562,24 @@ describe('AuthService.invalidatePermissionCache', () => {
 
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
-    service = new AuthService(
+    const authUserRepo = new AuthUserRepository(
       {} as unknown as jest.Mocked<Repository<UserEntity>>,
-      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
-      { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeDataSource() as unknown as DataSource,
+    );
+    service = new AuthService(
+      authUserRepo,
+      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
+      new AuthContextService(
+        cache as unknown as Cache,
+        { get: () => makeAuthConfig() } as unknown as ConfigService,
+        authUserRepo,
+      ),
+      { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
       makePermissionLookup() as unknown as PermissionLookupService,
+      makePasswordHasher() as unknown as PasswordHasher,
     );
   });
 
@@ -570,7 +591,7 @@ describe('AuthService.invalidatePermissionCache', () => {
     await service.invalidatePermissionCache('user-1', 'device-abc');
 
     expect(cache.del).toHaveBeenCalledWith(`${PERMISSION_CACHE_PREFIX}device-abc`);
-    expect(cache.del).toHaveBeenCalledWith(`${PERMISSION_CACHE_PREFIX}uid:user-1`);
+    expect(cache.del).toHaveBeenCalledWith(`${PERMISSION_CACHE_PREFIX}uid:user-1:pv1`);
   });
 });
 
@@ -582,16 +603,24 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn() };
     dataSource = makeDataSource();
-    service = new AuthService(
+    const authUserRepo = new AuthUserRepository(
       {} as unknown as jest.Mocked<Repository<UserEntity>>,
-      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
-      { get: () => makeAuthConfig() } as unknown as ConfigService,
       dataSource as unknown as DataSource,
+    );
+    service = new AuthService(
+      authUserRepo,
+      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
+      new AuthContextService(
+        cache as unknown as Cache,
+        { get: () => makeAuthConfig() } as unknown as ConfigService,
+        authUserRepo,
+      ),
+      { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
       makePermissionLookup() as unknown as PermissionLookupService,
+      makePasswordHasher() as unknown as PasswordHasher,
     );
   });
 
@@ -628,7 +657,7 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
     await service.getAuthContextByUserId('user-1');
 
     expect(cache.set).toHaveBeenCalledWith(
-      `${PERMISSION_CACHE_PREFIX}uid:user-1`,
+      `${PERMISSION_CACHE_PREFIX}uid:user-1:pv1`,
       { permissions: ['READ incidents'], organizationId: null, roleName: null, isAnonymous: false },
       expect.any(Number),
     );
@@ -645,7 +674,9 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
 
     const ctx = await service.getAuthContextByUserId('user-1');
 
-    expect(dataSource.query).not.toHaveBeenCalled();
+    // 2026-10-20 — desde que la clave lleva `pv`, el cache hit hace UNA lectura
+      // PK de `users.permission_version`. Ya no es un hit sin DB.
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
     expect(ctx).toEqual({
       userId: 'user-1',
       permissions: ['READ incidents'],
@@ -736,10 +767,10 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
     expect(cache.set).not.toHaveBeenCalled();
   });
 
-  it('operador_sistema resolves to global scope (explicit branch, not fallthrough)', async () => {
+  it('agent_system resolves to global scope (explicit branch, not fallthrough)', async () => {
     cache.get.mockResolvedValue(undefined);
     dataSource.query.mockResolvedValue([
-      { permissions: ['READ incidents'], organization_id: null, device_uuid: 'device-x', role_name: 'operador_sistema' },
+      { permissions: ['READ incidents'], organization_id: null, device_uuid: 'device-x', role_name: 'agent_system' },
     ]);
 
     const ctx = await service.getAuthContextByUserId('user-2');
@@ -760,7 +791,7 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
         permissions: ['READ incidents', 'UPDATE incidents'],
         organization_id: 'org-1',
         device_uuid: 'device-abc',
-        role_name: 'operador_org',
+        role_name: 'operator_org',
         role_deleted_at: new Date('2026-08-25T00:00:00Z'),
       },
     ]);
@@ -778,7 +809,7 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
         permissions: ['READ incidents'],
         organization_id: 'org-1',
         device_uuid: 'device-abc',
-        role_name: 'operador_org',
+        role_name: 'operator_org',
         role_deleted_at: null,
       },
     ]);
@@ -786,7 +817,7 @@ describe('AuthService.getAuthContextByUserId (T3.2 D6; T3.9 design §3 [R4] — 
     const ctx = await service.getAuthContextByUserId('user-1');
 
     expect(ctx.permissions).toEqual(['READ incidents']);
-    expect(ctx.roleName).toBe('operador_org');
+    expect(ctx.roleName).toBe('operator_org');
   });
 });
 
@@ -798,16 +829,24 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
   beforeEach(() => {
     cache = { get: jest.fn(), set: jest.fn() };
     dataSource = makeDataSource();
-    service = new AuthService(
+    const authUserRepo = new AuthUserRepository(
       {} as unknown as jest.Mocked<Repository<UserEntity>>,
-      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
-      { get: () => makeAuthConfig() } as unknown as ConfigService,
       dataSource as unknown as DataSource,
+    );
+    service = new AuthService(
+      authUserRepo,
+      { sign: jest.fn(), verify: jest.fn() } as unknown as JwtService,
+      new AuthContextService(
+        cache as unknown as Cache,
+        { get: () => makeAuthConfig() } as unknown as ConfigService,
+        authUserRepo,
+      ),
+      { get: () => makeAuthConfig() } as unknown as ConfigService,
       makeSessionsRepository() as unknown as SessionsRepository,
       makeRevocationCache() as unknown as RevocationCache,
       makeGraceBuffer() as unknown as GraceBuffer,
       makePermissionLookup() as unknown as PermissionLookupService,
+      makePasswordHasher() as unknown as PasswordHasher,
     );
   });
 
@@ -872,7 +911,9 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
     const permissions = await service.getPermissionsByUserId('user-1');
 
     expect(permissions).toEqual(['READ incidents']);
-    expect(dataSource.query).not.toHaveBeenCalled();
+    // 2026-10-20 — desde que la clave lleva `pv`, el cache hit hace UNA lectura
+      // PK de `users.permission_version`. Ya no es un hit sin DB.
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
   });
 
   it('keys the cache by user id, distinct from the device_uuid key', async () => {
@@ -884,7 +925,7 @@ describe('AuthService.getPermissionsByUserId (delegates to getAuthContextByUserI
     await service.getPermissionsByUserId('user-1');
 
     expect(cache.set).toHaveBeenCalledWith(
-      `${PERMISSION_CACHE_PREFIX}uid:user-1`,
+      `${PERMISSION_CACHE_PREFIX}uid:user-1:pv1`,
       expect.objectContaining({ permissions: ['READ incidents'] }),
       expect.any(Number),
     );

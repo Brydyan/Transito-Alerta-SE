@@ -65,6 +65,37 @@ describe('RegisterComponent (REG sc-325 B.8)', () => {
     expect(component.errorMessage()).toBeNull();
   });
 
+  // 2026-10-17-form-input-fix — el template usaba `class="form-input"`
+  // (clase inexistente en `_forms.css`). Sin estilos base, los inputs
+  // colapsaban a altura 0 y absorbían el espacio de los labels que
+  // están justo arriba → el usuario veía los labels "ocultos".
+  // El fix reemplaza `form-input` por `form-control` (la clase real,
+  // ya usada en login.component.html). Este test fija el contrato.
+  it('2026-10-17: ningún input del register usa `form-input` (clase inexistente)', () => {
+    const inputs = fixture.nativeElement.querySelectorAll(
+      'input[formControlName]',
+    );
+    expect(inputs.length).toBe(5); // email, email_confirm, first_name, last_name, password
+    inputs.forEach((input: Element) => {
+      expect(input.classList.contains('form-input')).toBe(false);
+    });
+  });
+
+  it('2026-10-17: cada input del register usa `form-control` (clase válida)', () => {
+    const inputs = Array.from(
+      fixture.nativeElement.querySelectorAll(
+        'input[formControlName]',
+      ) as NodeListOf<HTMLInputElement>,
+    );
+    expect(inputs.length).toBeGreaterThan(0);
+    inputs.forEach((input) => {
+      // `form-control` es la clase global de `_forms.css`. Los inputs
+      // deben tenerla — sin esto, no tienen border/padding y el
+      // form queda visualmente roto.
+      expect(input.classList.contains('form-control')).toBe(true);
+    });
+  });
+
   it('B.7: el validador de contraseña rechaza menos de 12 chars, mayúscula, dígito o símbolo', () => {
     const cases = [
       'short1!', // 7 chars

@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { randomUUID } from 'crypto';
 
 import { MailService, MAIL_DEAD_STREAM_KEY, MAIL_OUTBOX_STREAM_KEY } from '../../src/modules/mail/mail.service';
 import { ProvisionedUser, TestEnvironment } from '../support/test-environment';
@@ -219,33 +220,340 @@ describe('Mail module e2e (T3.5)', () => {
     30_000,
   );
 
-  it('incident.created event -> IncidentMailListener enqueues -> MailOutboxConsumer delivers to the reporter', async () => {
+  /**
+   * 2026-10-19-fix(mail) — pre-fix this asserted that the reporter
+   * received an «acuse de recibo» on every incident.created. The
+   * new contract (commit 925368c2e668cc82) is:
+   *   - the reporter NEVER receives an email on creation;
+   *   - the email fires ONLY when `priority === 'critical'` AND
+   *     `organization_id` is resolved;
+   *   - the audience is `admin_org` users of the resolved org.
+   *
+   * This e2e mirrors the new contract end-to-end (real Postgres,
+   * real Redis, real running IncidentMailListener + MailOutboxConsumer).
+   * To exercise the full publish→consume path with a non-null
+   * `organization_id` in the stream entry we rely on the seeded
+   * Santa Elena zone plus a freshly-inserted org matching its
+   * `zone_id` — same shape used by `t6-organizations-notified`.
+   */
+  const SANTA_ELENA_ZONE_ID = '8f14e45f-ceea-4c1f-8f2c-000000000024';
+  const INSIDE_SANTA_ELENA = { lat: -2.2, lng: -80.5 };
+
+  async function seedOrgInZone(): Promise<string> {
+    // `reset()` truncates incidents/users but NOT organizations;
+    // clean up any leftover org on the SEED zone so the UNIQUE
+    // partial index doesn't block our insert (same defensive
+    // shape as t6-organizations-notified.e2e-spec.ts).
+    await env.pg.query(`DELETE FROM organizations WHERE zone_id = $1`, [
+      SANTA_ELENA_ZONE_ID,
+    ]);
+    const orgId = randomUUID();
+    // incident_category_id = NULL → transversal: matches any
+    // category, so a `priority: critical` incident in this zone
+    // resolves cleanly to this org.
+    await env.pg.query(
+      `INSERT INTO organizations (id, name, zone_id, max_active_claims, incident_category_id)
+       VALUES ($1, $2, $3, 5, NULL)`,
+      [orgId, `Mail-E2E Org ${orgId.slice(0, 8)}`, SANTA_ELENA_ZONE_ID],
+    );
+    return orgId;
+  }
+
+  it('incident.created (critical, with org) -> enqueues to admin_org of the org (reporter never receives)', async () => {
     const deliverSpy = jest.spyOn(mailService, 'deliver');
 
-    const reporter: ProvisionedUser = await env.provisionUser(['READ incidents', 'CREATE incidents'], {
-      email: 'reporter-e2e@example.com',
+    const orgId = await seedOrgInZone();
+    const reporter: ProvisionedUser = await env.provisionUser(['CREATE incidents'], {
+      email: 'reporter-critical-e2e@example.com',
+      organizationId: orgId,
+    });
+    const adminOrg: ProvisionedUser = await env.provisionUser(['READ incidents'], {
+      email: 'admin-org-e2e@example.com',
+      organizationId: orgId,
+      roleName: 'admin_org',
     });
 
-    await request(env.httpServer)
+    const created = await request(env.httpServer)
       .post('/api/incidents')
       .set({ Authorization: `Bearer ${reporter.accessToken}` })
-      .send({ title: 'Choque en la via', description: 'Sin heridos', lat: -2.2, lng: -80.5 })
+      .send({
+        title: 'Accidente crítico',
+        description: 'Vehículo volcado',
+        priority: 'critical',
+        ...INSIDE_SANTA_ELENA,
+      })
       .expect(201);
+
+    // Sanity: the geofence resolved the org correctly inside
+    // `create()`. If this is null, the stream entry will also have
+    // null organization_id and the listener will return early —
+    // the waitUntil below is a clear signal.
+    expect(created.body.zone_id).toBe(SANTA_ELENA_ZONE_ID);
+    expect(created.body.organization_id).toBe(orgId);
 
     await waitUntil(
       async () =>
         deliverSpy.mock.calls.some(
-          (call) => call[0] === 'reporter-e2e@example.com' && call[2] === 'incident.created',
+          (call) =>
+            call[0] === 'admin-org-e2e@example.com' && call[2] === 'incident.created',
         ),
       20_000,
     );
 
     expect(deliverSpy).toHaveBeenCalledWith(
-      'reporter-e2e@example.com',
-      expect.any(String),
+      'admin-org-e2e@example.com',
+      expect.stringContaining('Critical incident reported: Accidente crítico'),
       'incident.created',
-      expect.objectContaining({ title: 'Choque en la via' }),
+      expect.objectContaining({ title: 'Accidente crítico' }),
     );
+
+    // The reporter NEVER receives a copy — verify the negative
+    // outright so a regression that re-adds the "acuse" is caught
+    // here instead of silently passing.
+    expect(
+      deliverSpy.mock.calls.some(
+        (call) => call[0] === 'reporter-critical-e2e@example.com',
+      ),
+    ).toBe(false);
+
+    // Silence the unused-adminOrg warning while keeping the
+    // provisioning legible to a reader.
+    expect(adminOrg.userId).toBeDefined();
+  });
+
+  /**
+   * Companion to the case above — a non-critical incident does not
+   * trigger any mail on creation (low/medium/high stay silent).
+   * Guards against the listener accidentally firing on every
+   * publication again.
+   */
+  it('incident.created (priority != critical) -> NO mail enqueued (reporter no recibe, nadie recibe)', async () => {
+    const deliverSpy = jest.spyOn(mailService, 'deliver');
+
+    const orgId = await seedOrgInZone();
+    const reporter: ProvisionedUser = await env.provisionUser(['CREATE incidents'], {
+      email: 'reporter-noncritical-e2e@example.com',
+      organizationId: orgId,
+    });
+    await env.provisionUser(['READ incidents'], {
+      email: 'admin-org-noncritical@example.com',
+      organizationId: orgId,
+      roleName: 'admin_org',
+    });
+
+    await request(env.httpServer)
+      .post('/api/incidents')
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
+      .send({
+        title: 'Bache leve',
+        description: 'Calle secundaria',
+        priority: 'high',
+        ...INSIDE_SANTA_ELENA,
+      })
+      .expect(201);
+
+    // Give the listener a chance to mistakenly enqueue. If it
+    // didn't fire within the budget, it didn't fire at all — the
+    // listener is single-pass per event and there's nothing more
+    // to do.
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+
+    expect(deliverSpy).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 2026-10-20 — SEGUNDO CANAL de `incident.assigned` (el que faltaba).
+   *
+   * `assignments.service.ts` publica el payload por DOS canales: el
+   * EventEmitter2 in-process (Telegram + notificación in-app, cubiertos
+   * en `dispatch-workflow.e2e-spec.ts`) y el stream `incidents:events`,
+   * que es de donde lee ESTE listener. Antes de unificar el payload, el
+   * emisor mandaba `saved` —la fila pelada de `assignments`— al stream, y
+   * esa fila no tiene columna `title`: el subject salía
+   * `Incident assigned to you: ` sin título, en silencio.
+   *
+   * Nada lo detectaba porque `incident-mail.listener.spec.ts` fabricaba su
+   * propio payload en vez del que el productor emite. Este spec lo hace al
+   * revés: el payload lo genera un `POST /api/assignments` real, así que
+   * si el productor deja de enriquecerlo, el assert del subject falla.
+   *
+   * Sin departamentos ni categorías a propósito: `assign()` exige que el
+   * operador exista y comparta org con la incidencia, no que su
+   * departamento maneje la categoría. Menos superficie sembrada.
+   */
+  it('incident.assigned -> enqueues al operador con el título real en el subject', async () => {
+    const deliverSpy = jest.spyOn(mailService, 'deliver');
+
+    const orgId = await seedOrgInZone();
+    const reporter: ProvisionedUser = await env.provisionUser(['CREATE incidents'], {
+      email: 'reporter-assigned-e2e@example.com',
+      organizationId: orgId,
+      roleName: 'reporter',
+    });
+    const dispatcher: ProvisionedUser = await env.provisionUser(
+      ['READ incidents', 'ASSIGN assignments'],
+      {
+        email: 'dispatcher-assigned-e2e@example.com',
+        organizationId: orgId,
+        roleName: 'admin_org',
+      },
+    );
+    const operator: ProvisionedUser = await env.provisionUser(['READ incidents'], {
+      email: 'operator-assigned-e2e@example.com',
+      organizationId: orgId,
+      roleName: 'operator_org',
+    });
+
+    const created = await request(env.httpServer)
+      .post('/api/incidents')
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
+      .send({
+        title: 'Pozo abierto en la calzada',
+        description: 'Pozo de 40cm junto al paso peatonal',
+        priority: 'high',
+        ...INSIDE_SANTA_ELENA,
+      })
+      .expect(201);
+
+    await request(env.httpServer)
+      .post('/api/assignments')
+      .set({ Authorization: `Bearer ${dispatcher.accessToken}` })
+      .send({ incident_id: created.body.id, operator_id: operator.userId })
+      .expect(201);
+
+    await waitUntil(
+      async () =>
+        deliverSpy.mock.calls.some(
+          (call) =>
+            call[0] === 'operator-assigned-e2e@example.com' && call[2] === 'incident.assigned',
+        ),
+      20_000,
+    );
+
+    // El assertion central: el título cruzó el stream desde el productor.
+    expect(deliverSpy).toHaveBeenCalledWith(
+      'operator-assigned-e2e@example.com',
+      'Incident assigned to you: Pozo abierto en la calzada',
+      'incident.assigned',
+      expect.objectContaining({ title: 'Pozo abierto en la calzada' }),
+    );
+
+    // `priority: 'high'` (no critical), sin comentarios y sin cambios de
+    // estado: la ÚNICA llamada a `deliver` posible en este test es la de
+    // asignación. El conteo exacto delata que `handleIncidentCreated` u
+    // otro handler del listener vuelvan a dispararse sin filtro.
+    expect(deliverSpy).toHaveBeenCalledTimes(1);
+
+    // La audiencia es el operador: ni quien despacha ni quien reporta.
+    for (const notTheAudience of [
+      'dispatcher-assigned-e2e@example.com',
+      'reporter-assigned-e2e@example.com',
+    ]) {
+      expect(
+        deliverSpy.mock.calls.some((call) => call[0] === notTheAudience),
+      ).toBe(false);
+    }
+  });
+
+  /**
+   * 2026-10-20 — `comment.added` no tenía NINGUNA cobertura, y sus dos
+   * consumidores estaban rotos de forma independiente:
+   *
+   *   - el in-app leía `reporter_id`, `prior_commenter_ids`, `author_id` e
+   *     `incident_id`; `CommentsService` publica la fila de `CommentEntity`
+   *     (`id`, `content`, `incidentId`, `userId`). Ninguno existía → la
+   *     lista de destinatarios quedaba vacía y la notificación NUNCA se
+   *     creó.
+   *   - el de correo esperaba un `case 'comment.created'` en el stream, y
+   *     ese case no podía dispararse por dos razones independientes: el
+   *     evento real es `comment.added`, y `CommentsService` publica sólo
+   *     por EventEmitter, nunca hace XADD a `incidents:events`.
+   *
+   * Este es el único test que cubre los dos canales a la vez. Si alguno
+   * vuelve a desalinearse con el productor, falla aquí.
+   */
+  it('comment.added -> el reportador recibe notificación in-app Y correo', async () => {
+    const deliverSpy = jest.spyOn(mailService, 'deliver');
+
+    const orgId = await seedOrgInZone();
+    const reporter: ProvisionedUser = await env.provisionUser(['CREATE incidents'], {
+      email: 'reporter-comment-e2e@example.com',
+      organizationId: orgId,
+      roleName: 'reporter',
+    });
+    const operator: ProvisionedUser = await env.provisionUser(
+      ['READ incidents', 'CREATE comments'],
+      {
+        email: 'operator-comment-e2e@example.com',
+        organizationId: orgId,
+        roleName: 'operator_org',
+      },
+    );
+
+    const created = await request(env.httpServer)
+      .post('/api/incidents')
+      .set({ Authorization: `Bearer ${reporter.accessToken}` })
+      .send({
+        title: 'Bache en la avenida',
+        description: 'Hueco profundo junto al paso peatonal',
+        priority: 'high',
+        ...INSIDE_SANTA_ELENA,
+      })
+      .expect(201);
+
+    const incidentId = created.body.id as string;
+    // La audiencia de un comentario se arma con `incidents.citizen_id`. Si
+    // fuera null, nada se notificaría por un motivo distinto al que este
+    // test cubre, y el fallo sería ilegible: se afirma aquí.
+    expect(created.body.citizen_id).toBe(reporter.userId);
+
+    // El operador comenta. El reportador es quien debe aviso, y el autor
+    // nunca se notifica a sí mismo.
+    await request(env.httpServer)
+      .post('/api/comments')
+      .set({ Authorization: `Bearer ${operator.accessToken}` })
+      .send({ incident_id: incidentId, content: 'Ya llego la patrulla' })
+      .expect(201);
+
+    // ── Canal 1: notificación in-app ──────────────────────────────────────
+    // `EventEmitter2.emit()` no awaita los handlers async, así que la fila
+    // puede no existir un instante después del POST: se sondea.
+    const readNotifications = async () =>
+      env.pg.query<{ n: number; data: { author: string } | null }>(
+        `SELECT count(*)::int AS n, (array_agg(data))[1] AS data
+           FROM notifications
+          WHERE user_id = $1
+            AND type = 'comment.added'
+            AND incident_id = $2`,
+        [reporter.userId, incidentId],
+      );
+
+    const deadline = Date.now() + 15_000;
+    let found = await readNotifications();
+    while (found.rows[0].n === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+      found = await readNotifications();
+    }
+
+    expect(found.rows[0].n).toBe(1);
+    expect(found.rows[0].data?.author).toBe(operator.userId);
+
+    // ── Canal 2: correo ────────────────────────────────────────────────────
+    await waitUntil(
+      async () => deliverSpy.mock.calls.some((call) => call[2] === 'comment.created'),
+      20_000,
+    );
+    expect(deliverSpy).toHaveBeenCalledWith(
+      'reporter-comment-e2e@example.com',
+      'New comment on your incident',
+      'comment.created',
+      expect.objectContaining({ content: 'Ya llego la patrulla' }),
+    );
+
+    // El autor del comentario no se notifica a sí mismo, por ningún canal.
+    expect(
+      deliverSpy.mock.calls.some((call) => call[0] === 'operator-comment-e2e@example.com'),
+    ).toBe(false);
   });
 
   it('an entry that fails delivery 3 times is moved to mail:dead and acked on the origin stream', async () => {

@@ -28,7 +28,7 @@ export interface RolePermission {
  * no encajara con el tipo y el código no compilara.
  *
  * sc-340 — qué contienen esos strings, corregido: desde
- * `0051_roles_permissions_uuid_format.sql` son **UUIDs**, no
+ * `0026_roles_permissions_uuid_format.sql` son **UUIDs**, no
  * etiquetas `"ACTION resource"`. El tipo sigue siendo `string[]`
  * (un UUID es un string), pero el contenido NO es legible por sí
  * solo. Por eso `UserFormComponent.loadRolePermissions` los
@@ -172,6 +172,8 @@ export interface User {
    * organización asignada.
    */
   organizationId?: string | null;
+  /** Departamento al que pertenece el usuario. Mapeado desde `department_id`. Null para roles globales. */
+  departmentId?: string | null;
   /**
    * F6 (`2026-09-08-f6-new-user-form`) — estado activo/inactivo del
    * usuario. Mapeado desde `is_active: boolean` del backend en
@@ -183,11 +185,35 @@ export interface User {
    * que la columna ESTADO de la tabla refleje datos reales.
    */
   isActive?: boolean;
+  /**
+   * 2026-10-15-user-status-notif-channel (S2) — preferred notification
+   * channel preference, surfaced on the edit form so Master callers
+   * can change it (and so the detail modal can show the current value).
+   * Wire shape: `preferred_notification_channel` (snake_case → camel
+   * via `SnakeCaseResponseInterceptor`). Optional because older users
+   * pre-0033 had no column; the backend defaults them to `'email'`
+   * on read but the interceptor does not backfill on the way out — we
+   * tolerate `undefined` and let `UserFormComponent` default to
+   * `'email'` in its patchValue.
+   */
+  preferredNotificationChannel?: string;
 }
 
 export interface UserDetail extends User {
   permisosDirectos: DirectPermission[];
   permisosRol: { recurso: string; accion: string }[];
+  /**
+   * 2026-10-16-resend-invitation (D1) — true cuando hay una
+   * invitación pendiente (no aceptada, no expirada) para el email
+   * del usuario. El backend lo proyecta en `GET /api/users/:id`
+   * vía `UsersService.findByIdWithPendingFlag`. El form de edición
+   * muestra el botón "Reenviar invitación" sólo cuando es Master
+   * Y este flag es `true` (combinar con `isActive === false` no
+   * alcanza: un usuario desactivado por Master también tiene
+   * `isActive === false` pero ya tiene cuenta y no tiene sentido
+   * reenviarle una invitación).
+   */
+  hasPendingInvitation: boolean;
 }
 
 export type PaginatedUsersMeta = PaginatedMeta;
@@ -217,7 +243,7 @@ export interface CreateUserPayload {
  * F6 fix 2: `email` y `telefono` (renombrado a `phone` en el wire
  * del backend) ya estaban en el interface pero el DTO del backend
  * no los aceptaba y el form no los podía cambiar vía admin. Ahora
- * el admin puede editar ambos (master u operador_sistema con
+ * el admin puede editar ambos (master u agent_system con
  * `UPDATE users` permission). El backend valida formato y
  * unicidad del email.
  */
@@ -230,6 +256,21 @@ export interface UpdateUserPayload {
   organizationId?: string | null;
   avatar?: Avatar;
   directPermissions?: { permisoId: string; permitido: boolean }[];
+  /**
+   * 2026-10-15-user-status-notif-channel (S1) — Master-only toggle.
+   * The form only sends this when the authenticated user is `master`
+   * AND the target differs from the caller (defense in depth — the
+   * service still rejects self-deactivation if a non-Master caller
+   * manages to bypass the form). Wire: `is_active`.
+   */
+  isActive?: boolean;
+  /**
+   * 2026-10-15-user-status-notif-channel (S2) — preferred notification
+   * channel. The form sends it for Master and anyone with UPDATE
+   * users (the DTO `@IsIn(['email', 'telegram'])` enforces the value
+   * server-side). Wire: `preferred_notification_channel`.
+   */
+  preferredNotificationChannel?: string;
 }
 
 /**
@@ -241,6 +282,7 @@ export interface UpdateUserPayload {
 export interface Organization {
   readonly id: string;
   readonly nombre: string;
+  readonly zoneId?: string | null;
 }
 
 /**
@@ -263,12 +305,43 @@ export function toUserStatus(isActive: boolean | null | undefined): UserStatus {
 // =====================================================================
 
 /**
+ * 2026-10-11 (user-form-departments-telegram-hybrid, D1) — Departamento
+ * mínimo para el dropdown de departamentos. Filtrado reactivamente por
+ * `organizationId` para evitar asignar un departamento de otra org.
+ */
+export interface Department {
+  readonly id: string;
+  readonly nombre: string;
+  readonly organizationId: string;
+}
+
+/**
+ * 2026-10-11 (D2) — roles sectoriales: requieren `organizationId`
+ * y `departmentId`.
+ */
+export const SECTIONAL_ROLES = ['admin_org', 'operator_org'] as const;
+export type SectionalRole = (typeof SECTIONAL_ROLES)[number];
+
+/**
+ * 2026-10-11 (D2) — roles globales: operan a nivel nacional, sin org
+ * ni departamento.
+ */
+export const GLOBAL_ROLES = ['master', 'agent_system'] as const;
+export type GlobalRole = (typeof GLOBAL_ROLES)[number];
+
+/**
  * F6 (D-frontend-3) — estado interno del `NewUserFormComponent`.
  * Mantenido como un único `signal<NewUserFormData>` (no `FormGroup`).
  *
  * Los campos `initialStatus` y `notificationChannel` son **fijos hasta
  * F7** (D-frontend-9) — se modelan en el estado para que el template
  * pueda atarlos sin filtraciones, pero el submit no los envía.
+ *
+ * 2026-10-11 (D1): se agrega `departmentId` para el selector de
+ * departamento. Obligatorio cuando el rol es sectorial.
+ *
+ * sc-446 (Alcance Territorial): se agrega `geoZoneId` para el selector
+ * de zona geográfica. Opcional para todos los roles.
  */
 export interface NewUserFormData {
   email: string;
@@ -276,10 +349,18 @@ export interface NewUserFormData {
   lastName: string;
   phone: string;
   organizationId: string | null;
+  departmentId: string | null;
+  geoZoneId: string | null;
   roleId: string | null;
   sendInvitation: boolean;
   initialStatus: 'activo';
-  notificationChannel: 'email';
+  /**
+   * 2026-10-16-new-user-form-notif-channel (D1) — el canal preferido
+   * del nuevo staff user. `'email'` por default (mismo DEFAULT que la
+   * columna DB desde migración 0033). Master puede cambiarlo a
+   * `'telegram'` desde el form; admin_org ve el campo deshabilitado.
+   */
+  notificationChannel: 'email' | 'telegram';
 }
 
 /**
@@ -292,6 +373,8 @@ export const DEFAULT_NEW_USER_FORM: NewUserFormData = {
   lastName: '',
   phone: '',
   organizationId: null,
+  departmentId: null,
+  geoZoneId: null,
   roleId: null,
   sendInvitation: true,
   initialStatus: 'activo',
@@ -301,7 +384,7 @@ export const DEFAULT_NEW_USER_FORM: NewUserFormData = {
 /**
  * F6 (D-frontend-5) — opción de rol en el dropdown. `id` es UUID
  * (matches `RoleEntity.id`); `name` viene de la columna `roles.name`
- * y se usa para las reglas "admin_org/operador_org requieren org".
+ * y se usa para las reglas "admin_org/operator_org requieren org".
  * `permissions` se carga on-demand (no upfront) — ver
  * `UsersService.getRolePermissions()`.
  */
@@ -327,6 +410,9 @@ export interface RolePermissionsView {
  * `POST /api/users` con la convención snake_case del proyecto
  * (ver `UsersService.createUserJson()`). El backend acepta `phone`
  * desde el change paralelo `back/2026-09-08-f6-new-user-form/`.
+ *
+ * 2026-10-11 (D1): se agrega `department_id` para el selector de
+ * departamento. `null` para roles globales o cuando no se seleccionó.
  */
 export interface CreateUserJsonPayload {
   email: string;
@@ -335,4 +421,16 @@ export interface CreateUserJsonPayload {
   phone: string;
   role_id: string | null;
   organization_id: string | null;
+  department_id: string | null;
+  /** sc-446 (Alcance Territorial) — optional geo zone FK. NULL when not selected. */
+  geo_zone_id: string | null;
+  /**
+   * 2026-10-16-new-user-form-notif-channel (D1) — canal preferido del
+   * nuevo staff user. El form sólo lo manda cuando el caller es Master
+   * (gate client-side en `NewUserFormComponent.isMaster()`); admin_org
+   * nunca lo envía. El backend (`AdminCreateUserDto`) lo acepta y lo
+   * persiste via `UsersService.adminCreate` con fallback a `'email'`
+   * cuando se omite.
+   */
+  preferred_notification_channel?: 'email' | 'telegram';
 }

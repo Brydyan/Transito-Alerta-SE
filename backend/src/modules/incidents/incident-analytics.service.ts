@@ -3,7 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { createHash } from 'crypto';
 import type { Cache } from 'cache-manager';
 import { DataSource } from 'typeorm';
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 import { StatsQueryDto } from './dto/stats-query.dto';
 import { WeeklyStatsQueryDto } from './dto/weekly-stats-query.dto';
 import {

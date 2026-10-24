@@ -3,7 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import type Redis from 'ioredis';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
 import { GeofencingRepository, GeoZoneRow } from './geofencing.repository';
 
 export const GEO_CACHE_TTL_SECONDS = 60;

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { IncidentCategoryEntity } from '../../entities/incident-category.entity';
+import { IncidentCategoryEntity } from '../incident-categories/entities/incident-category.entity';
 import { MapController } from './map.controller';
 import { MapSupportService } from './map-support.service';
 

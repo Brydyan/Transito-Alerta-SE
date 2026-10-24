@@ -9,6 +9,43 @@ order. After running a migration, update its row below (Status, Applied By,
 Applied Date, Environment). Never mark a migration `✅ Applied` until it has
 actually been run against that environment.
 
+---
+
+## Consolidation notice — 2026-10-14
+
+~80 addendum migrations (0020–0069) were fused into their feature anchors,
+reducing the chain from 80 files to **31 sequential files (0001–0031)** with
+no gaps or duplicate prefixes. Rollback files were updated in lockstep.
+
+For **existing environments** (supabase staging, docker local) that already
+ran the old individual files: the absorbed migrations are already applied —
+do NOT re-run the new consolidated files on top of them.
+
+For **new environments** (fresh DB bootstrap): run 0001–0031 in order.
+
+Groups fused:
+
+| Group | Anchor | Absorbed |
+|-------|--------|----------|
+| A | 0009 roles_permissions | 0039 + 0043 + 0047 + 0049 + 0050 + 0052 + 0053 |
+| B | 0029 dynamic_menus_data | 0055 + 0057 + 0059 + 0060 + 0061 + 0063 + 0064 + 0066 |
+| C | 0012 incident_categories | 0062 + 0065 |
+| C2 | 0030 departments | 0057_dept_perms + 0058_dept_incident_categories |
+| D | 0022 t7_schema_completeness | 0033 → 0038 |
+| E | 0020 incident_state_machine | 0020_old → 0023 + 0044 + 0068 |
+| F | 0021 t6_t7_schema_completeness | 0024 → 0032 |
+| G | 0025 aud_anon_module | 0045 + 0046 + 0048 + 0067 |
+| H | 0023 t7_data_migrations | 0040 + 0041 |
+
+### Nota de consolidación 2026-10-14 — front/2026-10-14-admin-route-guards
+
+`READ system-config` (diseñado como migración `0070` en el change
+`front/2026-10-14-admin-route-guards`) fue consolidado en `0009` durante la
+refactorización Group A del mismo día. No existe archivo `0070_*.sql`
+independiente. Ver commit `1bbccfec3`.
+
+---
+
 ## Log
 
 | ID | Name | Description | Status | Applied By | Applied Date | Environment |
@@ -21,17 +58,102 @@ actually been run against that environment.
 | 0006 | users | users profile columns (first/last name, avatar_url, role, organization_id) + user_sessions table | ✅ Applied | Andy Alejandro | 2026-08-15 | supabase |
 | 0007 | assignments | assignments table (one active assignment per incident, unique constraint) | ✅ Applied | Andy Alejandro | 2026-08-15 | supabase |
 | 0008 | anonymous_read_comments | adds "READ comments" to the anonymous ceiling (product decision: read + contribute, never modify) | ✅ Applied | Andy Alejandro | 2026-08-15 | supabase |
-| 0009 | roles_permissions | roles.permissions jsonb column, permissions catalog table, users.role_id + users.permission_version (pv), seeded 'reporter' role replacing the T1.4 inline stub | ✅ Applied | Andy Alejandro | 2026-08-16 | supabase |
-| 0010 | user_email | adds nullable `users.email` + unique partial index (design D11) — address source for Mail module (T3.5) event-routing recipients | ✅ Applied | Andy Alejandro | 2026-08-16 | supabase |
-| 0011 | notifications | notifications table (user_id FK, incident_id FK, type, message, data jsonb, read bool, created_at + processed_at timestamps) + indexes on (user_id, created_at) and (user_id, read) for list and count queries (T3.3) | ✅ Applied | Andy Alejandro | 2026-08-16 | supabase |
-| 0012 | incident_categories | incident_categories adjacency-list table (uuid PK, self-FK `parent_id` ON DELETE SET NULL) + index; `incidents.category_id` ON DELETE RESTRICT + index; permission catalog rows for the `incident-categories` resource (T3.7) | ✅ Applied | Andy Alejandro | 2026-08-16 | supabase |
-| 0013 | geo_zones_hierarchy | adds `geo_zones.parent_id` self-FK ON DELETE SET NULL and `geo_zones.level` with a CHECK over (provincia, canton, parroquia, zona) + index; backfills the seeded Santa Elena province and its 3 cantons by deterministic UUID; permission catalog rows for the `geo-zones` resource (T3.8). Depends on the 0003 seed having run | ✅ Applied | Andy Alejandro | 2026-08-16 | supabase |
-| 0014 | status_history | append-only `status_history` table (uuid PK, `incident_id` FK ON DELETE CASCADE, `changed_by_user_id` FK ON DELETE SET NULL, `previous_status`/`new_status` CHECKed against the incident status vocabulary, `event_id` UNIQUE for idempotent Streams inserts) + `(incident_id, created_at, id)` index; single `('status-history','READ')` permission catalog row (T3.4) | ✅ Applied | Andy Alejandro | 2026-08-17 | supabase + local (tase-postgres) |
-| 0015 | organizations_scoping | partial UNIQUE index on `organizations(zone_id)` created FIRST so a two-orgs-one-zone anomaly aborts the migration instead of backfilling an arbitrary tenant; `incidents.organization_id` FK ON DELETE SET NULL + `(organization_id, created_at DESC)` index; backfill joining `incidents.zone_id` -> `organizations.zone_id` (rows with `zone_id IS NULL` stay NULL — a real unassigned state, not a failure); 4 `organizations` permission catalog rows; seeds the 4 staff roles (admin_sistema, operador_sistema, admin_organizacion, operador_organizacion) — `reporter` already seeded by 0009 and untouched (T3.2). Independent of 0014 in both directions | ✅ Applied | Andy Alejandro | 2026-08-17 | supabase + local (tase-postgres) |
-| 0016 | sessions_revocation | additive `ALTER TABLE user_sessions` — 8 nullable columns (`refresh_token_hash`, `previous_refresh_token_hash`, `rotated_at`, `ip_address`, `user_agent`, `revoked_at`, `last_used_at`, `expires_at`); `expires_at` backfilled to `created_at` for pre-existing rows; 2 partial indexes (`idx_user_sessions_active`, `idx_user_sessions_revoked`); `sessions` permission catalog rows (`READ`, `DELETE`) appended to `admin_sistema`/`admin_organizacion` role matrices (T3.9). Requires 0015 (staff roles) — aborts loudly otherwise. Verified idempotent (applied twice) and rollback-clean against local Postgres 2026-08-17 | ✅ Applied | Andy Alejandro | 2026-08-21 | supabase |
-| 0017 | users_password_identity | `users.password_hash char(60)` (nullable, bcrypt); `users.device_uuid` and `user_sessions.device_uuid` relaxed to nullable — identity moves to email for password-identity users while `users_device_uuid_key` is KEPT (UNIQUE tolerates many NULLs, D7). Requires 0010 (`users.email`) — aborts loudly otherwise (T3.6) | ✅ Applied | Andy Alejandro | 2026-08-21 | supabase |
-| 0018 | invitations | `invitations` table (single-use 48h token, `token_hash` UNIQUE, `accepted_at` is the sole used-state) + `password_reset_tokens` table (single-use 24h token, same shape); 3 `invitations` permission catalog rows (`CREATE`/`READ`/`DELETE`) appended to `admin_sistema`/`admin_organizacion` role matrices. Requires 0015 (staff roles) and 0017 (T3.6) | ✅ Applied | Andy Alejandro | 2026-08-21 | supabase |
-| 0019 | incident_claim | adds `incidents.claimed_by uuid REFERENCES users(id) ON DELETE SET NULL` + partial index `idx_incidents_claimed_by`; `organizations.max_active_claims int NOT NULL DEFAULT 5 CHECK (> 0)`; extends the `permissions.action` CHECK constraint to admit `CLAIM` and `RELEASE` (in lockstep with the `PermissionAction` union in `src/common/decorators/require-permission.decorator.ts`); seeds the two new permission rows; grants both to `operador_organizacion` and `operador_sistema` via the `roles.permissions` JSONB column (the same pattern 0018 uses — the project has no `role_permissions` table; T5.1). | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |
+| 0009 | roles_permissions | **Group A** (fused 2026-10-14): roles.permissions jsonb, permissions catalog, users.role_id + pv, reporter role; + catalog gaps (notifications, dashboard, assignments CRUD, audit-logs, users CRUD, roles CRUD) + permission grants (incident_close CLOSE, reveal REVEAL) + UUID format normalization for roles.permissions. Absorbed: 0039 + 0043 + 0047 + 0049 + 0050 + 0052 + 0053 | ✅ Applied | Andy Alejandro | 2026-08-16 | supabase |
+| 0010 | user_email | adds nullable `users.email` + unique partial index (design D11) | ✅ Applied | Andy Alejandro | 2026-08-16 | supabase |
+| 0011 | notifications | notifications table (user_id FK, incident_id FK, type, message, data jsonb, read bool, timestamps) + indexes | ✅ Applied | Andy Alejandro | 2026-08-16 | supabase |
+| 0012 | incident_categories | **Group C** (fused 2026-10-14): incident_categories adjacency-list table + incidents.category_id FK + RESTRICT + index + permissions catalog; + `description text NULL` + `priority varchar(16) NULL` columns. Absorbed: 0062 + 0065 | ✅ Applied | Andy Alejandro | 2026-08-16 | supabase |
+| 0013 | geo_zones_hierarchy | adds `geo_zones.parent_id` self-FK ON DELETE SET NULL, `geo_zones.level` CHECK + index; backfills 4 seeded zones; permission catalog rows for `geo-zones` resource | ✅ Applied | Andy Alejandro | 2026-08-16 | supabase |
+| 0014 | status_history | append-only `status_history` table (uuid PK, incident_id FK CASCADE, changed_by_user_id FK SET NULL, previous_status/new_status CHECKed, event_id UNIQUE) + index + `('status-history','READ')` permission row | ✅ Applied | Andy Alejandro | 2026-08-17 | supabase + local (tase-postgres) |
+| 0015 | organizations_scoping | partial UNIQUE index on organizations(zone_id); incidents.organization_id FK + index; backfill by zone_id join; 4 organizations permission rows; seeds master, operador_sistema, admin_org, operator_org roles | ✅ Applied | Andy Alejandro | 2026-08-17 | supabase + local (tase-postgres) |
+| 0016 | sessions_revocation | 8 nullable columns on user_sessions (refresh_token_hash, rotation, ip, user_agent, revoked_at, last_used_at, expires_at) + 2 partial indexes; sessions:READ/DELETE granted to master/admin_org | ✅ Applied | Andy Alejandro | 2026-08-21 | supabase |
+| 0017 | users_password_identity | users.password_hash char(60) nullable (bcrypt); users.device_uuid + user_sessions.device_uuid relaxed to nullable; device_uuid UNIQUE kept (tolerates many NULLs) | ✅ Applied | Andy Alejandro | 2026-08-21 | supabase |
+| 0018 | invitations | invitations + password_reset_tokens tables (single-use tokens, 48h/24h); 3 invitations permission rows granted to master/admin_org | ✅ Applied | Andy Alejandro | 2026-08-21 | supabase |
+| 0019 | incident_claim | incidents.claimed_by FK SET NULL + partial index; organizations.max_active_claims CHECK > 0; extends permissions.action CHECK to full domain (includes CLAIM, RELEASE, CLOSE, REVEAL); seeds CLAIM/RELEASE permission rows; grants to operator_org + agent_system | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |
+| 0020 | incident_state_machine | **Group E** (fused 2026-10-14): extends incidents.status CHECK with `closed`; approved/rejected decision columns (5 cols, 3 CHECKs, 1 partial index); extends notifications.type CHECK with `incident_pending_approval`; status_history.notes text NULL; incidents.closed_reason text NULL; expands status_history CHECKs to full domain (previous_status adds `created` sentinel; new_status adds `closed`). Absorbed: 0020_old + 0021 + 0022 + 0023 + 0044 + 0068 | ⏳ Pending | — | — | — |
+| 0021 | t6_t7_schema_completeness | **Group F** (fused 2026-10-14): comment_images table; incidents.deleted_at + partial index; assignments soft-delete + partial UNIQUE uq_assignments_active; incidents.claimed_at + resolution_date; users OTP compliance (6 cols); incident_images table; schema_migrations tracking table + conditional backfill 0001–0020; deleted_at on 13 tables; updated_at + set_updated_at() trigger on 15 tables. Absorbed: 0024 → 0032 | ⏳ Pending | — | — | — |
+| 0022 | t7_schema_completeness | **Group D** (fused 2026-10-14): comments.parent_id self-FK + depth-2 app constraint; organizations.parent_id self-FK + incident_category_id FK; geo_zones.code varchar(32) partial UNIQUE + users.phone varchar(30); check_is_leaf_category() trigger; 4 missing indexes; 22-category tree seed (5 roots + 17 leaves). **+sc-446 follow-up (2026-10-14):** users.geo_zone_id uuid NULL FK geo_zones ON DELETE SET NULL + partial index. Absorbed: 0033 → 0038 | ⏳ Pending | — | — | — |
+| 0023 | t7_data_migrations | **Group H** (fused 2026-10-14): role renames (admin_sistema→master, admin_organizacion→admin_org, operador_organizacion→operator_org); geo_zones.code backfill on 4 rows; 11 parroquias Santa Elena seed (OSM/ODbL 1.0); CTE-Santa-Elena org insert. Load-bearing order: rename → parroquia → org. Absorbed: 0040 + 0041 | ⏳ Pending | — | — | — |
+| 0024 | monitoring_helpers | 6 PL/pgSQL `STABLE` functions (`monitor_incidents_per_minute`, `monitor_endpoint_latency_p95`, `monitor_5xx_count`, `monitor_pg_pool_usage`, `monitor_revocation_denylist_size`, `monitor_unread_notifications_count`). Read-only, idempotent (`CREATE OR REPLACE`). Renumbered from 0042 (2026-10-14) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase staging |
+| 0025 | aud_anon_module | **Group G** (fused 2026-10-14): audit_events table (actor_id, action, resource_type/id, justification, metadata, indexes); incident_reporters table + incidents.is_anonymous bool; UPDATE users SET permissions='[]' for anonymous mask (close ceiling); insert-or-repair anonymous mask row (device_uuid='anonymous'). Absorbed: 0045 + 0046 + 0048 + 0067 | ⏳ Pending | — | — | — |
+| 0026 | roles_permissions_uuid_format | Normalizes roles.permissions (jsonb array) from string format ("READ incidents") to UUID catalog references. Denormalizes to users.permissions + bumps permission_version. Renumbered from 0051 (2026-10-14) | ✅ Applied | Andy Alejandro | 2026-09-09 | supabase |
+| 0027 | citizen_social_features | incident_followers + incident_corroborations permission catalog rows; grants to 4 staff roles; denormalizes + bumps permission_version. Renumbered from 0054 (2026-10-14) | ✅ Applied | Andy Alejandro | 2026-09-14 | supabase |
+| 0028 | dynamic_menus_schema | menu_options (self-ref adjacency, soft delete), menu_option_roles (composite PK), api_endpoints (UNIQUE method+path), menu_option_endpoints junction; roles.scope varchar(20) CHECK; menu-options permission catalog; seeds api_endpoints with current routes. Renumbered from 0054_dynamic_menus_schema (2026-10-14) | ✅ Applied | carlosfpatino | 2026-09-14 | docker local (tase-postgres) |
+| 0029 | dynamic_menus_data_migration | **Group B** (fused 2026-10-14): 10 MENU_MAP entries → menu_options + menu_option_roles; Controles option; sanitize roles matrix (soft-delete legacy names); 12 CRUD sub-menu entries; inherit parent permissions; GESTIÓN + Departamentos access matrix; fix Organizaciones/Departamentos routes; grants status-history:READ to roles with incidents:READ. Absorbed: 0055 + 0057 + 0059 + 0060 + 0061 + 0063 + 0064 + 0066 | ⏳ Pending | — | — | — |
+| 0030 | departments | **Group C2** (fused 2026-10-14): departments table (org FK CASCADE, soft delete, UNIQUE org+name); users.department_id + incidents.department_id FKs SET NULL + partial indexes; 4 departments permission rows granted to master + admin_org; department_incident_categories junction table + index. Absorbed: 0056_departments + 0057_dept_perms + 0058_dept_incident_categories | ⏳ Pending | — | — | — |
+| 0031 | emergency_dispatch | users.telegram_chat_id text NULL; assignments.cap_override_reason + cap_override_by uuid FK; incidents.reminder_count int DEFAULT 0 + last_reminded_at timestamptz NULL. No new permissions (ASSIGN already in master+admin_org per 0015). Renumbered from 0069 (2026-10-14) | ⏳ Pending | — | — | — |
+| 0032 | departments_soft_delete_unique | Drop plain UNIQUE(organization_id, name) on departments; replace with partial unique index WHERE deleted_at IS NULL. Fixes: soft-deleted dept blocks re-creation of same name in same org. | ⏳ Pending | — | — | — |
+| 0033 | user_notification_channel | users.preferred_notification_channel varchar(20) NOT NULL DEFAULT 'email'. Stores email | telegram preference; no dispatch logic in this change. Future channels possible without ALTER TYPE (D4). | ⏳ Pending | — | — | — |
+| 0034 | incident_images_drop_url | incident_images: DROP COLUMN url + DELETE all rows. The column was an unused duplicate of the storage location; the pre-change storage service stub fabricated URLs against never-uploaded objects. (D2 of 2026-10-06-incident-images-read-path.) | ⏳ Pending | — | — | — |
+| 0035 | audit_events_actor_set_null | audit_events.actor_id: DROP NOT NULL + change FK from ON DELETE RESTRICT to ON DELETE SET NULL. Audit trails must survive physical user deletion (GDPR); actor_id becomes NULL for deleted actors. Required after audit wiring in sc-327 added citizen actor rows. | ⏳ Pending | — | — | — |
+| 0036 | users_phone_unique | Partial unique index `uq_users_phone` ON users(phone) WHERE phone IS NOT NULL. Prevents duplicate phone across active users; soft-deleted users (whose phone is wiped to NULL) are excluded naturally. Service layer pre-check (adminCreate/adminUpdate) gives 409 with friendly message; updateProfile catches 23505 from the index. | ⏳ Pending | — | — | — |
+| 0037 | admin_org_reassign_permission | Adds `UPDATE assignments` to `admin_org` role permissions JSONB array. Required for `PATCH /api/assignments/:id` — without it admin_org receives 403 when attempting to reassign an incident to another operator. Idempotent: skips if already present. Rollback: `database/rollback/0037_admin_org_reassign_permission.DOWN.sql`. | ⏳ Pending | — | — | — |
+| 0038 | permissions_uuid_normalization | **Fix del 500 de `GET /api/auth/me`.** Normaliza `roles.permissions` a UUIDs elemento por elemento, respetando los TRES formatos que convivieron en el schema: canónico `"ACTION resource"`, erróneo `resource:ACTION` (inyectado por 0021 §6, que 0026 no pudo remapear porque su LEFT JOIN parsea por espacio) y UUID. Descarta lo irreconocible con NOTICE + WARNING. Denormaliza a `users.permissions`. Cubierto por `backend/test/migrations/permissions-uuid-normalization.e2e-spec.ts`. | ⏳ Pending | — | — | — |
+| 0039 | menu_option_roles_canonical_matrix | Borra `(Reportar, operator_org)` de `menu_option_roles`: residuo de una corrida de `0029` anterior a la corrección `2026-10-17-reportar-operator-org-block`, que concede esa hoja sólo a roles con `CREATE incidents` (0029:183). Sin efecto funcional hoy —`MenusService` ya filtra por permiso efectivo y `/reportar` exige `CREATE incidents` (`menu-map.ts:78`)— pero la DB contradecía al repo. Assert por grupo padre: `operator_org` no debe colgar de GESTIÓN/CATÁLOGOS. Reporta por NOTICE los menús huérfanos preexistentes sin abortar (un bootstrap limpio los arrastra y 0039 no es su dueño). Rollback: `database/rollback/0039_menu_option_roles_canonical_matrix.DOWN.sql`. Cubierto por `backend/test/migrations/menu-option-roles-matrix.e2e-spec.ts`. | ⏳ Pending | — | — | — |
+
+### ⚠️ 0039 y los menús huérfanos (deuda conocida, sin corregir)
+
+`0039` reporta por `NOTICE` los menús que son legibles pero cuyo **padre no es
+legible para el mismo rol**. `MenusService.buildTree` los descarta sin error
+(`menus.service.ts:195-202`, *"orphan — excluded per spec"*), así que el síntoma
+es «el sidebar perdió entradas» con el backend en verde.
+
+**Causa raíz:** `0029:210-216` concede el grupo GESTIÓN sólo a `master` +
+`agent_system`, pero `Organizaciones` y `Departamentos` (hijas de GESTIÓN) sí se
+conceden a `admin_org` (0029:249-272). Resultado: **en un bootstrap limpio
+`admin_org` pierde esos dos menús.** El comentario de `0029:206-209` afirma que
+`admin_org` «NO necesita ver el group GESTIÓN» — es falso en efecto, sin el
+padre las hijas desaparecen.
+
+`tase-staging` no sufre el síntoma porque ahí la fila GESTIÓN de `admin_org`
+existe (parcheada a mano, no por la cadena de migraciones), lo que hace que un
+install limpio y staging **divergen**. Corregirlo requiere una migración nueva
+que registre GESTIÓN para `admin_org` — fuera del alcance de 0039, que sólo
+limpia `operator_org`. hasta entonces, el inventario de `NOTICE` es la fuente
+de verdad del alcance.
+
+### ⚠️ 0038 NO se aplica automáticamente
+
+`backend/scripts/entrypoint-migrations.sh:21-35` **no es un runner de migraciones
+pendientes**. Sólo tiene dos ramas:
+
+```sh
+if [ "$SCHEMA_EXISTS" = 'f' ]; then
+  for f in /app/database/migrations/*.sql; do … done   # bootstrap de DB vacía
+else
+  echo "[migrations] ✓ Schema exists. Skipping bootstrap."
+fi
+exit 0
+```
+
+Si `schema_migrations` ya existe, imprime `Skipping bootstrap` y sale con 0 — sin
+leer la tabla, sin comparar checksums, sin aplicar nada. En cualquier DB que no sea
+virgen, **0038 hay que aplicarla a mano**:
+
+```bash
+docker exec -i tase-postgres psql -U postgres transito_alerta \
+  < database/migrations/0038_permissions_uuid_normalization.sql
+```
+
+Después: **`FLUSHALL` en Redis** (o borrar `perm:v3:*`). Bumpear `permission_version`
+NO invalida el cache: la clave es `perm:v3:uid:{userId}`
+(`auth-context.service.ts:136`) y **no contiene `pv`** — ningún consumidor lo lee.
+
+Corolario de seguridad: la existencia de una fila en `schema_migrations` **no prueba**
+que la migración se haya ejecutado. Ver el caso de staging del 2026-10-18 más abajo,
+donde 13 filas se insertaron a mano verificando objetos ajenos a la migración.
+
+### ⚠️ 0037 se deja intacta a propósito
+
+0037 reintroduce el patrón de bug (`"UPDATE assignments"` como string literal
+después de 0026), y en una DB **virgen** 0038 lo corrige: `0009` siembra el string,
+0026 lo vuelve UUID, 0037 lo vuelve a agregar porque su guarda
+`NOT (permissions @> '["UPDATE assignments"]')` ya no matchea, y 0038 (última en orden)
+lo sanea. El resultado final de un install limpio es correcto.
+
+**No se editó 0037** a propósito: su checksum ya está registrado en
+`schema_migrations` de staging (backfill del 2026-10-18), y
+`migration-files.ts:60` hashea los bytes crudos del archivo — editarlo introduciría
+checksum drift en un entorno que no tiene runner que lo detecte ni lo reporte.
 
 ## Status legend
 
@@ -39,98 +161,129 @@ actually been run against that environment.
 - ✅ Applied — applied and verified in the environment listed
 - ❌ Rolled back — applied then reverted via the matching `database/rollback/*.DOWN.sql`
 
+## Backfill de migraciones aplicadas manualmente (operational)
+
+### Contexto
+
+El runner (`backend/scripts/run-migrations.ts`) confía en que
+`schema_migrations` refleje **todas** las migraciones aplicadas. Cuando
+una migración se aplicó vía `psql` directo (bootstrap inicial, hot-fix
+de emergencia, o antes de que el runner existiera), queda **huérfana**:
+el esquema tiene los objetos pero la tabla de tracking no tiene la fila.
+
+Síntomas típicos:
+
+- `ls database/migrations/*.sql | wc -l` retorna un número mayor que
+  `SELECT COUNT(*) FROM schema_migrations`.
+- Próximas corridas del runner lanzan `ERROR: ... already exists` para
+  migraciones que ya están aplicadas (eco benigno, pero enmascara drift
+  real cuando se añade una nueva).
+- El merge de una rama con migraciones nuevas puede fallar porque el
+  runner detecta drift sobre las filas faltantes.
+
+### Caso real — `tase-staging` 2026-10-18
+
+`SELECT COUNT(*) FROM schema_migrations` devolvía **24** mientras que
+`ls database/migrations/*.sql` sumaba **37**. Los 13 huérfanos eran:
+`0021, 0022, 0024, 0025, 0026, 0029, 0030, 0031, 0032, 0033, 0034,
+0035, 0037`.
+
+Verificación de que estaban aplicados (no eran drift real):
+
+- `pg_constraint` contenía `fk_organizations_zone` (creado por `0002`).
+- `pg_indexes` contenía `uq_users_phone` (creado por `0036`).
+- `roles` contenía `master`, `admin_org`, `operator_org` (creados por
+  `0023`).
+
+Tras el backfill, `schema_migrations` quedó con las **37** filas
+contiguas `0001 → 0037`.
+
+### Procedimiento
+
+1. **Identificar los gaps** cruzando archivos en disco con filas
+   registradas:
+
+   ```bash
+   # en el host del repo
+   ls database/migrations/*.sql | wc -l
+
+   # en el server (docker) — listar versiones presentes
+   docker exec -i tase-postgres psql -U postgres -d transito_alerta \
+     -c "SELECT version FROM schema_migrations ORDER BY version;"
+   ```
+
+   Los IDs presentes en disco pero NO en la tabla son los huérfanos.
+
+2. **Calcular checksums reales desde los archivos en disco**:
+
+   ```bash
+   sha256sum database/migrations/0021_t6_t7_schema_completeness.sql \
+              database/migrations/0022_t7_schema_completeness.sql \
+              # ... los que falten
+   ```
+
+   ⚠️ **NO usar placeholders** — el runner detecta ediciones
+   post-aplicación vía checksum mismatch y falla en silencio (exit 0,
+   pero reporta drift).
+
+3. **Insertar las filas faltantes con `docker exec -i` (sin `-t`)**.
+   Con `-t`, Docker aborta con `cannot attach stdin to a TTY-enabled
+   container because stdin is not a terminal` al recibir un heredoc.
+
+   ```bash
+   docker exec -i tase-postgres psql -U postgres -d transito_alerta <<'SQL'
+   INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES
+     ('0021', 't6_t7_schema_completeness', '<sha256-de-0021>', NOW()),
+     ('0022', 't7_schema_completeness',    '<sha256-de-0022>', NOW())
+     -- ... el resto
+   ON CONFLICT (version) DO NOTHING;
+   SQL
+   ```
+
+   `ON CONFLICT (version) DO NOTHING` hace el INSERT idempotente:
+   correrlo dos veces no duplica ni revienta.
+
+4. **Verificar**:
+
+   ```bash
+   docker exec -i tase-postgres psql -U postgres -d transito_alerta \
+     -c "SELECT COUNT(*) FROM schema_migrations;"
+   # esperado: 37 (= número de archivos .sql en disco)
+   ```
+
+5. **Marcar `applied_at = NOW()`** — es OK. Si en el futuro una query
+   de auditoría necesita distinguir "backfilleado manualmente" de
+   "aplicado por el runner", se puede agregar una columna
+   `applied_by varchar(64)` y poblarla con `'manual-backfill'` para
+   distinguirlo. Hoy el log en este archivo es suficiente.
+
+### Cuándo **NO** backfill-ear
+
+- Si una migración aparece como ⏳ Pending en este log **Y** no tiene
+  objetos en el esquema, es drift real — la solución es aplicarla con
+  el runner o manualmente, NO backfill-ear la fila (eso solo escondería
+  la ausencia).
+- Si el checksum del archivo en disco NO coincide con el del archivo
+  original aplicado, hay una edición post-aplicación — hay que
+  investigar antes de tocar `schema_migrations`. Si la edición fue
+  intencional (ej. fix retroactivo), primero re-aplicar el SQL correcto
+  y luego backfill-ear con el checksum actual.
+
 ## Entorno local de desarrollo
 
 `docker compose up -d postgres` levanta `postgis/postgis:16-3.4` vacío. Las
 mismas migraciones se aplican ahí a mano, en el mismo orden:
 
 ```bash
-for f in database/migrations/000*.sql; do
+for f in database/migrations/00*.sql; do
   docker exec -i tase-postgres psql -U postgres -d transito_alerta \
     -v ON_ERROR_STOP=1 -q < "$f" || break
 done
 ```
 
-Estado local al 2026-08-15: 0001–0008 aplicadas y verificadas.
-
-El job `migrations` de CI (`.github/workflows/ci.yml`) aplica las 13 en orden
+El job `migrations` de CI (`.github/workflows/ci.yml`) aplica las 31 en orden
 contra un `postgis/postgis:16-3.4` vacío en cada PR, así que un archivo roto se
-detecta antes de pegarlo en el editor SQL de Supabase. Verificado el 2026-08-16:
-las 13 aplican limpio y el backfill de 0013 deja la provincia como raíz con sus
-3 cantones colgando.
+detecta antes de pegarlo en el editor SQL de Supabase.
 
 Este log rastrea **supabase**. El entorno local se recrea desde cero cuando
 haga falta (`docker compose down -v`), así que no lleva registro propio.
-
-## 0019 — T5.1 Incident Workflow (2026-08-23)
-
-✅ Applied (Supabase staging, pendiente prod).
-
-- Adds `incidents.claimed_by uuid REFERENCES users(id) ON DELETE SET NULL`.
-- Adds `organizations.max_active_claims int NOT NULL DEFAULT 5 CHECK (> 0)`.
-- Extends `permissions.action` CHECK constraint: now also allows `CLAIM` and `RELEASE`.
-- Seeds `(incidents, CLAIM)` and `(incidents, RELEASE)` permission rows.
-- Grants both to `operador_organizacion` and `operador_sistema` via the
-  `roles.permissions` JSONB column (the same pattern 0018 uses — the project
-  has no `role_permissions` table).
-
-TypeScript side: `PermissionAction` union in
-`backend/src/common/decorators/require-permission.decorator.ts` extended to
-include `'CLAIM' | 'RELEASE'` in lockstep.
-| 0020 | add_closed_status_to_incidents | extends the `incidents.status` CHECK constraint to allow `closed` (admin approve terminal state). Required by T5.6 approve flow; the transition is wired through the dedicated `approve()` path, not through `LEGAL_TRANSITIONS` | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |
-| 0021 | add_decision_columns_to_incidents | adds `approved_by/at`, `rejected_by/at`, `rejection_reason` (nullable) + 3 CHECK constraints (approved pair, rejected pair, XOR) + partial index `idx_incidents_approved_at` (T5.6) | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |
-| 0022 | add_incident_pending_approval_notification_type | extends the `notifications.type` CHECK constraint to allow `incident_pending_approval` — the value emitted when an incident hits `resolved` and waits for admin moderation (T5.6) | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |
-| 0023 | add_notes_to_status_history | adds `notes` (nullable text) to `status_history` — written by the T5.6 reject path with the rejection reason as a permanent audit row | ✅ Applied | Andy Alejandro | 2026-08-23 | supabase |
-| 0024 | comment_images | `comment_images` table (uuid PK, `comment_id` FK ON DELETE CASCADE, `storage_key`, `url`, `mime_type`, `file_size` CHECK > 0, `created_at`); index on `comment_id`; permission catalog rows for `comment-images` resource (CREATE, DELETE); grants both to operator + admin roles via `roles.permissions` JSONB (T5.5). Note: tasks.md designated 0020 but that slot was taken by T5.6 migrations. | ✅ Applied | Andy Alejandro | 2026-08-24 | supabase |
-| 0025 | incidents_soft_delete | `incidents.deleted_at TIMESTAMPTZ NULL` + partial index `idx_incidents_deleted_at WHERE deleted_at IS NULL` (T6.2). All list/findOne queries filter `AND deleted_at IS NULL`. | ✅ Applied | Andy Alejandro | 2026-08-24 | supabase |
-| 0026 | assignments_soft_delete | `assignments.deleted_at TIMESTAMPTZ NULL`; drops hard `assignments_incident_id_operator_id_key` UNIQUE; creates partial UNIQUE `uq_assignments_active WHERE deleted_at IS NULL` + `idx_assignments_deleted_at` (T6.2). | ✅ Applied | Andy Alejandro | 2026-08-24 | supabase |
-| 0027 | incidents_metrics_cols | `incidents.claimed_at TIMESTAMPTZ NULL` and `incidents.resolution_date TIMESTAMPTZ NULL`; index `idx_incidents_resolution_date WHERE resolution_date IS NOT NULL` (T6.3). | ✅ Applied | Andy Alejandro | 2026-08-24 | supabase |
-| 0028 | users_otp_compliance | 6 columns on users: `email_verified_at`, `verification_otp VARCHAR(6)`, `verification_otp_expires_at`, `terms_accepted_at`, `terms_version VARCHAR(20)`, `deleted_at`; indexes for unverified and deleted lookups (T6.5, T6.8). | ✅ Applied | Andy Alejandro | 2026-08-24 | supabase |
-| 0029 | incident_images | `incident_images` table (uuid PK, `incident_id` FK ON DELETE CASCADE, `storage_key`, `url`, `mime_type`, `file_size` CHECK > 0, `created_at`); index on `incident_id`; permission catalog rows `incident-images:CREATE` and `incident-images:DELETE`; grants to `operador_organizacion` and `admin_organizacion` (T6.6). | ✅ Applied | Andy Alejandro | 2026-08-24 | supabase |
-| 0030 | schema_migrations | Migration tracking table (`version varchar(8) PK, name text, checksum char(64), applied_at timestamptz`) + conditional backfill of 0001–0029 if schema already populated (T7.1) | ✅ Applied | Andy Alejandro | 2026-08-25 | supabase |
-| 0031 | soft_delete_completeness | `deleted_at TIMESTAMPTZ NULL` + partial index `WHERE deleted_at IS NULL` on 13 tables: roles, comments, notifications, organizations, incident_categories, geo_zones, user_sessions, users, invitations, password_reset_tokens, permissions, assignments (soft-delete already on incidents+assignments) (T7.2) | ✅ Applied | Andy Alejandro | 2026-08-25 | supabase |
-| 0032 | updated_at_columns | `updated_at TIMESTAMPTZ NOT NULL DEFAULT now()` on 15 tables + function `set_updated_at()` + BEFORE UPDATE trigger per table (T7.3) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0033 | comments_threading | `comments.parent_id uuid REFERENCES comments(id) ON DELETE CASCADE`, CHECK `parent_id IS DISTINCT FROM id`, index on `parent_id`, depth-2 limit enforced in app layer (T7.4) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0034 | organizations_hierarchy_categories | `organizations.parent_id uuid REFERENCES organizations(id) ON DELETE SET NULL` + CHECK, `organizations.incident_category_id uuid REFERENCES incident_categories(id)`, removes `uq_organizations_zone` UNIQUE constraint (T7.5) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0035 | domain_columns | `geo_zones.code varchar(32) NULL` with partial UNIQUE index, `users.phone varchar(30) NULL` (T7.6) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0036 | referential_integrity | Function `check_is_leaf_category()` + trigger on incidents to enforce leaf-category-only; 4 FK normalized with explicit ON DELETE clauses (T7.7) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0037 | index_parity | 4 missing indexes: `comments.user_id`, `comments.parent_id`, `assignments.incident_id`, `status_history.changed_by_user_id` (T7.8) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0038 | reference_data | 22-category tree seed (5 roots + 17 leaves) with idempotent `ON CONFLICT DO NOTHING` + 2 partial UNIQUE indexes for idempotence (T7.9.A) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0039 | organizations_permissions | Permission rows `(notifications, READ)` + `(notifications, UPDATE)` added to catalog + granted to the 4 staff roles via `roles.permissions` JSONB, matching them by their **pre-0040 names** (`admin_sistema`, `operador_sistema`, `admin_organizacion`, `operador_organizacion`) — the grants then travel with the row through the 0040 rename (T7.9.B) | ✅ Applied | Andy Alejandro | 2026-08-25 | supabase |
-| 0040 | rename_roles | Rename for clarity: `admin_sistema` → `master`, `admin_organizacion` → `admin_org`, `operador_organizacion` → `operador_org` (T7.10) | ✅ Applied | Andy Alejandro | 2026-08-25 | supabase |
-| 0041 | geography_organizations_seed | Backfill geo_zones.code en 4 filas preexistentes (EC-24, EC-24-01/02/03). INSERT 11 parroquias de Santa Elena desde OSM, code EC-24-0[1-6]-[50-56] con polygon ST_Multi. INSERT org CTE - Santa Elena, zone_id→EC-24-01, parent_id NULL. Idempotente: ON CONFLICT + WHERE NOT EXISTS. Load-bearing order: code backfill → parroquia INSERT → org INSERT (T7.9.C/D) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0042 | monitoring_helpers | **Excepción a la regla "ninguna migración nueva" del change T8** (permiso documentado en `openspec/changes/2026-08-26-t8-database-cutover/design.md` §5 — D5). 6 funciones PL/pgSQL `LANGUAGE sql STABLE`: `monitor_incidents_per_minute`, `monitor_endpoint_latency_p95`, `monitor_5xx_count`, `monitor_pg_pool_usage`, `monitor_revocation_denylist_size`, `monitor_unread_notifications_count`. **Read-only, idempotentes (`CREATE OR REPLACE FUNCTION`), reversibles** (matching DOWN con 6 `DROP FUNCTION IF EXISTS`). La razón: las queries de monitoreo en `database/monitoring/queries.sql` (R30) referencian estas funciones, no las tablas, para que un rename de columna futuro rompa un solo lugar en vez de N. (T8 D8.4) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase staging |
-| 0043 | incident_close_permission | sc-315 (fix-incident-state-machine, D8 del design). Extiende `permissions.action` CHECK para admitir `CLOSE`; registra `(incidents, CLOSE)`; concede `CLOSE incidents` a `master` y `admin_org` en `roles.permissions` JSONB; propaga a `users.permissions` de los usuarios existentes de esos roles; bumpea `permission_version` para invalidar `perm:v3:uid:*`. TypeScript: `PermissionAction` en `backend/src/common/decorators/require-permission.decorator.ts` extendido en lockstep con `\| 'CLOSE'`. Rollback: `database/rollback/0043_incident_close_permission.DOWN.sql`. | ⏳ Pending | — | — | — |
-| 0044 | incident_closed_reason | sc-315 (D4 del design). `incidents.closed_reason text NULL` — motivo de cierre obligatorio al transicionar a `closed`, consultable desde la fila para alimentar informes. Sin CHECK sobre el contenido (libre, validado en app). Rollback: `database/rollback/0044_incident_closed_reason.DOWN.sql`. | ⏳ Pending | — | — | — |
-| 0048 | close_anonymous_ceiling | ANON (sc-326). `UPDATE users SET permissions='[]'::jsonb, updated_at=now() WHERE device_uuid='anonymous'` — vacía el techo denormalizado tras el cierre del login anónimo (`auth.config.ts:anonymousPermissions=[]`). NO borra la fila: AUD la recicla como autoría de publicaciones. Idempotente. NO toca 0008: la anulación del efecto se hace con una migración nueva, no reescribiendo el historial aplicado. Rollback: `database/rollback/0048_close_anonymous_ceiling.DOWN.sql` (informativo, no aplicar sin decisión de producto fresca). | ⏳ Pending | — | — | — |
-| 0045 | audit_events | AUD (sc-327). `audit_events` con `id`/`actor_id`/`action`/`resource_type`/`resource_id`/`justification`/`metadata`/`created_at`. `justification` nullable en el esquema, obligatorio por acción (D3). Índices `(resource_type, resource_id, created_at DESC)` y `(actor_id, created_at DESC)`. Append-only: el `AuditService` sólo expone `record(...)`. Rollback: `database/rollback/0045_audit_events.DOWN.sql` (informativo: borra los eventos escritos). | ⏳ Pending | — | — | — |
-| 0046 | incident_reporters | AUD (sc-327) D1. Tabla `incident_reporters` (PK `incident_id` FK 1:1, `user_id` FK autor real, `created_at`) + columna `incidents.is_anonymous boolean NOT NULL DEFAULT false`. Una publicación anónima tiene `citizen_id` apuntando a la máscara (`users.device_uuid = 'anonymous'`) y autor real en `incident_reporters`. El default false preserva los datos históricos. Rollback: `database/rollback/0046_incident_reporters.DOWN.sql` (BORRA las autorías reales — informativo, no aplicar si ya hay producción). | ⏳ Pending | — | — | — |
-| 0047 | reveal_permission | AUD (sc-327) D5. Extiende `permissions_action_check` con `REVEAL`. Inserta `('incidents', 'REVEAL')` en `permissions`. Concede `REVEAL incidents` a `master` en `roles.permissions` Y denormaliza a `users.permissions` de los master activos. Bumpea `permission_version` para invalidar `perm:v3:uid:*` (C.3). Sólo `master` — la extensión a `admin_org` queda pendiente de decisión comercial. Rollback: `database/rollback/0047_reveal_permission.DOWN.sql` (informativo). | ⏳ Pending | — | — | — |
-| 0049 | admin_user_permissions | F6 (`2026-09-08-f6-usuarios-redesign`). Cierra el gap del catálogo: inserta `(users, CREATE)`, `(users, DELETE)` y `(permissions, READ)` que el seed `0009_roles_permissions` nunca sembró. Idempotente: `ON CONFLICT DO NOTHING` por `action+resource` UNIQUE. `GRANT` al rol `master` sobre esas 3 nuevas filas. Denormaliza a `users.permissions` de los master activos. Bumpea `permission_version` para invalidar `perm:v3:uid:*`. Rollback: `database/rollback/0049_admin_user_permissions.DOWN.sql` (inverso simétrico). | ✅ Applied | Andy Alejandro | 2026-09-09 | supabase |
-| 0050 | roles_crud_permissions | F6 (`2026-09-08-f6-roles-redesign`). Cierra el CRUD de roles: inserta `(roles, CREATE)`, `(roles, UPDATE)`, `(roles, DELETE)` que el seed `0009_roles_permissions` no sembró. Idempotente. `GRANT` al rol `master` (admin_sistema es el único que puede crear/editar/borrar roles). Denormaliza a `users.permissions` de los master activos. Bumpea `permission_version`. Rollback: `database/rollback/0050_roles_crud_permissions.DOWN.sql`. | ✅ Applied | Andy Alejandro | 2026-09-09 | supabase |
-| 0051 | roles_permissions_uuid_format | F6 (`2026-09-08-f6-roles-redesign`). Normaliza `roles.permissions` (jsonb array) al formato UUID canónico. El wire post-0051 es siempre UUID (catalogo FK); antes el `seed 0009` y los `PATCH /api/roles/:id` convivían con dos formatos (strings formateados vs UUIDs) y la matriz de permisos del role-editor no matcheaba. Idempotente: si un elemento ya es UUID, queda como está. Denormaliza a `users.permissions` de los usuarios activos y bumpea `permission_version`. Rollback: `database/rollback/0051_roles_permissions_uuid_format.DOWN.sql` (revierte la traducción con el patrón inverso). | ✅ Applied | Andy Alejandro | 2026-09-09 | supabase |
-| 0052 | missing_permissions_catalog | F6 housekeeping. Cierra el segundo gap del catálogo (después del de 0049). El seed `0009_roles_permissions` se olvidó de: (a) `dashboard` (el recurso existe en 4 endpoints — `/api/incidents/stats`, `/api/incidents/weekly-stats`, `/api/incidents/feed`, `/api/operator/dashboard` — todos con `@RequirePermission('READ', 'dashboard')`); (b) `assignments` con `UPDATE` y `DELETE` (sólo sembró `READ` y `ASSIGN`, pero `PATCH /assignments/:id` requiere `UPDATE` y `DELETE /assignments/:id` requiere `DELETE` — el `inferResourceFromPath` los traduce desde el path). Síntoma: el `env.provisionUser(['READ dashboard'])` de los e2e dropeaba el permiso con warning, y `GET /api/incidents/stats` devolvía 403 a master. Inserta las 3 filas en `permissions` con `ON CONFLICT DO NOTHING`, las concatena al array de master con `jsonb_agg(DISTINCT)`, denormaliza a `users.permissions` de los master activos, bumpea `permission_version`. Rollback: `database/rollback/0052_missing_permissions_catalog.DOWN.sql` (simétrico: las quita del array de master y soft-deleta las filas del catálogo). | ✅ Applied | Andy Alejandro | 2026-09-10 | supabase |
-| 0053 | audit_logs_permission | F6 (`2026-09-11-f6-audit-logs-export`). Capa de lectura de `audit_events` (0045, sc-327). Inserta `(audit-logs, READ)` con `ON CONFLICT DO NOTHING`. Concede al rol `master` vía `jsonb_agg(DISTINCT elem)` (mismo patrón que 0052). Denormaliza a `users.permissions` de los master activos y bumpea `permission_version` para invalidar `perm:v3:uid:*` (T3.9 §3 [R4]). Sólo master — la extensión a `operador_sistema` queda pendiente (OD-2 del proposal). Habilita `GET /api/audit-logs` (lista paginada con filtros) y `GET /api/audit-logs/export.csv` (CSV buffered, cap 10k). El `AuditService` ya escribía (sólo expone `record`); este change agrega `list()` y `exportCsv()`. Rollback: `database/rollback/0053_audit_logs_permission.DOWN.sql` (simétrico: quita el UUID del array de master, denormaliza, bumpea version, soft-deleta la fila del catálogo). | ⏳ Pending | — | — | — |
-| 0022 | add_incident_pending_approval_notification_type (DOWN) | T8 housekeeping: el DOWN re-creaba `notifications_type_check` (4 valores) en vez de restaurar el nombre original de 0011 (`valid_type`). Quedaban 2 constraints side-by-side. Fix: dropear el `valid_type` de 0022 y restaurar el `valid_type` original de 0011 con el nombre correcto. (R37.2 — 2026-08-27) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0026 | assignments_soft_delete (DOWN) | T8 housekeeping: el DOWN restauraba `assignments_incident_id_operator_id_key` (UNIQUE sobre incident_id+operator_id) en vez del nombre original de 0007 (`uq_assignments_incident`, UNIQUE sobre incident_id solo). Schema silenciosamente cambiado. Fix: restaurar el nombre y shape de 0007. (R37.2 — 2026-08-27) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0031 | soft_delete_completeness (DOWN) | T8 housekeeping: el DOWN dropeaba `users.deleted_at` (agregado por 0028, no por 0031) y `idx_user_sessions_active` (agregado por 0016, no por 0031), pero NO dropeaba `user_sessions.deleted_at` ni `idx_users_email_active` (ambos sí de 0031). Fix: drop solo de lo que 0031 agregó. (R37.2 — 2026-08-27) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0032 | updated_at_columns (DOWN) | T8 housekeeping: el DOWN dropeaba `updated_at` de users/incidents/incident_categories, columnas que ya existían antes de 0032 (de 0001/0004/0012). Fix: skip esas 3 tablas; 0032 solo dropea las que él agregó. (R37.2 — 2026-08-27) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0036 | referential_integrity (DOWN) | T8 housekeeping: el DOWN explícitamente NO restauraba `NOT NULL` en `comments.user_id` y `incidents.citizen_id` por seguridad. Eso deja el schema con nullability distinta a walking(0001..i-1). Fix: restaurar NOT NULL condicionalmente (solo si no hay NULLs). (R37.2 — 2026-08-27) | ✅ Applied | Andy Alejandro | 2026-08-27 | supabase |
-| 0054 | citizen_social_features | F4 (Social Features: incident_followers, incident_corroborations). Inserta catalogo de permisos (`incident-followers` CREATE/DELETE, `incident-corroborations` CREATE) con `ON CONFLICT DO NOTHING`. Concede a staff roles (master, operador_sistema, admin_org, operador_org) via `roles.permissions` JSONB `jsonb_agg(DISTINCT)`. Denormaliza `users.permissions` de usuarios activos + bumpea `permission_version` para invalidar `perm:v3:uid:*`. Rollback: `database/rollback/0054_citizen_social_features.DOWN.sql`. Renumbered from 0049 (F6 took 0049 first). | ✅ Applied | Andy Alejandro | 2026-09-14 | supabase |
-| 0051 | roles_permissions_uuid_format (DOWN) | F6 housekeeping: el UP normalizó `roles.permissions` de strings formateados ("READ incidents") a UUIDs del catálogo. El DOWN faltaba — el `t7-rollback-cycle.e2e-spec.ts` (R36.2) lo exigía. Fix: añadido `database/rollback/0051_roles_permissions_uuid_format.DOWN.sql` que revierte la traducción usando el mismo patrón de `jsonb_array_elements_text` + lookup reverso, denormaliza a `users.permissions`, y bumpea `permission_version`. (R37.2 — 2026-09-09) | ✅ Applied | Andy Alejandro | 2026-09-09 | supabase |
-| 0054 | dynamic_menus_schema | F5 (`2026-08-29-f5-dynamic-menus`). Creates 4 tables: `menu_options` (self-ref adjacency list, soft delete), `menu_option_roles` (composite PK, physical delete), `api_endpoints` (catalog with UNIQUE method+path), `menu_option_endpoints` (junction, composite PK). Adds `roles.scope varchar(20) CHECK (platform/organization/public)` with scope assignments (Q1 resolution). Registers `menu-options:READ/CREATE/UPDATE/DELETE` in permissions catalog; grants READ to master+operador_sistema, CREATE/UPDATE/DELETE to master only; denormalizes to `users.permissions`. Seeds `api_endpoints` with current application routes (D5). Rollback: `database/rollback/0054_dynamic_menus_schema.DOWN.sql`. | ✅ Applied | carlosfpatino | 2026-09-14 | docker local (`tase-postgres`) |
-| 0055 | dynamic_menus_data_migration | F5 (`2026-08-29-f5-dynamic-menus`). Migrates 10 MENU_MAP entries into `menu_options` rows (group parents + children, preserving route/icon/display_order). Derives `menu_option_roles` from MENU_MAP.requires: 4 staff roles get read access to incident/org options, master+operador_sistema get read access to user/role options. Group handling (F5.2.3): groups are NOT a column — they are derived from the parent/child hierarchy (group parent rows with empty routes serve as section headers). Rollback: `database/rollback/0055_dynamic_menus_data_migration.DOWN.sql`. | ✅ Applied | carlosfpatino | 2026-09-14 | docker local (`tase-postgres`) |
-| 0056 | dashboard_permission_staff | Bugfix "Missing permission: READ dashboard". Alinea el catálogo con el contrato del menú dinámico F5.6.8: el menú muestra Dashboard a todo rol con `READ incidents`, pero los endpoints del dashboard (`GET /api/incidents/stats`, `/weekly-stats`, `/operator/dashboard`) exigen `@RequirePermission('READ','dashboard')`. En docker la fila de catálogo ni existía (la 0052 solo se aplicó en supabase y concedía solo a master), así que el `PermissionLookupService.getUuid('READ','dashboard')` devolvía null → 403 para todos (incluso master). Inserta `(dashboard, READ)` si falta (no-op en supabase), concede `dashboard:READ` a TODO rol con `incidents:READ` (master + 7 roles staff) con `jsonb_agg(DISTINCT)`, denormaliza a `users.permissions` de los usuarios activos y bumpea `permission_version`. Idempotente. Rollback: `database/rollback/0056_dashboard_permission_staff.DOWN.sql` (revierte la concesión y la denormalización; NO toca la fila del catálogo, que en supabase pertenece a la 0052). | ✅ Applied | carlosfpatino | 2026-09-14 | docker local (`tase-postgres`) |
-| 0057 | dynamic_menus_controles | F5 fix "Missing menu: Controles". Inserta la opción faltante "Controles" (`/controles`, icon `settings`, parent GESTIÓN `a0000000-0000-0000-0000-000000000002`, order 85) que la 0055 omitió (13 filas en vez de 14) y expone el CRUD de menu-options. Otorga `can_read` a master + operador_sistema (0054 concedió READ a ambos) y `can_write` solo a master (CREATE/UPDATE/DELETE solo a master). Idempotente con `ON CONFLICT DO NOTHING`. Rollback: `database/rollback/0057_dynamic_menus_controles.DOWN.sql`. | ✅ Applied | carlosfpatino | 2026-09-14 | docker local (`tase-postgres`) |
-| 0058 | fix_controles_route | Bugfix "Controles redirige a /app/controles". La 0057 sembró `route='/controles'` pero los ítems bajo ADMIN usan el prefijo `/admin/...` (0055: `/admin/users`, `/admin/roles`); el `MenuService.formatRoutes` del frontend antepone `/app` y armaba `/app/controles` (inexistente, caía en el comodín `**`). Corrige a `/admin/controles` para que la URL final sea `/app/admin/controles` (ruta hija de `admin` en `app.routes.ts:162`). Requiere invalidar cache `menu:v1:*` tras aplicar. Rollback: `database/rollback/0058_fix_controles_route.DOWN.sql` (revierte a `/controles`). | ✅ Applied | carlosfpatino | 2026-09-15 | docker local (`tase-postgres`) |
-| 0055 | dashboard_permission_assignment (DOWN) | Housekeeping: 0055 asignaba `READ dashboard` a roles master/operador pero faltaba el DOWN file. CI/E2E falló con "missing database/rollback/0055_dashboard_permission_assignment.DOWN.sql". Fix: añadido `database/rollback/0055_dashboard_permission_assignment.DOWN.sql` que revierte la asignación usando `jsonb_array_elements_text` para filtrar el UUID de dashboard del array `roles.permissions`, denormaliza a `users.permissions` de los master activos, bumpea `permission_version`. Pattern matches 0052.DOWN. (R36.2/R37.2 — 2026-09-15) | ⏳ Pending | — | — | — |
-| 0056 | departments | `back/2026-09-15-departments-module`. Tabla `departments` (PK uuid, `name` varchar(255), `description` text nullable, `organization_id` uuid FK CASCADE→organizations, `created_at`/`updated_at` timestamptz, `deleted_at` timestamptz nullable). `UNIQUE(organization_id, name)`. FKs opcionales `users.department_id` y `incidents.department_id` con `ON DELETE SET NULL` (departments + incidents sobreviven al borrado del dept sin perder filas). Tres índices: `idx_departments_org_deleted`, `idx_users_department` (partial `WHERE deleted_at IS NULL`), `idx_incidents_department` (idem). Idempotente: usa `IF NOT EXISTS` en CREATE TABLE / CREATE INDEX / ADD COLUMN. Sin backfill: las dos columnas arrancan en NULL para los users/incidents preexistentes = "org-wide" scope (design D1). Cambia el shape del schema pero no toca datos. Rollback: `database/rollback/0056_departments.DOWN.sql` (DROPs en orden inverso: índices → columnas → tabla). **verify-report C2 fix**: empty/nullish `organizationId` en `DepartmentsRepository.list()` significa "sin filtro por org" (master ve todos). | ✅ Applied (verified) | minimax-builder | 2026-09-15 | dept_test (Postgres 16 local) |
-| 0057 | department_permissions | `back/2026-09-15-departments-module` (catálogo + grants). Inserta 4 filas en `permissions`: `(departments, READ\|CREATE\|UPDATE\|DELETE)` con `ON CONFLICT DO NOTHING`. Concede los UUIDs resultantes a `master` y `admin_org` (post-0040 names; el proposal.md aún decía `admin_sistema`/`admin_organizacion`, traducidos acá) vía `jsonb_agg(DISTINCT elem)` (mismo patrón que 0052/0053/0054/0055). **NO** se concede a `operador_sistema` (es rol read-only per 0040). Denormaliza a `users.permissions` de los usuarios activos de esos roles y bumpea `permission_version` para invalidar `perm:v3:uid:*` (T3.9 §3 [R4]). Habilita los guards `@RequirePermission('...', 'departments')` del controller (Phase C) y la matriz de scope del controller (master + admin_org ven depts; admin_org sólo del propio org). Rollback: `database/rollback/0057_department_permissions.DOWN.sql` (simétrico: soft-deleta las 4 filas del catálogo, quita los UUIDs de los roles, denormaliza, bumpea version). | ✅ Applied (verified) | minimax-builder | 2026-09-15 | dept_test (Postgres 16 local) |
-| 0058 | geo_zones_reporter_permission | Bug fix: reporter role couldn't load `/app/mapa` (standalone map) because the map component calls `geoZoneService.listAll()` → `GET /geo-zones` endpoint which requires `READ geo-zones` permission. Reporter didn't have it. Categories (0012) have a similar pattern — they're reference data, not sensitive. Fix: grant `READ geo-zones` to reporter role (same pattern as 0055/0052). Inserta `(geo-zones, READ)` con `ON CONFLICT DO NOTHING` (ya existe en catálogo desde 0013). Concede al rol `reporter` vía `jsonb_agg(DISTINCT elem)`. Denormaliza a `users.permissions` de los reporters activos y bumpea `permission_version`. Rollback: `database/rollback/0058_geo_zones_reporter_permission.DOWN.sql`. | ⏳ Pending | — | — | — |
-| 0059 | sanitize_roles_matrix | sc-334 (admin-controles-enhancements). Cleanup of role permissions matrix: soft-delete 3 legacy roles (admin_sistema, admin_organizacion, operador_organizacion that 0040 never applied locally), add missing catalog rows from 0049 (users CRUD) and 0053 (audit-logs READ), replace raw strings in roles.permissions with UUID format. Denormalizes to users.permissions and bumps permission_version. Idempotent. Rollback: `database/rollback/0059_sanitize_roles_matrix.DOWN.sql`. | ⏳ Pending | — | — | — |
-| 0060 | crud_submenu_entries | sc-334 (admin-controles-enhancements Phase 1). Adds Departamentos parent menu + 12 CRUD sub-menu entries (Crear/Editar usuario, rol, organización, departamento, ubicación, categoría) under their parent containers. Uses `SET CONSTRAINTS ALL DEFERRED` to defer FK validation until COMMIT. Rollback: `database/rollback/0060_crud_submenu_entries.DOWN.sql`. | ⏳ Pending | — | — | — |
-| 0061 | inherit_crud_submenu_perms | sc-334 (admin-controles-enhancements Phase 1). Inherits parent menu permissions to CRUD child entries via menu_option_roles, allowing users with READ access to a parent to also READ/access its Crear/Editar children. Rollback: `database/rollback/0061_inherit_crud_submenu_perms.DOWN.sql`. | ⏳ Pending | — | — | — |
-| 0062 | incident_category_description | T7.4 / sc-334-adjacent. Adds `description text NULL` column to incident_categories table to support description field in the create form. Backwards compatible (existing rows get NULL). Rollback: `database/rollback/0062_incident_category_description.DOWN.sql`. | ⏳ Pending | — | — | — |
-| 0063 | gestion_root_and_departments_matrix | Fix GESTIÓN root + Departamentos menu access matrix. Grants READ to admin_org/operador_org on the GESTIÓN root (`a0000000-...-002`) so the whole section renders for roles with authorized children (0055 seeded root with only master+operador_sistema → children were orphaned from the sidebar for admin_org). Departamentos parent (`b0000000-...-012`): master READ+WRITE, operador_sistema READ+WRITE, admin_org READ-only; CRUD children (Crear/Editar departamento) inherit the parent matrix (0061 pattern). Idempotent (`ON CONFLICT DO UPDATE`; schema_migrations insert has `ON CONFLICT (version) DO NOTHING`). Requires `DEL menu:v1:user:*` in Redis after applying. Rollback: `database/rollback/0063_gestion_root_and_departments_matrix.DOWN.sql` (symmetrical: pre-0063 Departamentos parent had no role rows, so it deletes exactly the rows the migration wrote). | ⏳ Pending | — | — | — |
-| 0064 | fix_organizaciones_departamentos_routes | Bugfix "Organizaciones/Departamentos no abren desde el menú". Los seeds 0055/0060 sembraron `route='/organizaciones'` y `route='/departamentos'`, pero esos ítems viven bajo ADMIN (`/admin/...`, patrón de 0055). El `MenuService.formatRoutes` del frontend antepone `/app` y armaba `/app/organizaciones` y `/app/departamentos` (rutas inexistentes, caían en el comodín `**` → página de error). Corrige a `/admin/organizaciones` y `/admin/departamentos` para que la URL final sea `/app/admin/organizaciones` y `/app/admin/departamentos` (rutas hijas de `admin` en `app.routes.ts:204/236`). Mismo patrón que 0058_fix_controles_route. Idempotente en la práctica (el WHERE limita el UPDATE a las filas con la ruta vieja). Requiere invalidar cache `menu:v1:*` tras aplicar. Rollback: `database/rollback/0064_fix_organizaciones_departamentos_routes.DOWN.sql` (revierte a `/organizaciones` y `/departamentos`). | ✅ Applied | carlosfpatino | 2026-09-23 | docker local (`tase-postgres`) |
-| 0065 | incident_category_priority | 2026-09-22-sc-subcategory-priority-assignment. Adds `priority varchar(16) NULL` column to incident_categories. NULL on root categories; application enforces non-NULL on sub-categories (`parent_id IS NOT NULL`). No backfill — existing rows keep NULL. Backward compatible: incident creation still requires manual priority selection when picking a NULL category. Rollback: `database/rollback/0065_incident_category_priority.DOWN.sql`. | ⏳ Pending | — | — | — |

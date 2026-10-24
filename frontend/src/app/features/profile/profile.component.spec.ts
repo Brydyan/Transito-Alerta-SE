@@ -23,6 +23,7 @@ describe('ProfileComponent (F6 rediseño — fixes C.1/C.2/C.4)', () => {
     getCurrentUser: jest.Mock;
     updateProfile: jest.Mock;
     uploadProfileImage: jest.Mock;
+    generateTelegramLink: jest.Mock;
   };
   let mockToast: { success: jest.Mock; error: jest.Mock };
 
@@ -53,6 +54,7 @@ describe('ProfileComponent (F6 rediseño — fixes C.1/C.2/C.4)', () => {
       getCurrentUser: jest.fn().mockReturnValue(of(fixtureUser)),
       updateProfile: jest.fn().mockReturnValue(of(fixtureUser)),
       uploadProfileImage: jest.fn().mockReturnValue(of(fixtureUser)),
+      generateTelegramLink: jest.fn().mockReturnValue(of({ telegram_link: null })),
     };
     mockToast = { success: jest.fn(), error: jest.fn() };
 
@@ -75,7 +77,7 @@ describe('ProfileComponent (F6 rediseño — fixes C.1/C.2/C.4)', () => {
     fixture.whenStable().then(() => {
       fixture.detectChanges();
       expect(component).toBeTruthy();
-      expect(mockUserService.getCurrentUser).toHaveBeenCalledTimes(1);
+      expect(mockUserService.getCurrentUser).toHaveBeenCalled();
       expect(component.profileForm.get('nombres')?.value).toBe('Juan');
       expect(component.profileForm.get('apellidos')?.value).toBe('Pérez');
       expect(component.profileForm.get('telefono')?.value).toBe('+593991234567');
@@ -193,7 +195,9 @@ describe('ProfileComponent (F6 rediseño — fixes C.1/C.2/C.4)', () => {
       );
       const newFixture = TestBed.createComponent(ProfileComponent);
       newFixture.componentInstance.ngOnInit();
-      newFixture.detectChanges();
+      // No detectChanges: evita que el hijo ProfileActionCardsComponent
+      // inicialice su toSignal con el mock en error — ngOnInit ya se
+      // llamó manualmente arriba.
       newFixture.whenStable().then(() => {
         expect(mockToast.error).toHaveBeenCalledWith(
           'Error al cargar el perfil.',

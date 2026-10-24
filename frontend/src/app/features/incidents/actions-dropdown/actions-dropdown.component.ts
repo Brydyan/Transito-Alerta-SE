@@ -1,14 +1,39 @@
 import {
+  AfterViewChecked,
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   EventEmitter,
   HostListener,
   Input,
   Output,
+  ViewChild,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
+
+/** Vertical gap between trigger and menu, in px. Must match `calc(100% + 0.25rem)`. */
+export const MENU_GAP_PX = 4;
+
+/**
+ * Pure positioning decision for the actions menu.
+ *
+ * Returns `true` when the menu should open upwards instead of downwards.
+ * Called only when the menu overflows its clipping container/viewport below;
+ * when there is not enough room above either, it stays down and the user
+ * scrolls (there is no better side to pick).
+ */
+export function shouldFlipMenuUp(params: {
+  menuHeight: number;
+  wrapperTop: number;
+  clipTop: number;
+  gap?: number;
+}): boolean {
+  const gap = params.gap ?? MENU_GAP_PX;
+  const flippedTop = params.wrapperTop - params.menuHeight - gap;
+  return flippedTop >= params.clipTop;
+}
 
 /**
  * ActionsDropdownComponent — Phase 4 of incidents-assignment feature.
@@ -51,7 +76,9 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
       <!-- Dropdown menu -->
       @if (isOpen()) {
         <ul
-          class="dropdown-menu"
+          #menuEl
+          class="ad-menu"
+          [class.ad-menu--up]="flippedUp()"
           role="menu"
           (click)="$event.stopPropagation()"
         >
@@ -59,7 +86,7 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
             <button
               type="button"
               role="menuitem"
-              class="dropdown-item"
+              class="ad-item"
               data-testid="action-ver"
               (click)="onView()"
             >
@@ -73,7 +100,7 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
               <button
                 type="button"
                 role="menuitem"
-                class="dropdown-item"
+                class="ad-item"
                 data-testid="action-asignar"
                 (click)="onAssign()"
               >
@@ -87,7 +114,7 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
             <button
               type="button"
               role="menuitem"
-              class="dropdown-item"
+              class="ad-item"
               data-testid="action-seguimiento"
               (click)="onTracking()"
             >
@@ -96,13 +123,13 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
             </button>
           </li>
 
-          <li role="none" class="dropdown-divider" aria-hidden="true"></li>
+          <li role="none" class="ad-divider" aria-hidden="true"></li>
 
           <li role="none">
             <button
               type="button"
               role="menuitem"
-              class="dropdown-item dropdown-item--danger"
+              class="ad-item ad-item--danger"
               data-testid="action-eliminar"
               (click)="onDelete()"
               disabled
@@ -145,7 +172,11 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
         color: var(--color-slate-700, #334155);
       }
 
-      .dropdown-menu {
+      /* Prefijo "ad-": NO usar .dropdown-menu / .dropdown-item /
+         .dropdown-divider — colisionan con el sistema de dropdown
+         global de styles/_layout.css, que aplica display: none
+         salvo la clase .show (bug: menú invisible en el listado). */
+      .ad-menu {
         position: absolute;
         right: 0;
         top: calc(100% + 0.25rem);
@@ -164,8 +195,19 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
         from { opacity: 0; transform: translateY(-0.25rem); }
         to   { opacity: 1; transform: translateY(0); }
       }
+      /* Flipped variant: opens upwards when the menu would be clipped
+         by the bottom edge of its scroll container (e.g. last table rows). */
+      .ad-menu--up {
+        top: auto;
+        bottom: calc(100% + 0.25rem);
+        animation-name: menuInUp;
+      }
+      @keyframes menuInUp {
+        from { opacity: 0; transform: translateY(0.25rem); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
 
-      .dropdown-item {
+      .ad-item {
         display: flex;
         align-items: center;
         gap: 0.5rem;
@@ -181,19 +223,19 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
         white-space: nowrap;
         transition: background 0.1s;
       }
-      .dropdown-item:hover:not(:disabled) {
+      .ad-item:hover:not(:disabled) {
         background: var(--color-bg-primary, #f1f5f9);
       }
-      .dropdown-item:disabled {
+      .ad-item:disabled {
         opacity: 0.45;
         cursor: not-allowed;
       }
-      .dropdown-item--danger { color: var(--color-red-600, #dc2626); }
-      .dropdown-item--danger:hover:not(:disabled) {
+      .ad-item--danger { color: var(--color-red-600, #dc2626); }
+      .ad-item--danger:hover:not(:disabled) {
         background: var(--color-red-50, #fef2f2);
       }
 
-      .dropdown-divider {
+      .ad-divider {
         height: 1px;
         background: var(--color-border-subtle, #e2e8f0);
         margin: 0.25rem 0;
@@ -201,7 +243,7 @@ import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.comp
     `,
   ],
 })
-export class ActionsDropdownComponent {
+export class ActionsDropdownComponent implements AfterViewChecked {
   /** ID of the incident this dropdown belongs to. */
   @Input() incidentId = '';
 
@@ -220,12 +262,91 @@ export class ActionsDropdownComponent {
   // ── State ────────────────────────────────────────────────────────────
   readonly isOpen = signal<boolean>(false);
 
+  /**
+   * True when the menu opens upwards. Computed from the rendered geometry
+   * right after the menu appears (see `ngAfterViewChecked`).
+   */
+  readonly flippedUp = signal<boolean>(false);
+
+  @ViewChild('menuEl') private menuEl?: ElementRef<HTMLUListElement>;
+
+  /** Set on open; the next `ngAfterViewChecked` measures once, then clears it. */
+  private shouldMeasure = false;
+
   toggle(): void {
-    this.isOpen.update((v) => !v);
+    const opening = !this.isOpen();
+    this.isOpen.set(opening);
+    this.flippedUp.set(false);
+    this.shouldMeasure = opening;
   }
 
   close(): void {
     this.isOpen.set(false);
+    this.flippedUp.set(false);
+    this.shouldMeasure = false;
+  }
+
+  /**
+   * Measures the rendered menu once per open and flips it upwards when it
+   * would be clipped below. Runs after the view is checked, so the menu
+   * already has its real size; the resulting signal update only re-renders
+   * the menu position (same task, no visible flash).
+   */
+  ngAfterViewChecked(): void {
+    if (!this.shouldMeasure || !this.menuEl) {
+      return;
+    }
+    this.shouldMeasure = false;
+    this.measureAndFlip();
+  }
+
+  private measureAndFlip(): void {
+    const menu = this.menuEl?.nativeElement;
+    const wrapper = menu?.parentElement;
+    if (!menu || !wrapper) {
+      return;
+    }
+
+    const menuRect = menu.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const clipRect = this.findClipRect(menu);
+
+    // Visible vertical band: what the nearest clipping ancestor allows,
+    // intersected with the viewport.
+    const clipBottom = Math.min(clipRect?.bottom ?? Infinity, window.innerHeight);
+    const clipTop = Math.max(clipRect?.top ?? 0, 0);
+
+    if (menuRect.bottom <= clipBottom) {
+      return; // fits below — keep the default downward position
+    }
+
+    this.flippedUp.set(
+      shouldFlipMenuUp({
+        menuHeight: menuRect.height,
+        wrapperTop: wrapperRect.top,
+        clipTop,
+      }),
+    );
+  }
+
+  /**
+   * Bounding box of the nearest ancestor that clips its children
+   * (any `overflow` other than `visible`), or `null` when nothing clips.
+   */
+  private findClipRect(el: Element): DOMRect | null {
+    let node: Element | null = el.parentElement;
+    while (node) {
+      const style = getComputedStyle(node);
+      if (
+        style.overflow !== 'visible' ||
+        style.overflowX !== 'visible' ||
+        style.overflowY !== 'visible'
+      ) {
+        return node.getBoundingClientRect();
+      }
+      node = node.parentElement;
+    }
+    return null;
   }
 
   onView(): void {

@@ -67,6 +67,14 @@ describe('Invitations + password identity e2e (T3.6)', () => {
     const enqueueSpy = jest.spyOn(mailService, 'enqueue');
     const role = await roleId(roleName);
 
+    // createInvitation requiere un shadow user (is_active = FALSE) con ese
+    // email — el flujo real lo crea vía POST /api/users antes del invite.
+    await request(env.httpServer)
+      .post('/api/users')
+      .set({ Authorization: `Bearer ${adminAccessToken}` })
+      .send({ email })
+      .expect(201);
+
     const response = await request(env.httpServer)
       .post('/api/admin/users/invite')
       .set({ Authorization: `Bearer ${adminAccessToken}` })
@@ -98,9 +106,10 @@ describe('Invitations + password identity e2e (T3.6)', () => {
   }
 
   async function admin(): Promise<string> {
-    const user = await env.provisionUser(['CREATE invitations', 'READ invitations', 'DELETE invitations'], {
-      roleName: 'master',
-    });
+    const user = await env.provisionUser(
+      ['CREATE invitations', 'READ invitations', 'DELETE invitations', 'CREATE users'],
+      { roleName: 'master' },
+    );
     return user.accessToken;
   }
 
@@ -112,12 +121,12 @@ describe('Invitations + password identity e2e (T3.6)', () => {
       const email = `invitee-${randomUUID()}@example.com`;
       const password = 'Sup3rSecret!Pass01';
 
-      const { token } = await invite(adminToken, email, 'operador_org');
+      const { token } = await invite(adminToken, email, 'operator_org');
 
       const preview = await request(env.httpServer)
         .get(`/api/invitations/preview?token=${encodeURIComponent(token)}`)
         .expect(200);
-      expect(preview.body).toMatchObject({ role_name: 'operador_org' });
+      expect(preview.body).toMatchObject({ role_name: 'operator_org' });
       expect(preview.body.expires_at).toBeDefined();
 
       // "login device A" — accept-invitation itself mints the first session.
@@ -185,7 +194,7 @@ describe('Invitations + password identity e2e (T3.6)', () => {
   it('expiry via SQL UPDATE (never sleep): expired invite -> 410 at preview and at accept-invitation', async () => {
     const adminToken = await admin();
     const email = `expiring-${randomUUID()}@example.com`;
-    const { id, token } = await invite(adminToken, email, 'operador_org');
+    const { id, token } = await invite(adminToken, email, 'operator_org');
 
     await env.backdateInvitation(id, 48 * 3600 + 60); // 48h + 1min in the past
 
@@ -200,14 +209,19 @@ describe('Invitations + password identity e2e (T3.6)', () => {
       .expect(410);
     expect(accept.body).toMatchObject({ code: 'INVITATION_EXPIRED' });
 
-    const { rows } = await env.pg.query('SELECT id FROM users WHERE email = $1', [email]);
+    // El shadow user (is_active = FALSE) fue creado por el invite helper;
+    // lo que verifica este test es que accept-invitation no lo activó.
+    const { rows } = await env.pg.query(
+      'SELECT id FROM users WHERE email = $1 AND is_active = TRUE',
+      [email],
+    );
     expect(rows).toHaveLength(0);
   });
 
   it('concurrent redemption (Promise.all, same token): one 201, one 410 INVITATION_ALREADY_USED, never 409', async () => {
     const adminToken = await admin();
     const email = `concurrent-${randomUUID()}@example.com`;
-    const { token } = await invite(adminToken, email, 'operador_org');
+    const { token } = await invite(adminToken, email, 'operator_org');
 
     const [first, second] = await Promise.all([
       request(env.httpServer)
@@ -242,7 +256,7 @@ describe('Invitations + password identity e2e (T3.6)', () => {
 
     const adminToken = await admin();
     const email = `reused-${randomUUID()}@example.com`;
-    const { token } = await invite(adminToken, email, 'operador_org');
+    const { token } = await invite(adminToken, email, 'operator_org');
     await request(env.httpServer)
       .post('/api/auth/accept-invitation')
       .send({ token, password: 'FirstUsePassw0rd!!!' })
@@ -258,13 +272,13 @@ describe('Invitations + password identity e2e (T3.6)', () => {
   it('duplicate invitation to an already-claimed email -> 409 at creation, no invitations row created', async () => {
     const adminToken = await admin();
     const email = `claimed-${randomUUID()}@example.com`;
-    const { token } = await invite(adminToken, email, 'operador_org');
+    const { token } = await invite(adminToken, email, 'operator_org');
     await request(env.httpServer)
       .post('/api/auth/accept-invitation')
       .send({ token, password: 'AlreadyClaimed1Pass!' })
       .expect(201);
 
-    const role = await roleId('operador_org');
+    const role = await roleId('operator_org');
     const duplicate = await request(env.httpServer)
       .post('/api/admin/users/invite')
       .set({ Authorization: `Bearer ${adminToken}` })
@@ -279,7 +293,7 @@ describe('Invitations + password identity e2e (T3.6)', () => {
   });
 
   it('unauthorized/malformed invite creation -> 403 (no invitations:CREATE) and 400 (malformed email); no row created either way', async () => {
-    const role = await roleId('operador_org');
+    const role = await roleId('operator_org');
 
     // No invitations:CREATE permission at all.
     const nobody = await env.provisionUser(['READ incidents']);

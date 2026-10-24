@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Readable } from 'stream';
 
-import { AuditEventEntity } from '../../entities/audit-event.entity';
+import { AuditEventEntity } from './entities/audit-event.entity';
 import { AuditLogFilterDto } from './dto/audit-log-filter.dto';
 import { AuditLogItemDto } from './dto/audit-log-item.dto';
 

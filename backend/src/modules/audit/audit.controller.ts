@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { PermissionGuard } from '../../common/guards/permission.guard';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AuditLogFilterDto } from './dto/audit-log-filter.dto';
 import { AuditLogItemDto } from './dto/audit-log-item.dto';

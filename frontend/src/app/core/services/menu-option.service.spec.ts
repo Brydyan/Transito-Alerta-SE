@@ -106,7 +106,7 @@ describe('MenuOptionService', () => {
     req.flush({
       platform: [
         { role_id: 'r1', role_name: 'master', can_read: true, can_write: true },
-        { role_id: 'r2', role_name: 'operador_sistema', can_read: true, can_write: false },
+        { role_id: 'r2', role_name: 'agent_system', can_read: true, can_write: false },
       ],
       organization: [
         { role_id: 'r3', role_name: 'admin_org', can_read: false, can_write: false },

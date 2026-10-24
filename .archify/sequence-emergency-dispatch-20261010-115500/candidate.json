@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Secuencia de Despacho de Emergencias y Aviso por Telegram",
+    "output": ".archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+    "viewBox": [1080, 620],
+    "column_fit": "spread",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Brydyan/Transito-Alerta-SE",
+      "revision": "ea71d353abaef60b5592e8b5abd48a3c9040506b"
+    }
+  },
+  "participants": [
+    { "id": "citizen", "type": "external", "label": "Ciudadano", "sublabel": "reporte incidente" },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "NestJS API",
+      "sublabel": "ingestión & despacho",
+      "sources": [
+        { "path": "backend/src/modules/incidents/incidents.service.ts", "line": 50 }
+      ]
+    },
+    { "id": "db", "type": "database", "label": "PostgreSQL", "sublabel": "PostGIS & esquemas" },
+    { "id": "redis", "type": "database", "label": "Redis Streams", "sublabel": "telegram:outbox" },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Telegram Consumer",
+      "sublabel": "outbox worker",
+      "sources": [
+        { "path": "backend/src/modules/assignments/assignments.service.ts", "line": 30 }
+      ]
+    },
+    { "id": "telegram", "type": "cloud", "label": "Telegram Bot API", "sublabel": "canal oficial push" },
+    { "id": "admin", "type": "external", "label": "Admin de Org", "sublabel": "despacho de operador" }
+  ],
+  "segments": [
+    { "from": 145, "to": 260, "label": "Ingestión de Emergencia" },
+    { "from": 270, "to": 390, "label": "Despacho Asíncrono Outbox" },
+    { "from": 400, "to": 515, "label": "Asignación y Control de Carga" }
+  ],
+  "messages": [
+    { "id": "post-incident", "from": "citizen", "to": "api", "y": 160, "label": "POST /incidents (prioridad critical)", "variant": "emphasis" },
+    { "id": "save-incident", "from": "api", "to": "db", "y": 190, "label": "INSERT incident (PostGIS SRID 4326)", "variant": "default" },
+    { "id": "incident-created", "from": "db", "to": "api", "y": 220, "label": "201 Created (id, org_id)", "variant": "return" },
+    { "id": "citizen-resp", "from": "api", "to": "citizen", "y": 250, "label": "HTTP 201 (emergencia registrada)", "variant": "return" },
+
+    { "id": "xadd-stream", "from": "api", "to": "redis", "y": 285, "label": "XADD telegram:outbox (no bloqueante)", "variant": "dashed" },
+    { "id": "xread-stream", "from": "worker", "to": "redis", "y": 315, "label": "XREADGROUP telegram:outbox", "variant": "default" },
+    { "id": "send-telegram", "from": "worker", "to": "telegram", "y": 345, "label": "POST /sendMessage (alerta crítica)", "variant": "emphasis" },
+    { "id": "push-admin", "from": "telegram", "to": "admin", "y": 375, "label": "Push a Telegram + enlace a caso", "variant": "emphasis" },
+
+    { "id": "get-operators", "from": "admin", "to": "api", "y": 410, "label": "GET /incidents/:id/available-operators", "variant": "default" },
+    { "id": "operators-resp", "from": "api", "to": "admin", "y": 440, "label": "operadores con available: boolean", "variant": "return" },
+    { "id": "post-assign", "from": "admin", "to": "api", "y": 470, "label": "POST /assignments (override_cap si saturado)", "variant": "security" },
+    { "id": "assign-ok", "from": "api", "to": "admin", "y": 500, "label": "HTTP 201 (operador despachado)", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "api", "from": 160, "to": 255, "type": "backend" },
+    { "participant": "db", "from": 190, "to": 225, "type": "database" },
+    { "participant": "worker", "from": 310, "to": 350, "type": "backend" },
+    { "participant": "telegram", "from": 340, "to": 380, "type": "cloud" },
+    { "participant": "api", "from": 410, "to": 445, "type": "backend" },
+    { "participant": "api", "from": 470, "to": 505, "type": "backend" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Ingestión No Bloqueante",
+      "items": [
+        "La creación del incidente responde 201 de inmediato al ciudadano",
+        "El aviso externo nunca bloquea la persistencia de la emergencia",
+        "Geometría PostGIS Point SRID 4326 verificada antes del fan-out"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Outbox Pattern y Reintentos",
+      "items": [
+        "Eventos desacoplados en Redis Streams (telegram:outbox)",
+        "Consumidor procesa envíos de forma independiente",
+        "Tolerante a caídas de red o indisponibilidad de la API de Telegram"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Auditoría de Sobrecupo (D2/D3)",
+      "items": [
+        "Validación unificada de límite de casos activos por operador",
+        "Excepción override_cap habilitada exclusivamente en prioridad critical",
+        "Exige justificación obligatoria persistida en la fila de asignación"
+      ]
+    }
+  ]
+}

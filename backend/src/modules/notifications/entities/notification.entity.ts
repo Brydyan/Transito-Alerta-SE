@@ -7,8 +7,8 @@ import {
   JoinColumn,
   Index,
 } from 'typeorm';
-import { UserEntity } from '../../../entities/user.entity';
-import { IncidentEntity } from '../../../entities/incident.entity';
+import { UserEntity } from '../../users/entities/user.entity';
+import { IncidentEntity } from '../../incidents/entities/incident.entity';
 
 export enum NotificationType {
   INCIDENT_CREATED = 'incident.created',

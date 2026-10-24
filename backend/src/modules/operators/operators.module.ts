@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { IncidentEntity } from '../../entities/incident.entity';
-import { IncidentCategoryEntity } from '../../entities/incident-category.entity';
+import { IncidentEntity } from '../incidents/entities/incident.entity';
+import { IncidentCategoryEntity } from '../incident-categories/entities/incident-category.entity';
 import { OperatorsController } from './operators.controller';
 import { OperatorLocationService } from './operator-location.service';
 import { OperatorDashboardService } from './operator-dashboard.service';

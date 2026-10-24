@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 
-import { PermissionEntity } from '../../entities/permission.entity';
+import { PermissionEntity } from './entities/permission.entity';
 
 /**
  * PermissionsService (R7) — read-only catalog of valid resource+action

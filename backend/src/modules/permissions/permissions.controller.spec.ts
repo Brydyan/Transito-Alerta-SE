@@ -1,7 +1,7 @@
 import { Reflector } from '@nestjs/core';
 import { PermissionsController } from './permissions.controller';
 import { PermissionsService } from './permissions.service';
-import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
+import { REQUIRE_PERMISSION_KEY } from '../../shared/decorators/require-permission.decorator';
 
 describe('PermissionsController', () => {
   let service: { findAll: jest.Mock };

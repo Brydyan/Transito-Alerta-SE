@@ -6,7 +6,7 @@
  */
 export const SYSTEM_ONLY_ROLES = [
   'master',
-  'operador_sistema',
+  'agent_system',
   'admin_legacy',
 ] as const;
 

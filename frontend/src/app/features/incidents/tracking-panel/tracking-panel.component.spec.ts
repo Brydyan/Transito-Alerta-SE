@@ -38,6 +38,7 @@ describe('TrackingPanelComponent', () => {
     geofence_matched: false,
     organization_id: 'org-1',
     citizen_id: 'user-1',
+    is_anonymous: false,
     assigned_to: 'op-1',
     category_id: null,
     claimed_by: null,

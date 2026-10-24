@@ -1,7 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
-import { AuthContext } from '../../common/authz/subject-scope';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { AuthContext } from '../../shared/authz/subject-scope';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { RevocationCache } from './revocation-cache';
 import { SessionsRepository } from './sessions.repository';
 import { SessionsService } from './sessions.service';
@@ -29,6 +29,8 @@ function makeActor(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'user-1',
     permissions: [],
     organizationId: 'org-A',
+    // 2026-10-18 — `departmentId` agregado al factory. Default null.
+    departmentId: null,
     roleName: 'admin_org',
     scope: { kind: 'org', organizationId: 'org-A' },
     sessionId: 'sid-current',
@@ -92,7 +94,7 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-B',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
 
       await expect(
@@ -163,7 +165,7 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-B',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
 
       await expect(
@@ -200,7 +202,7 @@ describe('SessionsService (T3.9 design §8 D9)', () => {
       sessionsRepository.findManageableTarget.mockResolvedValue({
         id: 'target-1',
         organizationId: 'org-A',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
       });
       sessionsRepository.revoke.mockResolvedValue(
         makeSessionRow({ id: 'sid-2', expires_at: new Date(Date.now() + 10_000) }),

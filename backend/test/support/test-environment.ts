@@ -13,17 +13,17 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { AppModule } from '../../src/app.module';
-import { SnakeCaseResponseInterceptor } from '../../src/common/interceptors/snake-case-response.interceptor';
+import { SnakeCaseResponseInterceptor } from '../../src/shared/interceptors/snake-case-response.interceptor';
 import { RedisIoAdapter } from '../../src/modules/realtime/redis-io.adapter';
 import { PasswordHasher } from '../../src/modules/auth/password-hasher';
-import { isTrustedProxyAddress } from '../../src/common/proxy-trust';
+import { isTrustedProxyAddress } from '../../src/shared/proxy-trust';
 import helmet from 'helmet';
 import {
   MAIL_BLOCKING_CLIENT,
   MAIL_EVENTS_BLOCKING_CLIENT,
   REDIS_CLIENT,
   SESSION_REDIS_CLIENT,
-} from '../../src/core/core.module';
+} from '../../src/infra/core.module';
 import { applyMigrations } from './run-migrations';
 
 const E2E_SHARED_ENV_FILE = path.join(os.tmpdir(), 'tase-e2e-shared.json');
@@ -198,6 +198,16 @@ export class TestEnvironment {
     // make.
     process.env.RATE_LIMIT_MAX_REQUESTS = '100000';
     process.env.RATE_LIMIT_WINDOW_SECONDS = '60';
+    // P16 (MINIMAX_BUILDER_SECURITY_IMPLEMENTATION.md) — el strict
+    // limit para rutas CPU-bound (/auth/login, /auth/register,
+    // /auth/password-reset) defaulta a 10/min en producción para
+    // defensa contra CPU-exhaustion DoS. Los specs de seguridad
+    // (SQL injection × 5 vectores × 3 tests = 15 logins) lo
+    // exceden; lo resuelven con `await env.reset()` en `beforeEach`
+    // (que hace flushdb en el cache de Redis e incluye el bucket
+    // de rate limit). El spec de rate-limit intencionalmente
+    // consume el bucket para verificar el 429 — necesita el strict
+    // default de 10, por eso NO lo sobreescribimos acá.
     process.env.CACHE_TTL_SECONDS = '60';
     process.env.GEOFENCING_CACHE_TTL_SECONDS = '60';
 

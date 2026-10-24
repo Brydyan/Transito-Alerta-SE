@@ -84,7 +84,7 @@ describe('DepartmentListComponent', () => {
     expect(screen.queryByText('Traffic')).toBeNull();
   });
 
-  // D9 — Organization column only renders for master + operador_sistema.
+  // D9 — Organization column only renders for master + agent_system.
   it('hides the Organization column for non-master roles', async () => {
     mockAuthService.currentUser.mockReturnValue({
       roleName: 'admin_org',

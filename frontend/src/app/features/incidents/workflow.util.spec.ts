@@ -131,8 +131,8 @@ describe('availableActions (F3.3.2 — status × permissions × claim)', () => {
       expect(actions('in_progress', ['UPDATE incidents', 'CLOSE incidents'], OTHER_USER)).toEqual(['close']);
     });
 
-    it('+ RELEASE only (without UPDATE), claimed by me ⇒ release only (operador_sistema)', () => {
-      // operador_sistema tiene CLAIM/RELEASE pero no UPDATE incidents en los seeds (0015+0019).
+    it('+ RELEASE only (without UPDATE), claimed by me ⇒ release only (agent_system)', () => {
+      // agent_system tiene CLAIM/RELEASE pero no UPDATE incidents en los seeds (0015+0019).
       // Puede liberar, pero no resolver (PATCH status exige UPDATE incidents).
       expect(actions('in_progress', RELEASE_ONLY, MOCK_USER)).toEqual(['release']);
     });

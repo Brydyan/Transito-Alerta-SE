@@ -13,11 +13,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import type Redis from 'ioredis';
 import { DataSource, Repository } from 'typeorm';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
 import { INCIDENTS_STREAM_KEY } from './incidents.service';
-import { OrganizationEntity } from '../../entities/organization.entity';
-import { IncidentStatus } from '../../entities/incident.entity';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
+import { IncidentStatus } from './entities/incident.entity';
 import {
   ALLOWED_STATUSES,
   canTransition,
@@ -33,6 +33,8 @@ import {
 import { unwrapReturningRows, IncidentRow } from './incidents.repository';
 import { AvailableOperatorDto } from './dto/available-operator.dto';
 import { ClaimReleaseResponseDto } from './dto/claim-release-response.dto';
+import { hasPermission } from '../../shared/guards/permission.guard';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 
 // Shape of the row returned by the CAS UPDATE statements; we cast and then
 // re-project into ClaimReleaseResponseDto at the controller boundary. The
@@ -75,6 +77,10 @@ export class IncidentWorkflowService {
     private readonly geofencingService: GeofencingService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // F6 fix (post-0051): las perms del user viven como UUIDs; para
+    // verificar `CLOSE incidents` hay que traducir la (action, resource)
+    // a UUID vía el resolver — `includes('CLOSE incidents')` NO funciona.
+    private readonly permissionLookup: PermissionLookupService,
   ) {}
 
   /**
@@ -105,22 +111,79 @@ export class IncidentWorkflowService {
       }
     }
 
-    // 4) Atomic CAS — 0 rows = someone else already claimed it.
-    //    TypeORM's pg driver wraps UPDATE/DELETE RETURNING as [rows, count]
-    //    (regression 7284831), so we route through the shared unwrap helper.
-    const result = await this.dataSource.query(
-      // T6.3: also write claimed_at = NOW() when claiming
-      `UPDATE incidents
-         SET claimed_by = $1, claimed_at = NOW()
-       WHERE id = $2 AND claimed_by IS NULL
-       RETURNING id, title, status, priority, claimed_by, organization_id, updated_at`,
-      [operator.id, incidentId],
-    );
-    const rows = unwrapReturningRows<IncidentRow>(result);
-    if (rows.length === 0) {
-      throw new ConflictException(INCIDENT_ALREADY_CLAIMED);
-    }
-    return this.toResponse(rows[0]);
+    // 4) Transacción atómica (S.5.1): lock + verificación + UPDATE +
+    //    historial. Antes el claim era un UPDATE CAS suelto que NO
+    //    transicionaba el status — la incidencia quedaba `pending`
+    //    reclamada, por lo que `workflow.util.ts` (frontend) nunca
+    //    ofrecía release/resolve (requieren `in_progress`), y
+    //    `status_history` no registraba el reclamo.
+    const committed = await this.dataSource.transaction(async (manager) => {
+      // 4a) Bloquear la fila para serializar claimers concurrentes. El
+      //     `FOR UPDATE` hace que el segundo claimer espere al primero;
+      //     al despertar, lee `claimed_by` ya seteado y choca con 409.
+      const currentRows = await manager.query<IncidentRow[]>(
+        `SELECT id, title, status, priority, claimed_by, organization_id, updated_at
+           FROM incidents
+          WHERE id = $1
+          FOR UPDATE`,
+        [incidentId],
+      );
+      if (currentRows.length === 0) {
+        throw new NotFoundException(`Incident ${incidentId} not found`);
+      }
+      const current = currentRows[0];
+      const from = current.status;
+
+      // 4b) CAS: la fila debe estar sin claimer.
+      if (current.claimed_by !== null) {
+        throw new ConflictException(INCIDENT_ALREADY_CLAIMED);
+      }
+
+      // 4c) Legalidad de la transición. El claim produce la transición de
+      //     status `pending → in_progress` (máquina de estados y
+      //     `workflow.util.ts`); el re-claim de una fila liberada
+      //     (`in_progress` sin claimer, post-release) NO transiciona —
+      //     sólo asigna el operador. Cualquier otro estado es ilegal.
+      if (from !== 'pending' && from !== 'in_progress') {
+        throw new ConflictException({
+          code: INCIDENT_INVALID_TRANSITION,
+          message: `Illegal claim transition: ${from} -> in_progress`,
+          from,
+          to: 'in_progress',
+        });
+      }
+
+      // 4d) UPDATE con CAS por lock. `status` transiciona a `in_progress`
+      //     SOLO si la fila estaba `pending`; `claimed_at` siempre.
+      const result = await manager.query(
+        `UPDATE incidents
+            SET claimed_by = $1,
+                claimed_at = NOW(),
+                status = CASE WHEN status = 'pending' THEN 'in_progress' ELSE status END
+          WHERE id = $2
+        RETURNING id, title, status, priority, claimed_by, organization_id, updated_at`,
+        [operator.id, incidentId],
+      );
+      const updated = unwrapReturningRows<IncidentRow>(result)[0];
+      if (!updated) {
+        throw new NotFoundException(`Incident ${incidentId} not found`);
+      }
+
+      // 4e) Historial en la MISMA transacción — el re-claim no escribe
+      //     historial porque no hay transición de status que registrar.
+      if (from === 'pending') {
+        await manager.query(
+          `INSERT INTO status_history
+              (incident_id, changed_by_user_id, previous_status, new_status, notes, event_id)
+           VALUES ($1, $2, $3, $4, NULL, gen_random_uuid()::text)`,
+          [incidentId, operator.id, from, 'in_progress'],
+        );
+      }
+
+      return updated;
+    });
+
+    return this.toResponse(committed);
   }
 
   /**
@@ -151,8 +214,55 @@ export class IncidentWorkflowService {
   }
 
   /**
-   * Operators in the incident's org whose active in_progress claim count is
-   * strictly less than the org cap, excluding the current claimer.
+   * Operators eligible to take on this incident, including saturated ones.
+   * F7 emergency-dispatch (design D4) — the response informs instead of
+   * filters: every operator is returned with `available: bool` and
+   * `maxActive: int` so the UI can render «3 de 3» or distinguish a
+   * saturated operator from a missing one.
+   *
+   * Inactive users (`is_active = false`) and roles outside
+   * `operator_org` / `agent_system` are still excluded.
+   *
+   * Bug-fix (back/<this change>) — the previous version returned the
+   * WHOLE org's eligible operators and aliased `name` to `device_uuid`,
+   * which is a UUID: the assign dialog rendered a list of UUIDs the
+   * dispatcher could not read. Two problems fixed here:
+   *
+   *   (A) `name` is now built from `first_name` + `last_name`, with
+   *       each side `COALESCE(..., '')` and the whole expression
+   *       `TRIM(...)` so a user with only one of the two renders as
+   *       «Jane» / «Doe», not «Jane  » or « Doe». This is the human-
+   *       readable identity the frontend already binds to
+   *       (`AvailableOperatorDto.name`, used as `{{ op.name }}` in
+   *       `assign-dialog.component.ts`).
+   *
+   *   (B) The set of operators is restricted to those who can resolve
+   *       the incident's *category* within the incident's org. The
+   *       `department_incident_categories` M:N junction (migration
+   *       0030, design D2 of `back/2026-09-15-departments-module`)
+   *       expresses «which departments handle which incident
+   *       categories»; the SQL here resolves the dept-id set for the
+   *       incident's category inside the same org and then accepts
+   *       operators whose `department_id` is one of those depts OR
+   *       whose `department_id IS NULL` (the polyvalent fallback —
+   *       an operator with no dept can still be assigned; org-wide
+   *       responders are explicitly part of the design, not an
+   *       oversight). Operators from a dept that does NOT handle the
+   *       category are excluded — those would only see the ticket
+   *       after another department hand-off, which is not what the
+   *       dispatcher wants from this dropdown.
+   *
+   *       Un-categorized incidents (`category_id IS NULL`) keep the
+   *       pre-fix behavior: every eligible operator in the org is
+   *       returned. The user's intent ("operator_org que puedan
+   *       resolver esa incidencia") only applies once a category has
+   *       been assigned; before that, the dispatcher has no scoping
+   *       to apply and the legacy fallback is the only sensible
+   *       answer. This branch is documented below.
+   *
+   * Wire shape unchanged: `{ id, name, email, activeClaimCount,
+   * available, maxActive }`. Only the *semantics* of `name` and the
+   * row-set filter change; controller and DTO are not touched.
    */
   async availableOperators(incidentId: string): Promise<AvailableOperatorDto[]> {
     const incident = await this.loadIncident(incidentId);
@@ -161,11 +271,76 @@ export class IncidentWorkflowService {
     }
     const maxActive = await this.maxActiveClaimsFor(incident.organization_id);
 
+    // Categoria-driven branch — uses a CTE to keep the filter list
+    // visible to a future reader without forcing them to untangle a
+    // nested subquery. The `category_depts` CTE resolves the set of
+    // departments in this org that handle the incident's category;
+    // the outer query then accepts an operator when:
+    //   - their dept is one of those, OR
+    //   - they have no dept at all (polyvalent fallback).
+    //
+    // The `idx_dic_category` index on `department_incident_categories
+    // (incident_category_id)` (migration 0030 §7) keeps the CTE
+    // lookup cheap; `idx_departments_org_deleted` covers the dept
+    // filter. No new indexes added in this change — staging EXPLAIN
+    // pending (noted in the verify-report).
+    //
+    // The claimed-by exclusion (`$2`) and the role + active filter
+    // (`operator_org` / `agent_system`, `is_active = true`) carry
+    // over verbatim from the pre-fix query.
+    if (incident.category_id) {
+      const rows = await this.dataSource.query<
+        Array<{ id: string; name: string; email: string | null; active_count: string }>
+      >(
+        `WITH category_depts AS (
+           SELECT dc.department_id
+             FROM department_incident_categories dc
+             JOIN departments d ON d.id = dc.department_id
+            WHERE dc.incident_category_id = $3::uuid
+              AND d.organization_id = $1::uuid
+              AND d.deleted_at IS NULL
+         )
+         SELECT u.id,
+                        -- Bug-fix (A): human-readable name. COALESCE
+                        -- guards against NULL first/last; the outer
+                        -- TRIM removes the leftover space when only
+                        -- one of the two is set. device_uuid is NEVER
+                        -- used here — it was the original bug.
+                        TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS name,
+                        u.email,
+                        COALESCE((
+                          SELECT COUNT(*)::int
+                            FROM incidents
+                           WHERE claimed_by = u.id AND status = 'in_progress'
+                        ), 0) AS active_count
+                   FROM users u
+                   JOIN roles r ON r.id = u.role_id
+                  WHERE u.organization_id = $1
+                    AND u.is_active = true
+                    AND r.name IN ('operator_org', 'agent_system')
+                    -- Polyvalent fallback (dept-less operator) OR dept
+                    -- is one that handles the category.
+                    AND (
+                      u.department_id IS NULL
+                      OR u.department_id IN (SELECT department_id FROM category_depts)
+                    )
+                    -- Exclude the operator who currently holds the claim
+                    -- (same exclusion as before this fix).
+                    AND ($2::uuid IS NULL OR u.id <> $2::uuid)`,
+        [incident.organization_id, incident.claimed_by, incident.category_id],
+      );
+
+      return this.mapRows(rows, maxActive);
+    }
+
+    // Un-categorized fallback — keep the pre-fix behavior so dispatchers
+    // do not see an empty dropdown for an incident still being triaged.
+    // Documented in the method header.
     const rows = await this.dataSource.query<
       Array<{ id: string; name: string; email: string | null; active_count: string }>
     >(
       `SELECT u.id,
-              u.device_uuid AS name,
+              TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS name,
               u.email,
               COALESCE((
                 SELECT COUNT(*)::int
@@ -176,22 +351,31 @@ export class IncidentWorkflowService {
          JOIN roles r ON r.id = u.role_id
         WHERE u.organization_id = $1
           AND u.is_active = true
-          AND r.name IN ('operador_org', 'operador_sistema')
-          AND ($2::uuid IS NULL OR u.id <> $2::uuid)
-          AND COALESCE((
-                SELECT COUNT(*)
-                  FROM incidents
-                 WHERE claimed_by = u.id AND status = 'in_progress'
-              ), 0) < $3`,
-      [incident.organization_id, incident.claimed_by, maxActive],
+          AND r.name IN ('operator_org', 'agent_system')
+          AND ($2::uuid IS NULL OR u.id <> $2::uuid)`,
+      [incident.organization_id, incident.claimed_by],
     );
 
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      activeClaimCount: Number(r.active_count),
-    }));
+    return this.mapRows(rows, maxActive);
+  }
+
+  /** Map raw SQL rows to the wire DTO. Shared by both branches so the
+   *  saturated/unsaturated projection lives in one place. */
+  private mapRows(
+    rows: Array<{ id: string; name: string; email: string | null; active_count: string }>,
+    maxActive: number,
+  ): AvailableOperatorDto[] {
+    return rows.map((r) => {
+      const active = Number(r.active_count);
+      return {
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        activeClaimCount: active,
+        available: active < maxActive,
+        maxActive,
+      };
+    });
   }
 
   /** Static list of the IncidentStatus enum — derived from the state machine (D3/D5).
@@ -289,7 +473,13 @@ export class IncidentWorkflowService {
             message: 'closing an incident requires a non-empty reason',
           });
         }
-        if (!actorPermissions.includes('CLOSE incidents')) {
+        const canClose = await hasPermission(
+          [...actorPermissions],
+          'CLOSE',
+          'incidents',
+          this.permissionLookup,
+        );
+        if (!canClose) {
           throw new ForbiddenException({
             code: 'INCIDENT_CLOSE_PERMISSION_REQUIRED',
             message: 'closing an incident requires the CLOSE incidents permission',
@@ -373,6 +563,12 @@ export class IncidentWorkflowService {
     await this.purgeListCaches(committed.updated.zone_id);
     await this.publish('incident.status_changed', {
       id: committed.updated.id,
+      // 2026-10-20 — el RETURNING de arriba ya trae `title`, pero el
+      // payload no lo publicaba. `IncidentMailListener.handleStatusChanged`
+      // lo lee para el subject, así que el correo salía como
+      // `Incident status changed: ` a secas. El dato estaba a una línea de
+      // distancia y el correo llevaba meses sin título.
+      title: committed.updated.title,
       status: committed.updated.status,
       previous_status: committed.from,
       zone_id: committed.updated.zone_id,
@@ -415,8 +611,13 @@ export class IncidentWorkflowService {
   }
 
   private async loadIncident(incidentId: string): Promise<IncidentRow> {
+    // Bug-fix (this change): `availableOperators()` needs the incident's
+    // `category_id` to scope the operator pool to depts that handle that
+    // category. `IncidentRow` already declares the column; only the
+    // SELECT list needed widening. Other callers ignore the extra
+    // column — TypeScript just leaves it populated.
     const rows = await this.dataSource.query<IncidentRow[]>(
-      `SELECT id, title, status, priority, claimed_by, organization_id, updated_at
+      `SELECT id, title, status, priority, claimed_by, organization_id, category_id, updated_at
          FROM incidents
         WHERE id = $1`,
       [incidentId],
@@ -454,5 +655,40 @@ export class IncidentWorkflowService {
       organizationId: row.organization_id,
       updatedAt: row.updated_at instanceof Date ? row.updated_at : new Date(row.updated_at),
     };
+  }
+
+  // ---- F7 emergency-dispatch public helpers (D1) -----------------------
+  //
+  // Both `claim()` (autoasignación) and `AssignmentsService.assign()`
+  // (asignación por admin) need the same per-org active-claim cap
+  // check. Before F7 the check lived only in `claim()` and `assign()`
+  // skipped it — a defect that let an admin saturate an operator in
+  // silence. The helpers below let `assign()` reuse the SAME numbers
+  // without duplicating SQL.
+
+  /** Per-org active-claim cap (design D5). */
+  async getMaxActiveClaimsFor(orgId: string): Promise<number> {
+    return this.maxActiveClaimsFor(orgId);
+  }
+
+  /** Active in_progress claim count for an operator. */
+  async getActiveClaimCount(userId: string): Promise<number> {
+    return this.activeClaimCountFor(userId);
+  }
+
+  /**
+   * Returns the organization_id of a user (or null if missing /
+   * soft-deleted). Exposed so `AssignmentsService.loadOperator` can
+   * run the org-match check without reaching into this service's
+   * private `dataSource` (W4 of `fixes-required.md`).
+   */
+  async findUserOrganizationId(userId: string): Promise<string | null> {
+    const rows = await this.dataSource.query<
+      Array<{ organization_id: string | null }>
+    >(
+      `SELECT organization_id FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    return rows[0]?.organization_id ?? null;
   }
 }

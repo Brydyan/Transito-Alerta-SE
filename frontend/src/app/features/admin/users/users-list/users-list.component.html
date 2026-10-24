@@ -14,20 +14,35 @@
   </button>
 </ui-page-header>
 
-<app-filter-drawer>
-  <section class="toolbar">
-    <app-search-bar
-      class="toolbar__search"
-      placeholder="Buscar por nombre, email o cargo..."
-      (searchChange)="onSearch($event)"
+<section class="toolbar">
+  <app-search-bar
+    class="toolbar__search"
+    placeholder="Buscar por nombre, email o cargo..."
+    (searchChange)="onSearch($event)"
+  />
+  <app-filter-bar
+    [roles]="roles()"
+    [organizations]="organizations()"
+    (filterChange)="onFilterChange($event)"
+  />
+  <!-- 2026-10-16 — toggle "mostrar inactivos". Por defecto la lista
+       muestra sólo usuarios ACTIVOS (histórico, evita los shadow
+       de adminCreate). Al marcar el checkbox se llama
+       `getUsers(activeOnly=false)` y el backend filtra por
+       `is_active: false` — útil para admins que necesitan auditar
+       invitaciones pendientes. -->
+  <label class="toolbar__toggle flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+         data-testid="toolbar-toggle-inactive">
+    <input
+      type="checkbox"
+      class="form-check-input shrink-0 mt-0"
+      [checked]="showInactiveOnly()"
+      (change)="onToggleInactive($any($event.target).checked)"
+      aria-label="Mostrar solo usuarios inactivos o pendientes de invitación"
     />
-    <app-filter-bar
-      [roles]="roles()"
-      [organizations]="organizations()"
-      (filterChange)="onFilterChange($event)"
-    />
-  </section>
-</app-filter-drawer>
+    <span>Solo inactivos / pendientes</span>
+  </label>
+</section>
 
 @if (errorMessage()) {
   <div class="error-banner" role="alert">
@@ -59,9 +74,9 @@
       <tr>
         <th>Foto</th>
         <th>Nombre completo</th>
-        <th>Email / Contacto</th>
+        <th>Email</th>
         <th>Rol asignado</th>
-        <th>Organización</th>
+        <th>Departamento</th>
         <th>Estado</th>
         <th class="ui-table-cell-actions">Acciones</th>
       </tr>
@@ -84,13 +99,9 @@
           </td>
           <td>
             <div class="ui-table-title">{{ user.nombres }} {{ user.apellidos }}</div>
-            <div class="ui-table-subtitle">ID #{{ user.usuarioId }}</div>
           </td>
           <td>
             <div class="ui-table-title">{{ user.email }}</div>
-            @if (user.telefono) {
-              <div class="ui-table-subtitle">{{ user.telefono }}</div>
-            }
           </td>
           <td>
             @if (user.rol) {
@@ -99,7 +110,7 @@
               <span class="muted">Sin rol</span>
             }
           </td>
-          <td>{{ getOrganizationName(user.organizationId) }}</td>
+          <td>{{ getDepartmentName(user.departmentId) }}</td>
           <td>
             @if (statusOf(user) === 'activo') {
               <ui-badge [variant]="'resuelto'" [label]="'Activo'"></ui-badge>

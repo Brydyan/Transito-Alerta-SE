@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 
 import { IncidentsRepository } from '../../src/modules/incidents/incidents.repository';
-import { SubjectScope } from '../../src/common/authz/subject-scope';
+import { SubjectScope } from '../../src/shared/authz/subject-scope';
 import { TestEnvironment } from '../support/test-environment';
 
 /**

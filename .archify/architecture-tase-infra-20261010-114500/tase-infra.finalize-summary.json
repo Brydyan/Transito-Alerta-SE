@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/candidate.json",
+    "sha256": "2f0847a0d8aca20299397ad52608a274f09ac3e7291f6f2de670d79a59aa9fbb",
+    "bytes": 4352
+  },
+  "artifact": {
+    "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html",
+    "sha256": "f25b088414c75f2c2e5414c9474738737f9c15d4fb9b2ab240fd5b278dd814d4",
+    "bytes": 761528
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "skipped"
+  },
+  "failedStage": "browser-check",
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.finalize.json",
+    "summaryReceipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.finalize-summary.json",
+    "browserCheckReceipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/architecture-tase-infra-20261010-114500/tase-infra.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-10T16:18:40.834Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 387
+}

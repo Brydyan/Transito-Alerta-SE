@@ -1,0 +1,448 @@
+name: Deploy — Staging
+
+on:
+  push:
+    branches: [develop]
+
+# Un deploy a la vez — no cancelar si hay uno en curso, esperar que termine.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to staging
+    # Con la etiqueta `staging`, no a secas. Este job necesita `/mnt/big`,
+    # un virtiofs del host Proxmox: sin él, `working-directory` no existe y el
+    # deploy muere en el primer paso. Otro runner self-hosted puede no
+    # tenerlo, y GitHub asignaría este job a cualquiera de los dos sin
+    # preguntar. La etiqueta convierte esa suposición en un requisito — y
+    # `rehearsal-staging.yml` ya la pedía, contra un runner que no la tenía.
+    runs-on: [self-hosted, staging]
+    environment: staging
+
+    # El runner es la VM de staging, no GitHub: un build colgado no lo corta
+    # nadie. Sin esto el default de GitHub son 360 minutos — el 14/oct un
+    # deploy pasó 45 min "construyendo" porque el disco de la VM estaba al 82%
+    # y Postgres entraba en recovery entre build y build. Con 30 min falla
+    # con un mensaje, en vez de una tarde perdida.
+    timeout-minutes: 30
+
+    # A nivel de job, no por paso. Antes cada paso lo declaraba por su cuenta y
+    # los dos health checks se habían quedado sin él: corrían en el directorio
+    # temporal del runner, donde no existe `.env` ni `compose.yaml`, y el deploy
+    # moría con `line 1: .env: No such file or directory` después de haber
+    # construido y levantado todo correctamente.
+    #
+    # Declarado acá, ningún paso `run:` futuro puede olvidarlo.
+    defaults:
+      run:
+        # 2026-10-20 — movido de `/mnt/storage/projects/tase`. La VM tiene un
+        # solo disco de 30 GB que aloja el SO, el repo y todo el data-root de
+        # Docker; los seis servidores de staging de este host Proxmox
+        # comparten el SSD de 240 GB. `/mnt/big` es un virtiofs del host: el
+        # mismo directorio que en `/mnt/storage/tase-vm`, sobre el disco de
+        # 916 GB. El repo anterior sigue en su sitio a propósito — es el
+        # rollback mientras este deploy no salga verde.
+        working-directory: /mnt/big/projects/tase
+
+    steps:
+      # El código vive en /mnt/big/projects/tase, un clon git mantenido a mano en
+      # la VM (antes en /mnt/storage/projects/tase). NO se usa actions/checkout:
+      # el checkout dejaría los archivos en el workspace temporal del runner,
+      # donde no está `.env` y donde el nombre de proyecto de compose sería
+      # otro — o sea, contenedores y volúmenes nuevos, base de datos vacía en
+      # cada deploy.
+      #
+      # Pero durante meses nadie actualizó ese clon desde el workflow: GitHub
+      # sólo mandaba la orden de desplegar y compose construía con los archivos
+      # que hubiera en disco, que dependían de si alguien se acordó de hacer
+      # `git pull` por SSH. El deploy igual etiquetaba la imagen con
+      # `IMAGE_TAG: github.sha`, así que la etiqueta afirmaba un commit que la
+      # imagen no contenía. Un `docker inspect` "confirmaba" un despliegue que
+      # nunca ocurrió.
+      #
+      # Este paso cierra eso: el árbol se lleva al commit exacto que disparó el
+      # workflow, ni el último de la rama ni lo que quedó en disco.
+      - name: Sync working tree to the pushed commit
+        run: |
+          echo "En disco antes de sincronizar: $(git rev-parse --short HEAD)"
+          git fetch --prune origin "${{ github.ref_name }}"
+
+          # `reset --hard` al SHA, no `pull`: `pull` fusiona y puede quedar en
+          # conflicto o arrastrar un commit más nuevo que el que se está
+          # desplegando; `reset` deja el árbol idéntico a lo que se probó.
+          # Descarta modificaciones locales en archivos VERSIONADOS — esa es la
+          # intención: la VM no es un sitio donde editar.
+          git reset --hard "${{ github.sha }}"
+
+          # A propósito NO se corre `git clean`. Borraría los archivos sin
+          # versionar, y ahí vive `.env` — con las credenciales de la base, que
+          # no están en el repo y nadie podría regenerar. El costo de omitirlo
+          # es que sobreviven artefactos viejos sin versionar; irrelevante,
+          # porque el build ocurre dentro de Docker y los .dockerignore ya
+          # excluyen dist/, node_modules/ y demás.
+
+          echo "Desplegando: $(git rev-parse --short HEAD) — $(git log -1 --format=%s)"
+
+      # Ahora `HEAD~1..HEAD` sí es el diff del push. Antes comparaba contra el
+      # HEAD que hubiera quedado en la VM, que podía ser de días atrás: el
+      # detector de cambios de BD respondía sobre un rango inventado.
+      - name: Detect database changes
+        id: db_changes
+        run: |
+          if git diff HEAD~1..HEAD --quiet -- database/migrations/ database/seeds/; then
+            echo "has_db_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_db_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # El filtro `name=tase-` matchea TODO: tase-backend, tase-frontend,
+      # tase-postgres y tase-redis. Correrlo sin condicionar destruía la base
+      # en cada deploy aunque no hubiera cambios de esquema — el arranque de
+      # infra estaba condicionado y la parada no, así que postgres sólo revivía
+      # de rebote por `depends_on` al levantar backend. Los datos sobrevivían
+      # (los volúmenes son nombrados y no se borran) pero cada deploy pagaba una
+      # recreación completa de la base y su ventana de caída, que es justo lo
+      # que la detección de cambios existe para evitar.
+      - name: Stop old app containers (preserve infra when the DB didn't change)
+        run: |
+          if [ "${{ steps.db_changes.outputs.has_db_changes }}" = "true" ]; then
+            echo "Cambios de BD: se recrea todo, incluida la infra"
+            docker ps -a --filter "name=tase-" -q | xargs -r docker rm -f || true
+          else
+            echo "Sin cambios de BD: sólo backend y frontend; postgres y redis siguen vivos"
+            docker ps -a \
+              --filter "name=tase-backend" \
+              --filter "name=tase-frontend" \
+              -q | xargs -r docker rm -f || true
+          fi
+
+      # Sin condicionar: `up -d` es idempotente — si postgres y redis ya están
+      # corriendo y sanos, no hace nada. Antes esto estaba detrás de
+      # has_db_changes, lo que dejaba la infra sin garantía de estar levantada
+      # en los deploys que no tocaban database/.
+      - name: Ensure infra (postgres + redis + minio)
+        run: docker compose --progress quiet up -d postgres redis minio minio-init
+
+      - name: Wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres pg_isready -U postgres; then
+              echo "Postgres listo tras ${i} intentos"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "ERROR: postgres no respondió"
+          exit 1
+
+      # El defecto que rompió staging: la condición miraba el DIFF DE GIT, no el
+      # ESTADO REAL de la base. Un volumen nuevo más un deploy que no tocaba
+      # database/ dejaba la base vacía para siempre — el backend arrancaba y
+      # moría con `relation "roles" does not exist`, y el deploy sólo decía
+      # "container tase-backend is unhealthy".
+      #
+      # Ahora se pregunta si el esquema existe. `to_regclass` devuelve NULL
+      # cuando la tabla no está, sin lanzar error.
+      - name: Detect schema state
+        id: schema
+        run: |
+          if docker compose exec -T postgres psql -U postgres -d transito_alerta \
+               -tAc "SELECT to_regclass('public.roles') IS NOT NULL" 2>/dev/null \
+               | tr -d '[:space:]' | grep -qx 't'; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "Esquema presente"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "Esquema AUSENTE — se migrará aunque el diff no toque database/"
+          fi
+
+      - name: Apply migrations — si cambió database/ o falta el esquema
+        if: |
+          steps.db_changes.outputs.has_db_changes == 'true' ||
+          steps.schema.outputs.present == 'false'
+        env:
+          BOOTSTRAP: ${{ steps.schema.outputs.present == 'false' }}
+        run: |
+          # Con el esquema ausente (bootstrap) toda migración DEBE aplicar: un
+          # fallo acá deja la base a medias y el backend no arranca, así que se
+          # corta. Con el esquema ya presente se toleran los errores de las
+          # migraciones ya aplicadas — no hay tracking en schema_migrations
+          # todavía, así que re-aplicarlas falla por diseño.
+          failed=0
+          for file in database/migrations/[0-9]*.sql; do
+            echo "── $(basename "$file")"
+            if ! docker compose exec -T postgres psql \
+                 -U postgres -d transito_alerta \
+                 -v ON_ERROR_STOP=1 -q < "$file"; then
+              if [ "$BOOTSTRAP" = "true" ]; then
+                echo "::error::$(basename "$file") falló durante el bootstrap"
+                exit 1
+              fi
+              failed=$((failed + 1))
+            fi
+          done
+          echo "Migraciones procesadas · $failed con error (esperable si ya estaban aplicadas)"
+
+      - name: Verify schema after migrations
+        if: |
+          steps.db_changes.outputs.has_db_changes == 'true' ||
+          steps.schema.outputs.present == 'false'
+        run: |
+          # Sin esto, un bootstrap a medias se descubre recién cuando el backend
+          # muere por `relation ... does not exist`, sin decir cuál falta.
+          for t in roles users incidents user_sessions; do
+            if ! docker compose exec -T postgres psql -U postgres -d transito_alerta \
+                 -tAc "SELECT to_regclass('public.$t') IS NOT NULL" \
+                 | tr -d '[:space:]' | grep -qx 't'; then
+              echo "::error::falta la tabla '$t' después de migrar"
+              exit 1
+            fi
+          done
+          echo "Esquema verificado: roles, users, incidents, user_sessions"
+
+      # ── Espacio en disco antes de construir ───────────────────────────────
+      #
+      # El runner es una VM con un solo disco de 30 GB, y Docker escribe ahí
+      # todo: imágenes, overlay2, la caché de build y los tres volúmenes. La
+      # caché llegó a 16,5 GB (12,9 reclamables) sin que nada la acotara:
+      # el build no falla al no tener espacio, se arrastra — y eso
+      # tumba el fsync de Postgres, que entra en recovery, que hace que
+      # `compose up` espere a la infra, que es como el deploy pasó 45 minutos
+      # sin avanzar.
+      #
+      # `--filter until=168h` es lo que hace esto seguro: sólo borra caché de
+      # más de 7 días, así que nunca toca el build que se está construyendo.
+      - name: Free disk before building
+        run: |
+          avail_gb() { df --output=avail -BG / | tail -1 | tr -dc '0-9'; }
+          before=$(avail_gb)
+          echo "Libre antes: ${before}G"
+          docker builder prune -af --filter "until=168h"
+          after=$(avail_gb)
+          echo "Libre después: ${after}G"
+
+          # Falla aquí, con un mensaje, en vez de colgarse 30 min para que el
+          # timeout lo mate. El umbral es holgado a propósito: el peor build
+          # observado (Angular + NestJS en la misma pasada) pidió ~10 GB entre
+          # pnpm install, dist/ y las capas de imagen.
+          if [ "$after" -lt 10 ]; then
+            echo "::error::espacio insuficiente: ${after}G libres tras limpiar; un build completo pide ~10G."
+            echo "::error::El disco de la VM es de 30G y aloja Docker + el repo + los tres volúmenes."
+            echo "::error::La solución de fondo es mover el data-root de Docker fuera de este disco."
+            exit 1
+          fi
+
+      - name: Build and start backend + frontend
+        env:
+          CI: true
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # --quiet-pull y --progress quiet: sin esto, el progreso de descarga
+          # capa por capa produce miles de líneas ("Downloading 1.049MB"
+          # repetido) que entierran cualquier error real del build. Los errores
+          # siguen saliendo; lo que se calla es la barra de progreso.
+          docker compose --progress quiet --profile staging up \
+            --build --quiet-pull -d backend frontend
+
+      # `if: failure()` para que corra aunque el paso anterior aborte. Sin esto
+      # el volcado de logs vivía sólo dentro de "Health check — backend", que no
+      # llega a ejecutarse cuando `compose up` sale con error: el deploy fallaba
+      # con una línea ("container tase-backend is unhealthy") y ningún dato para
+      # diagnosticar. `|| true` en cada comando para que un fallo acá no tape la
+      # causa real del fallo original.
+      - name: Diagnóstico — sólo si algo falló
+        if: failure()
+        run: |
+          echo "───── estado de los contenedores ─────"
+          docker ps -a --filter "name=tase-" \
+            --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' || true
+
+          for c in tase-backend tase-frontend tase-postgres tase-redis; do
+            echo
+            echo "───── $c · healthcheck ─────"
+            docker inspect "$c" --format '{{json .State.Health}}' 2>/dev/null \
+              | python3 -m json.tool 2>/dev/null || echo "(sin healthcheck o contenedor ausente)"
+            echo "───── $c · últimas 80 líneas ─────"
+            docker logs "$c" --tail=80 2>&1 || true
+          done
+
+      - name: Health check — backend
+        run: |
+          set -a; source .env; set +a
+          PORT=${APP_PORT:-3004}
+          echo "Health check → http://localhost:${PORT}/api/health"
+          for i in $(seq 1 15); do
+            if curl -sf "http://localhost:${PORT}/api/health" > /dev/null; then
+              echo "Backend healthy"
+              exit 0
+            fi
+            echo "Attempt ${i}/15 — waiting 4s..."
+            sleep 4
+          done
+          echo "Health check failed — last 50 lines:"
+          docker compose logs backend --tail=50
+          exit 1
+
+      - name: Health check — frontend
+        run: |
+          set -a; source .env; set +a
+          # El default tiene que ser el MISMO que el de compose.yaml (8083).
+          # Acá decía 80: mientras `.env` defina FRONTEND_PORT los dos
+          # coinciden, pero con un `.env` que no la declare, compose publica
+          # en 8083 y este paso consulta el 80 — y tumba en rojo un deploy que
+          # salió bien. Dos defaults para la misma variable, en dos archivos.
+          FRONTEND_PORT=${FRONTEND_PORT:-8083}
+          echo "Health check → http://localhost:${FRONTEND_PORT}"
+          for i in $(seq 1 10); do
+            if curl -sf "http://localhost:${FRONTEND_PORT}" > /dev/null; then
+              echo "Frontend healthy"
+              exit 0
+            fi
+            echo "Attempt ${i}/10 — waiting 2s..."
+            sleep 2
+          done
+          echo "Health check failed — last 50 lines:"
+          docker compose logs frontend --tail=50
+          exit 1
+
+      # ── Seed ────────────────────────────────────────────────────────────
+      #
+      # Va después de los health checks a propósito: sembrar es poblar datos,
+      # y no tiene sentido intentarlo sobre un stack que no arrancó. El
+      # backend no necesita usuarios para estar sano — sólo el esquema — así
+      # que este orden no lo bloquea.
+      #
+      # La condición mira si la tabla está vacía. `users.js` ya es idempotente
+      # (`ON CONFLICT (email) DO NOTHING`), así que sembrar de más no
+      # duplicaría filas; pero recomputa seis hashes bcrypt de coste 12 en
+      # cada deploy para no insertar nada, y sobre todo: el día que el seeder
+      # deje de ser idempotente, esta condición es lo único que separa a
+      # staging de perder datos. La idempotencia es del script, no del deploy.
+      - name: Detect empty users table
+        id: users
+        run: |
+          count=$(docker compose exec -T postgres psql \
+                    -U postgres -d transito_alerta \
+                    -tAc "SELECT count(*) FROM users" 2>/dev/null \
+                  | tr -d '[:space:]')
+          # Cadena vacía = la consulta falló (tabla ausente, postgres caído).
+          # Eso NO es cero: si no se pudo preguntar, no se siembra a ciegas.
+          if [ "$count" = "0" ]; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            echo "Tabla users vacía — se sembrará"
+          else
+            echo "empty=false" >> "$GITHUB_OUTPUT"
+            echo "No se siembra · filas=${count:-<consulta fallida>}"
+          fi
+
+      - name: Seed users — sólo con la tabla vacía
+        if: steps.users.outputs.empty == 'true'
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          # Sin el secret, `users.js` cae a DEFAULT_SEED_PASSWORD, que es una
+          # constante en claro del repo (database/seeds/users.js). Staging
+          # está publicado a internet por el Tailscale Funnel, así que seis
+          # cuentas con contraseña conocida es peor que cero cuentas: se corta.
+          if [ -z "$SEED_PASSWORD" ]; then
+            echo "::error::falta el secret SEED_PASSWORD — sin él el seed usaría la contraseña por defecto del repo, y staging es público"
+            exit 1
+          fi
+
+          # E2E_PASSWORD es optativo: si no está, el usuario e2e NO se
+          # siembra (D3 del change `2026-09-03-e2e-test-user-and-credentials`).
+          # No es un error: el seed de los seis de demo sigue siendo
+          # completo y la suite e2e en CI se salteará por "no
+          # configurado" (D4). Es la única forma de mantener el contrato
+          # de "ningún password de e2e en el repo" cuando este paso
+          # corre en bootstrap sobre una base recién creada.
+          #
+          # OJO — REQUISITO OPERATIVO: este paso sólo corre con la tabla
+          # `users` vacía (lógica de `steps.users.outputs.empty`). Si
+          # querés sembrar al usuario e2e en un staging YA POBLADO, tenés
+          # que correr el seed a mano:
+          #
+          #   SEED_PASSWORD=… E2E_PASSWORD=… \
+          #     docker compose --profile staging run --rm \
+          #       -e SEED_ALLOW_PRODUCTION=1 \
+          #       -e SEED_PASSWORD -e E2E_PASSWORD \
+          #       -v /mnt/big/projects/tase/database:/app/database:ro \
+          #       backend node /app/database/seeds/users.js --force
+          #
+          # La idempotencia del seeder (ON CONFLICT DO NOTHING) hace
+          # que la corrida a mano sea segura: no duplica los seis, sólo
+          # agrega al e2e si no estaba.
+
+          # `-e SEED_PASSWORD` sin `=valor`: compose lo resuelve del entorno
+          # del paso. Escribir `-e SEED_PASSWORD="$SEED_PASSWORD"` metería el
+          # secret en la línea de comandos, visible en `ps` para cualquier
+          # proceso del runner.
+          #
+          # El montaje de database/ es obligatorio: el .dockerignore de la
+          # raíz la deja fuera de la imagen de producción del backend, así que
+          # dentro del contenedor /app/database no existe. :ro — el seeder
+          # sólo lee.
+          #
+          # El guard (database/seeds/lib/guard.js) exige LAS DOS cosas,
+          # `--force` y SEED_ALLOW_PRODUCTION=1; su propio comentario explica
+          # por qué: "--force se tipea por reflejo, sólo no alcanza".
+          docker compose --profile staging run --rm \
+            -e SEED_ALLOW_PRODUCTION=1 \
+            -e SEED_PASSWORD \
+            -e E2E_PASSWORD \
+            -v /mnt/big/projects/tase/database:/app/database:ro \
+            backend node /app/database/seeds/users.js --force
+
+          # No se limpia Redis acá. La caché de permisos vive en la DB 1 y
+          # `FLUSHDB` a secas pega en la DB 0, que es la de Streams — borraría
+          # los incidentes. Y de todos modos este paso sólo corre con la tabla
+          # vacía, es decir en bootstrap, donde no hay nada cacheado que
+          # invalidar. Si alguna vez hace falta: `redis-cli -n 1 FLUSHDB`.
+
+      - name: Verify seeded users
+        if: steps.users.outputs.empty == 'true'
+        env:
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          # `users.js` sale con 0 aunque no inserte nada (ON CONFLICT DO
+          # NOTHING no es un error), así que su código de salida no prueba que
+          # las filas existan. Se cuenta.
+          #
+          # Antes este chequeo esperaba 6. Con el cambio
+          # `2026-09-03-e2e-test-user-and-credentials` el seeder agrega
+          # un séptimo (`e2e@tase.local`) cuando `E2E_PASSWORD` está
+          # definida. Si no está, se queda en 6. La aserción distingue
+          # los dos casos en vez de fijar un número.
+          demo_count=$(docker compose exec -T postgres psql \
+                    -U postgres -d transito_alerta \
+                    -tAc "SELECT count(*) FROM users WHERE email LIKE '%@tase.local' AND email <> 'e2e@tase.local'" \
+                  | tr -d '[:space:]')
+          e2e_count=$(docker compose exec -T postgres psql \
+                    -U postgres -d transito_alerta \
+                    -tAc "SELECT count(*) FROM users WHERE email = 'e2e@tase.local'" \
+                  | tr -d '[:space:]')
+          if [ "$demo_count" != "6" ]; then
+            echo "::error::se esperaban 6 usuarios de demo, hay '${demo_count}'"
+            exit 1
+          fi
+          if [ -z "$E2E_PASSWORD" ] && [ "$e2e_count" != "0" ]; then
+            echo "::error::E2E_PASSWORD ausente pero e2e@tase.local existe (count=${e2e_count})"
+            exit 1
+          fi
+          if [ -n "$E2E_PASSWORD" ] && [ "$e2e_count" != "1" ]; then
+            echo "::error::E2E_PASSWORD presente pero e2e@tase.local no se sembró (count=${e2e_count})"
+            exit 1
+          fi
+          echo "Sembrado ok · demo=${demo_count} e2e=${e2e_count:-0}"
+
+      # T8 — Cutover rehearsal NO corre en cada push a develop. Se dispara
+      # manualmente desde la UI de GitHub Actions vía el workflow
+      # `rehearsal-staging.yml` cuando estás a punto de hacer el cutover
+      # real (sea a staging final o a producción). Razón: el rehearsal
+      # pega contra Supabase staging con checks pesados (R26.4 corre
+      # test:e2e:cutover completo, ~5 min) y no tiene sentido en cada
+      # push de feature. Ver `docs/runbooks/cutover.md` §"Rehearsal"
+      # para cuándo invocarlo.

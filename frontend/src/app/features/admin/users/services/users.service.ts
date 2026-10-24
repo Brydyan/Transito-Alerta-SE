@@ -18,6 +18,7 @@ import {
   CreateUserJsonPayload,
   UpdateUserPayload,
   Organization,
+  Department,
   permissionLabel,
   resolveRolePermissionLabels,
   toPermissionItem,
@@ -39,10 +40,21 @@ export class UsersService {
    * en cuanto `GET /users` los soporte (hoy el endpoint sólo lee
    * `page`/`limit`; los params extra se ignoran sin romper la request).
    */
-  getUsers(page = 1, limit = 10, role?: string, org?: string): Observable<PaginatedUsersResponse> {
+  getUsers(
+    page = 1,
+    limit = 10,
+    role?: string,
+    org?: string,
+    // 2026-10-16 — toggle "mostrar inactivos" en la lista. `undefined`
+    // → no agrega el param (lista todos, default histórico). `true`
+    // → `?active=true` (solo activos). `false` → `?active=false`
+    // (solo inactivos / pendientes — los shadow-users de adminCreate).
+    activeOnly?: boolean,
+  ): Observable<PaginatedUsersResponse> {
     let params = new HttpParams().set('page', page.toString()).set('limit', limit.toString());
     if (role) params = params.set('role', role);
     if (org) params = params.set('org', org);
+    if (activeOnly !== undefined) params = params.set('active', String(activeOnly));
     interface UsersWireItem {
       id: string;
       email: string;
@@ -52,7 +64,14 @@ export class UsersService {
       role?: string;
       role_id?: string;
       organization_id?: string | null;
+      department_id?: string | null;
       is_active?: boolean;
+      // 2026-10-15-user-status-notif-channel (S2) — preferred
+      // notification channel. Optional on the wire because the
+      // column was added by migration 0033 and older payloads from
+      // a still-0032 environment won't carry it; the service
+      // defaults to `'email'` to match the DB DEFAULT.
+      preferred_notification_channel?: string;
     }
     return this.http
       .get<{ items: UsersWireItem[]; total: number }>(this.usersUrl, { params, withCredentials: true })
@@ -67,11 +86,17 @@ export class UsersService {
             avatar: null,
             rol: item.role ? { rolId: item.role_id ?? '', nombre: item.role } : null,
             organizationId: item.organization_id,
+            departmentId: item.department_id ?? null,
             // SnakeCaseResponseInterceptor: el wire es `is_active` (snake).
             // Sin este mapeo, `u.isActive` queda `undefined` y todas
             // las filas aparecen como "inactivo" (SC-209 lesson,
             // D-frontend-9 del F6 rediseño).
             isActive: item.is_active,
+            // 2026-10-15-user-status-notif-channel (S2) — wire is
+            // snake_case; without this projection the list would
+            // never show the value (SC-209 lesson — the DTO/interface
+            // and the mapper have to agree).
+            preferredNotificationChannel: item.preferred_notification_channel ?? 'email',
           })),
           meta: {
             total: res.total,
@@ -112,7 +137,21 @@ export class UsersService {
         role_id?: string;
         organization_id?: string | null;
         is_active?: boolean;
+        // 2026-10-15-user-status-notif-channel (verify-report W1) —
+        // The detail load shape omitted `preferred_notification_channel`,
+        // so the edit form's `userForm.patchValue({ preferredNotificationChannel:
+        // user.preferredNotificationChannel ?? 'email' })` always fell
+        // back to `'email'` — wiping out a persisted `'telegram'`
+        // preference on every Master edit. Added the wire alias and
+        // projection (with the DB-default fallback).
+        preferred_notification_channel?: string;
         permissions?: string[];
+        // 2026-10-16-resend-invitation (D1) — el backend
+        // (`UsersService.findByIdWithPendingFlag`) proyecta el flag
+        // sobre `GET /api/users/:id`. Default `false` para shapes
+        // viejos (el endpoint nuevo lo agrega en este mismo change;
+        // cualquier rama sin el campo trata como "no hay pendiente").
+        has_pending_invitation?: boolean;
       }>(`${this.usersUrl}/${id}`, { withCredentials: true })
       .pipe(
         map((raw) => {
@@ -126,6 +165,12 @@ export class UsersService {
             apellidos: raw.last_name ?? '',
             telefono: raw.phone ?? '',
             isActive: raw.is_active ?? false,
+            // 2026-10-15-user-status-notif-channel (W1) — project the
+            // snake_case wire alias onto the camelCase entity field.
+            // `?? 'email'` mirrors the DB DEFAULT on the column so
+            // users fetched before 0033 (no column → no wire field)
+            // still load sensibly.
+            preferredNotificationChannel: raw.preferred_notification_channel ?? 'email',
             avatar: null as UserDetail['avatar'],
             rol:
               roleId && roleName
@@ -139,6 +184,10 @@ export class UsersService {
             // listas, se cargan vía los endpoints dedicados.
             permisosDirectos: [] as UserDetail['permisosDirectos'],
             permisosRol: [] as UserDetail['permisosRol'],
+            // 2026-10-16-resend-invitation (D1) — proyección
+            // snake→camel del flag. `?? false` cubre shapes viejos
+            // donde el endpoint aún no devolvía el campo.
+            hasPendingInvitation: raw.has_pending_invitation ?? false,
           } satisfies UserDetail;
         }),
       );
@@ -231,11 +280,16 @@ export class UsersService {
    * la UI (sin esto, el dropdown muestra opciones con texto vacío
    * porque `org.nombre` queda `undefined`).
    */
-  getFormData(): Observable<{ roles: ReadonlyArray<{ id: string; name: string }>; organizations: ReadonlyArray<Organization> }> {
+  getFormData(): Observable<{
+    roles: ReadonlyArray<{ id: string; name: string }>;
+    organizations: ReadonlyArray<Organization>;
+    departments: ReadonlyArray<Department>;
+  }> {
     return this.http
       .get<{
         roles: { id: string; name: string }[];
-        organizations: { id: string; name: string }[];
+        organizations: { id: string; name: string; zone_id: string | null }[];
+        departments?: { id: string; name: string; organization_id: string }[];
       }>(`${this.usersUrl}/form-data`, { withCredentials: true })
       .pipe(
         map((res) => ({
@@ -243,6 +297,12 @@ export class UsersService {
           organizations: (res.organizations ?? []).map((o) => ({
             id: o.id,
             nombre: o.name,
+            zoneId: o.zone_id ?? null,
+          })),
+          departments: (res.departments ?? []).map((d) => ({
+            id: d.id,
+            nombre: d.name,
+            organizationId: d.organization_id,
           })),
         })),
       );
@@ -345,13 +405,26 @@ export class UsersService {
     if (payload.nombres !== undefined) body['first_name'] = payload.nombres;
     if (payload.apellidos !== undefined) body['last_name'] = payload.apellidos;
     // F6 fix: `email` y `phone` ahora son actualizables por admin
-    // (master u operador_sistema con `UPDATE users`). El DTO del
+    // (master u agent_system con `UPDATE users`). El DTO del
     // backend (`AdminUpdateUserDto`) los valida y rechaza 409
     // si el email ya existe en otro user.
     if (payload.email !== undefined) body['email'] = payload.email;
     if (payload.telefono !== undefined) body['phone'] = payload.telefono;
     if (payload.rolId !== undefined && payload.rolId !== null) body['role_id'] = payload.rolId;
     if (payload.organizationId !== undefined) body['organization_id'] = payload.organizationId;
+    // 2026-10-15-user-status-notif-channel — Master-only field. The
+    // form only sends this when `isMaster() === true` AND the target
+    // is not the caller; the backend service applies its own
+    // self-deactivation guard and silently ignores the field for
+    // non-Master callers (defense in depth — never rely on the form
+    // alone). Wire: `is_active`.
+    if (payload.isActive !== undefined) body['is_active'] = payload.isActive;
+    // 2026-10-15-user-status-notif-channel (S2) — preferred channel.
+    // The DTO `@IsIn(['email', 'telegram'])` rejects anything else
+    // with 400, so we just pass the string through.
+    if (payload.preferredNotificationChannel !== undefined) {
+      body['preferred_notification_channel'] = payload.preferredNotificationChannel;
+    }
 
     if (file) {
       // Avatar: sube el archivo en un FormData aparte. El backend
@@ -479,6 +552,30 @@ export class UsersService {
         const items = Array.isArray(res) ? res : (res.data ?? []);
         return items.map(toPermissionItem);
       }),
+    );
+  }
+
+  /**
+   * POST /api/users/:id/telegram-link — regenera el deep-link de
+   * Telegram para un usuario staff. La endpoint emite un token nuevo
+   * vía `TelegramLinkService.issueFor` y devuelve
+   * `{ telegram_link: string | null }`; cuando el bot no está
+   * configurado (`TELEGRAM_BOT_USERNAME` unset), el link es `null`
+   * y el modal muestra "Bot no configurado".
+   *
+   * Visibilidad + rank gate corren del lado del backend
+   * (`assertCanManage`): master ve a todos, admin_org sólo a su org.
+   * Reporteros → 403 (no necesitan el bot interno). La UI sólo debe
+   * invocar este método para roles staff; ocultamos el botón cuando
+   * `rol.nombre === 'reporter'` en el `UserDetailModalComponent`.
+   */
+  regenerateTelegramLink(
+    userId: string,
+  ): Observable<{ telegram_link: string | null }> {
+    return this.http.post<{ telegram_link: string | null }>(
+      `${this.usersUrl}/${userId}/telegram-link`,
+      {},
+      { withCredentials: true },
     );
   }
 }

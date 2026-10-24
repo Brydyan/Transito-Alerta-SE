@@ -29,13 +29,19 @@
  *                        D9), 1 assignment, 1 resolution_date,
  *                        approved_by+approved_at poblados
  *
- * ⚠️  El paso de aprobación a `closed` NO escribe fila de status_history.
- *     Motivo: chk_status_history_new_status (migración 0014) sólo admite
- *     `pending`/`in_progress`/`resolved` como `new_status` — nunca
- *     recibió `'closed'`, aunque 0020 lo agregó al CHECK de
- *     `incidents.status`. En producción
- *     `IncidentApprovalService.approve` tampoco emite ese evento.
- *     Omitir la fila es fiel al comportamiento real, no un atajo.
+ * ⚠️  El seeder NO escribe la transición a `closed` en status_history.
+ *     Antes de la migración 0068 (`status_history_status_checks.sql`) esto
+ *     era forzoso: chk_status_history_new_status (0014) sólo admitía
+ *     `pending`/`in_progress`/`resolved` como `new_status`, aunque 0020 ya
+ *     había agregado `'closed'` al CHECK de `incidents.status`. 0068
+ *     amplió el dominio al de la máquina de estados porque
+ *     `IncidentWorkflowService.changeStatus()` escribe `closed` en
+ *     producción y el cierre era imposible. Desde entonces omitir la fila
+ *     es una ELECCIÓN de este seeder, no una restricción de la base:
+ *     `IncidentApprovalService.approve` sigue sin emitir ese evento, así
+ *     que la fila se mantiene fiel al comportamiento real — pero si algún
+ *     día el flujo de aprobación empieza a emitirla, este seeder y sus
+ *     asserts deben moverse con él.
  *
  * Idempotencia:
  *   - Chequeo inicial: si la base ya tiene ≥ 1000 incidentes con prefijo
@@ -193,12 +199,12 @@ async function ensureCitizenReporter(client) {
 }
 
 async function ensureOperator(client) {
-  // Cualquier operador con role operador_org sirve como "responsable" de
+  // Cualquier operador con role operator_org sirve como "responsable" de
   // los assignments (no necesita ser específico del incidente en este
   // seeder — la app no asigna uno real a cada uno de los 1000). Si no
   // hay ninguno, fallback al master (también sirve como approver).
   const rows = await client.query(
-    `SELECT id FROM users WHERE role = 'operador_org' AND deleted_at IS NULL
+    `SELECT id FROM users WHERE role = 'operator_org' AND deleted_at IS NULL
      ORDER BY email LIMIT 1`,
   );
   if (rows.rows.length > 0) return rows.rows[0].id;
@@ -207,7 +213,7 @@ async function ensureOperator(client) {
      ORDER BY email LIMIT 1`,
   );
   if (master.rows.length > 0) return master.rows[0].id;
-  throw new Error('volume-incidents.js: no hay operador_org ni master — corre users.js primero.');
+  throw new Error('volume-incidents.js: no hay operator_org ni master — corre users.js primero.');
 }
 
 async function ensureApprover(client) {
@@ -365,7 +371,8 @@ function buildStatusHistoryRows(incidents) {
         created_at: new Date(inc.created_at.getTime() + 60 * 60 * 1000),
       });
     }
-    // ⚠️ NO escribimos resolved/approved -> closed (chk_status_history_new_status).
+    // ⚠️ NO escribimos la transición a `closed` (decisión del seeder; el
+    // dominio lo admite desde 0068 — ver la nota de la cabecera).
   }
   return rows;
 }

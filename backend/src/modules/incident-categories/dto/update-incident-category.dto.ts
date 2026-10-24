@@ -1,6 +1,6 @@
 import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
-import { IncidentPriority } from '../../../entities/incident.entity';
+import { IncidentPriority } from '../../incidents/entities/incident.entity';
 
 export class UpdateIncidentCategoryDto {
   @IsOptional()

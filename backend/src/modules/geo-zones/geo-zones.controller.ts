@@ -17,9 +17,9 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { PermissionGuard } from '../../common/guards/permission.guard';
-import { GeoZoneLevel } from '../../entities/geo-zone.entity';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
+import { GeoZoneLevel } from './entities/geo-zone.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateGeoZoneDto } from './dto/create-geo-zone.dto';
 import { ImportGeoZoneQueryDto } from './dto/import-geo-zone-query.dto';

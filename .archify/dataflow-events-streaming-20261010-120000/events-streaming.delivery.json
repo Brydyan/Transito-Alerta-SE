@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "0b9d7035-aa5b-4f5e-9726-eb7e7ec9eebd",
+  "status": "current",
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/dataflow-events-streaming-20261010-120000/candidate.json",
+  "output": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/dataflow-events-streaming-20261010-120000/events-streaming.html",
+  "specification": {
+    "sha256": "176cf92f0c9b4d114c41a687d19fffa31ab114e7919dd6f497d9bc505e2493d2",
+    "bytes": 5893
+  },
+  "artifact": {
+    "sha256": "f4f5b78292905f079b7148e24d9e9a10352c2e5a305ae4be7c19581191578c85",
+    "bytes": 764252
+  }
+}

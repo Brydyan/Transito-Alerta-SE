@@ -5,8 +5,10 @@ import type { Cache } from 'cache-manager';
 import type { DataSource, Repository } from 'typeorm';
 
 import { AuthService } from './auth.service';
-import { UserEntity } from '../../entities/user.entity';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { AuthContextService } from './auth-context.service';
+import { AuthUserRepository } from './auth-user.repository';
+import { UserEntity } from '../users/entities/user.entity';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { GraceBuffer } from '../sessions/grace-buffer';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { SessionsRepository } from '../sessions/sessions.repository';
@@ -87,12 +89,15 @@ describe('AuthService — password identity (T3.6)', () => {
     graceBuffer = { set: jest.fn(), get: jest.fn(), clear: jest.fn() };
     permissionLookup = makePermissionLookup();
     passwordHasher = { hash: jest.fn(), verify: jest.fn() };
-    service = new AuthService(
+    const authUserRepo = new AuthUserRepository(
       userRepo as unknown as jest.Mocked<Repository<UserEntity>>,
-      jwtService as unknown as JwtService,
-      cache as unknown as jest.Mocked<Cache>,
-      configService,
       dataSource as unknown as DataSource,
+    );
+    service = new AuthService(
+      authUserRepo,
+      jwtService as unknown as JwtService,
+      new AuthContextService(cache as unknown as Cache, configService, authUserRepo),
+      configService,
       sessionsRepository as unknown as SessionsRepository,
       revocationCache as unknown as RevocationCache,
       graceBuffer as unknown as GraceBuffer,
@@ -269,6 +274,10 @@ describe('AuthService — password identity (T3.6)', () => {
       userRepo.findOne.mockResolvedValue({
         id: 'user-1',
         deviceUuid: null,
+        firstName: 'María',
+        lastName: 'González',
+        email: 'maria@example.com',
+        avatarUrl: null,
         // El mock NO setea `emailVerifiedAt` a propósito. El booleano
         // `email_verified` se deriva de `emailVerifiedAt !== null`, así
         // que con `undefined` sale `true` (no es lo que parece).
@@ -292,13 +301,23 @@ describe('AuthService — password identity (T3.6)', () => {
       // `role_name` (vía `getAuthContextByUserId`, que ya hace
       // el JOIN con `roles`). Sin `role_name`, C.4 no puede
       // decidir el redirect al composer del OTP.
+      //
+      // 2026-10-17-avatar-empty-fix — el service ahora retorna
+      // firstName/lastName/email/avatarUrl para que el header
+      // del frontend pueda componer `name = firstName + ' ' +
+      // lastName` (la inicial del avatar). Sin esto, el avatar
+      // queda con `name = null` y renderiza vacío.
       expect(result).toEqual({
         deviceUuid: null,
         permissions: ['READ incidents'],
         email_verified: true,
         role_name: 'reporter',
+        firstName: 'María',
+        lastName: 'González',
+        email: 'maria@example.com',
+        avatarUrl: null,
       });
-      expect(cache.get).toHaveBeenCalledWith('perm:v3:uid:user-1');
+      expect(cache.get).toHaveBeenCalledWith('perm:v3:uid:user-1:pv1');
     });
 
     it('email_verified=false cuando emailVerifiedAt es null explícito (caso negativo)', async () => {
@@ -310,6 +329,10 @@ describe('AuthService — password identity (T3.6)', () => {
       userRepo.findOne.mockResolvedValue({
         id: 'user-2',
         deviceUuid: null,
+        firstName: null,
+        lastName: null,
+        email: null,
+        avatarUrl: null,
         emailVerifiedAt: null,
       });
       dataSource.query.mockResolvedValue([
@@ -326,6 +349,13 @@ describe('AuthService — password identity (T3.6)', () => {
 
       expect(result.email_verified).toBe(false);
       expect(result.role_name).toBe('reporter');
+      // 2026-10-17-avatar-empty-fix — los datos de perfil pueden
+      // ser null. El service los expone tal cual (sin reescribir),
+      // el frontend compone `name` con fallback al email.
+      expect(result.firstName).toBeNull();
+      expect(result.lastName).toBeNull();
+      expect(result.email).toBeNull();
+      expect(result.avatarUrl).toBeNull();
     });
   });
 
@@ -333,14 +363,14 @@ describe('AuthService — password identity (T3.6)', () => {
     it('deletes only the uid-keyed entry when deviceUuid is null', async () => {
       await service.invalidatePermissionCache('user-1', null);
 
-      expect(cache.del).toHaveBeenCalledWith('perm:v3:uid:user-1');
+      expect(cache.del).toHaveBeenCalledWith('perm:v3:uid:user-1:pv1');
       expect(cache.del).toHaveBeenCalledTimes(1);
     });
 
     it('deletes both entries when deviceUuid is present (unchanged pre-T3.6 behaviour)', async () => {
       await service.invalidatePermissionCache('user-1', 'device-abc');
 
-      expect(cache.del).toHaveBeenCalledWith('perm:v3:uid:user-1');
+      expect(cache.del).toHaveBeenCalledWith('perm:v3:uid:user-1:pv1');
       expect(cache.del).toHaveBeenCalledWith('perm:v3:device-abc');
       expect(cache.del).toHaveBeenCalledTimes(2);
     });

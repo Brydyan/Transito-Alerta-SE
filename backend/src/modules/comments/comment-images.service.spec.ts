@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { PermissionLookupService } from '../../common/permissions/permission-lookup.service';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { CommentImagesService } from './comment-images.service';
 import { CommentImageStorageService, MulterFile } from './comment-image-storage.service';
 

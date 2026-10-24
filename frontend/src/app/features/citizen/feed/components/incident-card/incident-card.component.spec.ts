@@ -39,6 +39,7 @@ describe('IncidentCardComponent', () => {
       zone_id: null,
       geofence_matched: false,
       organization_id: null,
+      is_anonymous: false,
       assigned_to: null,
       category_id: null,
       claimed_by: null,

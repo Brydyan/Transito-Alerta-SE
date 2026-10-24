@@ -1,0 +1,144 @@
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+
+export type IncidentStatus = 'pending' | 'in_progress' | 'resolved' | 'closed';
+export type IncidentPriority = 'low' | 'medium' | 'high' | 'critical';
+
+/**
+ * incidents table (T2.1 — 0004_incidents.sql).
+ *
+ * `location` is a PostGIS Point(SRID 4326) — NOT the MultiPolygon used by
+ * geo_zones. `zone_id`/`geofence_matched` are resolved ONCE at write time
+ * via GeofencingService.resolveZone (design D4); an incident outside all
+ * zones still persists with zone_id=null, geofence_matched=false (spec R2).
+ */
+@Entity('incidents')
+export class IncidentEntity {
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
+
+  @Column({ type: 'varchar' })
+  title!: string;
+
+  @Column({ type: 'text', nullable: true })
+  description!: string | null;
+
+  @Column({ type: 'geometry', spatialFeatureType: 'Point', srid: 4326 })
+  location!: string;
+
+  @Column({ type: 'varchar', default: 'pending' })
+  status!: IncidentStatus;
+
+  @Column({ type: 'varchar', default: 'medium' })
+  priority!: IncidentPriority;
+
+  /**
+   * AUD (sc-327) D1 — `citizen_id` pasa de significar "la persona"
+   * a "la autoría mostrada" en publicaciones anónimas. Si
+   * `is_anonymous = true`, esta columna apunta a la fila
+   * máscara (`users.device_uuid = 'anonymous'`); el autor real
+   * vive en `incident_reporters`. Si `is_anonymous = false`,
+   * apunta al usuario que creó la incidencia, como siempre.
+   *
+   * La columna se conserva con el nombre para no romper los
+   * tests y rutas preexistentes. El cambio de semántica está
+   * documentado en la cabecera de la migración 0046 y en
+   * `IncidentReporterEntity`.
+   */
+  @Column({ name: 'citizen_id', type: 'uuid' })
+  citizenId!: string;
+
+  /**
+   * AUD (sc-327) D1 — `true` si la autoría se muestra sin
+   * revelar al autor real. Cuando es `true`, `citizen_id`
+   * apunta a la máscara y existe una fila en
+   * `incident_reporters` con el id del autor.
+   */
+  @Column({ name: 'is_anonymous', type: 'boolean', default: false })
+  isAnonymous!: boolean;
+
+  @Column({ name: 'assigned_to', type: 'uuid', nullable: true })
+  assignedTo!: string | null;
+
+  @Column({ name: 'zone_id', type: 'uuid', nullable: true })
+  zoneId!: string | null;
+
+  @Column({ name: 'geofence_matched', type: 'boolean', default: false })
+  geofenceMatched!: boolean;
+
+  /** T3.7 — schema-only column; no service/DTO wiring in this task. */
+  @Column({ name: 'category_id', type: 'uuid', nullable: true })
+  categoryId!: string | null;
+
+  /**
+   * T3.2 — derived from the resolved zone at write time (design D4), never
+   * from the creator's own organization. NULL when outside every zone, or
+   * the zone has no organization (migration 0015).
+   */
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId!: string | null;
+
+  /** T5.1 — operator who currently holds the claim. NULL = unclaimed. */
+  @Column({ name: 'claimed_by', type: 'uuid', nullable: true })
+  claimedBy!: string | null;
+
+  /** T6.3 — timestamp of the last claim action (migration 0027). Not cleared on release. */
+  @Column({ name: 'claimed_at', type: 'timestamptz', nullable: true, default: null })
+  claimedAt!: Date | null;
+
+  /** T6.3 — timestamp when incident entered 'resolved'; NULL if re-opened (migration 0027). */
+  @Column({ name: 'resolution_date', type: 'timestamptz', nullable: true, default: null })
+  resolutionDate!: Date | null;
+
+  /**
+   * T5.6 — admin approve/reject decision columns (migration 0021).
+   * `approved_*` and `rejected_*` are written as a pair (CHECK pair constraint)
+   * and are mutually exclusive (XOR CHECK). `closed` status is the terminal
+   * state set when `approved_by` is populated.
+   */
+  @Column({ name: 'approved_by', type: 'uuid', nullable: true })
+  approvedBy!: string | null;
+
+  @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
+  approvedAt!: Date | null;
+
+  @Column({ name: 'rejected_by', type: 'uuid', nullable: true })
+  rejectedBy!: string | null;
+
+  @Column({ name: 'rejected_at', type: 'timestamptz', nullable: true })
+  rejectedAt!: Date | null;
+
+  @Column({ name: 'rejection_reason', type: 'text', nullable: true })
+  rejectionReason!: string | null;
+
+  /** T6.2 — soft delete timestamp (migration 0025). NULL = active. */
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true, default: null })
+  deletedAt!: Date | null;
+
+  /**
+   * F7 emergency-dispatch (migration 0069, design D10 — REVISED Round 2).
+   * Cycle counter for the Telegram repique of a critical incident that
+   * stays in `pending`. Values: 0 = initial (sent by
+   * `critical-incident.listener`), 1 = T+25min reminder to admin_org,
+   * 2 = T+40min reminder to admin_org, 3 = T+60min final message to
+   * `master` (single role). The scheduler stops touching the incident
+   * once `reminder_count >= 3`. Persisted on the row so restarting
+   * the scheduler process does NOT reset the cadence.
+   */
+  @Column({ name: 'reminder_count', type: 'integer', default: 0 })
+  reminderCount!: number;
+
+  /** F7 emergency-dispatch (migration 0069) — timestamp of the last reminder. */
+  @Column({ name: 'last_reminded_at', type: 'timestamptz', nullable: true, default: null })
+  lastRemindedAt!: Date | null;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt!: Date;
+
+  @Column({ name: 'updated_at', type: 'timestamptz', update: false })
+  updatedAt!: Date;
+}

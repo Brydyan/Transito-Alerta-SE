@@ -40,6 +40,11 @@ concurrency:
 jobs:
   rehearsal:
     name: Run cutover rehearsal against Supabase staging
+    # La etiqueta `staging` se añadió a mano al runner `tase-staging` el
+    # 2026-10-20. Hasta ese día este job pedía una etiqueta que ningún
+    # runner tenía: se quedaba en cola sin correr y sin fallar. Si vuelve a
+    # pasar, verifica la etiqueta del runner antes que este workflow — ver
+    # la nota de `actionlint.yaml`, que es lo que dejó el defecto invisible.
     runs-on: [self-hosted, staging]
     environment: staging
 

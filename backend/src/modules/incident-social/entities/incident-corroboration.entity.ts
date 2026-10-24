@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, Unique, Index, JoinColumn } from 'typeorm';
-import { IncidentEntity } from '../../../entities/incident.entity';
-import { UserEntity } from '../../../entities/user.entity';
+import { IncidentEntity } from '../../incidents/entities/incident.entity';
+import { UserEntity } from '../../users/entities/user.entity';
 
 @Entity('incident_corroborations')
 @Unique(['incident', 'user'])

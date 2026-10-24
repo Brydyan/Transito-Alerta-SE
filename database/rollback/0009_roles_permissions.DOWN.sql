@@ -1,5 +1,5 @@
 -- 0009_roles_permissions.DOWN.sql
--- Reverts T3.1 (Roles + Permissions modules).
+-- Reverts T3.1 (Roles + Permissions modules) + Group A consolidation.
 --
 -- WARNING: dropping `users.role_id`/`users.permission_version` removes the
 -- pv-bump mechanism RolesService.assignRole relies on to invalidate cached
@@ -14,7 +14,12 @@ ALTER TABLE users
 
 DROP TABLE IF EXISTS permissions;
 
-DELETE FROM roles WHERE name = 'reporter';
+DELETE FROM roles
+ WHERE name IN (
+   'reporter',
+   'admin_sistema', 'agent_system',
+   'admin_organizacion', 'operator_organizacion'
+ );
 
 ALTER TABLE roles
   DROP COLUMN IF EXISTS permissions;

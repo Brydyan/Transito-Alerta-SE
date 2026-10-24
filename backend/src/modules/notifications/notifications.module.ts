@@ -5,8 +5,8 @@ import { NotificationsController } from './notifications.controller';
 import { Notification } from './entities/notification.entity';
 import { IncidentNotificationsListener } from './listeners/incident-notifications.listener';
 import { UsersModule } from '../users/users.module';
-import { IncidentEntity } from '../../entities/incident.entity';
-import { CommentEntity } from '../../entities/comment.entity';
+import { IncidentEntity } from '../incidents/entities/incident.entity';
+import { CommentEntity } from '../comments/entities/comment.entity';
 import { IncidentApprovalService } from './incident-approval.service';
 
 @Module({

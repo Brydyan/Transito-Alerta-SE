@@ -3,7 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 import { ALL_ZONES_TAG, GeofencingService } from '../geofencing/geofencing.service';
-import { GEO_ZONE_LEVELS, GeoZoneLevel } from '../../entities/geo-zone.entity';
+import { GEO_ZONE_LEVELS, GeoZoneLevel } from './entities/geo-zone.entity';
 import { CreateGeoZoneDto } from './dto/create-geo-zone.dto';
 import { UpdateGeoZoneDto } from './dto/update-geo-zone.dto';
 import {

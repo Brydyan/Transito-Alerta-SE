@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 
-import { sha256Hex } from '../../src/common/crypto/session-hash';
-import { AuthContext } from '../../src/common/authz/subject-scope';
+import { sha256Hex } from '../../src/shared/crypto/session-hash';
+import { AuthContext } from '../../src/shared/authz/subject-scope';
 import { MailService } from '../../src/modules/mail/mail.service';
 import { generateToken } from '../../src/modules/auth/token-codec';
 import { PasswordResetService } from '../../src/modules/auth/password-reset.service';
@@ -84,7 +84,7 @@ describe('Invitations + Sessions — real-infra integration (T3.6)', () => {
   describe('InvitationsService.redeem — CAS integration (D3, real Postgres concurrency)', () => {
     it('two concurrent redeem() calls on one token: exactly one 201-equivalent wins, exactly one users row', async () => {
       const inviterId = await makeUser();
-      const role = await roleId('operador_org');
+      const role = await roleId('operator_org');
       const email = `cas-race-${randomUUID()}@example.com`;
       const token = generateToken();
       const tokenHash = sha256Hex(token);
@@ -217,13 +217,22 @@ describe('Invitations + Sessions — real-infra integration (T3.6)', () => {
         [randomUUID(), '<script>alert(1)</script> Org'],
       );
       const organizationId = orgRows[0].id;
-      const role = await roleId('operador_org');
+      const role = await roleId('operator_org');
       const email = `outbox-invite-${randomUUID()}@example.com`;
+
+      // createInvitation requiere un shadow user (is_active = FALSE) con ese
+      // email — el flujo real lo crea vía POST /api/users antes del invite.
+      await env.pg.query(
+        `INSERT INTO users (id, email, is_active) VALUES ($1, $2, FALSE)`,
+        [randomUUID(), email],
+      );
 
       const actor: AuthContext = {
         userId: inviterId,
         permissions: ['CREATE invitations'],
         organizationId: null,
+        // 2026-10-18 — `departmentId` agregado al AuthContext literal.
+        departmentId: null,
         roleName: 'master',
         scope: { kind: 'global' },
         sessionId: null,

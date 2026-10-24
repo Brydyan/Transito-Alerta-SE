@@ -16,20 +16,25 @@ import { UsersService } from '../services/users.service';
 import { InvitationsService } from '../services/invitations.service';
 import {
   DEFAULT_NEW_USER_FORM,
+  Department,
   NewUserFormData,
   Organization,
   RoleOption,
   RolePermissionsView,
   CreateUserJsonPayload,
+  SECTIONAL_ROLES,
+  GLOBAL_ROLES,
 } from '../models/user.interface';
 import { ToastService } from '../../../../shared/components/toast/toast.service';
 import { ConfirmDialogService } from '../../../../shared/components/confirm-dialog/confirm-dialog.service';
 import { UiPageHeaderComponent } from '../../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiIconComponent } from '../../../../shared/components/ui-icon/ui-icon.component';
+import { GeoZoneService } from '../../../catalogs/locations/services/geo-zone.service';
+import { IGeoZoneFormData } from '../../../catalogs/locations/interfaces/igeo-zone.interface';
+import { AuthService } from '../../../../core/services/auth.service';
 
 const AVATAR_MIME_ALLOWED = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
-const ROLES_REQUIRING_ORG = ['admin_org', 'operador_org'] as const;
 
 /**
  * NewUserFormComponent — F6 (`2026-09-08-f6-new-user-form`).
@@ -64,11 +69,30 @@ export class NewUserFormComponent implements OnInit {
   private readonly dialogService = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
+  private readonly geoZoneService = inject(GeoZoneService);
+  // 2026-10-16-new-user-form-notif-channel (D1) — el selector de canal
+  // y el gate del payload usan el rol del caller. Master puede editarlo
+  // y mandarlo en el submit; admin_org lo ve deshabilitado y el form
+  // nunca propaga el campo.
+  private readonly authService = inject(AuthService);
 
   // ---- Estado del formulario (D-frontend-3) -------------------------
   readonly formData = signal<NewUserFormData>({ ...DEFAULT_NEW_USER_FORM });
   readonly roles = signal<ReadonlyArray<RoleOption>>([]);
   readonly organizations = signal<ReadonlyArray<Organization>>([]);
+  readonly departments = signal<ReadonlyArray<Department>>([]);
+  /** sc-446 — active geo zones for the Alcance Territorial dropdown. */
+  readonly geoZones = signal<ReadonlyArray<IGeoZoneFormData['parents'][number]>>([]);
+
+  /** Nombre de la zona de la org seleccionada — campo informativo "Sector Operativo". */
+  readonly orgSectorName = computed<string>(() => {
+    const orgId = this.formData().organizationId;
+    if (!orgId) return '';
+    const org = this.organizations().find((o) => o.id === orgId);
+    if (!org?.zoneId) return '';
+    return this.geoZones().find((z) => z.id === org.zoneId)?.name ?? '';
+  });
+
   readonly permissionsCatalog = signal<ReadonlyArray<string>>([]);
   readonly selectedRolePermissions = signal<RolePermissionsView>({ access: [], noAccess: [] });
 
@@ -82,12 +106,33 @@ export class NewUserFormComponent implements OnInit {
   // ---- Computed -----------------------------------------------------
 
   /**
+   * D1 (2026-10-11) — departamentos filtrados por la organización
+   * actualmente seleccionada. Vacío si no hay org.
+   */
+  readonly filteredDepartments = computed<ReadonlyArray<Department>>(() => {
+    const orgId = this.formData().organizationId;
+    if (!orgId) return [];
+    return this.departments().filter((d) => d.organizationId === orgId);
+  });
+
+  /**
+   * D2 (2026-10-11) — true cuando el rol seleccionado es global
+   * (`master` o `agent_system`). Los roles globales no requieren
+   * org ni departamento.
+   */
+  readonly isGlobalRole = computed<boolean>(() => {
+    const d = this.formData();
+    if (!d.roleId) return false;
+    const role = this.roles().find((r) => r.id === d.roleId);
+    return !!role && (GLOBAL_ROLES as readonly string[]).includes(role.name);
+  });
+
+  /**
    * D-frontend-7 — validación reactiva. Reglas:
    *  - firstName y lastName: requerido, >= 2 chars
    *  - email: requerido, formato básico
    *  - phone: opcional, max 30 chars
-   *  - roleId: si el rol es `admin_org` u `operador_org`,
-   *    `organizationId` es requerido
+   *  - roleId sectorial (admin_org, operator_org): require `organizationId` y `departmentId`
    */
   readonly isFormValid = computed<boolean>(() => {
     const d = this.formData();
@@ -97,8 +142,9 @@ export class NewUserFormComponent implements OnInit {
     if (d.phone.length > 30) return false;
     if (d.roleId) {
       const role = this.roles().find((r) => r.id === d.roleId);
-      if (role && (ROLES_REQUIRING_ORG as readonly string[]).includes(role.name) && !d.organizationId) {
-        return false;
+      if (role && (SECTIONAL_ROLES as readonly string[]).includes(role.name)) {
+        if (!d.organizationId) return false;
+        if (!d.departmentId) return false;
       }
     }
     return true;
@@ -118,17 +164,33 @@ export class NewUserFormComponent implements OnInit {
       d.lastName !== '' ||
       d.phone !== '' ||
       d.organizationId !== null ||
+      d.departmentId !== null ||
       d.roleId !== null ||
+      d.geoZoneId !== null ||
       this.pendingAvatar() !== null
     );
   });
 
-  /** Roles que disparan warning de organización requerida. */
+  /** Roles sectoriales que disparan obligatoriedad de organización y departamento. */
   readonly requiresOrganization = computed<boolean>(() => {
     const d = this.formData();
     if (!d.roleId) return false;
     const role = this.roles().find((r) => r.id === d.roleId);
-    return !!role && (ROLES_REQUIRING_ORG as readonly string[]).includes(role.name);
+    return !!role && (SECTIONAL_ROLES as readonly string[]).includes(role.name);
+  });
+
+  /**
+   * 2026-10-16-new-user-form-notif-channel (D1) — el canal de
+   * notificaciones y el campo `preferred_notification_channel` del
+   * payload son Master-only. La comparación es case-insensitive
+   * (`roleName` puede llegar como `'Master'` o `'master'` desde el
+   * backend según el seed). `currentUser()` puede ser `null`
+   * brevemente al hidratar la sesión — el `?.` cortocircuita a `false`
+   * en ese caso.
+   */
+  readonly isMaster = computed<boolean>(() => {
+    const roleName = this.authService.currentUser()?.roleName;
+    return typeof roleName === 'string' && roleName.toLowerCase() === 'master';
   });
 
   // ---- Lifecycle ----------------------------------------------------
@@ -144,9 +206,10 @@ export class NewUserFormComponent implements OnInit {
       .getFormData()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ roles, organizations }) => {
+        next: ({ roles, organizations, departments }) => {
           this.roles.set(roles.map((r) => ({ id: r.id, name: r.name })));
           this.organizations.set(organizations);
+          this.departments.set(departments);
           this.isLoadingLookups.set(false);
         },
         error: () => {
@@ -154,6 +217,17 @@ export class NewUserFormComponent implements OnInit {
             'No se pudieron cargar los datos del formulario. Recargá la página para reintentar.',
           );
           this.isLoadingLookups.set(false);
+        },
+      });
+
+    // sc-446 — load geo zones in parallel; failure is non-fatal (dropdown stays disabled)
+    this.geoZoneService
+      .getFormData()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => this.geoZones.set(data.parents),
+        error: () => {
+          /* tolerar: el dropdown queda deshabilitado (geoZones vacío) */
         },
       });
   }
@@ -213,11 +287,34 @@ export class NewUserFormComponent implements OnInit {
   }
 
   onOrganizationChange(organizationId: string | null): void {
-    this.formData.update((d) => ({ ...d, organizationId }));
+    this.formData.update((d) => ({ ...d, organizationId, departmentId: null }));
+  }
+
+  /** D1 — selección de departamento. */
+  onDepartmentChange(departmentId: string | null): void {
+    this.formData.update((d) => ({ ...d, departmentId }));
+  }
+
+  /** sc-446 — selección de zona geográfica (Alcance Territorial). */
+  onGeoZoneChange(geoZoneId: string | null): void {
+    this.formData.update((d) => ({ ...d, geoZoneId }));
   }
 
   onSendInvitationChange(value: boolean): void {
     this.formData.update((d) => ({ ...d, sendInvitation: value }));
+  }
+
+  /**
+   * 2026-10-16-new-user-form-notif-channel (D1) — handler del selector
+   * de canal. Mismo patrón que `onSendInvitationChange`: spread del
+   * signal con la nueva rama. El template ya condiciona el binding al
+   * `disabled` al gate Master — si un no-Master dispara este handler
+   * (no debería: el select está disabled), el signal muta pero el
+   * submit filtra el campo vía `isMaster()` y nunca lo manda al
+   * backend. Defense in depth.
+   */
+  onNotificationChannelChange(value: 'email' | 'telegram'): void {
+    this.formData.update((d) => ({ ...d, notificationChannel: value }));
   }
 
   /**
@@ -287,6 +384,15 @@ export class NewUserFormComponent implements OnInit {
       phone: d.phone.trim(),
       role_id: d.roleId,
       organization_id: d.organizationId,
+      department_id: d.departmentId,
+      geo_zone_id: d.geoZoneId,
+      // 2026-10-16-new-user-form-notif-channel (D1) — gate Master.
+      // El backend acepta el campo, pero el form filtra el envío
+      // para mantener el surface area coherente con la regla "isActive
+      // también es Master-only" (defense in depth del lado cliente).
+      ...(this.isMaster() && {
+        preferred_notification_channel: d.notificationChannel,
+      }),
     };
 
     this.usersService
@@ -333,11 +439,29 @@ export class NewUserFormComponent implements OnInit {
         .subscribe({
           next: () => this.onSuccess(),
           error: (err: unknown) => {
-            const msg = this.inviteErrorMessage(err);
-            this.toastService.warning(
-              `Usuario creado, pero la invitación no se envió (${msg}). Podés reinvitarlo desde la lista.`,
-              'Aviso',
-            );
+            // 2026-10-16-invitations-shadow-guard (Opción A) — si el
+            // backend devuelve 422 SHADOW_USER_NOT_FOUND, el `POST
+            // /api/users` previo NO dejó el shadow row en la base
+            // (algo se rompió entre el alta y el invite). El mensaje
+            // genérico dice "podés reinvitarlo", pero reinvitar
+            // tampoco funciona sin el shadow — guiamos al usuario a
+            // reintentar el alta completa.
+            const isShadowMissing =
+              err instanceof HttpErrorResponse &&
+              err.status === 422 &&
+              (err.error as { code?: string } | null)?.code === 'SHADOW_USER_NOT_FOUND';
+            if (isShadowMissing) {
+              this.toastService.warning(
+                'No se pudo enviar la invitación: el usuario no fue creado correctamente. Intentá de nuevo.',
+                'Aviso',
+              );
+            } else {
+              const msg = this.inviteErrorMessage(err);
+              this.toastService.warning(
+                `Usuario creado, pero la invitación no se envió (${msg}). Podés reinvitarlo desde la lista.`,
+                'Aviso',
+              );
+            }
             this.onSuccess();
           },
         });
@@ -350,7 +474,35 @@ export class NewUserFormComponent implements OnInit {
     this.isSaving.set(false);
     const status = (err instanceof HttpErrorResponse && err.status) || 0;
     if (status === 409) {
-      this.toastService.error('Email ya registrado en el sistema', 'Error');
+      // 2026-10-17 — el backend (`UsersService.adminCreate`) ahora
+      // emite `code` específico en el body del 409. Mapeamos cada
+      // caso a un toast dedicado para no engañar al admin (antes
+      // cualquier 409 decía "Email ya registrado" incluso cuando
+      // el conflicto era realmente del teléfono — el admin
+      // revisaba el email pensando que estaba libre y perdía
+      // tiempo). Fallback: si el body no tiene `code`
+      // reconocible, mantenemos el mensaje genérico para
+      // compatibilidad con backends viejos.
+      const code =
+        (err instanceof HttpErrorResponse &&
+          (err.error as { code?: string } | null)?.code) ||
+        '';
+      if (code === 'PHONE_ALREADY_REGISTERED') {
+        this.toastService.error(
+          'El teléfono ya está registrado por otro usuario',
+          'Error',
+        );
+      } else if (code === 'EMAIL_ALREADY_CLAIMED') {
+        this.toastService.error(
+          'Email ya registrado en el sistema',
+          'Error',
+        );
+      } else {
+        this.toastService.error(
+          'Email ya registrado en el sistema',
+          'Error',
+        );
+      }
     } else if (status === 403) {
       this.toastService.error(
         'No tienes permiso para crear usuarios',

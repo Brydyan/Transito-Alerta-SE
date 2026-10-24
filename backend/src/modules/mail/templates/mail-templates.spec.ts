@@ -5,14 +5,14 @@ describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', (
     it('renders the link, role and organization name, all escaped', () => {
       const html = renderMailTemplate('invitation', {
         link: 'http://localhost:3000/accept-invitation?token=abc123',
-        roleName: 'operador_org',
+        roleName: 'operator_org',
         organizationName: 'Santa Elena Transito',
       });
 
       expect(html).toContain('http://localhost:3000/accept-invitation?token=abc123');
-      expect(html).toContain('operador_org');
+      expect(html).toContain('operator_org');
       expect(html).toContain('Santa Elena Transito');
-      expect(html).toMatch(/48 hours/);
+      expect(html).toMatch(/48 horas/);
     });
 
     it('escapes a poisoned token/link — no unescaped HTML reaches the body', () => {
@@ -25,6 +25,130 @@ describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', (
       expect(html).not.toContain('<script>');
       expect(html).not.toContain('<b>Org</b>');
     });
+
+    it('renders the Telegram activation section when telegramLink is provided', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'admin_org',
+        organizationName: 'Org Test',
+        telegramLink: 'https://t.me/tase_alert_bot?start=abc123',
+      });
+
+      expect(html).toContain('https://t.me/tase_alert_bot?start=abc123');
+      expect(html).toContain('Iniciar bot de Telegram');
+      expect(html).toContain('Este enlace expira en 24 horas');
+    });
+
+    it('renders the role guide section when roleGuide is provided', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'operator_org',
+        organizationName: 'Org Test',
+        roleGuide: 'Recibirás las alertas en Telegram.',
+      });
+
+      expect(html).toContain('Recibirás las alertas en Telegram.');
+      expect(html).toContain('Lo que harás como operator_org');
+    });
+
+    it('omits Telegram and role guide sections when neither field is provided', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'admin_org',
+        organizationName: 'Org Test',
+      });
+
+      expect(html).not.toContain('Iniciar bot de Telegram');
+      expect(html).not.toContain('Lo que harás como');
+    });
+
+    it('escapes a poisoned telegramLink', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'admin_org',
+        organizationName: 'Org Test',
+        telegramLink: '"><script>alert(1)</script>',
+      });
+
+      expect(html).not.toContain('<script>');
+    });
+
+    // 2026-10-16-invitation-email-styled-template (D2) — el template
+    // pasó de un fragmento sin layout a un documento HTML completo
+    // con saludo personalizado y tarjeta de detalles. Los tests de
+    // abajo cubren los campos nuevos y las defensas de escape.
+
+    it('renders inviterName in the details card', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        organizationName: 'Santa Elena',
+        inviterName: 'Carlos Mendoza',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).toContain('Carlos Mendoza');
+      expect(html).toContain('Invitado por');
+    });
+
+    it('renders recipientFirstName in the greeting when provided', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        organizationName: '',
+        recipientFirstName: 'María',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).toContain('Hola, María');
+    });
+
+    it('falls back to generic greeting when recipientFirstName is absent', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).toContain('Hola 👋');
+      expect(html).not.toContain('Hola, ');
+    });
+
+    it('renders formatted expiresAt in the details card', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        recipientEmail: 'maria@test.com',
+        expiresAt: new Date('2026-10-15T23:59:00Z').toISOString(),
+      });
+      expect(html).toContain('UTC-5');
+      expect(html).toContain('Expira');
+    });
+
+    it('renders recipientEmail in the footer', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).toContain('maria@test.com');
+    });
+
+    it('escapes inviterName — poisoned value never reaches body unescaped', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        inviterName: '<script>alert(1)</script>',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).not.toContain('<script>');
+    });
+
+    it('returns a full HTML document (<!DOCTYPE html>)', () => {
+      const html = renderMailTemplate('invitation', {
+        link: 'http://localhost/accept',
+        roleName: 'Operador de Organización',
+        recipientEmail: 'maria@test.com',
+      });
+      expect(html).toMatch(/^<!DOCTYPE html>/i);
+    });
   });
 
   describe('password-reset', () => {
@@ -34,7 +158,7 @@ describe('renderMailTemplate — invitation / password-reset (T3.6 task 7.3)', (
       });
 
       expect(html).toContain('http://localhost:3000/reset-password?token=xyz789');
-      expect(html).toMatch(/24 hours/);
+      expect(html).toMatch(/24 horas/);
       expect(html.toLowerCase()).not.toContain('your password is');
     });
 

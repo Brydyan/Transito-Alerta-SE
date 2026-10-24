@@ -136,8 +136,18 @@ describe('E2E flows (T4.1a step 2, Part B)', () => {
   });
 
   it('assignment: an operator claims an incident, a second claim conflicts, the event reaches incidents:events', async () => {
-    const operator = await env.provisionUser(['CREATE incidents', 'READ incidents', 'ASSIGN assignments']);
-    const secondOperator = await env.provisionUser(['ASSIGN assignments']);
+    // F7 D12: assign() calls loadOperator() which returns null (→ 404) when
+    // the operator's organization_id is null. We cannot rely on the seeded
+    // 'CTE - Santa Elena' org because reset() does
+    // `TRUNCATE incident_categories CASCADE`, which cascades to organizations
+    // via organizations.incident_category_id → incident_categories.id.
+    // Insert a fresh org for this test instead.
+    const { rows: [{ id: orgId }] } = await env.pg.query<{ id: string }>(
+      `INSERT INTO organizations (name, max_active_claims) VALUES ($1, 5) RETURNING id`,
+      [`flows-assign-${randomUUID()}`],
+    );
+    const operator = await env.provisionUser(['CREATE incidents', 'READ incidents', 'ASSIGN assignments'], { organizationId: orgId });
+    const secondOperator = await env.provisionUser(['ASSIGN assignments'], { organizationId: orgId });
 
     const incident = await request(env.httpServer)
       .post('/api/incidents')

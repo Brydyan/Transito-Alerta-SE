@@ -1,7 +1,7 @@
 import { Reflector } from '@nestjs/core';
 import { MenuOptionsController } from './menu-options.controller';
 import { MenuOptionsService } from './menu-options.service';
-import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
+import { REQUIRE_PERMISSION_KEY } from '../../shared/decorators/require-permission.decorator';
 
 /**
  * F5.5.4 — MenuOptionsController permission metadata tests.

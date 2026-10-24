@@ -3,8 +3,8 @@ import { Reflector } from '@nestjs/core';
 
 import { DepartmentsController } from './departments.controller';
 import { DepartmentsService } from './departments.service';
-import { REQUIRE_PERMISSION_KEY } from '../../common/decorators/require-permission.decorator';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { REQUIRE_PERMISSION_KEY } from '../../shared/decorators/require-permission.decorator';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 
 const activeDept = {
   id: 'dept-1',
@@ -26,7 +26,7 @@ const activeDept = {
  * the metadata it should).
  *
  * Scope matrix:
- *   master / operador_sistema → bypass org-scope checks (see all)
+ *   master / agent_system → bypass org-scope checks (see all)
  *   admin_org → caller's `organizationId` MUST equal `dept.organization_id`
  *   any other role with an org → same as admin_org
  *   any other role WITHOUT an org → 403 (no fallback to "see all")
@@ -268,12 +268,12 @@ describe('DepartmentsController', () => {
       expect(service.createWithCategories).not.toHaveBeenCalled();
     });
 
-    it('operador_sistema: bypass (treated like master for scope)', async () => {
+    it('agent_system: bypass (treated like master for scope)', async () => {
       service.createWithCategories.mockResolvedValue({ ...activeDept, organization_id: 'org-9' });
 
       await controller.create(
         { ...baseDto, organization_id: 'org-9' } as never,
-        buildReq({ roleName: 'operador_sistema', organizationId: null }),
+        buildReq({ roleName: 'agent_system', organizationId: null }),
       );
 
       expect(service.createWithCategories).toHaveBeenCalled();

@@ -11,9 +11,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import { UsersService } from '../services/users.service';
 import {
+  Department,
   Organization,
   Role,
   toUserStatus,
@@ -53,7 +55,7 @@ import { UserDetailModalService } from '../user-detail-modal/user-detail-modal.s
  * `ActionMenuComponent` viven en `users-list/components/`.
  *
  * Decisiones de diseño aplicadas (D7): NO `*hasPermission` sobre
- * los botones de la lista. La idea es que `operador_org` ve
+ * los botones de la lista. La idea es que `operator_org` ve
  * los botones y, al hacer click, recibe un 403 del backend
  * que el toast traduce. La spec D1 dice que no se pueden
  * modificar aserciones preexistentes — y los specs viejos del
@@ -104,6 +106,7 @@ export class UsersListComponent implements OnInit {
   readonly users = signal<ReadonlyArray<User>>([]);
   readonly roles = signal<ReadonlyArray<Role>>([]);
   readonly organizations = signal<ReadonlyArray<Organization>>([]);
+  readonly departments = signal<ReadonlyArray<Department>>([]);
   readonly total = signal(0);
   readonly isLoading = signal(false);
   readonly errorMessage = signal<string | null>(null);
@@ -118,6 +121,13 @@ export class UsersListComponent implements OnInit {
   readonly searchTerm = signal('');
   readonly selectedRole = signal('');
   readonly selectedOrg = signal('');
+  // 2026-10-16 — toggle "mostrar inactivos" en la lista. Por
+  // defecto el signal es `false` (lista todos los usuarios
+  // ACTIVOS — el comportamiento histórico). Cuando el admin
+  // activa el toggle, el componente setea `true` y vuelve a llamar
+  // a `loadUsers()` con `activeOnly=false` para mostrar los
+  // shadow-users pendientes de invitación.
+  readonly showInactiveOnly = signal(false);
 
   /**
    * Lista que se muestra en la grilla.
@@ -261,21 +271,30 @@ export class UsersListComponent implements OnInit {
       orgs: this.usersService.getOrganizations().pipe(
         catchError(() => of([] as ReadonlyArray<Organization>)),
       ),
+      depts: this.usersService.getFormData().pipe(
+        map((fd) => fd.departments),
+        catchError(() => of([] as ReadonlyArray<Department>)),
+      ),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ roles, orgs }) => {
+      .subscribe(({ roles, orgs, depts }) => {
         this.roles.set(roles);
         this.organizations.set(orgs);
+        this.departments.set(depts);
       });
   }
 
   /** F6 fix batch (C.1) — resuelve el id de organización del usuario
-   *  contra el signal `organizations()` (poblado por
-   *  `UsersService.getOrganizations()` en `loadLookups()`). `—` si no
-   *  hay id o si el id no matchea ninguna organización cargada. */
+   *  contra el signal `organizations()`. `—` si no hay id o no matchea. */
   getOrganizationName(orgId: string | null | undefined): string {
     if (!orgId) return '—';
     return this.organizations().find((o) => o.id === orgId)?.nombre ?? '—';
+  }
+
+  /** Resuelve el id de departamento contra el signal `departments()`. */
+  getDepartmentName(deptId: string | null | undefined): string {
+    if (!deptId) return '—';
+    return this.departments().find((d) => d.id === deptId)?.nombre ?? '—';
   }
 
   protected loadUsers(): void {
@@ -287,6 +306,13 @@ export class UsersListComponent implements OnInit {
         this.pageSize(),
         this.selectedRole() || undefined,
         this.selectedOrg() || undefined,
+        // 2026-10-16 — toggle "mostrar inactivos". Por defecto
+        // (signal `false`) el componente NO pasa nada y el service
+        // mapea `undefined` → no query param → el backend devuelve
+        // todos los usuarios con `isActive: true`. Cuando el
+        // toggle está activo, pasamos `false` para forzar
+        // `isActive: false` en el WHERE.
+        this.showInactiveOnly() ? false : undefined,
       )
       .pipe(
         takeUntilDestroyed(this.destroyRef),
@@ -355,6 +381,17 @@ export class UsersListComponent implements OnInit {
       }),
     );
     this.refetch();
+  }
+
+  // 2026-10-16 — toggle "mostrar inactivos". El admin marca el
+  // checkbox para listar los shadow-users pendientes de invitación;
+  // desmarcándolo vuelve a la lista histórica de usuarios activos.
+  // Reset page a 1 porque el universo de la query cambió
+  // completamente (no tiene sentido mantener el offset de página).
+  onToggleInactive(value: boolean): void {
+    this.showInactiveOnly.set(value);
+    this.currentPage.set(1);
+    this.loadUsers();
   }
 
   onPageChange(page: number): void {

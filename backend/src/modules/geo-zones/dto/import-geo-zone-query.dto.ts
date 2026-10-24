@@ -1,7 +1,7 @@
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 
-import { GEO_ZONE_LEVELS, GeoZoneLevel } from '../../../entities/geo-zone.entity';
+import { GEO_ZONE_LEVELS, GeoZoneLevel } from '../entities/geo-zone.entity';
 
 /**
  * Query-string DTO for POST /geo-zones/import (design D5).

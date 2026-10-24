@@ -1,6 +1,6 @@
 import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
-import { IncidentStatus } from '../../../entities/incident.entity';
+import { IncidentStatus } from '../entities/incident.entity';
 import { ALLOWED_STATUSES } from '../incident-state-machine';
 
 /**

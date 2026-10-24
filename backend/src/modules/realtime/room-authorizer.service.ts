@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 import { canJoinRoom } from './room.util';
 
 /**

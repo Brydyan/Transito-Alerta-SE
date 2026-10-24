@@ -123,7 +123,7 @@ describe('E2E AUD — D4 transactional rollback (FIX-1) + reveal coverage (FIX-2
   }
 
   /** Crea una organización sin zona (los roles `admin_org` y
-   * `operador_org` requieren FK válida). El trigger UNIQUE de
+   * `operator_org` requieren FK válida). El trigger UNIQUE de
    * organizaciones por nombre+zone se evita usando un
    * `randomUUID()` como id y un nombre único. */
   async function ensureOrg(): Promise<string> {
@@ -155,7 +155,7 @@ describe('E2E AUD — D4 transactional rollback (FIX-1) + reveal coverage (FIX-2
   });
 
   it('FIX-2.2: GET /incidents/:id como staff NO expone el id del autor real', async () => {
-    // Usamos `master` (no `operador_org`) para evitar la
+    // Usamos `master` (no `operator_org`) para evitar la
     // dependencia con la zona geofence: un master con
     // scope `global` ve la incidencia sin importar la
     // organización resuelta. Lo que prueba este test es
@@ -468,12 +468,12 @@ describe('E2E AUD — D4 transactional rollback (FIX-1) + reveal coverage (FIX-2
     expect(csv.text).toContain(id);
   });
 
-  it('WARNING-A.4: operador_org NO puede revelar — 403', async () => {
+  it('WARNING-A.4: operator_org NO puede revelar — 403', async () => {
     const { id } = await createAnonymousIncident();
     const orgId = await ensureOrg();
     const op = await env.provisionUser([], {
       organizationId: orgId,
-      roleName: 'operador_org',
+      roleName: 'operator_org',
     });
     await request(env.httpServer)
       .post(`/api/incidents/${id}/reveal-reporter`)
@@ -482,10 +482,10 @@ describe('E2E AUD — D4 transactional rollback (FIX-1) + reveal coverage (FIX-2
       .expect(403);
   });
 
-  it('WARNING-A.5: operador_sistema NO puede revelar — 403', async () => {
+  it('WARNING-A.5: agent_system NO puede revelar — 403', async () => {
     const { id } = await createAnonymousIncident();
     const op = await env.provisionUser([], {
-      roleName: 'operador_sistema',
+      roleName: 'agent_system',
     });
     await request(env.httpServer)
       .post(`/api/incidents/${id}/reveal-reporter`)

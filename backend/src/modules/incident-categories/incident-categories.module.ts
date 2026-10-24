@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { IncidentCategoryEntity } from '../../entities/incident-category.entity';
+import { IncidentCategoryEntity } from './entities/incident-category.entity';
 import { IncidentCategoriesController } from './incident-categories.controller';
 import { IncidentCategoriesRepository } from './incident-categories.repository';
 import { IncidentCategoriesService } from './incident-categories.service';
@@ -16,6 +16,6 @@ import { IncidentCategoriesService } from './incident-categories.service';
   imports: [TypeOrmModule.forFeature([IncidentCategoryEntity])],
   controllers: [IncidentCategoriesController],
   providers: [IncidentCategoriesService, IncidentCategoriesRepository],
-  exports: [IncidentCategoriesService],
+  exports: [IncidentCategoriesService, IncidentCategoriesRepository],
 })
 export class IncidentCategoriesModule {}

@@ -1,6 +1,6 @@
 import type { DataSource } from 'typeorm';
 
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 import { RoomAuthorizer } from './room-authorizer.service';
 
 function ctx(overrides: Partial<AuthContext> = {}): AuthContext {
@@ -8,6 +8,8 @@ function ctx(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'user-1',
     permissions: [],
     organizationId: 'org-A',
+    // 2026-10-18 — `departmentId` agregado al factory.
+    departmentId: null,
     roleName: 'admin_org',
     scope: { kind: 'org', organizationId: 'org-A' },
     sessionId: 'session-1',

@@ -2,13 +2,13 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Not, Repository } from 'typeorm';
 
-import { RoleEntity } from '../../entities/role.entity';
-import { UserEntity } from '../../entities/user.entity';
-import { PermissionEntity } from '../../entities/permission.entity';
+import { RoleEntity } from './entities/role.entity';
+import { UserEntity } from '../users/entities/user.entity';
+import { PermissionEntity } from '../permissions/entities/permission.entity';
 import { MenuOptionRoleEntity } from '../menus/entities/menu-option-role.entity';
 import { MenuOptionEntity } from '../menus/entities/menu-option.entity';
-import { AuthContext } from '../../common/authz/subject-scope';
-import { assertCanGrantRole, assertCanManage } from '../../common/authz/assert-can-manage';
+import { AuthContext } from '../../shared/authz/subject-scope';
+import { assertCanGrantRole, assertCanManage } from '../../shared/authz/assert-can-manage';
 import { AuthService } from '../auth/auth.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -18,8 +18,8 @@ import { RoleStatsDto } from './dto/role-stats.dto';
  * AUD (sc-327) FIX-6 (ronda 12) — nombres de roles sembrados
  * por las migraciones. Una migración 0015 los siembra
  * con sus nombres largos (`admin_organizacion`,
- * `operador_organizacion`) y la 0047 los renombra a
- * `admin_org` / `operador_org`. El conjunto FINAL —el que
+ * `operator_organizacion`) y la 0047 los renombra a
+ * `admin_org` / `operator_org`. El conjunto FINAL —el que
  * el código de runtime ve— es este. Tratarlos como
  * identificadores, no como etiquetas, es lo que el FIX-6
  * exige: las migraciones conceden permisos por nombre, así
@@ -30,8 +30,8 @@ import { RoleStatsDto } from './dto/role-stats.dto';
 const SEEDED_ROLE_NAMES: ReadonlySet<string> = new Set([
   'master',
   'admin_org',
-  'operador_org',
-  'operador_sistema',
+  'operator_org',
+  'agent_system',
   'reporter',
 ]);
 

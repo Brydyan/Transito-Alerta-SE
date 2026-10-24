@@ -51,7 +51,7 @@ describe('E2E audit-logs export (F6 — stub)', () => {
   it('STUB R1-S5: GET /api/audit-logs with a user lacking READ audit-logs returns 403', async () => {
     const user = await env.provisionUser(['READ incidents'], {
       email: `noperm-${Date.now()}@example.com`,
-      roleName: 'operador_org',
+      roleName: 'operator_org',
     });
     await request(env.httpServer)
       .get('/api/audit-logs')

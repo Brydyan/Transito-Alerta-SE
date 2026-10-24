@@ -3,7 +3,7 @@ import { EventsGateway } from './events.gateway';
 import { AuthService } from '../auth/auth.service';
 import { RevocationCache } from '../sessions/revocation-cache';
 import { RoomAuthorizer } from './room-authorizer.service';
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 
 function makeSocket(overrides: Record<string, unknown> = {}) {
   return {
@@ -21,6 +21,8 @@ function makeAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: 'user-1',
     permissions: ['READ incidents'],
     organizationId: null,
+    // 2026-10-18 — `departmentId` agregado al factory. Default null.
+    departmentId: null,
     roleName: null,
     scope: { kind: 'global' },
     sessionId: null,

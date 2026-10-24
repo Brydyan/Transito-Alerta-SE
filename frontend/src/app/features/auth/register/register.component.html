@@ -13,7 +13,7 @@
             <input
               id="email"
               type="email"
-              class="form-input w-full"
+              class="form-control w-full"
               formControlName="email"
               autocomplete="email"
               data-testid="email-input"
@@ -34,7 +34,7 @@
             <input
               id="email_confirm"
               type="email"
-              class="form-input w-full"
+              class="form-control w-full"
               formControlName="email_confirm"
               autocomplete="email"
               data-testid="email-confirm-input"
@@ -57,7 +57,7 @@
             <input
               id="first_name"
               type="text"
-              class="form-input w-full"
+              class="form-control w-full"
               formControlName="first_name"
               autocomplete="given-name"
               data-testid="first-name-input"
@@ -72,7 +72,7 @@
             <input
               id="last_name"
               type="text"
-              class="form-input w-full"
+              class="form-control w-full"
               formControlName="last_name"
               autocomplete="family-name"
               data-testid="last-name-input"
@@ -84,14 +84,30 @@
 
           <div>
             <label class="form-label" for="password">Contraseña</label>
-            <input
-              id="password"
-              type="password"
-              class="form-input w-full"
-              formControlName="password"
-              autocomplete="new-password"
-              data-testid="password-input"
-            />
+            <div class="relative">
+              <input
+                id="password"
+                [type]="showPassword() ? 'text' : 'password'"
+                class="form-control w-full pr-10"
+                formControlName="password"
+                autocomplete="new-password"
+                data-testid="password-input"
+              />
+              <button
+                type="button"
+                class="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 focus:outline-none focus:text-slate-600"
+                data-testid="toggle-password-visibility"
+                [attr.aria-label]="showPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                [attr.aria-pressed]="showPassword()"
+                (click)="togglePassword()"
+              >
+                <ui-icon
+                  [name]="showPassword() ? 'eye-off' : 'eye'"
+                  [size]="18"
+                  [strokeWidth]="2"
+                />
+              </button>
+            </div>
             <p class="text-xs text-slate-500 mt-1">
               12+ caracteres, con mayúscula, minúscula, dígito y símbolo.
             </p>

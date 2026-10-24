@@ -76,7 +76,7 @@ describe('E2E map UI support — map filters + users form-data (T5.4)', () => {
 
     // Membership: every seeded role / every org the test inserted shows up.
     expect(roleNames).toContain('master');
-    expect(roleNames).toContain('operador_org');
+    expect(roleNames).toContain('operator_org');
     expect(roleNames).toContain('reporter');
     const orgIds = (response.body.organizations as Array<{ id: string }>).map((o) => o.id);
     expect(orgIds).toEqual(expect.arrayContaining([orgA, orgB]));
@@ -100,8 +100,8 @@ describe('E2E map UI support — map filters + users form-data (T5.4)', () => {
 
     const roleNames = (response.body.roles as Array<{ name: string }>).map((r) => r.name);
     expect(roleNames).not.toContain('master');
-    expect(roleNames).not.toContain('operador_sistema');
-    expect(roleNames).toContain('operador_org');
+    expect(roleNames).not.toContain('agent_system');
+    expect(roleNames).toContain('operator_org');
     expect(roleNames).toContain('reporter');
     const orgIds = (response.body.organizations as Array<{ id: string }>).map((o) => o.id);
     expect(orgIds).toEqual([orgA]);

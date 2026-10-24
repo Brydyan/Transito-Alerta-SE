@@ -22,10 +22,10 @@
     </p>
 
     <button
-      routerLink="/app/dashboard"
+      [routerLink]="homeRoute()"
       class="btn btn-primary btn-lg rounded-pill px-4 fw-semibold"
     >
-      Volver al Panel de Inicio
+      {{ homeLabel() }}
     </button>
   </div>
 </div>

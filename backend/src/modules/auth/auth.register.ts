@@ -5,8 +5,8 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
-import { UserEntity } from '../../entities/user.entity';
-import { RoleEntity } from '../../entities/role.entity';
+import { UserEntity } from '../users/entities/user.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
 import { PasswordHasher } from './password-hasher';
 import { EmailVerificationService } from './email-verification.service';
 
@@ -82,7 +82,7 @@ export const REGISTRATION_INDISTINGUISHABLE_MESSAGE =
  * **D1 (design.md) — el rol es constante del servidor.** Este
  * service resuelve el rol `reporter` por nombre. La tabla
  * `roles` se siembra con ese nombre en `0009_roles_permissions.sql`
- * (y se renombró en `0040_rename_roles.sql`); un fallo en el
+ * (y se renombró en `0023_t7_data_migrations.sql`); un fallo en el
  * lookup es un error de configuración, no un fallback.
  *
  * **D3 (design.md) — la respuesta es indistinguible.** El
@@ -201,7 +201,7 @@ export class AuthRegisterService {
     });
     if (!reporterRole) {
       this.logger.error(
-        'Register: rol `reporter` no encontrado en la tabla `roles`. Aplicar 0009 + 0040.',
+        'Register: rol `reporter` no encontrado en la tabla `roles`. Aplicar 0009 + 0023.',
       );
       // Misma forma de respuesta. El cliente no puede
       // distinguir este caso de un alta exitosa.

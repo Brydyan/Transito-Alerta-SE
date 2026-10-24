@@ -13,9 +13,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
-import { PermissionGuard } from '../../common/guards/permission.guard';
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DepartmentRow } from './departments.repository';
 import { DepartmentsService, ListResult } from './departments.service';
@@ -23,7 +23,7 @@ import { CreateDepartmentDto } from './dto/create-department.dto';
 import { ListDepartmentsQuery } from './dto/list-departments.query';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 
-const GLOBAL_ROLES = new Set(['master', 'operador_sistema']);
+const GLOBAL_ROLES = new Set(['master', 'agent_system']);
 
 /**
  * DepartmentsController (`back/2026-09-15-departments-module`).
@@ -33,11 +33,11 @@ const GLOBAL_ROLES = new Set(['master', 'operador_sistema']);
  *     `PermissionGuard`. The catalog rows for `departments` (READ /
  *     CREATE / UPDATE / DELETE) come from migration `0057`.
  *   - Inside each handler, the controller adds the **org-scope check**:
- *     master + operador_sistema see everything; admin_org + below see
+ *     master + agent_system see everything; admin_org + below see
  *     only their own org. Concretely:
- *       - LIST: if the caller is not master/operador_sistema, override
+ *       - LIST: if the caller is not master/agent_system, override
  *         `query.organizationId` to the caller's own org.
- *       - CREATE: if the caller is not master/operador_sistema, the
+ *       - CREATE: if the caller is not master/agent_system, the
  *         DTO's `organizationId` MUST equal the caller's org → 403
  *         otherwise.
  *       - READ / UPDATE / DELETE: load the dept first, then compare its
@@ -171,7 +171,7 @@ export class DepartmentsController {
   }
 
   /**
-   * Single-source org-scope check. `master` and `operador_sistema`
+   * Single-source org-scope check. `master` and `agent_system`
    * bypass it; everyone else must match exactly. Missing
    * `organizationId` on either side throws 403 — we don't silently
    * fall back to "no filter", which would let a misconfigured caller

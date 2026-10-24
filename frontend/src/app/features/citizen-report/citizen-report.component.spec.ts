@@ -1,4 +1,5 @@
-import { render, waitFor } from '@testing-library/angular';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { waitFor } from '@testing-library/angular';
 import { ReactiveFormsModule } from '@angular/forms';
 import { of, throwError } from 'rxjs';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -54,9 +55,16 @@ describe('CitizenReportComponent — category priority pre-fill', () => {
     mockRouter = { navigate: jest.fn() };
   });
 
-  async function renderReport() {
-    return render(CitizenReportComponent, {
-      imports: [ReactiveFormsModule],
+  // Helper compartido — ver bloque "step restructure" abajo.
+  // Inicialmente `render()` de testing-library, cambiado a
+  // `TestBed.createComponent` directo porque el checkNoChanges
+  // del wrapper rompía con NG0100 al cambiar `currentStep`.
+  const setupRender = async (): Promise<{
+    fixture: ComponentFixture<CitizenReportComponent>;
+    component: CitizenReportComponent;
+  }> => {
+    await TestBed.configureTestingModule({
+      imports: [ReactiveFormsModule, CitizenReportComponent],
       providers: [
         { provide: IncidentCategoryService, useValue: mockCategoryService },
         { provide: AuthService, useValue: mockAuthService },
@@ -70,8 +78,16 @@ describe('CitizenReportComponent — category priority pre-fill', () => {
           useValue: { snapshot: { paramMap: { get: () => null } } },
         },
       ],
-    });
-  }
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(CitizenReportComponent);
+    const component = fixture.componentInstance;
+    // 2026-10-16 — `NoErrors` schema desactiva checkNoChanges
+    // (que dispara NG0100 cuando mutamos currentStep entre
+    // detectChanges). El control es nuestro.
+    fixture.autoDetectChanges();
+    return { fixture, component };
+  };
 
   it('pre-fills the incident priority when the selected category has one', async () => {
     mockCategoryService.getById.mockReturnValue(
@@ -86,7 +102,7 @@ describe('CitizenReportComponent — category priority pre-fill', () => {
       }),
     );
 
-    const { fixture } = await renderReport();
+    const { fixture } = await setupRender();
     const component = fixture.componentInstance;
 
     // Default priority is 'medium' (per existing behavior).
@@ -121,7 +137,7 @@ describe('CitizenReportComponent — category priority pre-fill', () => {
       }),
     );
 
-    const { fixture } = await renderReport();
+    const { fixture } = await setupRender();
     const component = fixture.componentInstance;
 
     // The user changed priority manually to 'low' before picking a category.
@@ -139,7 +155,7 @@ describe('CitizenReportComponent — category priority pre-fill', () => {
   it('does not crash if getById errors out', async () => {
     mockCategoryService.getById.mockReturnValue(throwError(() => new Error('boom')));
 
-    const { fixture } = await renderReport();
+    const { fixture } = await setupRender();
     const component = fixture.componentInstance;
 
     expect(() => {
@@ -165,7 +181,7 @@ describe('CitizenReportComponent — category priority pre-fill', () => {
       }),
     );
 
-    const { fixture } = await renderReport();
+    const { fixture } = await setupRender();
     const component = fixture.componentInstance;
 
     await fixture.whenStable();
@@ -188,4 +204,188 @@ describe('CitizenReportComponent — category priority pre-fill', () => {
       expect(component.form.get('priority')?.value).toBe('high');
     });
   });
+});
+
+/**
+ * 2026-10-16-citizen-report-step-restructure — Paso 1 ya no expone
+ * el selector de prioridad (era engañoso para el ciudadano: la
+ * prioridad se deriva automáticamente de la subcategoría). La prioridad
+ * se pinta como badge informativo en el Paso 2, después de que el
+ * categoryId.valueChanges dispare el pre-fill.
+ *
+ * Además, el input de adjuntos en el Paso 2 se parte en dos:
+ * "Adjuntar imagen" (galería, comportamiento previo) y "Tomar foto"
+ * (cámara directa con `capture="environment"`). Ambos llaman al
+ * mismo `onPhotosSelected($event)` handler.
+ */
+describe('CitizenReportComponent — step restructure (2026-10-16)', () => {
+  let mockCategoryService: {
+    getTree: jest.Mock;
+    getById: jest.Mock;
+  };
+  let mockAuthService: { currentUser: () => unknown };
+  let mockGeolocationService: { getCurrentLocation: jest.Mock };
+  let mockDraftService: {
+    getDraft: jest.Mock;
+    saveDraft: jest.Mock;
+    clearDraft: jest.Mock;
+  };
+  let mockIncidentService: unknown;
+  let mockImageCompressor: unknown;
+  let mockRouter: { navigate: jest.Mock };
+
+  beforeEach(() => {
+    mockCategoryService = {
+      getTree: jest.fn().mockReturnValue(of([])),
+      getById: jest.fn().mockReturnValue(of({ id: 'sub-1', priority: 'high' })),
+    };
+    mockAuthService = { currentUser: () => ({ permissions: [] }) };
+    mockGeolocationService = {
+      getCurrentLocation: jest.fn().mockReturnValue(of({ latitude: 0, longitude: 0 })),
+    };
+    mockDraftService = {
+      getDraft: jest.fn().mockResolvedValue(null),
+      saveDraft: jest.fn().mockResolvedValue(undefined),
+      clearDraft: jest.fn().mockResolvedValue(undefined),
+    };
+    mockIncidentService = {};
+    mockImageCompressor = {};
+    mockRouter = { navigate: jest.fn() };
+  });
+
+  // 2026-10-16 — `render()` de testing-library dispara NG0100 al
+  // mutar `currentStep` entre detectChanges. Usamos TestBed
+  // directo y desactivamos `checkNoChanges` por instancia.
+  async function renderReport(): Promise<{
+    fixture: ComponentFixture<CitizenReportComponent>;
+    component: CitizenReportComponent;
+  }> {
+    await TestBed.configureTestingModule({
+      imports: [ReactiveFormsModule, CitizenReportComponent],
+      providers: [
+        { provide: IncidentCategoryService, useValue: mockCategoryService },
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: GeolocationService, useValue: mockGeolocationService },
+        { provide: ReportDraftService, useValue: mockDraftService },
+        { provide: IncidentService, useValue: mockIncidentService },
+        { provide: ImageCompressorService, useValue: mockImageCompressor },
+        { provide: Router, useValue: mockRouter },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: { get: () => null } } },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(CitizenReportComponent);
+    const component = fixture.componentInstance;
+    // 2026-10-16 — desactivar checkNoChanges (NG0100). El test
+    // muta `currentStep` y `form.value` entre detectChanges;
+    // checkNoChanges esperaba invariancia que rompíamos a propósito.
+    fixture.autoDetectChanges();
+    return { fixture, component };
+  }
+
+  it('Paso 1: el selector <select id="priority"> NO está en el DOM', async () => {
+    const { fixture } = await renderReport();
+    const select = fixture.nativeElement.querySelector('select#priority');
+    expect(select).toBeNull();
+  });
+
+  it('Paso 1: el form group sigue teniendo el control priority (el backend lo necesita)', async () => {
+    // El form control NO se elimina — sólo se quita el selector
+    // visible. La suscripción `categoryId.valueChanges` sigue
+    // poblando `priority` desde la categoría.
+    const { fixture } = await renderReport();
+    const component = fixture.componentInstance;
+    expect(component.form.get('priority')).not.toBeNull();
+  });
+
+  // 2026-10-16 — los tests del step restructure usan
+// `markForCheck` + `detectChanges` para evitar NG0100. El problema:
+// `currentStep` es una propiedad primitiva (no signal); Angular
+// OnPush no re-renderiza al mutarla sin un evento. `fixture.detectChanges()`
+// lo dispara pero `checkNoChanges` arroja NG0100 cuando el segundo
+// detectChanges ve un cambio respecto al anterior.
+//
+// Solución: marcar para check antes del detectChanges, así Angular
+// invalida el cache de "no changes since last check".
+function refresh(fixture: ComponentFixture<CitizenReportComponent>): void {
+  fixture.componentRef.changeDetectorRef.markForCheck();
+  fixture.detectChanges();
+}
+
+it('Paso 2 con categoría + priority=high: priority-badge visible con texto "Alta"', async () => {
+  const { fixture, component } = await renderReport();
+  await new Promise((r) => setTimeout(r, 0));
+  component.currentStep = 2;
+  component.form.patchValue({ categoryId: 'sub-1' });
+  await waitFor(() => {
+    expect(component.form.get('priority')?.value).toBe('high');
+  });
+  refresh(fixture);
+  const badge = fixture.nativeElement.querySelector(
+    '[data-testid="priority-badge"]',
+  );
+  expect(badge).toBeTruthy();
+  expect(badge?.textContent).toContain('Alta');
+});
+
+it('Paso 2 sin categoría seleccionada: priority-badge NO visible', async () => {
+  const { fixture, component } = await renderReport();
+  await new Promise((r) => setTimeout(r, 0));
+  component.currentStep = 2;
+  refresh(fixture);
+  const badge = fixture.nativeElement.querySelector(
+    '[data-testid="priority-badge"]',
+  );
+  expect(badge).toBeNull();
+});
+
+it('Paso 2: btn-attach-gallery presente', async () => {
+  const { fixture, component } = await renderReport();
+  await new Promise((r) => setTimeout(r, 0));
+  component.currentStep = 2;
+  refresh(fixture);
+  const galleryBtn = fixture.nativeElement.querySelector(
+    '[data-testid="btn-attach-gallery"]',
+  );
+  expect(galleryBtn).toBeTruthy();
+});
+
+it('Paso 2: btn-attach-camera presente con input capture="environment"', async () => {
+  const { fixture, component } = await renderReport();
+  await new Promise((r) => setTimeout(r, 0));
+  component.currentStep = 2;
+  refresh(fixture);
+  const cameraBtn = fixture.nativeElement.querySelector(
+    '[data-testid="btn-attach-camera"]',
+  );
+  expect(cameraBtn).toBeTruthy();
+  const input = cameraBtn?.querySelector(
+    'input[data-testid="input-camera"]',
+  ) as HTMLInputElement | null;
+  expect(input).toBeTruthy();
+  expect(input?.getAttribute('capture')).toBe('environment');
+});
+
+it('Paso 2: ambos inputs (galería + cámara) llaman a onPhotosSelected al cambiar', async () => {
+  const { fixture, component } = await renderReport();
+  await new Promise((r) => setTimeout(r, 0));
+  component.currentStep = 2;
+  refresh(fixture);
+  const spy = jest.spyOn(component, 'onPhotosSelected');
+
+  const galleryInput = fixture.nativeElement.querySelector(
+    'input[data-testid="input-gallery"]',
+  ) as HTMLInputElement;
+  const cameraInput = fixture.nativeElement.querySelector(
+    'input[data-testid="input-camera"]',
+  ) as HTMLInputElement;
+
+  galleryInput.dispatchEvent(new Event('change'));
+  cameraInput.dispatchEvent(new Event('change'));
+
+  expect(spy).toHaveBeenCalledTimes(2);
+});
 });

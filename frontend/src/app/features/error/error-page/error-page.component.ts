@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Location } from '@angular/common';
+import { AuthService } from '../../../core/services/auth.service';
 
 /**
  * F6 (`2026-09-08-f6-new-user-form`) — agrega logs visibles a consola
@@ -20,11 +21,27 @@ import { Location } from '@angular/common';
 export class ErrorPageComponent implements OnInit {
   private readonly location = inject(Location);
   private readonly router = inject(Router);
+  private readonly authService = inject(AuthService);
 
   errorCode = 404;
   errorTitle = 'Página no encontrada';
   errorDescription = 'La página que buscas no existe o fue movida.';
   attemptedUrl: string;
+
+  // 2026-10-19-dashboard-permission-gate — el botón "Volver al
+  // Panel" debe respetar el rol: `reporter` no tiene
+  // `READ dashboard` y el guard lo rebotaría. Mostramos el destino
+  // correcto según el signal `user`.
+  readonly homeRoute = computed(() =>
+    this.authService.user()?.roleName === 'reporter'
+      ? '/app/inicio'
+      : '/app/dashboard',
+  );
+  readonly homeLabel = computed(() =>
+    this.authService.user()?.roleName === 'reporter'
+      ? 'Volver a Inicio'
+      : 'Volver al Panel de Inicio',
+  );
 
   constructor() {
     this.attemptedUrl = this.location.path() || window.location.pathname;

@@ -26,6 +26,7 @@ describe('UsersListComponent (F6 rediseño)', () => {
     getUsers: jest.Mock;
     getRoles: jest.Mock;
     getOrganizations: jest.Mock;
+    getFormData: jest.Mock;
     deleteUser: jest.Mock;
   };
 
@@ -48,6 +49,7 @@ describe('UsersListComponent (F6 rediseño)', () => {
       ),
       getRoles: jest.fn().mockReturnValue(of([{ rolId: 1, nombre: 'ADMIN ORG' }])),
       getOrganizations: jest.fn().mockReturnValue(of([])),
+      getFormData: jest.fn().mockReturnValue(of({ roles: [], organizations: [], departments: [] })),
       deleteUser: jest.fn().mockReturnValue(of(undefined)),
     };
 
@@ -111,7 +113,10 @@ describe('UsersListComponent (F6 rediseño)', () => {
 
   it('onPageChange recarga del backend con la página nueva', () => {
     component.onPageChange(2);
-    expect(mockUsersService.getUsers).toHaveBeenCalledWith(2, 10, undefined, undefined);
+    // 2026-10-16 — toggle "mostrar inactivos": el componente ahora
+    // pasa un 5º arg (activeOnly: boolean | undefined) al service.
+    // `undefined` cuando el toggle está apagado.
+    expect(mockUsersService.getUsers).toHaveBeenCalledWith(2, 10, undefined, undefined, undefined);
   });
 
   it('onFilterChange guarda role/org en signals, resetea la página y refetch con los filtros (fix batch C.2)', () => {
@@ -123,7 +128,33 @@ describe('UsersListComponent (F6 rediseño)', () => {
     expect(component.selectedRole()).toBe('1');
     expect(component.selectedOrg()).toBe('org-1');
     expect(component.currentPage()).toBe(1);
-    expect(mockUsersService.getUsers).toHaveBeenCalledWith(1, 10, '1', 'org-1');
+    expect(mockUsersService.getUsers).toHaveBeenCalledWith(1, 10, '1', 'org-1', undefined);
+  });
+
+  // 2026-10-16 — toggle "mostrar inactivos": al activar, el
+  // componente llama a `getUsers` con `activeOnly=false`. Al
+  // desactivar, vuelve a `undefined`.
+  it('onToggleInactive(active=true) refetches con activeOnly=false y resetea a página 1', () => {
+    component.onPageChange(3);
+    mockUsersService.getUsers.mockClear();
+
+    component.onToggleInactive(true);
+
+    expect(component.showInactiveOnly()).toBe(true);
+    expect(component.currentPage()).toBe(1);
+    expect(mockUsersService.getUsers).toHaveBeenCalledWith(1, 10, undefined, undefined, false);
+  });
+
+  it('onToggleInactive(active=false) refetches con activeOnly undefined (default)', () => {
+    component.showInactiveOnly.set(true);
+    component.onPageChange(2);
+    mockUsersService.getUsers.mockClear();
+
+    component.onToggleInactive(false);
+
+    expect(component.showInactiveOnly()).toBe(false);
+    expect(component.currentPage()).toBe(1);
+    expect(mockUsersService.getUsers).toHaveBeenCalledWith(1, 10, undefined, undefined, undefined);
   });
 
   // ── Filtros role/org locales (UX fix: el backend ignora role/org

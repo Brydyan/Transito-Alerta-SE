@@ -199,7 +199,7 @@
                      el form no lo tenía, así que editar un user con
                      `organization_id` no mostraba ni dejaba cambiar
                      la organización. El dropdown es opcional: un
-                     user sin org (e.g. `master`, `operador_sistema`)
+                     user sin org (e.g. `master`, `agent_system`)
                      puede quedar con `null`. -->
                 <div class="md:col-span-2">
                   <label for="form-organizationId" class="form-label">
@@ -219,6 +219,102 @@
               </div>
             </div>
           </div>
+
+@if (isMaster() && isEditing()) {
+            <hr class="border-t border-slate-200 my-6" />
+
+            <!-- 2026-10-15-user-status-notif-channel (S3) — Cuenta
+                 section, Master-only. Contains the active toggle and
+                 the preferred notification channel selector. The
+                 toggle is disabled when the target is the caller
+                 (defense in depth — the backend service rejects
+                 self-deactivation with 403). -->
+            <div data-testid="cuenta-section">
+              <h6 class="font-semibold mb-3 flex items-center gap-2 text-slate-500 text-sm uppercase tracking-wider">
+                Cuenta
+              </h6>
+              <p class="text-slate-500 text-sm mb-4">
+                Controle el estado de la cuenta y el canal de notificaciones preferido del usuario.
+              </p>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Active toggle -->
+                <div class="flex items-start gap-3">
+                  <input
+                    id="form-isActive"
+                    type="checkbox"
+                    class="form-check-input shrink-0"
+                    [checked]="userForm.get('isActive')?.value === true"
+                    [disabled]="isSelfEdit()"
+                    (change)="onToggleActive($event)"
+                    data-testid="toggle-is-active"
+                    [attr.aria-label]="
+                      isSelfEdit()
+                        ? 'No podés desactivar tu propia cuenta'
+                        : 'Activar o desactivar la cuenta del usuario'
+                    "
+                  />
+                  <label for="form-isActive" class="form-check-label text-sm cursor-pointer">
+                    <span class="font-medium text-slate-800">Cuenta activa</span>
+                    <small class="block text-slate-500 mt-1">
+                      @if (isSelfEdit()) {
+                        No podés desactivar tu propia cuenta desde este formulario.
+                      } @else {
+                        Desactivar invalida las sesiones activas en la próxima petición del usuario.
+                      }
+                    </small>
+                  </label>
+                </div>
+
+                <!-- Channel selector -->
+                <div>
+                  <label for="form-preferredChannel" class="form-label">
+                    Canal de notificaciones preferido
+                  </label>
+                  <select
+                    id="form-preferredChannel"
+                    class="form-control"
+                    formControlName="preferredNotificationChannel"
+                    data-testid="select-preferred-channel"
+                  >
+                    <option value="email">Correo Electrónico</option>
+                    <option value="telegram">Telegram</option>
+                  </select>
+                  <small class="block text-slate-500 mt-1">
+                    Se usará para notificaciones operativas. La preferencia ya queda persistida.
+                  </small>
+                </div>
+              </div>
+
+              <!-- 2026-10-16-resend-invitation (D4, D5) — botón
+                   visible sólo cuando (a) el caller es Master — ya
+                   estamos dentro del `@if (isMaster() && isEditing())`
+                   padre, (b) el target tiene una invitación pendiente
+                   (`hasPendingInvitation`). El gate doble (Master +
+                   hasPendingInvitation) evita que aparezca para
+                   usuarios desactivados (también `isActive = false`
+                   pero ya tienen cuenta). El reenvío llama
+                   `POST /api/admin/users/invite` con el mismo email/
+                   roleId/orgId — el backend mintea un token nuevo y
+                   manda el correo con el styled template. -->
+              @if (canShowResend()) {
+                <div class="mt-4 flex flex-col gap-2" data-testid="resend-invitation-block">
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary font-medium"
+                    data-testid="btn-resend-invitation"
+                    [disabled]="isResending()"
+                    (click)="resendInvitation()"
+                  >
+                    {{ isResending() ? 'Reenviando…' : 'Reenviar invitación' }}
+                  </button>
+                  <small class="text-slate-500">
+                    El usuario aún no completó el alta — reenvía la invitación para que pueda fijar contraseña.
+                  </small>
+                </div>
+              }
+            </div>
+          }
 
           @if (isAdminOrSuperadmin()) {
             <hr class="border-t border-slate-200 my-6" />

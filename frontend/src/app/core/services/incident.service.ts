@@ -64,6 +64,10 @@ export class IncidentService {
     return this.httpService.get<Incident>(`/incidents/${id}`);
   }
 
+  getIncidentImages(id: string): Observable<IncidentImage[]> {
+    return this.httpService.get<IncidentImage[]>(`/incidents/${id}/images`);
+  }
+
   createIncident(dto: CreateIncidentDto): Observable<Incident> {
     return this.httpService.post<Incident>('/incidents', dto).pipe(
       tap((incident) => {

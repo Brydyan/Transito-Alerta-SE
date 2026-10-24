@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { PassThrough, Readable } from 'stream';
 import * as ExcelJS from 'exceljs';
-import { AuthContext } from '../../common/authz/subject-scope';
+import { AuthContext } from '../../shared/authz/subject-scope';
 import { ExportQueryDto } from './dto/export-query.dto';
 
 export type ExportFormat = 'csv' | 'xlsx';

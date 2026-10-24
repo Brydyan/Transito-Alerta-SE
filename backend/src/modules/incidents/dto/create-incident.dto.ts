@@ -8,7 +8,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-import { IncidentPriority } from '../../../entities/incident.entity';
+import { IncidentPriority } from '../entities/incident.entity';
 
 export class CreateIncidentDto {
   @IsString()

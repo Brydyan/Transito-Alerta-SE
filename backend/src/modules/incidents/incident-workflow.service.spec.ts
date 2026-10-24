@@ -12,9 +12,10 @@ import { DataSource, Repository } from 'typeorm';
 
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
-import { REDIS_CLIENT } from '../../core/core.module';
+import { REDIS_CLIENT } from '../../infra/core.module';
+import { PermissionLookupService } from '../../shared/permissions/permission-lookup.service';
 import { GeofencingService } from '../geofencing/geofencing.service';
-import { OrganizationEntity } from '../../entities/organization.entity';
+import { OrganizationEntity } from '../organizations/entities/organization.entity';
 import { IncidentWorkflowService } from './incident-workflow.service';
 
 import {
@@ -43,12 +44,29 @@ const SIDE_EFFECT_DOUBLES = [
   },
   { provide: EventEmitter2, useValue: { emit: jest.fn() } },
   { provide: REDIS_CLIENT, useValue: { xadd: jest.fn().mockResolvedValue('1-0') } },
+  // F6 fix (post-0051): `changeStatus()` traduce (action, resource) → UUID
+  // vía el resolver antes de comparar (las perms del user ahora son UUIDs).
+  // Stub devuelve `"ACTION resource"` —el string formateado que los tests
+  // usan en `actorPermissions`— para mantener los asserts de auth exactos.
+  {
+    provide: PermissionLookupService,
+    useValue: {
+      getUuid: jest.fn(async (action: string, resource: string) => `${action} ${resource}`),
+    },
+  },
 ];
 
 // ---------- helpers ----------------------------------------------------------
 
 function makeDataSource(queryMock: jest.Mock) {
-  return { query: queryMock } as unknown as DataSource;
+  // claim() ahora corre en `DataSource.transaction` (historial atómico,
+  // S.5.1); el manager comparte el mismo mock query en cola.
+  const ds = { query: queryMock } as unknown as DataSource;
+  (ds as { transaction?: unknown }).transaction = jest.fn(
+    async (cb: (m: { query: jest.Mock; queryRunner: { query: jest.Mock } }) => unknown) =>
+      cb({ query: queryMock, queryRunner: { query: queryMock } }),
+  );
+  return ds;
 }
 
 function makeOrgRepo(org: Partial<OrganizationEntity> | null) {
@@ -57,10 +75,10 @@ function makeOrgRepo(org: Partial<OrganizationEntity> | null) {
   } as unknown as Repository<OrganizationEntity>;
 }
 
-const OP_A = { id: 'op-a', organizationId: 'org-X', role: 'operador_org' };
-const OP_B = { id: 'op-b', organizationId: 'org-X', role: 'operador_org' };
+const OP_A = { id: 'op-a', organizationId: 'org-X', role: 'operator_org' };
+const OP_B = { id: 'op-b', organizationId: 'org-X', role: 'operator_org' };
 const ADMIN = { id: 'admin-1', organizationId: 'org-X', role: 'master' };
-const OUTSIDER = { id: 'op-z', organizationId: 'org-Y', role: 'operador_org' };
+const OUTSIDER = { id: 'op-z', organizationId: 'org-Y', role: 'operator_org' };
 
 const INCIDENT = {
   id: 'inc-1',
@@ -114,15 +132,20 @@ describe('IncidentWorkflowService.claim', () => {
   });
 
   it('lets a system admin claim across orgs', async () => {
-    // 1) loadIncident → [INCIDENT]  2) active-count → 0  3) CAS → [updated]
-    const updated = { ...INCIDENT, claimed_by: ADMIN.id };
+    // 1) loadIncident → [INCIDENT]  2) active-count → 0
+    // 3) FOR UPDATE lock → [INCIDENT]  4) UPDATE claim → [updated]
+    // 5) INSERT status_history → []
+    const updated = { ...INCIDENT, claimed_by: ADMIN.id, status: 'in_progress' };
     const svc = await buildService([
       [INCIDENT],
       [{ count: '0' }],
+      [INCIDENT],
       [updated],
+      [],
     ]);
     const res = await svc.claim('inc-1', ADMIN);
     expect(res.claimedBy).toBe(ADMIN.id);
+    expect(res.status).toBe('in_progress');
   });
 
   it('throws HttpException with CLAIM_LIMIT_REACHED when the operator is at the cap', async () => {
@@ -136,29 +159,45 @@ describe('IncidentWorkflowService.claim', () => {
     expect(err.message).toContain(CLAIM_LIMIT_REACHED);
   });
 
-  it('throws ConflictException with INCIDENT_ALREADY_CLAIMED on CAS miss', async () => {
-    // 1) loadIncident  2) active-count = 0  3) CAS returns []
-    const svc = await buildService([[INCIDENT], [{ count: '0' }], []]);
+  it('throws ConflictException with INCIDENT_ALREADY_CLAIMED when the row is already claimed', async () => {
+    // 1) loadIncident  2) active-count = 0  3) FOR UPDATE lock devuelve
+    // una fila cuyo claimed_by ya está ocupado por otro operador.
+    const taken = { ...INCIDENT, claimed_by: OP_B.id };
+    const svc = await buildService([
+      [INCIDENT],
+      [{ count: '0' }],
+      [taken],
+    ]);
     const err = await svc.claim('inc-1', OP_A).catch((e) => e);
     expect(err).toBeInstanceOf(ConflictException);
     expect(err.message).toContain(INCIDENT_ALREADY_CLAIMED);
   });
 
   it('returns the updated row on the happy path', async () => {
-    const updated = { ...INCIDENT, claimed_by: OP_A.id };
-    const svc = await buildService([[INCIDENT], [{ count: '0' }], [updated]]);
+    // sc-405: el claim ahora transiciona pending → in_progress y registra
+    // el historial en la misma transacción.
+    const updated = { ...INCIDENT, claimed_by: OP_A.id, status: 'in_progress' };
+    const svc = await buildService([
+      [INCIDENT],
+      [{ count: '0' }],
+      [INCIDENT],
+      [updated],
+      [],
+    ]);
     const res = await svc.claim('inc-1', OP_A);
     expect(res.claimedBy).toBe(OP_A.id);
     expect(res.id).toBe('inc-1');
-    expect(res.status).toBe('pending');
+    expect(res.status).toBe('in_progress');
   });
 
   it('does not manually write updated_at in the claim UPDATE (trigger handles it)', async () => {
-    const updated = { ...INCIDENT, claimed_by: OP_A.id };
+    const updated = { ...INCIDENT, claimed_by: OP_A.id, status: 'in_progress' };
     const queryMock = jest.fn();
     queryMock.mockResolvedValueOnce([INCIDENT]); // loadIncident
     queryMock.mockResolvedValueOnce([{ count: '0' }]); // activeClaimCountFor
+    queryMock.mockResolvedValueOnce([INCIDENT]); // FOR UPDATE lock
     queryMock.mockResolvedValueOnce([updated]); // claim UPDATE
+    queryMock.mockResolvedValueOnce([]); // INSERT status_history
 
     const module = await Test.createTestingModule({
       providers: [
@@ -172,10 +211,36 @@ describe('IncidentWorkflowService.claim', () => {
 
     await svc.claim('inc-1', OP_A);
 
-    const claimUpdateCall = queryMock.mock.calls[2]; // third call is the claim UPDATE
+    const claimUpdateCall = queryMock.mock.calls[3]; // 4th call is the claim UPDATE
     const sql = claimUpdateCall[0];
     expect(sql).not.toContain('updated_at = ');
     expect(sql).toContain('claimed_at = NOW()');
+  });
+
+  it('writes status_history with the pending → in_progress transition (sc-405)', async () => {
+    const updated = { ...INCIDENT, claimed_by: OP_A.id, status: 'in_progress' };
+    const queryMock = jest.fn();
+    queryMock.mockResolvedValueOnce([INCIDENT]); // loadIncident
+    queryMock.mockResolvedValueOnce([{ count: '0' }]); // activeClaimCountFor
+    queryMock.mockResolvedValueOnce([INCIDENT]); // FOR UPDATE lock
+    queryMock.mockResolvedValueOnce([updated]); // claim UPDATE
+    queryMock.mockResolvedValueOnce([]); // INSERT status_history
+
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: makeDataSource(queryMock) },
+      ],
+    }).compile();
+    const svc = module.get(IncidentWorkflowService);
+
+    await svc.claim('inc-1', OP_A);
+
+    const historyCall = queryMock.mock.calls[4]; // 5th call is the history INSERT
+    expect(historyCall[0]).toContain('INSERT INTO status_history');
+    expect(historyCall[1]).toEqual(['inc-1', OP_A.id, 'pending', 'in_progress']);
   });
 });
 
@@ -245,8 +310,11 @@ describe('IncidentWorkflowService.availableOperators', () => {
     expect(await svc.availableOperators('inc-1')).toEqual([]);
   });
 
-  it('returns operators under the cap, excluding the current claimer', async () => {
-    const claimed = { ...INCIDENT, claimed_by: OP_A.id };
+  it('returns operators under the cap, excluding the current claimer (un-categorized fallback)', async () => {
+    // Un-categorized incident → falls back to the pre-fix SQL (no CTE,
+    // no dept filter). The mock simulates the row that the new
+    // TRIM(first||' '||last) alias returns (post bug-fix A).
+    const claimed = { ...INCIDENT, claimed_by: OP_A.id, category_id: null };
     // 1) loadIncident  2) operator SELECT — only OP_B returned (OP_A excluded, count < max)
     const svc = await buildService(
       [
@@ -254,7 +322,7 @@ describe('IncidentWorkflowService.availableOperators', () => {
         [
           {
             id: OP_B.id,
-            name: 'operator-b-device',
+            name: 'Bea Two',
             email: 'b@x.test',
             active_count: '2',
           },
@@ -266,6 +334,143 @@ describe('IncidentWorkflowService.availableOperators', () => {
     expect(list).toHaveLength(1);
     expect(list[0].id).toBe(OP_B.id);
     expect(list[0].activeClaimCount).toBe(2);
+    // Bug-fix (A) — the wire `name` is human-readable, not a UUID.
+    expect(list[0].name).toBe('Bea Two');
+  });
+
+  // F7 emergency-dispatch (design D4) — `availableOperators` now
+  // informs instead of filters. Saturated operators show up with
+  // `available: false` and the per-org cap.
+  it('returns saturated operators with available: false and the per-org maxActive (F7 D4, un-categorized fallback)', async () => {
+    const claimed = { ...INCIDENT, claimed_by: null, category_id: null };
+    const svc = await buildService(
+      [
+        [claimed],
+        [
+          {
+            id: OP_A.id,
+            name: 'Ada One',
+            email: 'a@x.test',
+            active_count: '5',
+          },
+          {
+            id: OP_B.id,
+            name: 'Bea Two',
+            email: 'b@x.test',
+            active_count: '2',
+          },
+        ],
+      ],
+      { id: 'org-X', maxActiveClaims: 5 } as OrganizationEntity,
+    );
+    const list = await svc.availableOperators('inc-1');
+    expect(list).toHaveLength(2);
+    const a = list.find((o) => o.id === OP_A.id)!;
+    const b = list.find((o) => o.id === OP_B.id)!;
+    expect(a.available).toBe(false);
+    expect(a.maxActive).toBe(5);
+    expect(b.available).toBe(true);
+    expect(b.maxActive).toBe(5);
+    // Bug-fix (A) — verify the human-readable alias survives the
+    // saturated path too.
+    expect(a.name).toBe('Ada One');
+    expect(b.name).toBe('Bea Two');
+  });
+
+  // Bug-fix (this change) — categorized incident takes the CTE branch.
+  // The CTE itself returns no rows to the mock (we don't assert on it),
+  // but the service must still execute the operator SELECT in the same
+  // parameterized form so the test can hand back a curated result.
+  it('returns operators filtered by department-category for a categorized incident (bug-fix B)', async () => {
+    const claimed = {
+      ...INCIDENT,
+      claimed_by: null,
+      category_id: 'cat-traffic-accidents',
+    };
+    // The service runs the new CTE + operator SELECT once the
+    // incident's category_id is non-null. We hand back a row whose
+    // `name` is the human-readable alias the fix produces.
+    const svc = await buildService(
+      [
+        [claimed],
+        [
+          {
+            id: OP_A.id,
+            name: 'Ada One',
+            email: 'a@x.test',
+            active_count: '0',
+          },
+        ],
+      ],
+      { id: 'org-X', maxActiveClaims: 5 } as OrganizationEntity,
+    );
+    const list = await svc.availableOperators('inc-1');
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe(OP_A.id);
+    // Bug-fix (A): human-readable name.
+    expect(list[0].name).toBe('Ada One');
+    // Bug-fix (B): the SELECT was the CTE + dept-filter branch — assert
+    // the SQL the service emitted has the right shape. We reach into
+    // the queue-style mock by re-running with a captured queryMock so
+    // we can inspect the actual SQL string.
+    const queryMock = jest.fn();
+    queryMock.mockResolvedValueOnce([claimed]); // loadIncident
+    queryMock.mockResolvedValueOnce([
+      { id: OP_A.id, name: 'Ada One', email: 'a@x.test', active_count: '0' },
+    ]); // CTE + operator SELECT
+    const module = await Test.createTestingModule({
+      providers: [
+        IncidentWorkflowService,
+        ...SIDE_EFFECT_DOUBLES,
+        { provide: getRepositoryToken(OrganizationEntity), useValue: makeOrgRepo(null) },
+        { provide: DataSource, useValue: makeDataSource(queryMock) },
+      ],
+    }).compile();
+    const svc2 = module.get(IncidentWorkflowService);
+    await svc2.availableOperators('inc-1');
+    const operatorSelectCall = queryMock.mock.calls[1];
+    const sql = operatorSelectCall[0] as string;
+    expect(sql).toContain('department_incident_categories');
+    expect(sql).toMatch(/WITH category_depts/);
+    expect(sql).toContain('u.department_id IS NULL');
+    expect(sql).toContain("TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, ''))");
+    // The params carry the org id, the claimer (null), and the
+    // category_id — positional, in that order.
+    expect(operatorSelectCall[1]).toEqual([
+      'org-X',
+      null,
+      'cat-traffic-accidents',
+    ]);
+  });
+
+  // Bug-fix (this change) — the un-categorized branch must NOT execute
+  // the dept-category CTE (no point; no category to scope by). The
+  // wire response should still include a dept-less operator if the
+  // SQL hands one back.
+  it('keeps the dept-less / polyvalent operator in the un-categorized fallback path (bug-fix A)', async () => {
+    const claimed = { ...INCIDENT, claimed_by: null, category_id: null };
+    const svc = await buildService(
+      [
+        [claimed],
+        [
+          {
+            // No department, no name parts — the TRIM() guard makes
+            // the wire name the empty string, NOT a UUID. The frontend
+            // shows a placeholder; the dropdown still includes them.
+            id: OP_A.id,
+            name: '',
+            email: null,
+            active_count: '0',
+          },
+        ],
+      ],
+      { id: 'org-X', maxActiveClaims: 5 } as OrganizationEntity,
+    );
+    const list = await svc.availableOperators('inc-1');
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe(OP_A.id);
+    expect(list[0].name).toBe(''); // human-readable, NOT a UUID
+    expect(list[0].email).toBeNull();
   });
 });
 

@@ -1,0 +1,381 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "sequence",
+  "quality": "showcase",
+  "startedAt": "2026-10-10T16:53:39.125Z",
+  "specification": {
+    "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/candidate.json",
+    "sha256": "08f7ebb593541dbf75dae97a3af47bcdb366856ee07451f4aa09aa426f04ef08",
+    "bytes": 4930
+  },
+  "artifact": {
+    "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+    "sha256": "631b191e93446fd0c74d1626e72dc9633fa6f651d5e06d389f1e9de0b4cb96cf",
+    "bytes": 764255
+  },
+  "stages": {
+    "validate": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": null,
+      "execution": "embedded-in-deliver",
+      "command": [
+        "/usr/bin/node",
+        "/home/andy/.agents/skills/archify/bin/archify.mjs",
+        "deliver",
+        "sequence",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/candidate.json",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "validate",
+        "specification": {
+          "sha256": "08f7ebb593541dbf75dae97a3af47bcdb366856ee07451f4aa09aa426f04ef08",
+          "bytes": 4930
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        }
+      }
+    },
+    "deliver": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 210,
+      "command": [
+        "/usr/bin/node",
+        "/home/andy/.agents/skills/archify/bin/archify.mjs",
+        "deliver",
+        "sequence",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/candidate.json",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "receiptId": "34842872-0b7b-43b6-8d4c-dbd309d8a7f2",
+        "ok": true,
+        "command": "deliver",
+        "type": "sequence",
+        "input": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/candidate.json",
+        "output": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+        "specification": {
+          "sha256": "08f7ebb593541dbf75dae97a3af47bcdb366856ee07451f4aa09aa426f04ef08",
+          "bytes": 4930
+        },
+        "artifact": {
+          "sha256": "631b191e93446fd0c74d1626e72dc9633fa6f651d5e06d389f1e9de0b4cb96cf",
+          "bytes": 764255
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        },
+        "evidence": {
+          "verified": true,
+          "repository": "https://github.com/Brydyan/Transito-Alerta-SE",
+          "revision": "ea71d353abaef60b5592e8b5abd48a3c9040506b",
+          "references": 2
+        },
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      }
+    },
+    "check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 89,
+      "command": [
+        "/usr/bin/node",
+        "/home/andy/.agents/skills/archify/bin/archify.mjs",
+        "check",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+        "--require-provenance"
+      ],
+      "receipt": {
+        "ok": true,
+        "file": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+        "artifact": {
+          "sha256": "631b191e93446fd0c74d1626e72dc9633fa6f651d5e06d389f1e9de0b4cb96cf",
+          "bytes": 764255
+        },
+        "checks": [
+          {
+            "name": "single_svg",
+            "ok": true,
+            "details": [
+              "found 1 <svg> block(s)"
+            ]
+          },
+          {
+            "name": "finite_svg",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "orthogonal_arrows",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "label_route_clearance",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_crossings",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_corridors",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "container_border_runs",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "route_rhythm",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "legend_clearance",
+            "ok": true,
+            "details": []
+          }
+        ],
+        "composition": {
+          "schemaVersion": 1,
+          "profile": "showcase",
+          "status": "pass",
+          "summary": {
+            "errors": 0,
+            "warnings": 0
+          },
+          "metrics": {
+            "properCrossings": 0,
+            "resolvedCrossovers": 0,
+            "ambiguousCorridors": 0,
+            "arrowheadCollisions": 0,
+            "containerBorderRuns": 0,
+            "labelRouteClearanceIssues": 0,
+            "labelCanvasOverflowIssues": 0,
+            "minLabelRouteClearance": 10,
+            "desktopReadabilityIssues": 0,
+            "viewportHeightIssues": 0,
+            "minProjectedNodeTextPx": 6.027777777777779,
+            "maxBends": 0,
+            "routesOverSuggestedBends": 0,
+            "maxStretch": 1,
+            "routesOverSuggestedStretch": 0,
+            "minSegmentPx": 130.2,
+            "minInteriorSegmentPx": null,
+            "shortSegmentCount": 0,
+            "shortEndpointSegmentCount": 0,
+            "shortInteriorSegmentCount": 0,
+            "microSegmentCount": 0
+          },
+          "suggestedLimits": {
+            "bendsPerRelationship": 2,
+            "stretch": 1.35,
+            "segmentPx": 16,
+            "microSegmentPx": 8
+          },
+          "routeReview": {
+            "crossings": [],
+            "detours": []
+          },
+          "leadingSpace": {
+            "measured": false,
+            "reviewSuggested": false
+          },
+          "sequenceColumnSpace": {
+            "measured": true,
+            "columnFit": "spread",
+            "participantCount": 7,
+            "occupiedRight": 1040,
+            "viewBoxLeft": 0,
+            "canvasWidth": 1080,
+            "emptyRightPx": 40,
+            "emptyRightRatio": 0.037,
+            "typicalParticipantWidth": 113,
+            "reviewSuggested": false
+          },
+          "desktopReadability": {
+            "budgetBasis": "legacy-930",
+            "readerContract": "declared-wide-v1",
+            "availableDiagramWidth": 930,
+            "actualBudgetPx": 930,
+            "limit": "legacy",
+            "requestedTargetPx": null,
+            "requestedTargetMet": null,
+            "hardFloorPx": 6,
+            "hardFloorMet": true,
+            "minimumOwner": {
+              "kind": "node",
+              "id": "citizen"
+            },
+            "minimumSourceTextPx": 7,
+            "minimumProjectedTextPx": 6.027777777777779,
+            "semanticTextCount": 26
+          },
+          "issues": []
+        },
+        "provenance": "current",
+        "deliveryReceiptId": "34842872-0b7b-43b6-8d4c-dbd309d8a7f2"
+      }
+    },
+    "browser-check": {
+      "status": "skipped",
+      "exitCode": 2,
+      "durationMs": 10,
+      "command": [
+        "/usr/bin/node",
+        "/home/andy/.agents/skills/archify/bin/archify.mjs",
+        "browser-check",
+        "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+        "--json",
+        "--require-provenance"
+      ],
+      "execution": "in-process",
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "browser-check",
+        "evidenceKind": "automated-browser",
+        "status": "skipped",
+        "visualReview": "not-requested",
+        "provenance": "current",
+        "deliveryReceiptId": "34842872-0b7b-43b6-8d4c-dbd309d8a7f2",
+        "artifact": {
+          "path": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html",
+          "sha256": "631b191e93446fd0c74d1626e72dc9633fa6f651d5e06d389f1e9de0b4cb96cf",
+          "bytes": 764255
+        },
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "chrome": {
+          "status": "unavailable",
+          "executable": null
+        },
+        "diagnostics": [
+          {
+            "code": "viewer/chrome-unavailable",
+            "severity": "warning",
+            "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+            "subject": {
+              "artifact": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html"
+            },
+            "evidence": {
+              "executable": null
+            },
+            "supportedFixes": [
+              "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+            ]
+          }
+        ],
+        "containment": {
+          "status": "skipped",
+          "policy": "fit-or-reader-declared-readable-vertical-scroll",
+          "viewports": []
+        },
+        "themeStates": {
+          "status": "skipped",
+          "viewports": []
+        },
+        "readability": {
+          "status": "skipped",
+          "minimumProjectedNodeTextPx": 6,
+          "viewports": []
+        },
+        "viewerChrome": {
+          "status": "skipped",
+          "viewports": []
+        },
+        "captures": {
+          "status": "not-requested",
+          "screenshots": [],
+          "contactSheet": null
+        },
+        "sidecars": {
+          "receipt": "emergency-dispatch.browser-check.json",
+          "files": []
+        },
+        "error": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path."
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+      ]
+    }
+  ],
+  "evidence": {
+    "receipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.finalize.json",
+    "summaryReceipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.finalize-summary.json",
+    "browserCheckReceipt": "/home/andy/Escritorio/PROYECTOS/TASE/Transito-Alerta-SE/.archify/sequence-emergency-dispatch-20261010-115500/emergency-dispatch.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "browser-check",
+  "finishedAt": "2026-10-10T16:53:39.534Z",
+  "durationMs": 408,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-10T16:18:40.834Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}

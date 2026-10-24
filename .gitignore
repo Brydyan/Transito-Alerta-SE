@@ -3,6 +3,7 @@
 .env.local
 .env.*.local
 .env.production.local
+.env.staging
 
 # Dependencies
 node_modules/
@@ -119,9 +120,26 @@ MEMORY.md
 AGENTS.md
 CLAUDE.md
 IA.md
-.atl
-.codegraph
-.rtk
+.atl/
+.codegraph/
+.rtk/
+# Archify skill output — HTML/JSON de diagramas de arquitectura que la
+# skill `archify` regenera en cada invocación. NO son código fuente.
+.archify/
+CHECKPOINTS.md
+
+# AI coding assistants — defense-in-depth (ninguno presente hoy, pero si
+# un dev instala Cursor/Aider/Windsurf/etc., el ruido de su estado local
+# no debe llegar al repo). Mantener sincronizado con la lista en
+# database/MIGRATION_LOG.md si se añaden tools nuevas.
+.aider*
+.aider.chat.history.md
+.cursor/
+.windsurf/
+.kiro/
+.continue/
+.cody/
+.tabnine/
 
 # Frontend build output (regenerated on deploy)
 frontend/dist/
