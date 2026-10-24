@@ -23,7 +23,6 @@ import {
 import { UiPageHeaderComponent } from '../../../shared/components/ui-page-header/ui-page-header.component';
 import { UiBadgeComponent, UiBadgeStatus, UiBadgePriority } from '../../../shared/components/ui-badge/ui-badge.component';
 import { UiIconComponent } from '../../../shared/components/ui-icon/ui-icon.component';
-import { ViewActionBtnComponent } from '../../../shared/components/view-action-btn/view-action-btn.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { TableSkeletonComponent } from '../../../shared/components/table-skeleton/table-skeleton.component';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
@@ -86,7 +85,6 @@ function extractPlaceName(data: { address?: Record<string, string>; display_name
     UiPageHeaderComponent,
     UiBadgeComponent,
     UiIconComponent,
-    ViewActionBtnComponent,
     EmptyStateComponent,
     TableSkeletonComponent,
     PaginationComponent,

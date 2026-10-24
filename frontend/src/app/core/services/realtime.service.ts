@@ -101,7 +101,7 @@ export class RealtimeService implements OnDestroy {
         this._notifications$.next(payload.data);
       }
     });
-    this.socket.on('connect_error', (err) => {
+    this.socket.on('connect_error', (err: unknown) => {
       // El backend emite 401 cuando el JWT expira o es inválido.
       // Cerramos el socket para forzar re-conexión con el nuevo token
       // después del refresh silencioso del AuthService.
