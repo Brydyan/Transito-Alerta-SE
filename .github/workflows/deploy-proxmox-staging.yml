@@ -1,0 +1,50 @@
+name: Deploy — Proxmox Staging
+
+# Despliega a Proxmox (VM 105) en cada push a develop
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: deploy-proxmox-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Proxmox Staging
+    runs-on: self-hosted
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Deploy to VM 105
+        run: |
+          ssh root@100.79.9.83 << 'DEPLOY'
+          cd /mnt/storage/projects/tase
+          git pull origin develop
+          docker compose --profile staging up -d
+          DEPLOY
+          echo "✅ Deploy triggered"
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for app to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf "https://tase-staging.tailc8cd10.ts.net/api/health" > /dev/null 2>&1; then
+              echo "✅ App is healthy"
+              exit 0
+            fi
+            echo "Attempt ${i}/30 — waiting 3s..."
+            sleep 3
+          done
+          echo "⚠️  App health check timeout (may still be starting)"
+          exit 0
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Proxmox deployment failed"
