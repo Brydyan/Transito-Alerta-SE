@@ -12,7 +12,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy to Proxmox Staging
-    runs-on: self-hosted
+    runs-on: [self-hosted, proxmox-staging]
     environment: staging
 
     steps:
